@@ -24,7 +24,10 @@ test("palette ranks contiguous/prefix matches above sparse subsequence", () => {
   const workdirIdx = commands.indexOf("/workdir");
   assert.ok(newIdx >= 0, "new-session present");
   if (workdirIdx >= 0) {
-    assert.ok(newIdx < workdirIdx, `new-session (${newIdx}) should rank before workdir (${workdirIdx})`);
+    assert.ok(
+      newIdx < workdirIdx,
+      `new-session (${newIdx}) should rank before workdir (${workdirIdx})`,
+    );
   }
   assert.equal(entries[0]?.command, "/new-session");
 });
@@ -84,9 +87,12 @@ test("double-Esc arm shows Esc again: tree via toast, not input meta", () => {
     hasOverlay: () => false,
   };
   const editor = { getText: () => "", setText: () => undefined };
-  assert.deepEqual(handleEscapeKey(state, tab, tui, undefined, editor, () => false), {
-    consume: true,
-  });
+  assert.deepEqual(
+    handleEscapeKey(state, tab, tui, undefined, editor, () => false),
+    {
+      consume: true,
+    },
+  );
   assert.ok(typeof tab.lastEscapeTime === "number");
   assert.equal(tab.toast?.type, "info");
   assert.match(tab.toast?.message ?? "", /Esc again: tree/);

@@ -7,7 +7,11 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { loadSkillsFromDir } from "@earendil-works/pi-coding-agent";
-import { type AutocompleteItem, type AutocompleteProvider, fuzzyMatch } from "@earendil-works/pi-tui";
+import {
+  type AutocompleteItem,
+  type AutocompleteProvider,
+  fuzzyMatch,
+} from "@earendil-works/pi-tui";
 
 /** A skill usable for $ref expansion and completion. */
 export interface SkillRefEntry {
@@ -199,7 +203,7 @@ async function collectGitPackageSkillDirs(
  */
 export async function scanSkillDirs(
   cwd: string,
-  homeDir = (process.env.HOME || os.homedir()),
+  homeDir = process.env.HOME || os.homedir(),
   agentDir?: string,
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<Map<string, SkillRefEntry>> {
@@ -213,14 +217,15 @@ export async function scanSkillDirs(
     rawProjectOnly !== "false" &&
     rawProjectOnly !== "off" &&
     rawProjectOnly !== "no";
-  const dirs = (projectOnly
-    ? [projectSkillsDir]
-    : [
-        projectSkillsDir,
-        path.join(homeDir, ".agents", "skills"),
-        path.join(resolvedAgentDir, "skills"),
-        ...(await listPackageSkillDirs(resolvedAgentDir)),
-      ]
+  const dirs = (
+    projectOnly
+      ? [projectSkillsDir]
+      : [
+          projectSkillsDir,
+          path.join(homeDir, ".agents", "skills"),
+          path.join(resolvedAgentDir, "skills"),
+          ...(await listPackageSkillDirs(resolvedAgentDir)),
+        ]
   ).map((dir) => path.resolve(dir));
 
   const entries = new Map<string, SkillRefEntry>();

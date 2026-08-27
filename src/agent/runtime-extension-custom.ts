@@ -59,10 +59,9 @@ export function addWaitingForInput(runtimeTab: RuntimeTab, id: string, kind: "cu
 
 export function removeWaitingForInput(runtimeTab: RuntimeTab, id: string): void {
   const before = runtimeTab.tab.extensionUi.waitingForInputs.length;
-  runtimeTab.tab.extensionUi.waitingForInputs =
-    runtimeTab.tab.extensionUi.waitingForInputs.filter(
-      (interaction) => interaction.id !== id,
-    );
+  runtimeTab.tab.extensionUi.waitingForInputs = runtimeTab.tab.extensionUi.waitingForInputs.filter(
+    (interaction) => interaction.id !== id,
+  );
   if (before !== runtimeTab.tab.extensionUi.waitingForInputs.length) {
     syncWaitingForInput(runtimeTab.tab);
   }
@@ -249,9 +248,7 @@ function customComponentEditor(component: ExtensionCustomComponent) {
   return {
     render: (width: number) => renderWithPiExtensionContext(() => component.render(width)),
     handleInput: (data: string) =>
-      renderWithPiExtensionContext(() =>
-        component.handleInput?.(canonicalizeCustomNavKey(data)),
-      ),
+      renderWithPiExtensionContext(() => component.handleInput?.(canonicalizeCustomNavKey(data))),
     invalidate: () => renderWithPiExtensionContext(() => component.invalidate()),
     getText: () => "",
     setText: () => undefined,

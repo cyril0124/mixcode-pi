@@ -4,7 +4,11 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
-import { isProjectSkillsOnlyEnabled, resolveSkillDirs, scanSkillEntries } from "../src/core/attachments.js";
+import {
+  isProjectSkillsOnlyEnabled,
+  resolveSkillDirs,
+  scanSkillEntries,
+} from "../src/core/attachments.js";
 
 describe("MIXCODE_PROJECT_SKILLS_ONLY environment variable", () => {
   const originalEnv = { ...process.env };
@@ -47,8 +51,14 @@ describe("MIXCODE_PROJECT_SKILLS_ONLY environment variable", () => {
   it("resolves all directories when disabled", () => {
     const dirs = resolveSkillDirs(workdir, homeDir);
     assert.equal(dirs.length >= 2, true);
-    assert.equal(dirs.some((d) => d.includes(path.join(workdir, ".agents", "skills"))), true);
-    assert.equal(dirs.some((d) => d.includes(path.join(homeDir, ".agents", "skills"))), true);
+    assert.equal(
+      dirs.some((d) => d.includes(path.join(workdir, ".agents", "skills"))),
+      true,
+    );
+    assert.equal(
+      dirs.some((d) => d.includes(path.join(homeDir, ".agents", "skills"))),
+      true,
+    );
   });
 
   it("resolves only workdir directory when enabled", () => {

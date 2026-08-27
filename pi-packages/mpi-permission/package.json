@@ -4,6 +4,8 @@
   "type": "module",
   "description": "Gate tool calls with allow/ask/deny permission rules via /permission overlay",
   "pi": {
-    "extensions": ["./index.ts"]
+    "extensions": [
+      "./index.ts"
+    ]
   }
 }

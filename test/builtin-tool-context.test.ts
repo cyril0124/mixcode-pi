@@ -73,10 +73,20 @@ test("each tab bash tool gets that tab's PI_SESSION_ID", async () => {
     assert.ok(bashA && bashB);
 
     const outA = textFromToolResult(
-      await bashA.execute("tab-a-sid", { command: 'printf %s "$PI_SESSION_ID"' }, undefined, undefined),
+      await bashA.execute(
+        "tab-a-sid",
+        { command: 'printf %s "$PI_SESSION_ID"' },
+        undefined,
+        undefined,
+      ),
     );
     const outB = textFromToolResult(
-      await bashB.execute("tab-b-sid", { command: 'printf %s "$PI_SESSION_ID"' }, undefined, undefined),
+      await bashB.execute(
+        "tab-b-sid",
+        { command: 'printf %s "$PI_SESSION_ID"' },
+        undefined,
+        undefined,
+      ),
     );
 
     assert.equal(outA, idA);

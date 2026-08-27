@@ -4,10 +4,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import type { Component, TUI as PiTui } from "@earendil-works/pi-tui";
 
-import {
-  addWaitingForInput,
-  removeWaitingForInput,
-} from "./runtime-extension-custom.js";
+import { addWaitingForInput, removeWaitingForInput } from "./runtime-extension-custom.js";
 import { ensureExtensionThemeInitialized } from "./runtime-extension-theme.js";
 import { applyMixCodeKeybindings } from "./runtime-pi-tui-bridge.js";
 import type { ExtensionCustomUiHost, RuntimeTab } from "./runtime-types.js";
@@ -31,9 +28,7 @@ export function createExtensionDialog(
   const host = getCustomUiHost();
   if (!host?.editor?.setEditorComponent) {
     // Match custom/editor: missing host is an environment error, not user cancel.
-    throw new Error(
-      `Pi extension UI primitive requires an active MixCode TUI host: ${kind}`,
-    );
+    throw new Error(`Pi extension UI primitive requires an active MixCode TUI host: ${kind}`);
   }
   ensureExtensionThemeInitialized();
   const sessionId = runtimeTab.tab.sessionId;
@@ -90,43 +85,39 @@ export function createExtensionDialog(
       timeout.unref?.();
     }
 
-    host.editor!.setEditorComponent!(
-      (tui, _theme, _keybindings) => {
-        // Pi confirm joins title + message into the selector header so the body
-        // is visible (interactive-mode showExtensionConfirm).
-        const selectorTitle =
-          kind === "confirm" ? `${title}\n${question}` : title;
-        component =
-          kind === "input"
-            ? new ExtensionInputComponent(
-                title,
-                question,
-                (value) => finish(value || undefined),
-                abort,
-                {
-                  tui,
-                  timeout: opts?.timeout,
+    host.editor!.setEditorComponent!((tui, _theme, _keybindings) => {
+      // Pi confirm joins title + message into the selector header so the body
+      // is visible (interactive-mode showExtensionConfirm).
+      const selectorTitle = kind === "confirm" ? `${title}\n${question}` : title;
+      component =
+        kind === "input"
+          ? new ExtensionInputComponent(
+              title,
+              question,
+              (value) => finish(value || undefined),
+              abort,
+              {
+                tui,
+                timeout: opts?.timeout,
+              },
+            )
+          : new ExtensionSelectorComponent(
+              selectorTitle,
+              options.map((option) => option.label),
+              finish,
+              abort,
+              {
+                tui,
+                timeout: opts?.timeout,
+                onToggleToolsExpanded: () => {
+                  runtimeTab.tab.extensionUi.toolsExpanded =
+                    !runtimeTab.tab.extensionUi.toolsExpanded;
+                  requestRender();
                 },
-              )
-            : new ExtensionSelectorComponent(
-                selectorTitle,
-                options.map((option) => option.label),
-                finish,
-                abort,
-                {
-                  tui,
-                  timeout: opts?.timeout,
-                  onToggleToolsExpanded: () => {
-                    runtimeTab.tab.extensionUi.toolsExpanded =
-                      !runtimeTab.tab.extensionUi.toolsExpanded;
-                    requestRender();
-                  },
-                },
-              );
-        return extensionComponentEditor(component, tui);
-      },
-      sessionId,
-    );
+              },
+            );
+      return extensionComponentEditor(component, tui);
+    }, sessionId);
     requestRender();
   });
 }

@@ -2,10 +2,7 @@ import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works
 import { isPendingEscapeActive } from "../../core/escape.js";
 import { gitBranchForWorkdir } from "../../core/git-branch.js";
 import { recentAgentTabRank } from "../../core/tabs.js";
-import {
-  DEFAULT_ICON_MODE,
-  type IconMode,
-} from "../../core/mixcode-settings.js";
+import { DEFAULT_ICON_MODE, type IconMode } from "../../core/mixcode-settings.js";
 import type { MouseHitRegion } from "../../core/mouse.js";
 import {
   retryStatusMessage,
@@ -142,7 +139,9 @@ export function renderTabBarSeparator(
     if (width <= 0) return plain();
 
     const markers =
-      options.zenMode === true ? (options.zenStatusMarkers ?? []) : ([] as readonly ZenStatusMarker[]);
+      options.zenMode === true
+        ? (options.zenStatusMarkers ?? [])
+        : ([] as readonly ZenStatusMarker[]);
     const zenLeft =
       markers.length > 0
         ? paintZenStatusMarkerCluster(
@@ -315,9 +314,7 @@ function rightOverflowHint(count: number): string {
 }
 
 function homePinWidth(homePin: Exclude<HomePin, "inline">, homeSegment: TabSegment): number {
-  return homePin === "full"
-    ? visibleWidth(homeSegment.text)
-    : visibleWidth(homeAnchorBare());
+  return homePin === "full" ? visibleWidth(homeSegment.text) : visibleWidth(homeAnchorBare());
 }
 
 /** Leading Home pin + optional agent left-overflow hint + gutter before agents. */
@@ -385,7 +382,16 @@ function growAgentWindow(
   while (improved) {
     improved = false;
     if (lo > 0) {
-      const next = fitAgentWindow(agents, lo - 1, hi, width, maxRows, activeId, homePin, homeSegment);
+      const next = fitAgentWindow(
+        agents,
+        lo - 1,
+        hi,
+        width,
+        maxRows,
+        activeId,
+        homePin,
+        homeSegment,
+      );
       if (next && isBetterAgentWindow(next, current)) {
         lo -= 1;
         current = next;
@@ -393,7 +399,16 @@ function growAgentWindow(
       }
     }
     if (hi < agents.length) {
-      const next = fitAgentWindow(agents, lo, hi + 1, width, maxRows, activeId, homePin, homeSegment);
+      const next = fitAgentWindow(
+        agents,
+        lo,
+        hi + 1,
+        width,
+        maxRows,
+        activeId,
+        homePin,
+        homeSegment,
+      );
       if (next && isBetterAgentWindow(next, current)) {
         hi += 1;
         current = next;
@@ -434,13 +449,12 @@ function choosePinnedHomeForm(
   return ratio > HOME_PIN_FULL_MAX_RATIO ? "compact" : "full";
 }
 
-function visibleTabBarLayout(
-  state: MixCodeState,
-  width: number,
-  maxRows?: number,
-): TabBarLayout {
+function visibleTabBarLayout(state: MixCodeState, width: number, maxRows?: number): TabBarLayout {
   const segments = tabBarSegments(state);
-  const homeSegment = segments[0] ?? { id: HOME_TAB_ID, text: activeRenderTheme.homeTab(" MixCode Home ") };
+  const homeSegment = segments[0] ?? {
+    id: HOME_TAB_ID,
+    text: activeRenderTheme.homeTab(" MixCode Home "),
+  };
   const agents = segments.slice(1);
   const homeIndent = wrappedRowIndent(segments, width);
 
@@ -522,14 +536,8 @@ function fitAgentWindow(
     if (!windowSegs.some((segment) => segment.id === activeId)) return null;
   }
 
-  const leftChrome = leftChromeWidth(
-    homePin,
-    homeSegment,
-    hiddenLeftAgents,
-    windowSegs.length > 0,
-  );
-  const rightChrome =
-    hiddenRight > 0 ? visibleWidth(rightOverflowHint(hiddenRight)) : 0;
+  const leftChrome = leftChromeWidth(homePin, homeSegment, hiddenLeftAgents, windowSegs.length > 0);
+  const rightChrome = hiddenRight > 0 ? visibleWidth(rightOverflowHint(hiddenRight)) : 0;
   // Agent column is everything after the Home pin. Reserve `… +N` only on the
   // last row — subtracting it from every row left a hole on row 0 (screenshot).
   const agentColWidth = Math.max(1, width - leftChrome);
@@ -557,8 +565,7 @@ function fitAgentWindow(
     // Row 0 sits beside the Home pin; later rows use the same left indent.
     const leftW = rowIndex === 0 ? leftChrome : indent;
     const rightW = rowIndex === rows.length - 1 ? rightChrome : 0;
-    const tabsW =
-      row.length === 0 ? 0 : visibleWidth(row.map((segment) => segment.text).join(" "));
+    const tabsW = row.length === 0 ? 0 : visibleWidth(row.map((segment) => segment.text).join(" "));
     if (leftW + tabsW + rightW <= width) continue;
     if (windowSegs.length === 1 && row.length === 1) {
       const available = Math.max(1, width - leftW - rightW);
@@ -617,8 +624,7 @@ function forceAgentLayout(
   const hiddenLeftAgents = idx;
   const hiddenRight = agents.length - idx - 1;
   const leftChrome = leftChromeWidth(homePin, homeSegment, hiddenLeftAgents);
-  const rightChrome =
-    hiddenRight > 0 ? visibleWidth(rightOverflowHint(hiddenRight)) : 0;
+  const rightChrome = hiddenRight > 0 ? visibleWidth(rightOverflowHint(hiddenRight)) : 0;
   const available = Math.max(1, width - leftChrome - rightChrome);
   const text =
     visibleWidth(active.text) <= available
@@ -1218,7 +1224,11 @@ function withFocusMark(paint: (text: string) => string, body: string): string {
  * Highlight wave sweeps across characters over TAB_ACTIVE_SHIMMER_SWEEP_MS (1400ms),
  * followed by a brief rest (1000ms) within TAB_ACTIVE_SHIMMER_PERIOD_MS (2400ms).
  */
-export function applyActiveTabShimmer(text: string, activatedAt: number | undefined, now = Date.now()): string {
+export function applyActiveTabShimmer(
+  text: string,
+  activatedAt: number | undefined,
+  now = Date.now(),
+): string {
   const baseTime = activatedAt ?? 0;
   const elapsed = (now - baseTime) % TAB_ACTIVE_SHIMMER_PERIOD_MS;
   if (elapsed >= TAB_ACTIVE_SHIMMER_SWEEP_MS) return text;

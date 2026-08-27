@@ -8,7 +8,12 @@
  * overlay), so no global key-dispatch branch is involved.
  */
 
-import { SelectList, truncateToWidth, type Component, type SelectItem } from "@earendil-works/pi-tui";
+import {
+  SelectList,
+  truncateToWidth,
+  type Component,
+  type SelectItem,
+} from "@earendil-works/pi-tui";
 import type { MixCodeState } from "../../core/types.js";
 import type { MixCodeKeyRuntime, OverlayTui } from "../app-types.js";
 import { closeAppOverlay, showComponentOverlay } from "../app-overlays.js";

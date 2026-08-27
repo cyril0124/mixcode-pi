@@ -47,10 +47,7 @@ export function resolveMixcodePackageRoot(selfRoot: string, env = process.env): 
   return selfRoot;
 }
 
-export function isBuiltinExtensionsOnlyEnabled(
-  flagValue?: boolean,
-  env = process.env,
-): boolean {
+export function isBuiltinExtensionsOnlyEnabled(flagValue?: boolean, env = process.env): boolean {
   if (flagValue) return true;
   const raw = env.MIXCODE_BUILTIN_EXTENSIONS_ONLY?.trim().toLowerCase();
   if (!raw) return false;

@@ -18,5 +18,5 @@ import { registerMpiGoalShell } from "./src/shell.js";
  * factory load (runtime not bound yet).
  */
 export default function mpiGoal(pi: ExtensionAPI): void {
-	registerMpiGoalShell(pi);
+  registerMpiGoalShell(pi);
 }

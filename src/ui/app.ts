@@ -142,15 +142,10 @@ export function createMixCodeTui(
     () => tui.terminal.rows,
     () => {
       // Home has no agent extension footer; only count it on agent tabs.
-      const active =
-        state.activeTabId === HOME_TAB_ID ? undefined : getActiveTab(state);
+      const active = state.activeTabId === HOME_TAB_ID ? undefined : getActiveTab(state);
       // Extension footer is real footer chrome; include it in the main surface budget
       // so multi-line setFooter cannot push the tab bar into scrollback.
-      return (
-        editorRows +
-        metaRows +
-        renderExtensionFooter(active, tui.terminal.columns).length
-      );
+      return editorRows + metaRows + renderExtensionFooter(active, tui.terminal.columns).length;
     },
     // Custom input skins only (setEditorComponent), not temporary dialog overrides.
     () => editorSlot?.getEditorComponent() !== undefined,
@@ -271,16 +266,14 @@ export function createMixCodeTui(
       if (active && state.activeTabId !== HOME_TAB_ID) {
         const runtimeTab = runtime.getTab(active.sessionId);
         if (runtimeTab?.services?.resourceLoader) {
-          return runtimeTab.services.resourceLoader
-            .getPrompts()
-            .prompts.map((p) => ({
-              name: p.name,
-              description: p.description,
-              argumentHint: p.argumentHint,
-              sourceInfo: p.sourceInfo
-                ? { scope: p.sourceInfo.scope, source: p.sourceInfo.source }
-                : undefined,
-            }));
+          return runtimeTab.services.resourceLoader.getPrompts().prompts.map((p) => ({
+            name: p.name,
+            description: p.description,
+            argumentHint: p.argumentHint,
+            sourceInfo: p.sourceInfo
+              ? { scope: p.sourceInfo.scope, source: p.sourceInfo.source }
+              : undefined,
+          }));
         }
       }
       return [];
@@ -303,8 +296,7 @@ export function createMixCodeTui(
       // invalidates per-session cache and only needs a rebind so EditorSlot can
       // re-snapshot triggerCharacters; never install a single-session concrete
       // chain into the shared editor (that freezes wrappers to one tab).
-      setAutocompleteProvider: () =>
-        editor.setAutocompleteProvider(activeCompletionProvider),
+      setAutocompleteProvider: () => editor.setAutocompleteProvider(activeCompletionProvider),
       setEditorComponent: (factory, sessionId) => editor.setEditorComponent(factory, sessionId),
       getEditorComponent: (sessionId) => editor.getEditorComponent(sessionId),
       getEmbeddedTerminalRows: (sessionId) => editor.getEmbeddedTerminalRows(sessionId),
@@ -385,7 +377,11 @@ export function createMixCodeTui(
           ),
         extensionCommands: () => activeExtensionCommands(state, runtime),
       },
-      { workspaceFile: options.workspaceFile, rootStateDir: options.rootStateDir, settingsDeps: options.settingsDeps },
+      {
+        workspaceFile: options.workspaceFile,
+        rootStateDir: options.rootStateDir,
+        settingsDeps: options.settingsDeps,
+      },
     );
     if (result?.consume) return result;
     // app.editor.external (Ctrl+G) opens the input in an external editor.
@@ -395,7 +391,7 @@ export function createMixCodeTui(
     if (
       MIXCODE_EXTENSION_KEYBINDINGS_MANAGER.matches(data, "app.editor.external") &&
       !appOverlayHandlesInput(tui) &&
-      !(activeForEdit?.extensionUi.waitingForInputs.length)
+      !activeForEdit?.extensionUi.waitingForInputs.length
     ) {
       void editTextWithTuiPaused(tui, editor.getText())
         .then((text) => {
@@ -480,16 +476,14 @@ export function createActiveSkillCompletionSource(
     if (active && state.activeTabId !== HOME_TAB_ID) {
       const runtimeTab = runtime.getTab(active.sessionId);
       if (runtimeTab?.services?.resourceLoader) {
-        return runtimeTab.services.resourceLoader
-          .getSkills()
-          .skills.map((skill) => ({
-            name: skill.name,
-            path: skill.filePath,
-            description: skill.description,
-            sourceInfo: skill.sourceInfo
-              ? { scope: skill.sourceInfo.scope, source: skill.sourceInfo.source }
-              : undefined,
-          }));
+        return runtimeTab.services.resourceLoader.getSkills().skills.map((skill) => ({
+          name: skill.name,
+          path: skill.filePath,
+          description: skill.description,
+          sourceInfo: skill.sourceInfo
+            ? { scope: skill.sourceInfo.scope, source: skill.sourceInfo.source }
+            : undefined,
+        }));
       }
     }
     return undefined;
@@ -506,9 +500,7 @@ export function createActiveSkillCompletionSource(
         const loaderNames = new Set(
           (loaderSkills ?? []).map((s) => (typeof s === "string" ? s : s.name)),
         );
-        const newSkills: Array<string | MixCodeSkillCompletionSource> = [
-          ...(loaderSkills ?? []),
-        ];
+        const newSkills: Array<string | MixCodeSkillCompletionSource> = [...(loaderSkills ?? [])];
         for (const entry of entries) {
           if (!loaderNames.has(entry.name)) {
             newSkills.push({
@@ -543,7 +535,11 @@ export function createActiveSkillCompletionSource(
       return cachedSkills;
     }
     // Fallback to static bootstrap skills
-    return fallbackSkills ? (typeof fallbackSkills === "function" ? fallbackSkills() : fallbackSkills) : [];
+    return fallbackSkills
+      ? typeof fallbackSkills === "function"
+        ? fallbackSkills()
+        : fallbackSkills
+      : [];
   };
 }
 

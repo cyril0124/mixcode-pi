@@ -110,8 +110,13 @@ export class MixCodeRoot implements Component {
       return this.fitRootLines(
         [
           ...top,
-          ...renderHome(this.state, width, theme, top.length, homeRows, (sessionId) =>
-            this.runtime.getTab(sessionId)?.chat,
+          ...renderHome(
+            this.state,
+            width,
+            theme,
+            top.length,
+            homeRows,
+            (sessionId) => this.runtime.getTab(sessionId)?.chat,
           ),
         ],
         width,
@@ -137,17 +142,13 @@ export class MixCodeRoot implements Component {
           active.inlineWidgets === true &&
           active.extensionUi.waitingForInputs.length === 0 &&
           !this.hasInputComponent(),
-        zenStatusMarkers: active.zenMode
-          ? zenStatusMarkers(this.state.tabs, active.sessionId)
-          : [],
+        zenStatusMarkers: active.zenMode ? zenStatusMarkers(this.state.tabs, active.sessionId) : [],
         iconMode: this.state.ui?.icons?.mode ?? DEFAULT_ICON_MODE,
         agentChrome: customEditor
           ? {
               title: active.title ?? "",
               contextText:
-                active.contextLimitOverridden === true
-                  ? exactContextUsageText(active)
-                  : undefined,
+                active.contextLimitOverridden === true ? exactContextUsageText(active) : undefined,
               customBasePrompt: active.customBasePrompt === true,
             }
           : undefined,
@@ -315,9 +316,7 @@ export class MixCodeLayoutRoot implements Component {
     const hideEditorWidgets =
       isVim || panelShowing || (active?.inlineWidgets === true && !panelOpen);
     const iconMode = this.state.ui?.icons?.mode ?? DEFAULT_ICON_MODE;
-    const metaProbe = isAgentTab
-      ? renderInputMeta(active, width, 0, theme, false, iconMode)
-      : [];
+    const metaProbe = isAgentTab ? renderInputMeta(active, width, 0, theme, false, iconMode) : [];
     const workingLines = isAgentTab ? this.renderWorkingLoader(active, width, theme) : [];
     const viewportRowsForClamp = this.getViewportRows?.();
     const activeForFooter = this.state.activeTabId === HOME_TAB_ID ? undefined : active;

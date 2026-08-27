@@ -39,7 +39,11 @@ interface ToolResultBlock {
   cache_control?: unknown;
 }
 
-type ContentBlock = TextBlock | ImageBlock | ToolResultBlock | { type: string; [key: string]: unknown };
+type ContentBlock =
+  | TextBlock
+  | ImageBlock
+  | ToolResultBlock
+  | { type: string; [key: string]: unknown };
 
 interface Message {
   role: string;
@@ -65,9 +69,10 @@ function isAnthropicPayload(payload: unknown): payload is AnthropicPayload {
  * Extract image blocks from a tool_result's content array.
  * Returns the extracted images and the remaining content.
  */
-function extractImagesFromToolResult(
-  content: (TextBlock | ImageBlock)[],
-): { images: ImageBlock[]; remaining: (TextBlock | ImageBlock)[] } {
+function extractImagesFromToolResult(content: (TextBlock | ImageBlock)[]): {
+  images: ImageBlock[];
+  remaining: (TextBlock | ImageBlock)[];
+} {
   const images: ImageBlock[] = [];
   const remaining: (TextBlock | ImageBlock)[] = [];
   for (const block of content) {
@@ -101,7 +106,9 @@ export function hoistImages(payload: AnthropicPayload): number {
     const tr = block as ToolResultBlock;
     if (!Array.isArray(tr.content)) continue;
 
-    const { images, remaining } = extractImagesFromToolResult(tr.content as (TextBlock | ImageBlock)[]);
+    const { images, remaining } = extractImagesFromToolResult(
+      tr.content as (TextBlock | ImageBlock)[],
+    );
     if (images.length === 0) continue;
 
     hoisted.push(...images);

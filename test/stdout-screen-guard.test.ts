@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Terminal } from "@earendil-works/pi-tui";
-import {
-  installStdoutScreenGuard,
-  withHostStdoutGuard,
-} from "../src/ui/stdout-screen-guard.js";
+import { installStdoutScreenGuard, withHostStdoutGuard } from "../src/ui/stdout-screen-guard.js";
 
 async function withCapturedStdout(
   run: (install: typeof installStdoutScreenGuard) => void | Promise<void>,

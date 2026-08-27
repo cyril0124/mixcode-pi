@@ -21,13 +21,16 @@ import { mixcodeScopedModels } from "../core/pi-models.js";
 import { nextAvailableAgentTitle } from "../core/defaults.js";
 import { onActiveTabChange } from "../core/tabs.js";
 import { clearPendingEscape } from "../core/escape.js";
-import {
-  setPendingFollowUps,
-  setPendingMessages,
-  setTabStatus,
-} from "../core/tab-state.js";
+import { setPendingFollowUps, setPendingMessages, setTabStatus } from "../core/tab-state.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
-import { HOME_TAB_ID, type AgentRuntimeConfig, type MixCodeModel, type MixCodeModelRef, type MixCodeTabInfo, type QueueKind } from "../core/types.js";
+import {
+  HOME_TAB_ID,
+  type AgentRuntimeConfig,
+  type MixCodeModel,
+  type MixCodeModelRef,
+  type MixCodeTabInfo,
+  type QueueKind,
+} from "../core/types.js";
 import { MIXCODE_EXTENSION_KEYBINDINGS } from "./runtime-extension-theme.js";
 import { getActiveToolInfos } from "./tools.js";
 
@@ -254,9 +257,8 @@ export class MixCodeRuntime {
     this.extensionManagerStore = options.extensionManagerStore;
     this.getApiKey = options.getApiKey;
     this.streamFn = options.streamFn;
-    this.sync = new RuntimeSyncManager(
-      this.sessionsRoot,
-      (sessionId) => this.syncSessionFromDisk(sessionId),
+    this.sync = new RuntimeSyncManager(this.sessionsRoot, (sessionId) =>
+      this.syncSessionFromDisk(sessionId),
     );
     // Extension pi.registerProvider updates ModelRegistry but MixCode UI reads
     // state.availableModels; keep them in sync when providers are registered.
@@ -417,7 +419,8 @@ export class MixCodeRuntime {
     }
     runtimeTab.session.resetLeaf();
     // Match navigateTree / session-reload: agent context follows the new leaf path.
-    runtimeTab.agentSession.agent.state.messages = runtimeTab.session.buildSessionContext().messages;
+    runtimeTab.agentSession.agent.state.messages =
+      runtimeTab.session.buildSessionContext().messages;
     this.rebuildChatFromSession(sessionId);
     return { noop: false };
   }
@@ -676,20 +679,18 @@ export class MixCodeRuntime {
   getExtensionCommands(sessionId: string) {
     const runtimeTab = this.tabs.get(sessionId);
     if (!runtimeTab) return [];
-    return runtimeTab
-      .agentSession.extensionRunner.getRegisteredCommands()
-      .map((command) => {
-        // Pi registerCommand spreads options; extensions may set argumentHint even
-        // though RegisteredCommand's published type omits it.
-        const argumentHint = (command as { argumentHint?: string }).argumentHint;
-        return {
-          name: command.invocationName,
-          description: command.description,
-          ...(argumentHint ? { argumentHint } : {}),
-          getArgumentCompletions: command.getArgumentCompletions,
-          sourceInfo: command.sourceInfo,
-        };
-      });
+    return runtimeTab.agentSession.extensionRunner.getRegisteredCommands().map((command) => {
+      // Pi registerCommand spreads options; extensions may set argumentHint even
+      // though RegisteredCommand's published type omits it.
+      const argumentHint = (command as { argumentHint?: string }).argumentHint;
+      return {
+        name: command.invocationName,
+        description: command.description,
+        ...(argumentHint ? { argumentHint } : {}),
+        getArgumentCompletions: command.getArgumentCompletions,
+        sourceInfo: command.sourceInfo,
+      };
+    });
   }
 
   getAllExtensionCommands() {
@@ -811,7 +812,9 @@ export class MixCodeRuntime {
   dispatchExtensionOverlayInput(sessionId: string, data: string): boolean {
     const components = this.tabs.get(sessionId)?.extensionCustomOverlayComponents;
     if (!components || components.size === 0) return false;
-    const component = [...components].at(-1) as { handleInput?: (data: string) => void } | undefined;
+    const component = [...components].at(-1) as
+      | { handleInput?: (data: string) => void }
+      | undefined;
     if (!component?.handleInput) return false;
     component.handleInput(data);
     return true;
@@ -1015,7 +1018,10 @@ export class MixCodeRuntime {
         runtimeTab.tab.retryInfo = undefined;
         setTabStatus(runtimeTab.tab, "idle", { discardTimer: false });
         if (wasRetrying) {
-          appendSystemMessage(runtimeTab, `Error: Retry failed after ${attempt} attempts: Retry cancelled`);
+          appendSystemMessage(
+            runtimeTab,
+            `Error: Retry failed after ${attempt} attempts: Retry cancelled`,
+          );
         }
         this.emitChange({ type: "extension_ui_update" }, runtimeTab);
       }
@@ -1327,9 +1333,11 @@ export class MixCodeRuntime {
     await this.shutdownRuntimeTab(runtimeTab, { type: "session_shutdown", reason: "quit" });
     const file = runtimeTab.session.getSessionFile();
     if (file) {
-      await Bun.file(file).unlink().catch((error: unknown) => {
-        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-      });
+      await Bun.file(file)
+        .unlink()
+        .catch((error: unknown) => {
+          if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        });
       invalidateSessionCatalog(this.sessionsRoot);
     }
     this.sync.unregister(sessionId);
@@ -1379,7 +1387,9 @@ export class MixCodeRuntime {
       await runtimeTab.agentSession.compact(customInstructions);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      const aborted = message === "Compaction cancelled" || (error instanceof Error && error.name === "AbortError");
+      const aborted =
+        message === "Compaction cancelled" ||
+        (error instanceof Error && error.name === "AbortError");
       // SDK 0.80+ refuses sessions with nothing to summarize (everything still
       // fits the keep-recent window). That is a benign no-op, not an error:
       // surface it as a system message, return to idle, and don't propagate.
@@ -1588,8 +1598,7 @@ function upsertUserBashLine(
   );
   // Pi keeps streaming-started user bash in the pending area until the agent
   // turn ends; once marked pending, keep it pending across chunk updates.
-  const previousPending =
-    existing >= 0 ? runtimeTab.chat[existing]?.pendingBash === true : false;
+  const previousPending = existing >= 0 ? runtimeTab.chat[existing]?.pendingBash === true : false;
   const pendingBash = previousPending || runtimeTab.agentSession.isStreaming;
   const line: ChatLine = {
     role: "tool",

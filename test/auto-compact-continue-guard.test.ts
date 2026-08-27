@@ -13,7 +13,12 @@ import {
   type Context,
   type ToolCall,
 } from "@earendil-works/pi-ai";
-import { MIXCODE_FAUX_MODEL, MixCodeRuntime, createTab, type MixCodeModel } from "./helpers/mixcode.js";
+import {
+  MIXCODE_FAUX_MODEL,
+  MixCodeRuntime,
+  createTab,
+  type MixCodeModel,
+} from "./helpers/mixcode.js";
 
 function waitForRuntime(predicate: () => boolean, attempts = 80): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -77,7 +82,11 @@ function runtimeToolCallMessage(toolCall: ToolCall, totalTokens = 2): AssistantM
 function streamAssistantMessage(message: AssistantMessage) {
   const stream = createAssistantMessageEventStream();
   queueMicrotask(() => {
-    stream.push({ type: "done", reason: message.stopReason === "toolUse" ? "toolUse" : "stop", message });
+    stream.push({
+      type: "done",
+      reason: message.stopReason === "toolUse" ? "toolUse" : "stop",
+      message,
+    });
     stream.end(message);
   });
   return stream;

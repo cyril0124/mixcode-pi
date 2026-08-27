@@ -4,6 +4,8 @@
   "type": "module",
   "description": "MixCode built-in goal tracking with progressive tool disclosure",
   "pi": {
-    "extensions": ["./index.ts"]
+    "extensions": [
+      "./index.ts"
+    ]
   }
 }

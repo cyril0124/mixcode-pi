@@ -106,8 +106,13 @@ describe("contextLimitPickerItems", () => {
 
 describe("adjustCompactionSettingsForLimit", () => {
   it("keeps compaction budgets below very small overridden limits", () => {
-    const overrides: Array<{ compaction?: { reserveTokens?: number; keepRecentTokens?: number } }> = [];
-    adjustCompactionSettingsForLimit({ applyOverrides: (override) => overrides.push(override) }, 1000, true);
+    const overrides: Array<{ compaction?: { reserveTokens?: number; keepRecentTokens?: number } }> =
+      [];
+    adjustCompactionSettingsForLimit(
+      { applyOverrides: (override) => overrides.push(override) },
+      1000,
+      true,
+    );
     assert.deepEqual(overrides, [{ compaction: { reserveTokens: 100, keepRecentTokens: 250 } }]);
   });
 
@@ -188,7 +193,9 @@ describe("syncContextLimitToSessionModel / applyContextLimitToSession", () => {
 });
 
 test("session context limits do not mutate another session's model", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-context-limit-model-isolation-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-context-limit-model-isolation-"),
+  );
   try {
     const sharedModel = {
       ...MIXCODE_FAUX_MODEL,
@@ -226,7 +233,9 @@ test("session context limits do not mutate another session's model", async () =>
 });
 
 test("context-limit reset keeps canonical model capacity", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-context-limit-refresh-reset-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-context-limit-refresh-reset-"),
+  );
   try {
     const model = {
       ...MIXCODE_FAUX_MODEL,

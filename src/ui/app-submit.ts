@@ -35,7 +35,8 @@ export async function handleSubmittedInput(
   /** Settings panel dependencies — required to open /settings overlay. */
   settingsDeps?: SettingsPanelDependencies,
   /** Input editor: restore text after a bash-already-running conflict; /editor reads and writes the draft. */
-  editorActions?: Pick<MixCodeEditorActions, "setText"> & Partial<Pick<MixCodeEditorActions, "getText">>,
+  editorActions?: Pick<MixCodeEditorActions, "setText"> &
+    Partial<Pick<MixCodeEditorActions, "getText">>,
 ): Promise<void> {
   const parsed = parseInput(text);
   const active = activeTabOverride ?? getActiveTab(state);
@@ -85,7 +86,11 @@ export async function handleSubmittedInput(
     });
     if (result === SKIP_FINALIZE) return;
   } else {
-    appendActiveSystemMessage(state, runtime, `Error: Unknown slash command: /${parsed.command}`.trim());
+    appendActiveSystemMessage(
+      state,
+      runtime,
+      `Error: Unknown slash command: /${parsed.command}`.trim(),
+    );
   }
   await onStateChanged?.(state);
   tui.requestRender();

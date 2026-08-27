@@ -106,14 +106,7 @@ test("submitted /resume mounts SessionSelectorComponent in the editor input slot
     extensionReload: async () => undefined,
   } as unknown as MixCodeRuntime;
 
-  await handleSubmittedInput(
-    state,
-    runtime,
-    "/resume",
-    tui as never,
-    undefined,
-    input.host,
-  );
+  await handleSubmittedInput(state, runtime, "/resume", tui as never, undefined, input.host);
 
   assert.equal(state.sessionSelector.open, true);
   assert.ok(getSessionSelectorComponent(state) instanceof SessionSelectorComponent);
@@ -369,7 +362,6 @@ test("openSessionSelector returns without waiting for listing; close clears inpu
   assert.equal(input.mounted, undefined);
 });
 
-
 test("applyMixCodeKeybindings exposes app.session shortcut labels for Pi keyHint", () => {
   const restore = applyMixCodeKeybindings();
   try {
@@ -447,15 +439,7 @@ async function openMountedSelector(runtime: {
     showOverlay: () => ({ hide: () => undefined }),
     hasOverlay: () => false,
   };
-  await openSessionSelector(
-    state,
-    runtime as never,
-    tui as never,
-    "/repo",
-    null,
-    undefined,
-    input,
-  );
+  await openSessionSelector(state, runtime as never, tui as never, "/repo", null, undefined, input);
   await Bun.sleep(30);
   assert.ok(mounted);
   return {
@@ -628,7 +612,9 @@ test("resumeSelectedSession opens a new tab and switches to the target session",
   const runtime = {
     extensionSwitchSession: async (sessionId: string, sessionPath: string) => {
       switched.push({ id: sessionId, path: sessionPath });
-      const tab = state.tabs.find((t) => t.sessionId === "session-a" || created.includes(t.sessionId));
+      const tab = state.tabs.find(
+        (t) => t.sessionId === "session-a" || created.includes(t.sessionId),
+      );
       if (tab) tab.sessionId = "session-a";
       return { cancelled: false };
     },

@@ -21,14 +21,15 @@ import {
   writeCurrentInstanceSnapshot,
   INSTANCE_HEARTBEAT_INTERVAL_MS,
 } from "../core/instance-registry.js";
-import {
-  configureOpenTabsPath,
-  noteTabOpened,
-  openTabsFile,
-} from "../core/open-tabs-store.js";
+import { configureOpenTabsPath, noteTabOpened, openTabsFile } from "../core/open-tabs-store.js";
 import { startInstanceCtlServer, type InstanceCtlServer } from "../core/instance-ctl-server.js";
 import { startPeerTabSync } from "../core/peer-tab-sync.js";
-import { loadStateFile, saveStateFile, scopedStateDir, stateFilePath } from "../core/state-store.js";
+import {
+  loadStateFile,
+  saveStateFile,
+  scopedStateDir,
+  stateFilePath,
+} from "../core/state-store.js";
 import type { MixCodeState } from "../core/types.js";
 import { createMixCodeTui } from "../ui/app.js";
 import { dispatchOwnedOverlayKey } from "../ui/app-key-handlers.js";

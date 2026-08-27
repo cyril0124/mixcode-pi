@@ -16,7 +16,11 @@ test("runtime lets Pi resource loader discover project system prompt before MixC
   const repo = path.join(dir, "repo");
   try {
     await fsPromises.mkdir(path.join(repo, ".pi"), { recursive: true });
-    await fsPromises.writeFile(path.join(repo, ".pi", "SYSTEM.md"), "Project system prompt", "utf8");
+    await fsPromises.writeFile(
+      path.join(repo, ".pi", "SYSTEM.md"),
+      "Project system prompt",
+      "utf8",
+    );
     await fsPromises.writeFile(path.join(repo, ".pi", "APPEND_SYSTEM.md"), "Append prompt", "utf8");
     const runtime = new MixCodeRuntime({ sessionsRoot: path.join(dir, "sessions") });
     const runtimeTab = await runtime.createTab(createTab(1, "s1", repo), {

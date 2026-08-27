@@ -37,13 +37,10 @@ export function parseToolDisplayRuntimeConfig(raw: unknown): ToolDisplayRuntimeC
   }
   const value = source.showRawToolArguments;
   if (value !== undefined && typeof value !== "boolean") {
-    throw new Error(
-      `showRawToolArguments must be a boolean, got ${JSON.stringify(value)}`,
-    );
+    throw new Error(`showRawToolArguments must be a boolean, got ${JSON.stringify(value)}`);
   }
   return {
-    showRawToolArguments:
-      value ?? DEFAULT_TOOL_DISPLAY_RUNTIME_CONFIG.showRawToolArguments,
+    showRawToolArguments: value ?? DEFAULT_TOOL_DISPLAY_RUNTIME_CONFIG.showRawToolArguments,
   };
 }
 

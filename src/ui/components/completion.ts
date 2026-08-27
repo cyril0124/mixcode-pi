@@ -184,10 +184,7 @@ function findUnclosedQuoteStart(text: string): number | null {
   return inQuotes ? quoteStart : null;
 }
 
-function tabMentionItems(
-  tabs: MixCodeTabCompletionSource[],
-  atPrefix: string,
-): AutocompleteItem[] {
+function tabMentionItems(tabs: MixCodeTabCompletionSource[], atPrefix: string): AutocompleteItem[] {
   if (tabs.length === 0) return [];
   const isQuoted = atPrefix.startsWith('@"');
   const rawQuery = atPrefix.slice(isQuoted ? 2 : 1);

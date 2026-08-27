@@ -1,9 +1,6 @@
 import { type ThinkingLevel, uuidv7 } from "@earendil-works/pi-agent-core";
 import { createTreeSelectorState } from "./tree-selector.js";
-import {
-  DEFAULT_ICON_MODE,
-  DEFAULT_OVERSIZED_ASSISTANT_MESSAGE,
-} from "./mixcode-settings.js";
+import { DEFAULT_ICON_MODE, DEFAULT_OVERSIZED_ASSISTANT_MESSAGE } from "./mixcode-settings.js";
 import {
   HOME_TAB_ID,
   type MixCodeModelRef,
@@ -28,7 +25,10 @@ export function createSessionId(): string {
   return uuidv7();
 }
 
-export function createInitialState(workdir: string, defaultThinkingLevel?: ThinkingLevel): MixCodeState {
+export function createInitialState(
+  workdir: string,
+  defaultThinkingLevel?: ThinkingLevel,
+): MixCodeState {
   return {
     workdir,
     tabs: [],

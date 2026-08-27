@@ -30,7 +30,10 @@ function writeSkill(baseDir: string, name: string, description: string): string 
   const skillDir = path.join(baseDir, name);
   fs.mkdirSync(skillDir, { recursive: true });
   const file = path.join(skillDir, "SKILL.md");
-  fs.writeFileSync(file, `---\nname: ${name}\ndescription: ${description}\n---\n\n# ${name}\n\nBody of ${name}.\n`);
+  fs.writeFileSync(
+    file,
+    `---\nname: ${name}\ndescription: ${description}\n---\n\n# ${name}\n\nBody of ${name}.\n`,
+  );
   return file;
 }
 
@@ -69,9 +72,10 @@ async function emitBeforeAgentStart(
 ): Promise<{ message?: { customType: string; content: string; display: boolean } } | undefined> {
   const handler = fake.handlers.get("before_agent_start");
   assert.ok(handler, "before_agent_start handler registered");
-  return (await handler({ type: "before_agent_start", prompt, systemPromptOptions: { cwd: "/p", skills } }, fake.ctx)) as
-    | { message?: { customType: string; content: string; display: boolean } }
-    | undefined;
+  return (await handler(
+    { type: "before_agent_start", prompt, systemPromptOptions: { cwd: "/p", skills } },
+    fake.ctx,
+  )) as { message?: { customType: string; content: string; display: boolean } } | undefined;
 }
 
 // ─── extractSkillRefs ────────────────────────────────────────────────────────
@@ -109,7 +113,12 @@ test("extractSkillRefs: returns nothing for shell mode input", () => {
 
 test("buildSkillBlock: renders instruction and skill XML", () => {
   const skills: ResolvedSkillRef[] = [
-    { name: "review", filePath: "/s/review/SKILL.md", baseDir: "/s/review", description: "Review <code> & stuff" },
+    {
+      name: "review",
+      filePath: "/s/review/SKILL.md",
+      baseDir: "/s/review",
+      description: "Review <code> & stuff",
+    },
   ];
   const block = buildSkillBlock(skills);
   assert.match(block, /explicitly invoked the following skills/);
@@ -151,7 +160,11 @@ test("scanSkillDirs: finds npm, git, and extension package skills", async () => 
   const project = makeTempDir();
   const home = makeTempDir();
   const agentDir = path.join(home, ".pi", "agent");
-  writeSkill(path.join(agentDir, "npm", "node_modules", "plain-pkg", "skills"), "plain-pkg-skill", "From plain npm package.");
+  writeSkill(
+    path.join(agentDir, "npm", "node_modules", "plain-pkg", "skills"),
+    "plain-pkg-skill",
+    "From plain npm package.",
+  );
   writeSkill(
     path.join(agentDir, "npm", "node_modules", "@scope", "scoped-pkg", "skills"),
     "scoped-pkg-skill",
@@ -191,8 +204,14 @@ test("scanSkillDirs: project-only mode excludes global and package skills", asyn
   const home = makeTempDir();
   const agentDir = path.join(home, ".pi", "agent");
   writeSkill(path.join(project, ".agents", "skills"), "project-skill", "From project.");
-  writeSkill(path.join(agentDir, "extensions", "builtin-pkg", "skills"), "builtin-skill", "From built-in package.");
-  const entries = await scanSkillDirs(project, home, agentDir, { MIXCODE_PROJECT_SKILLS_ONLY: "1" });
+  writeSkill(
+    path.join(agentDir, "extensions", "builtin-pkg", "skills"),
+    "builtin-skill",
+    "From built-in package.",
+  );
+  const entries = await scanSkillDirs(project, home, agentDir, {
+    MIXCODE_PROJECT_SKILLS_ONLY: "1",
+  });
   assert.deepEqual([...entries.keys()], ["project-skill"]);
 });
 
@@ -201,7 +220,9 @@ test("scanSkillDirs: project-only mode excludes global and package skills", asyn
 test("before_agent_start: injects hidden custom message for $refs", async () => {
   const fake = createFakePi();
   skillRefsExtension(fake.pi as never);
-  const result = await emitBeforeAgentStart(fake, "please $review this diff", [authoritativeSkill("review")]);
+  const result = await emitBeforeAgentStart(fake, "please $review this diff", [
+    authoritativeSkill("review"),
+  ]);
   assert.ok(result?.message);
   assert.equal(result.message.customType, "skill-refs");
   assert.equal(result.message.display, false);
@@ -219,7 +240,9 @@ test("before_agent_start: returns nothing when prompt has no refs", async () => 
 test("before_agent_start: unknown refs are silently skipped", async () => {
   const fake = createFakePi();
   skillRefsExtension(fake.pi as never);
-  const result = await emitBeforeAgentStart(fake, "run $nonexistent now", [authoritativeSkill("review")]);
+  const result = await emitBeforeAgentStart(fake, "run $nonexistent now", [
+    authoritativeSkill("review"),
+  ]);
   assert.equal(result, undefined);
 });
 
@@ -233,7 +256,9 @@ test("before_agent_start: shell mode prompt injects nothing", async () => {
 test("before_agent_start: mixes known and unknown refs, keeping known", async () => {
   const fake = createFakePi();
   skillRefsExtension(fake.pi as never);
-  const result = await emitBeforeAgentStart(fake, "$review and $ghost", [authoritativeSkill("review")]);
+  const result = await emitBeforeAgentStart(fake, "$review and $ghost", [
+    authoritativeSkill("review"),
+  ]);
   assert.ok(result?.message);
   assert.match(result.message.content, /<skill name="review">/);
   assert.doesNotMatch(result.message.content, /ghost/);
@@ -250,7 +275,12 @@ test("input: steered $ref sends hidden custom message with deliverAs steer", asy
   const handler = fake.handlers.get("input");
   assert.ok(handler, "input handler registered");
   const result = await handler(
-    { type: "input", text: "also apply $review", source: "interactive", streamingBehavior: "steer" },
+    {
+      type: "input",
+      text: "also apply $review",
+      source: "interactive",
+      streamingBehavior: "steer",
+    },
     fake.ctx,
   );
   // User text must pass through untouched.
@@ -368,7 +398,10 @@ test("session_start: re-registering autocomplete is guarded per instance", async
 
 test("completion wrapper: $ token suggests skills, fuzzy filtered", async () => {
   const provider = createSkillCompletionWrapper(
-    { getSuggestions: async () => null, applyCompletion: () => ({ lines: [], cursorLine: 0, cursorCol: 0 }) },
+    {
+      getSuggestions: async () => null,
+      applyCompletion: () => ({ lines: [], cursorLine: 0, cursorCol: 0 }),
+    },
     () => [
       { name: "review", description: "Review things" },
       { name: "audit", description: "Audit things" },
@@ -385,7 +418,10 @@ test("completion wrapper: $ token suggests skills, fuzzy filtered", async () => 
 
 test("completion wrapper: bare $ lists all skills", async () => {
   const provider = createSkillCompletionWrapper(
-    { getSuggestions: async () => null, applyCompletion: () => ({ lines: [], cursorLine: 0, cursorCol: 0 }) },
+    {
+      getSuggestions: async () => null,
+      applyCompletion: () => ({ lines: [], cursorLine: 0, cursorCol: 0 }),
+    },
     () => [{ name: "review" }, { name: "audit" }],
   );
   const suggestions = await provider.getSuggestions(["$"], 0, 1, {
@@ -412,17 +448,29 @@ test("completion wrapper: non-$ tokens delegate to base", async () => {
 
 test("completion wrapper: applyCompletion replaces the whole $ token", () => {
   const provider = createSkillCompletionWrapper(
-    { getSuggestions: async () => null, applyCompletion: () => ({ lines: [], cursorLine: 0, cursorCol: 0 }) },
+    {
+      getSuggestions: async () => null,
+      applyCompletion: () => ({ lines: [], cursorLine: 0, cursorCol: 0 }),
+    },
     () => [{ name: "review" }],
   );
-  const result = provider.applyCompletion(["do $rev now"], 0, 7, { value: "$review", label: "review" }, "$rev");
+  const result = provider.applyCompletion(
+    ["do $rev now"],
+    0,
+    7,
+    { value: "$review", label: "review" },
+    "$rev",
+  );
   assert.equal(result.lines[0], "do $review now");
   assert.equal(result.cursorCol, 10);
 });
 
 test("completion wrapper: shouldTriggerFileCompletion true for $ token", () => {
   const provider = createSkillCompletionWrapper(
-    { getSuggestions: async () => null, applyCompletion: () => ({ lines: [], cursorLine: 0, cursorCol: 0 }) },
+    {
+      getSuggestions: async () => null,
+      applyCompletion: () => ({ lines: [], cursorLine: 0, cursorCol: 0 }),
+    },
     () => [],
   );
   assert.equal(provider.shouldTriggerFileCompletion?.(["$re"], 0, 3), true);
@@ -473,7 +521,9 @@ test("before_agent_start: refresh replaces authoritative list", async () => {
   skillRefsExtension(fake.pi as never);
   await emitBeforeAgentStart(fake, "warm", [authoritativeSkill("old-skill")]);
   // Second turn: old-skill removed, new-skill added.
-  const result = await emitBeforeAgentStart(fake, "$old-skill $new-skill", [authoritativeSkill("new-skill")]);
+  const result = await emitBeforeAgentStart(fake, "$old-skill $new-skill", [
+    authoritativeSkill("new-skill"),
+  ]);
   assert.ok(result?.message);
   assert.match(result.message.content, /<skill name="new-skill">/);
   assert.doesNotMatch(result.message.content, /<skill name="old-skill">/);

@@ -166,7 +166,8 @@ export function syncOwnedAppOverlay(state: MixCodeState, tui: OverlayTui): void 
     if (tab && (presentedOwnedOverlay.get(tui) !== "confirm" || !hasAppOverlay(tui))) {
       showLinesOverlay(
         tui,
-        (width) => renderSessionActionConfirm(width, themeForId(state.theme), confirm.action, tab.title),
+        (width) =>
+          renderSessionActionConfirm(width, themeForId(state.theme), confirm.action, tab.title),
         quitOverlayOptions(),
       );
       presentedOwnedOverlay.set(tui, "confirm");
@@ -302,7 +303,6 @@ export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-
 // Bottom-centered, non-capturing notice/error panel. The message is wrapped to
 // the panel width (never per-line truncated) and the panel auto-fits its
 // content up to ~60% of the terminal, so the common short message stays compact
@@ -402,7 +402,6 @@ function isConsoleNoticeBody(text: string): boolean {
   return text.split(/\r?\n/).every((line) => line.length === 0 || isConsoleNoticeLine(line));
 }
 
-
 // settings.json externalEditor is the default for Ctrl+G, /editor,
 // /system-prompt, and /system-tools. Explicit `editor` wins; no resolver
 // falls back to $VISUAL/$EDITOR.
@@ -424,7 +423,9 @@ export async function editTextWithTuiPaused(
   const canPause = Boolean(tui.pause && tui.resume);
   if (canPause) tui.pause?.();
   try {
-    return await editTextInExternalEditor(text, { editor: editor ?? resolveDefaultExternalEditor?.() });
+    return await editTextInExternalEditor(text, {
+      editor: editor ?? resolveDefaultExternalEditor?.(),
+    });
   } finally {
     if (canPause) tui.resume?.();
   }

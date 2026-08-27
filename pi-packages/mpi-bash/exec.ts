@@ -375,7 +375,10 @@ export function createDetachingBashOperations(options: {
             ? await Promise.race([
                 exitedTagged,
                 new Promise<"detach">((resolve) => {
-                  detachTimer = setTimeout(() => resolve("detach"), options.foregroundSeconds * 1000);
+                  detachTimer = setTimeout(
+                    () => resolve("detach"),
+                    options.foregroundSeconds * 1000,
+                  );
                 }),
               ])
             : await exitedTagged;
@@ -426,7 +429,11 @@ export function createDetachingBashOperations(options: {
       // Aborting the turn must not kill a command that already left the foreground.
       if (signal) signal.removeEventListener("abort", onAbort);
       child.unref();
-      onData(Buffer.from(formatDetachNotice({ seconds: options.foregroundSeconds, pid: child.pid, logPath })));
+      onData(
+        Buffer.from(
+          formatDetachNotice({ seconds: options.foregroundSeconds, pid: child.pid, logPath }),
+        ),
+      );
       const runId = child.pid ?? Date.now();
       options.onDetached?.({ id: runId, command, startedAt, logPath });
 

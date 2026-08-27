@@ -163,7 +163,10 @@ export async function appendHistoryEntry(
     // here so externally loosened permissions do not survive the next append.
     if ((stats.mode & 0o777) !== 0o600) await fs.chmod(historyFile, 0o600);
     if (stats.size <= maxBytes) return;
-    await writePrivateFile(historyFile, trimHistoryText(await readTextIfExists(historyFile), maxBytes));
+    await writePrivateFile(
+      historyFile,
+      trimHistoryText(await readTextIfExists(historyFile), maxBytes),
+    );
   });
   return true;
 }
@@ -318,11 +321,15 @@ async function readHistoryRecords(historyFile: string): Promise<RawHistoryRecord
   return records;
 }
 
-function userHistoryRecordsFromSession(session: ParsedSessionFile, since: Date): RawHistoryRecord[] {
+function userHistoryRecordsFromSession(
+  session: ParsedSessionFile,
+  since: Date,
+): RawHistoryRecord[] {
   const records: RawHistoryRecord[] = [];
   for (const entry of session.entries) {
     if (entry.type !== "message" || entry.message?.role !== "user") continue;
-    const timestampMs = timestampMillis(entry.message.timestamp) ?? timestampMillis(entry.timestamp);
+    const timestampMs =
+      timestampMillis(entry.message.timestamp) ?? timestampMillis(entry.timestamp);
     if (timestampMs === undefined || timestampMs < since.getTime()) continue;
     const text = extractText(entry.message.content).trim();
     if (!text) continue;
@@ -430,7 +437,11 @@ function firstUserMessage(entries: RawSessionMessageEntry[]): string {
 }
 
 function sessionIdFromPath(filePath: string, fallback?: string): string {
-  const file = filePath.split(/[\\/]/).at(-1)?.replace(/\.jsonl$/, "") ?? "";
+  const file =
+    filePath
+      .split(/[\\/]/)
+      .at(-1)
+      ?.replace(/\.jsonl$/, "") ?? "";
   const underscore = file.indexOf("_");
   return underscore >= 0 ? file.slice(underscore + 1) : fallback || file;
 }

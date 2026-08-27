@@ -1,10 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import {
-  detectNerdFont,
-  resolveGlyphs,
-  resolveIconMode,
-} from "../src/ui/rendering/icons.js";
+import { detectNerdFont, resolveGlyphs, resolveIconMode } from "../src/ui/rendering/icons.js";
 
 test("resolveIconMode forces nerd and ascii", () => {
   assert.equal(resolveIconMode("nerd", {}), "nerd");

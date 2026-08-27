@@ -27,7 +27,9 @@ test("command palette derives every palette-visible LOCAL_COMMANDS entry", () =>
   state.tabs.push(createTab(1, "s1", "/repo"));
   state.activeTabId = "s1";
   openCommandPalette(state);
-  const commands = new Set(commandPaletteEntriesWithExtensions(state).map((entry) => entry.command));
+  const commands = new Set(
+    commandPaletteEntriesWithExtensions(state).map((entry) => entry.command),
+  );
   // Newly registered local commands must appear without touching overlays.ts.
   assert.ok(commands.has("/toggle-hidden-messages"), "palette derives /toggle-hidden-messages");
   assert.ok(commands.has("/jump"), "palette derives /jump");
@@ -198,7 +200,9 @@ test("command palette filters, accepts, disables, and closes without OpenCode en
   state.tabs.push(createTab(1, "s1", "/repo"));
   state.activeTabId = "s1";
   openCommandPalette(state);
-  const sessionCommands = new Set(commandPaletteEntriesWithExtensions(state).map((entry) => entry.command));
+  const sessionCommands = new Set(
+    commandPaletteEntriesWithExtensions(state).map((entry) => entry.command),
+  );
   for (const command of [
     "/models",
     "/thinking",
@@ -253,12 +257,17 @@ test("command palette filters, accepts, disables, and closes without OpenCode en
     commandPaletteEntriesWithExtensions(state).map((entry) => entry.command),
     [],
   );
-  assert.match(stripAnsi(renderCommandPalette(state, 100, extensionCommands).join("\n")), /inspect-context/);
+  assert.match(
+    stripAnsi(renderCommandPalette(state, 100, extensionCommands).join("\n")),
+    /inspect-context/,
+  );
   assert.equal(acceptCommandPaletteSelection(state, extensionCommands), "/inspect-context");
 
   state.availableModels = [];
   openCommandPalette(state);
-  const modelEntry = commandPaletteEntriesWithExtensions(state).find((entry) => entry.command === "/models");
+  const modelEntry = commandPaletteEntriesWithExtensions(state).find(
+    (entry) => entry.command === "/models",
+  );
   assert.equal(modelEntry?.enabled, false);
   // Disabled rows are omitted from selection; Enter runs the first visible command.
   const firstVisible = commandPaletteEntriesWithExtensions(state).find((entry) => entry.enabled);
@@ -316,7 +325,10 @@ test("command palette selection skips disabled entries (matches visible rows)", 
 
   const all = commandPaletteEntriesWithExtensions(state);
   const visible = all.filter((entry) => entry.enabled);
-  assert.ok(all.some((entry) => !entry.enabled), "fixture needs disabled rows");
+  assert.ok(
+    all.some((entry) => !entry.enabled),
+    "fixture needs disabled rows",
+  );
   assert.ok(visible.length >= 2);
   assert.notEqual(all[1]?.command, visible[1]?.command);
 
@@ -343,7 +355,9 @@ test("command palette filter matches per-token subsequence, not scattered fuzzy"
   );
 });
 
-function assertNoOpenCodePaletteEntries(entries: ReturnType<typeof commandPaletteEntriesWithExtensions>): void {
+function assertNoOpenCodePaletteEntries(
+  entries: ReturnType<typeof commandPaletteEntriesWithExtensions>,
+): void {
   const text = entries
     .map((entry) => `${entry.label} ${entry.command} ${entry.description}`)
     .join("\n");

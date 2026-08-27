@@ -77,10 +77,7 @@ export class LoopManagementView implements Component {
 
   private refresh(): void {
     this.loops = this.actions.getLoops();
-    this.selectedIndex = Math.min(
-      this.selectedIndex,
-      Math.max(0, this.filteredLoops().length - 1),
-    );
+    this.selectedIndex = Math.min(this.selectedIndex, Math.max(0, this.filteredLoops().length - 1));
     this.requestRender();
   }
 
@@ -397,9 +394,10 @@ export class LoopManagementView implements Component {
       const name = truncateToWidth(`${loop.id}  ${modeTag}  ${loop.name}`, nameWidth, "…");
       const interval = truncateToWidth(loop.intervalLabel, intervalWidth, "…");
       const nextLabel = loop.pending ? "waiting" : formatRelativeTime(loop.nextRunAt);
-      const fireCount = loop.maxFireCount === null
-        ? `${loop.fireCount} fires`
-        : `${loop.fireCount}/${loop.maxFireCount} fires`;
+      const fireCount =
+        loop.maxFireCount === null
+          ? `${loop.fireCount} fires`
+          : `${loop.fireCount}/${loop.maxFireCount} fires`;
       const detail = truncateToWidth(
         `${loop.prompt}  ·  ${nextLabel}  ·  ${fireCount}`,
         detailWidth,
@@ -425,9 +423,8 @@ export class LoopManagementView implements Component {
 
   private pad(text: string, width: number): string {
     const singleLine = text.replace(/[\r\n]+/g, " ");
-    const clipped = visibleWidth(singleLine) <= width
-      ? singleLine
-      : truncateToWidth(singleLine, width, "…");
+    const clipped =
+      visibleWidth(singleLine) <= width ? singleLine : truncateToWidth(singleLine, width, "…");
     return clipped + " ".repeat(Math.max(0, width - visibleWidth(clipped)));
   }
 }

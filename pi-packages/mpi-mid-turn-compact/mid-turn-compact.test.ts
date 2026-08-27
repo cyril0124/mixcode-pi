@@ -473,17 +473,20 @@ describe("context handler non-blocking compact", () => {
       },
     })(pi);
 
-    await contextHandler!({
-      type: "context",
-      messages: [
-        {
-          role: "assistant",
-          usage: { totalTokens: 950 },
-          content: [{ type: "toolCall", id: "a", name: "read", arguments: {} }],
-        },
-        { role: "toolResult", toolCallId: "a" },
-      ],
-    }, ctx);
+    await contextHandler!(
+      {
+        type: "context",
+        messages: [
+          {
+            role: "assistant",
+            usage: { totalTokens: 950 },
+            content: [{ type: "toolCall", id: "a", name: "read", arguments: {} }],
+          },
+          { role: "toolResult", toolCallId: "a" },
+        ],
+      },
+      ctx,
+    );
     await new Promise<void>((resolve) => setImmediate(resolve));
     await new Promise<void>((resolve) => setImmediate(resolve));
 
@@ -622,15 +625,21 @@ describe("context handler non-blocking compact", () => {
 
     createMidTurnCompactExtension({ enabled: true })(pi);
 
-    handlers.get("message_end")?.({
-      message: { role: "assistant", stopReason: "length", usage: { totalTokens: 36048 } },
-    }, ctx);
+    handlers.get("message_end")?.(
+      {
+        message: { role: "assistant", stopReason: "length", usage: { totalTokens: 36048 } },
+      },
+      ctx,
+    );
 
-    handlers.get("session_compact")?.({
-      type: "session_compact",
-      reason: "threshold",
-      willRetry: false,
-    }, ctx);
+    handlers.get("session_compact")?.(
+      {
+        type: "session_compact",
+        reason: "threshold",
+        willRetry: false,
+      },
+      ctx,
+    );
 
     // Snapshot first — narrowing resumeSent to undefined breaks CFA across await + closure assign.
     const resumeEmptyBeforeFlush = resumeSent === undefined;
@@ -725,14 +734,17 @@ describe("message_end rewrite of compact abort leftover", () => {
       | undefined;
     await contextHandler!({ type: "context", messages: overThresholdMessages() }, ctx);
 
-    const result = handlers.get("message_end")?.({
-      message: {
-        role: "assistant",
-        stopReason: "error",
-        errorMessage: "The operation was aborted.",
-        content: [],
+    const result = handlers.get("message_end")?.(
+      {
+        message: {
+          role: "assistant",
+          stopReason: "error",
+          errorMessage: "The operation was aborted.",
+          content: [],
+        },
       },
-    }, ctx) as { message?: { stopReason?: string; errorMessage?: string } } | undefined;
+      ctx,
+    ) as { message?: { stopReason?: string; errorMessage?: string } } | undefined;
 
     assert.equal(result?.message?.stopReason, "stop");
     assert.equal(result?.message?.errorMessage, undefined);
@@ -756,14 +768,17 @@ describe("message_end rewrite of compact abort leftover", () => {
 
     createMidTurnCompactExtension({ enabled: true, prepareCompaction: prepareOk })(pi);
 
-    const result = handlers.get("message_end")?.({
-      message: {
-        role: "assistant",
-        stopReason: "error",
-        errorMessage: "The operation was aborted.",
-        content: [],
+    const result = handlers.get("message_end")?.(
+      {
+        message: {
+          role: "assistant",
+          stopReason: "error",
+          errorMessage: "The operation was aborted.",
+          content: [],
+        },
       },
-    }, ctx);
+      ctx,
+    );
 
     assert.equal(result, undefined);
   });

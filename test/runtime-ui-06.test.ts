@@ -133,9 +133,14 @@ test("runtime loads extension tools, commands, and lifecycle hooks", async () =>
 });
 
 test("runtime keeps extension runtimes isolated across same-workdir tabs", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-isolation-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-extension-isolation-"),
+  );
   const extension: ExtensionFactory = (pi) => {
-    pi.registerMessageRenderer("isolation-note", (message) => new Text(String(message.content), 0, 0));
+    pi.registerMessageRenderer(
+      "isolation-note",
+      (message) => new Text(String(message.content), 0, 0),
+    );
     pi.registerCommand("poke", {
       description: "Exercise a command that uses its captured pi API.",
       handler: async () => {
@@ -173,7 +178,9 @@ test("runtime keeps extension runtimes isolated across same-workdir tabs", async
 });
 
 test("runtime extension terminal input and UI setters expose exact state changes", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-terminal-ui-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-extension-terminal-ui-"),
+  );
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("terminal-ui", {
       description: "Terminal input and UI state smoke",
@@ -222,7 +229,9 @@ test("runtime extension terminal input and UI setters expose exact state changes
 });
 
 test("runtime extension manager disables extension entries across reloads", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-manager-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-extension-manager-"),
+  );
   let disabledExtensionKeys: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.registerTool({
@@ -278,7 +287,9 @@ test("runtime extension manager disables extension entries across reloads", asyn
 });
 
 test("runtime extension manager disables extensions for new tabs", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-manager-cache-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-extension-manager-cache-"),
+  );
   let disabledExtensionKeys: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.registerTool({
@@ -377,7 +388,9 @@ test("runtime extension factory widgets render live state after requestRender", 
 });
 
 test("runtime extension reload resets host UI state and rebinds extension resources", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-command-reload-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-extension-command-reload-"),
+  );
   const events: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.on("session_start", (event, ctx) => {

@@ -21,7 +21,6 @@ export const TOKEN_BUDGET_WARNING_REMAINING = 100_000;
 export const TIME_BUDGET_WARNING_REMAINING_SECONDS = 60;
 export const BUDGET_HARD_STOP_MULTIPLIER = 1.1;
 
-
 export const AGENT_END_HANDOFF_DELAY_MS = 50;
 
 export const CONTINUATION_PROMPT_ID = "mpi-goal-continuation-v1";
@@ -32,4 +31,4 @@ export const QUEUE_PROMPT_ID = "mpi-goal-queue-v1";
 
 export const GOAL_USAGE = "Usage: /goal [<objective>|pause|resume|clear|queue|tools]";
 export const GOAL_USAGE_HINT =
-	"Examples: /goal ship the release · /goal tools activates all goal model tools · /goal queue <later work>.";
+  "Examples: /goal ship the release · /goal tools activates all goal model tools · /goal queue <later work>.";

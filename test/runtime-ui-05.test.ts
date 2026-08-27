@@ -11,7 +11,12 @@ import {
   type Model,
   type SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
-import { MIXCODE_FAUX_MODEL, MixCodeRuntime, createTab, renderConversation } from "./helpers/mixcode.js";
+import {
+  MIXCODE_FAUX_MODEL,
+  MixCodeRuntime,
+  createTab,
+  renderConversation,
+} from "./helpers/mixcode.js";
 
 function delayedAssistantStream(text: string, ready: Promise<void>, options?: SimpleStreamOptions) {
   const stream = createAssistantMessageEventStream();
@@ -30,7 +35,8 @@ function delayedAssistantStream(text: string, ready: Promise<void>, options?: Si
       return;
     }
     const first = message.content[0];
-    if (first?.type !== "text") throw new Error("delayedAssistantStream expects a text content block");
+    if (first?.type !== "text")
+      throw new Error("delayedAssistantStream expects a text content block");
     stream.push({ type: "start", partial: { ...message, content: [] } });
     stream.push({
       type: "text_start",
@@ -165,7 +171,11 @@ test("runtime restores prompt history from legacy linear session files", async (
         message: runtimeAssistantMessage("answer"),
       },
     ];
-    await fsPromises.writeFile(file, `${lines.map((line) => JSON.stringify(line)).join("\n")}\n`, "utf8");
+    await fsPromises.writeFile(
+      file,
+      `${lines.map((line) => JSON.stringify(line)).join("\n")}\n`,
+      "utf8",
+    );
 
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     assert.deepEqual(runtime.getPromptHistory(sessionId), ["first legacy", "second legacy"]);
@@ -466,7 +476,10 @@ test("runtime imports pi session JSONL into the active tab", async () => {
     const importedTab = runtime.getTab("imported-session");
     assert.equal(importedTab, runtimeTab);
     assert.match(importedTab?.chat.map((line) => line.text).join("\n") ?? "", /imported hello/);
-    const importedFile = await fsPromises.readFile(path.join(sessionsRoot, "external-session.jsonl"), "utf8");
+    const importedFile = await fsPromises.readFile(
+      path.join(sessionsRoot, "external-session.jsonl"),
+      "utf8",
+    );
     assert.equal(JSON.parse(importedFile.split("\n")[0]!).version, 3);
 
     await assert.rejects(

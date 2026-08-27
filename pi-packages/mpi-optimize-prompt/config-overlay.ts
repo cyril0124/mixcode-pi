@@ -68,7 +68,11 @@ export function createOptimizePromptConfigOverlay(options: OptimizePromptConfigO
   function systemPromptPreview(width: number): string {
     const raw = draft.systemPrompt?.trim();
     if (!raw) return theme.fg("dim", "(built-in default)");
-    const first = raw.split(/\r?\n/).find((line) => line.trim())?.trim() ?? raw;
+    const first =
+      raw
+        .split(/\r?\n/)
+        .find((line) => line.trim())
+        ?.trim() ?? raw;
     return truncateToWidth(first.replace(/\s+/g, " "), Math.max(8, width - 22));
   }
 
@@ -239,7 +243,10 @@ export function createOptimizePromptConfigOverlay(options: OptimizePromptConfigO
     const opts = filteredPickOptions();
     const maxVisible = Math.max(3, options.getMaxVisible?.() ?? 10);
     const body: string[] = [
-      theme.fg("dim", ` Filter: ${pickQuery.length > 0 ? pickQuery : "(type to filter)"} · applies on Enter`),
+      theme.fg(
+        "dim",
+        ` Filter: ${pickQuery.length > 0 ? pickQuery : "(type to filter)"} · applies on Enter`,
+      ),
       "",
     ];
 

@@ -57,9 +57,11 @@ test("parseMainArgs parses --batch-dry-run", () => {
 });
 
 test("parseMainArgs throws when --batch-dry-run lacks --batch", () => {
-  assert.throws(() => parseMainArgs(["--batch-dry-run"], "/home/user"), /--batch-dry-run requires --batch/);
+  assert.throws(
+    () => parseMainArgs(["--batch-dry-run"], "/home/user"),
+    /--batch-dry-run requires --batch/,
+  );
 });
-
 
 // --- runLuaScript tests ---
 
@@ -157,7 +159,16 @@ test("runLuaScript exposes tab_exists", async () => {
   `;
   const plan = await runLuaScript(script, "test.lua", {
     workdir: "/repo",
-    tabs: [{ name: "known", sessionId: "s1", workdir: "/repo", model: "m", thinking: "high", status: "idle" }],
+    tabs: [
+      {
+        name: "known",
+        sessionId: "s1",
+        workdir: "/repo",
+        model: "m",
+        thinking: "high",
+        status: "idle",
+      },
+    ],
   });
   const requests = plan.requests;
   assert.equal(requests[0]!.prompt, "exists");
@@ -170,7 +181,16 @@ test("runLuaScript exposes list_tabs", async () => {
   `;
   const plan = await runLuaScript(script, "test.lua", {
     workdir: "/repo",
-    tabs: [{ name: "agent", sessionId: "s1", workdir: "/repo", model: "provider/model", thinking: "low", status: "idle" }],
+    tabs: [
+      {
+        name: "agent",
+        sessionId: "s1",
+        workdir: "/repo",
+        model: "provider/model",
+        thinking: "low",
+        status: "idle",
+      },
+    ],
   });
   const requests = plan.requests;
   assert.equal(requests[0]!.prompt, "agent:provider/model:low");
@@ -335,10 +355,7 @@ test("applyBatchRequests throws on invalid thinking level", async () => {
 
 test("applyBatchRequests validates thinking against selected model capability", async () => {
   const host = createMockHost();
-  await applyBatchRequests(
-    [{ name: "x", prompt: "y", model: "max-model", thinking: "max" }],
-    host,
-  );
+  await applyBatchRequests([{ name: "x", prompt: "y", model: "max-model", thinking: "max" }], host);
   assert.equal(host.configured[0]?.thinking, "max");
   await assert.rejects(
     () => applyBatchRequests([{ name: "z", prompt: "y", thinking: "max" }], host),
@@ -362,10 +379,7 @@ test("applyBatchRequests accepts max thinking from an existing tab model", async
     },
   ]);
 
-  await applyBatchRequests(
-    [{ name: "existing-max", prompt: "continue", thinking: "max" }],
-    host,
-  );
+  await applyBatchRequests([{ name: "existing-max", prompt: "continue", thinking: "max" }], host);
 
   assert.equal(host.configured[0]?.thinking, "max");
 });
@@ -473,9 +487,7 @@ test("loadBatchRequests throws on missing file", async () => {
 
 test("applyBatchRequests clears tab when mode is clear", async () => {
   const host = createMockHost([{ title: "my-agent", sessionId: "sess-1" }]);
-  const requests: BatchTabRequest[] = [
-    { name: "my-agent", prompt: "fresh start", mode: "clear" },
-  ];
+  const requests: BatchTabRequest[] = [{ name: "my-agent", prompt: "fresh start", mode: "clear" }];
   await applyBatchRequests(requests, host);
   assert.equal(host.cleared.length, 1);
   assert.equal(host.cleared[0]!.sessionId, "sess-1");
@@ -485,9 +497,7 @@ test("applyBatchRequests clears tab when mode is clear", async () => {
 
 test("applyBatchRequests does not clear tab when mode is append", async () => {
   const host = createMockHost([{ title: "my-agent", sessionId: "sess-1" }]);
-  const requests: BatchTabRequest[] = [
-    { name: "my-agent", prompt: "continue", mode: "append" },
-  ];
+  const requests: BatchTabRequest[] = [{ name: "my-agent", prompt: "continue", mode: "append" }];
   await applyBatchRequests(requests, host);
   assert.equal(host.cleared.length, 0);
   assert.equal(host.inputs[0]!.input, "continue");
@@ -495,9 +505,7 @@ test("applyBatchRequests does not clear tab when mode is append", async () => {
 
 test("applyBatchRequests defaults to append when mode is omitted", async () => {
   const host = createMockHost([{ title: "my-agent", sessionId: "sess-1" }]);
-  const requests: BatchTabRequest[] = [
-    { name: "my-agent", prompt: "keep going" },
-  ];
+  const requests: BatchTabRequest[] = [{ name: "my-agent", prompt: "keep going" }];
   await applyBatchRequests(requests, host);
   assert.equal(host.cleared.length, 0);
   assert.equal(host.inputs[0]!.input, "keep going");
@@ -505,9 +513,7 @@ test("applyBatchRequests defaults to append when mode is omitted", async () => {
 
 test("applyBatchRequests throws on invalid mode", async () => {
   const host = createMockHost();
-  const requests: BatchTabRequest[] = [
-    { name: "x", prompt: "y", mode: "invalid" as any },
-  ];
+  const requests: BatchTabRequest[] = [{ name: "x", prompt: "y", mode: "invalid" as any }];
   await assert.rejects(() => applyBatchRequests(requests, host), /Invalid mode/);
 });
 
@@ -520,9 +526,7 @@ test("runLuaScript collects mode field", async () => {
 
 test("applyBatchRequests deletes old tab and creates fresh one when mode is delete", async () => {
   const host = createMockHost([{ title: "my-agent", sessionId: "sess-1" }]);
-  const requests: BatchTabRequest[] = [
-    { name: "my-agent", prompt: "start over", mode: "delete" },
-  ];
+  const requests: BatchTabRequest[] = [{ name: "my-agent", prompt: "start over", mode: "delete" }];
   await applyBatchRequests(requests, host);
   assert.deepEqual(host.deleted, ["sess-1"]);
   assert.equal(host.created.length, 1);
@@ -533,9 +537,7 @@ test("applyBatchRequests deletes old tab and creates fresh one when mode is dele
 
 test("applyBatchRequests creates new tab when mode is delete and tab does not exist", async () => {
   const host = createMockHost();
-  const requests: BatchTabRequest[] = [
-    { name: "fresh", prompt: "hello", mode: "delete" },
-  ];
+  const requests: BatchTabRequest[] = [{ name: "fresh", prompt: "hello", mode: "delete" }];
   await applyBatchRequests(requests, host);
   assert.equal(host.deleted.length, 0);
   assert.equal(host.created.length, 1);
@@ -569,7 +571,6 @@ test("applyBatchRequests configures cleared tab using new session id", async () 
   });
   assert.equal(host.inputs[0]!.sessionId, "sess-1-cleared");
 });
-
 
 // --- args / optional prompt / dry-run format ---
 
@@ -606,10 +607,7 @@ test("applyBatchRequests skips submit when prompt is omitted", async () => {
 
 test("formatBatchPlan prints missing prompts", () => {
   const text = formatBatchPlan({
-    requests: [
-      { name: "a", prompt: "hello", thinking: "low" },
-      { name: "b" },
-    ],
+    requests: [{ name: "a", prompt: "hello", thinking: "low" }, { name: "b" }],
   });
   assert.match(text, /name=a/);
   assert.match(text, /prompt: hello/);
@@ -756,7 +754,6 @@ test("formatBatchPlan marks system_prompt", () => {
   });
   assert.match(text, /system_prompt=yes/);
 });
-
 
 test("runBatchDryRun prints plan without writing state file", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "batch-dry-"));

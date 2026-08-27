@@ -5,10 +5,7 @@ import * as path from "node:path";
 import * as os from "node:os";
 import { test } from "node:test";
 import { promisify } from "node:util";
-import {
-  editTextInExternalEditor,
-  runLuaScript,
-} from "./helpers/mixcode.js";
+import { editTextInExternalEditor, runLuaScript } from "./helpers/mixcode.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -29,7 +26,11 @@ test("external editor supports executable paths containing spaces", async () => 
     const editorDir = path.join(dir, "editor dir");
     await fsPromises.mkdir(editorDir);
     const script = path.join(editorDir, "editor.sh");
-    await fsPromises.writeFile(script, "#!/bin/sh\nprintf 'edited through spaced path\\n' > \"$1\"\n", "utf8");
+    await fsPromises.writeFile(
+      script,
+      "#!/bin/sh\nprintf 'edited through spaced path\\n' > \"$1\"\n",
+      "utf8",
+    );
     await fsPromises.chmod(script, 0o755);
     assert.equal(
       await editTextInExternalEditor("initial", { editor: script, tempRoot: dir }),

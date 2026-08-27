@@ -36,7 +36,13 @@ test("editorExtraArgs sources transcript lua only for nvim", () => {
     "-c",
     "luafile /tmp/t.lua",
   ]);
-  assert.deepEqual(editorExtraArgs("/usr/bin/vim", "/tmp/t.lua"), ["-R", "-n", "-i", "NONE", "+normal G"]);
+  assert.deepEqual(editorExtraArgs("/usr/bin/vim", "/tmp/t.lua"), [
+    "-R",
+    "-n",
+    "-i",
+    "NONE",
+    "+normal G",
+  ]);
 });
 
 const nvimAvailable = spawnSync("nvim", ["--version"], { encoding: "utf8" }).status === 0;
@@ -114,12 +120,12 @@ test("nvim transcript lua sets wrap/conceal, heading winbar, and heading matches
         'local dimns = vim.api.nvim_get_namespaces()["mpi_transcript_dim"]',
         "local dmarks = dimns and vim.api.nvim_buf_get_extmarks(0, dimns, 0, -1, { details = true }) or {}",
         "local nconceal = 0",
-        "for _, m in ipairs(dmarks) do if m[4] and m[4].conceal == \"\" then nconceal = nconceal + 1 end end",
+        'for _, m in ipairs(dmarks) do if m[4] and m[4].conceal == "" then nconceal = nconceal + 1 end end',
         'vim.api.nvim_win_set_cursor(0, { line_of("hello"), 0 })',
         'vim.cmd("normal [t")',
         "local jumped = vim.api.nvim_win_get_cursor(0)[1]",
         "vim.api.nvim_win_set_cursor(0, { fake, 0 })",
-        "vim.api.nvim_exec_autocmds(\"CursorMoved\", { buffer = 0 })",
+        'vim.api.nvim_exec_autocmds("CursorMoved", { buffer = 0 })',
         "local nsigns = 0",
         "local buf = vim.api.nvim_get_current_buf()",
         'local sp = vim.fn.sign_getplaced(buf, { group = "MpiTranscript" })',
@@ -131,15 +137,28 @@ test("nvim transcript lua sets wrap/conceal, heading winbar, and heading matches
         '  tostring(vim.fn.foldclosed(line_of("world"))),',
         '  tostring(vim.fn.foldclosed(line_of("decoy"))),',
         '  tostring(vim.fn.foldclosed(line_of("nope"))),',
-        "  tostring(nsigns), tostring(span.s), tostring(line_of(\"## 🤖 Assistant · #1\")),",
+        '  tostring(nsigns), tostring(span.s), tostring(line_of("## 🤖 Assistant · #1")),',
         '  tostring(span.e), tostring(line_of("## Fake heading from the model")),',
-        "  ft, ftin, tostring(jumped), tostring(line_of(\"## 🤖 Assistant · #1\")), tostring(nconceal)",
-        '}, string.char(10)))',
+        '  ft, ftin, tostring(jumped), tostring(line_of("## 🤖 Assistant · #1")), tostring(nconceal)',
+        "}, string.char(10)))",
       ].join("\n"),
     );
     const r = spawnSync(
       "nvim",
-      ["--headless", "-u", "NONE", "-n", md, "+normal G", "-c", `luafile ${lua}`, "-c", `luafile ${dump}`, "-c", "qa"],
+      [
+        "--headless",
+        "-u",
+        "NONE",
+        "-n",
+        md,
+        "+normal G",
+        "-c",
+        `luafile ${lua}`,
+        "-c",
+        `luafile ${dump}`,
+        "-c",
+        "qa",
+      ],
       { encoding: "utf8" },
     );
     assert.equal(r.status, 0, r.error?.message ?? r.stderr);
@@ -207,7 +226,15 @@ function userEntry(text: string, at?: string): SessionEntry {
 }
 
 function assistantEntry(
-  content: Array<{ type: string; text?: string; thinking?: string; redacted?: boolean; id?: string; name?: string; arguments?: Record<string, unknown> }>,
+  content: Array<{
+    type: string;
+    text?: string;
+    thinking?: string;
+    redacted?: boolean;
+    id?: string;
+    name?: string;
+    arguments?: Record<string, unknown>;
+  }>,
   opts?: {
     stopReason?: string;
     errorMessage?: string;
@@ -357,7 +384,12 @@ test("buildViewText thinking: labels each block with its round", () => {
 test("buildViewText chatlog: renders tool call arguments as a JSON block", () => {
   const entries: SessionEntry[] = [
     assistantEntry([
-      { type: "toolCall", id: "call-3", name: "bash", arguments: { command: "git status", timeout: 60 } },
+      {
+        type: "toolCall",
+        id: "call-3",
+        name: "bash",
+        arguments: { command: "git status", timeout: 60 },
+      },
     ]),
     toolResultEntry("call-3", "clean"),
   ];
@@ -427,7 +459,10 @@ test("buildViewText chatlog: renders compaction and branch summary entries", () 
 test("buildViewText chatlog: surfaces assistant errorMessage on error stops", () => {
   const entries: SessionEntry[] = [
     userEntry("do it"),
-    assistantEntry([{ type: "text", text: "partial" }], { stopReason: "error", errorMessage: "rate limited" }),
+    assistantEntry([{ type: "text", text: "partial" }], {
+      stopReason: "error",
+      errorMessage: "rate limited",
+    }),
   ];
   assert.match(buildViewText("chatlog", entries), /\*\*❗ error\*\*: rate limited/);
 });
@@ -460,7 +495,10 @@ test("buildViewText chatlog: failed tool output keeps the tail, not the head", (
 
 test("buildViewText chatlog: renders an aborted turn even without content", () => {
   const entries: SessionEntry[] = [userEntry("go"), assistantEntry([], { stopReason: "aborted" })];
-  assert.match(buildViewText("chatlog", entries), /## 🤖 Assistant · #1\n\n_[^\n]+_\n\n\*\*❗ aborted\*\*/);
+  assert.match(
+    buildViewText("chatlog", entries),
+    /## 🤖 Assistant · #1\n\n_[^\n]+_\n\n\*\*❗ aborted\*\*/,
+  );
 });
 
 test("buildViewText chatlog: renders tool calls as h3 headings", () => {

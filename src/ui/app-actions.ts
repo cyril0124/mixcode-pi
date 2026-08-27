@@ -43,9 +43,7 @@ export function applyThinkingLevel(
       `Error: Unknown thinking level: ${level}. Valid values: ${validThinkingLevelsMessage(active.model)}`,
     );
   }
-  const effectiveLevel = runtime
-    ? runtime.updateTabThinkingLevel(active.sessionId, level)
-    : level;
+  const effectiveLevel = runtime ? runtime.updateTabThinkingLevel(active.sessionId, level) : level;
   active.thinkingLevel = effectiveLevel;
   state.thinkingLevel = effectiveLevel;
 }
@@ -60,7 +58,11 @@ export function openQuitConfirm(state: MixCodeState, tui: OverlayTui): void {
   // so cancel-quit does not leave a dead Session Tree in the input slot.
   closeTreeSelectorIfOpen(state, tui);
   openOverlay(state, "quit-confirm");
-  showLinesOverlay(tui, (width) => renderQuitConfirm(width, themeForId(state.theme)), quitOverlayOptions());
+  showLinesOverlay(
+    tui,
+    (width) => renderQuitConfirm(width, themeForId(state.theme)),
+    quitOverlayOptions(),
+  );
 }
 
 export function openDeleteAllSessionsConfirm(state: MixCodeState, tui: OverlayTui): void {
@@ -108,8 +110,7 @@ export async function applyModelSelection(
   assertModelEnabled(model);
   if (runtime) {
     const resolvedModel = runtime.resolveModel(model.provider, model.modelId);
-    if (!resolvedModel)
-      throw new Error("Model is not registered in runtime: " + model.displayName);
+    if (!resolvedModel) throw new Error("Model is not registered in runtime: " + model.displayName);
     await runtime.updateTabModel(active.sessionId, resolvedModel);
   }
   setTabModel(active, model);
@@ -162,20 +163,12 @@ export async function reloadRuntimeModels(
     );
     setStateModel(
       state,
-      applyDisabledModelFlags(
-        [state.model],
-        state.disabledProviders,
-        state.disabledModels,
-      )[0]!,
+      applyDisabledModelFlags([state.model], state.disabledProviders, state.disabledModels)[0]!,
     );
     state.tabs.forEach((tab) =>
       setTabModel(
         tab,
-        applyDisabledModelFlags(
-          [tab.model],
-          state.disabledProviders,
-          state.disabledModels,
-        )[0]!,
+        applyDisabledModelFlags([tab.model], state.disabledProviders, state.disabledModels)[0]!,
       ),
     );
     return { ok: false, error: modelError };

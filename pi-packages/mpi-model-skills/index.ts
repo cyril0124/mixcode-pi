@@ -55,7 +55,12 @@ function formatStatusMarkdown(lines: {
   warnings?: string[];
   hint?: boolean;
 }): string {
-  const out: string[] = ["# model-skills", "", `- **config:** \`${lines.configPath}\``, `- **status:** ${lines.statusLine}`];
+  const out: string[] = [
+    "# model-skills",
+    "",
+    `- **config:** \`${lines.configPath}\``,
+    `- **status:** ${lines.statusLine}`,
+  ];
   if (lines.enabledLine) out.push(`- **enabled:** ${lines.enabledLine}`);
   if (lines.modelLine) out.push(`- **model:** ${lines.modelLine}`);
   if (lines.rules && lines.rules.length > 0) {

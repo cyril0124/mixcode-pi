@@ -145,7 +145,11 @@ test("generic floating panel overlays above editor right and highlights selected
   assert.match(plain[2] ?? "", /↑ 2 older above/);
   assert.match(plain[4] ?? "", /current/);
   assert.match(plain[5] ?? "", /↓ 1 newer below/);
-  assert.equal(plain[4]?.endsWith("│"), true, "floating panel must preserve the right scrollbar column");
+  assert.equal(
+    plain[4]?.endsWith("│"),
+    true,
+    "floating panel must preserve the right scrollbar column",
+  );
   assert.match(plain[9] ?? "", /base-9/);
 });
 
@@ -159,7 +163,16 @@ test("vim user-message navigation renders an expiring preview above the editor",
 
   try {
     assert.deepEqual(
-      handleMixCodeKeyInput(state, "\x1b[1;2C", tui, undefined, runtime, undefined, () => false, emptyEditor()),
+      handleMixCodeKeyInput(
+        state,
+        "\x1b[1;2C",
+        tui,
+        undefined,
+        runtime,
+        undefined,
+        () => false,
+        emptyEditor(),
+      ),
       { consume: true },
     );
     let plain = tui.render(80).map(stripAnsi).join("\n");
@@ -168,10 +181,28 @@ test("vim user-message navigation renders an expiring preview above the editor",
     assert.match(plain, /<NEWEST>/);
 
     for (let i = 0; i < 3; i++) {
-      handleMixCodeKeyInput(state, "\x1b[1;2C", tui, undefined, runtime, undefined, () => false, emptyEditor());
+      handleMixCodeKeyInput(
+        state,
+        "\x1b[1;2C",
+        tui,
+        undefined,
+        runtime,
+        undefined,
+        () => false,
+        emptyEditor(),
+      );
     }
     tab.chatSurfaceBounds = { top: 1, left: 1, width: 80, height: 5 };
-    handleMixCodeKeyInput(state, "\x1b[C", tui, undefined, runtime, undefined, () => false, emptyEditor());
+    handleMixCodeKeyInput(
+      state,
+      "\x1b[C",
+      tui,
+      undefined,
+      runtime,
+      undefined,
+      () => false,
+      emptyEditor(),
+    );
     plain = tui.render(80).map(stripAnsi).join("\n");
     assert.match(plain, /↑ 3 older above/);
     assert.match(plain, /fourth user message/);

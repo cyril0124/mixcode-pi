@@ -159,7 +159,9 @@ export function isPathRef(ref: string): boolean {
 }
 
 /** Expand `~`, `${VAR}`, and `$VAR`. Unknown vars → error (caller skips that add). */
-export function expandEnvPath(input: string): { ok: true; path: string } | { ok: false; error: string } {
+export function expandEnvPath(
+  input: string,
+): { ok: true; path: string } | { ok: false; error: string } {
   let s = input;
   if (s === "~") {
     s = os.homedir();
@@ -180,7 +182,10 @@ export function expandEnvPath(input: string): { ok: true; path: string } | { ok:
   });
 
   if (missing.length > 0) {
-    return { ok: false, error: `unknown environment variable(s): ${[...new Set(missing)].join(", ")}` };
+    return {
+      ok: false,
+      error: `unknown environment variable(s): ${[...new Set(missing)].join(", ")}`,
+    };
   }
 
   if (!path.isAbsolute(s)) {
@@ -223,7 +228,9 @@ function isStringArray(v: unknown): v is string[] {
 }
 
 /** Parse and validate mpi-model-skills.json body. */
-export function parseModelSkillsConfig(raw: unknown): { ok: true; config: ModelSkillsConfig } | { ok: false; error: string } {
+export function parseModelSkillsConfig(
+  raw: unknown,
+): { ok: true; config: ModelSkillsConfig } | { ok: false; error: string } {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return { ok: false, error: "config root must be an object" };
   }
@@ -297,7 +304,9 @@ export function serializeModelSkillsConfig(config: ModelSkillsConfig): Record<st
 export function setModelSkillsEnabled(
   agentDir: string,
   enabled: boolean,
-): { ok: true; config: ModelSkillsConfig; path: string } | { ok: false; path: string; error: string } {
+):
+  | { ok: true; config: ModelSkillsConfig; path: string }
+  | { ok: false; path: string; error: string } {
   const filePath = modelSkillsConfigPath(agentDir);
   const current = loadModelSkillsConfig(agentDir);
   if (!current.ok) {
@@ -308,7 +317,11 @@ export function setModelSkillsEnabled(
       ? { enabled, rules: [] }
       : { ...current.config!, enabled };
   try {
-    fs.writeFileSync(filePath, `${JSON.stringify(serializeModelSkillsConfig(config), null, 2)}\n`, "utf8");
+    fs.writeFileSync(
+      filePath,
+      `${JSON.stringify(serializeModelSkillsConfig(config), null, 2)}\n`,
+      "utf8",
+    );
     return { ok: true, config, path: filePath };
   } catch (err) {
     return { ok: false, path: filePath, error: err instanceof Error ? err.message : String(err) };
@@ -324,7 +337,11 @@ export function loadModelSkillsConfig(agentDir: string): ConfigLoadResult {
     try {
       raw = JSON.parse(text);
     } catch (err) {
-      return { ok: false, path: filePath, error: `invalid JSON: ${err instanceof Error ? err.message : String(err)}` };
+      return {
+        ok: false,
+        path: filePath,
+        error: `invalid JSON: ${err instanceof Error ? err.message : String(err)}`,
+      };
     }
     const parsed = parseModelSkillsConfig(raw);
     if (!parsed.ok) return { ok: false, path: filePath, error: parsed.error };
@@ -339,7 +356,9 @@ export function loadModelSkillsConfig(agentDir: string): ConfigLoadResult {
 }
 
 /** Load a single skill from an absolute path (skill dir or SKILL.md / .md file). */
-export function loadSkillFromAbsolutePath(absPath: string): { ok: true; skill: Skill } | { ok: false; error: string } {
+export function loadSkillFromAbsolutePath(
+  absPath: string,
+): { ok: true; skill: Skill } | { ok: false; error: string } {
   let skillDir = absPath;
   try {
     const st = fs.statSync(absPath);
@@ -368,7 +387,10 @@ export function loadSkillFromAbsolutePath(absPath: string): { ok: true; skill: S
   // whose baseDir equals skillDir.
   const rooted = result.skills.find((s) => path.resolve(s.baseDir) === path.resolve(skillDir));
   if (rooted) return { ok: true, skill: rooted };
-  return { ok: false, error: `ambiguous skills at ${absPath}: ${result.skills.map((s) => s.name).join(", ")}` };
+  return {
+    ok: false,
+    error: `ambiguous skills at ${absPath}: ${result.skills.map((s) => s.name).join(", ")}`,
+  };
 }
 
 /**
@@ -405,12 +427,18 @@ export function applyModelSkillRules(
       if (isPathRef(ref)) {
         const expanded = expandEnvPath(ref);
         if (!expanded.ok) {
-          warnings.push({ kind: "path", message: `add path ${JSON.stringify(ref)}: ${expanded.error}` });
+          warnings.push({
+            kind: "path",
+            message: `add path ${JSON.stringify(ref)}: ${expanded.error}`,
+          });
           continue;
         }
         const loaded = loadSkillFromAbsolutePath(expanded.path);
         if (!loaded.ok) {
-          warnings.push({ kind: "path", message: `add path ${JSON.stringify(ref)}: ${loaded.error}` });
+          warnings.push({
+            kind: "path",
+            message: `add path ${JSON.stringify(ref)}: ${loaded.error}`,
+          });
           continue;
         }
         byName.set(loaded.skill.name, loaded.skill);
@@ -437,7 +465,10 @@ export function applyModelSkillRules(
  * Replace or remove the skills section in a system prompt.
  * When the section is absent and `skills` is non-empty, insert before the cwd line.
  */
-export function replaceSkillsInSystemPrompt(systemPrompt: string, skills: readonly Skill[]): string {
+export function replaceSkillsInSystemPrompt(
+  systemPrompt: string,
+  skills: readonly Skill[],
+): string {
   const block = formatSkillsForPrompt(skills as Skill[]);
 
   if (SKILLS_SECTION_RE.test(systemPrompt)) {

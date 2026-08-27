@@ -83,11 +83,7 @@ export function isPendingEditorTakeover(
 }
 
 /** Switch tabs and close Session Tree if it would steal keys on the destination. */
-function activateTabClosingTree(
-  state: MixCodeState,
-  tui: OverlayTui,
-  tabId: string,
-): void {
+function activateTabClosingTree(state: MixCodeState, tui: OverlayTui, tabId: string): void {
   if (state.treeSelector.open && state.activeTabId !== tabId) {
     closeTreeSelector(state, tui);
   }
@@ -263,7 +259,15 @@ export function handleMixCodeKeyInput(
   }
   // Unified escape-key dispatch (extension overlay, queued flush, abort, double-Esc tree/fork)
   if (matchesKey(data, "escape")) {
-    const result = handleEscapeKey(state, active, tui, runtime, editorActions, isEditorAutocompleteOpen, onStateChanged);
+    const result = handleEscapeKey(
+      state,
+      active,
+      tui,
+      runtime,
+      editorActions,
+      isEditorAutocompleteOpen,
+      onStateChanged,
+    );
     if (result) return result;
   }
   // An extension custom overlay shown while its tab was inactive never
@@ -277,7 +281,12 @@ export function handleMixCodeKeyInput(
   // using it here would make the overlay block its own refocus. Editor-slot
   // dialogs register no overlay handle, so focusExtensionCustomOverlay no-ops
   // for them (as it does when there is no overlay or it is already focused).
-  if (active && state.activeTabId !== HOME_TAB_ID && !hasAppOverlay(tui) && !isOverlayActive(state)) {
+  if (
+    active &&
+    state.activeTabId !== HOME_TAB_ID &&
+    !hasAppOverlay(tui) &&
+    !isOverlayActive(state)
+  ) {
     runtime?.focusExtensionCustomOverlay?.(active.sessionId);
   }
   // Agent View table navigation on MixCode Home must run before per-session
@@ -436,8 +445,7 @@ function handleHomeAgentViewKey(
     return { consume: true };
   }
   // Match Pi Editor / agent-tab submit: expand paste markers before send.
-  const text =
-    (editorActions?.getExpandedText?.() ?? editorActions?.getText() ?? "").trim();
+  const text = (editorActions?.getExpandedText?.() ?? editorActions?.getText() ?? "").trim();
   const hasText = text.length > 0;
   // Enter: send when non-empty after trim; never attach (Right is the only attach key).
   // Whitespace-only is a no-op (do not clear the buffer).
@@ -464,7 +472,10 @@ function handleHomeAgentViewKey(
         workspaceOptions.workspaceFile,
         target,
         workspaceOptions.settingsDeps,
-        { getText: () => editorActions.getText(), setText: (value) => editorActions.setText(value) },
+        {
+          getText: () => editorActions.getText(),
+          setText: (value) => editorActions.setText(value),
+        },
       ).catch((error: unknown) => {
         editorActions.setText(text);
         showErrorOverlay(tui, error);
@@ -721,7 +732,11 @@ function handleEditorControlKeys(
   }
   // Temporary takeovers own newline keys (wrapper often no-ops setText).
   // Permanent skins still get MixCode newline insertion.
-  if (matchesKey(data, "shift+enter") && editorActions && !isPendingEditorTakeover(active, editorActions)) {
+  if (
+    matchesKey(data, "shift+enter") &&
+    editorActions &&
+    !isPendingEditorTakeover(active, editorActions)
+  ) {
     if (active) clearPendingEscape(active);
     insertEditorText(editorActions, "\n");
     tui.requestRender();
@@ -770,7 +785,11 @@ function handleEditorControlKeys(
     tui.requestRender();
     return { consume: true };
   }
-  if (matchesKey(data, "ctrl+j") && editorActions && !isPendingEditorTakeover(active, editorActions)) {
+  if (
+    matchesKey(data, "ctrl+j") &&
+    editorActions &&
+    !isPendingEditorTakeover(active, editorActions)
+  ) {
     if (active) clearPendingEscape(active);
     insertEditorText(editorActions, "\n");
     tui.requestRender();
@@ -909,9 +928,7 @@ function hasFocusedAppControl(
   state: MixCodeState,
   active: MixCodeState["tabs"][number] | undefined,
 ): boolean {
-  return Boolean(
-    isOverlayActive(state) || (active !== undefined && tabIsWaitingForInput(active)),
-  );
+  return Boolean(isOverlayActive(state) || (active !== undefined && tabIsWaitingForInput(active)));
 }
 
 function shouldRouteLineBoundaryKeyToEditor(

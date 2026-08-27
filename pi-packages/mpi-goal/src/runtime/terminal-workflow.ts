@@ -1,45 +1,81 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { decideTerminalContinuationTicket, dispatchContinuationTicket, refreshContinuationTicketQueueRevision, revalidateContinuationTicket, type ContinuationTicket } from "./continuation-ticket.js";
-import { runPostCompletionActionsSafely, type PostCompletionActionRunner } from "./post-completion.js";
-import { consumeQueueIdForRepair, getQueue, restoreQueueHeadForRepair } from "../persistence/queue-store.js";
+import {
+  decideTerminalContinuationTicket,
+  dispatchContinuationTicket,
+  refreshContinuationTicketQueueRevision,
+  revalidateContinuationTicket,
+  type ContinuationTicket,
+} from "./continuation-ticket.js";
+import {
+  runPostCompletionActionsSafely,
+  type PostCompletionActionRunner,
+} from "./post-completion.js";
+import {
+  consumeQueueIdForRepair,
+  getQueue,
+  restoreQueueHeadForRepair,
+} from "../persistence/queue-store.js";
 import { getGoal } from "../persistence/goal-store.js";
 import { syncGoalUi } from "../surface/ui/notify.js";
 import type { GoalState, PiGoalEventReason, PostCompletionActionState } from "../domain/types.js";
 
 export type TerminalGoalWorkflowInput = {
-	goal: GoalState | null;
-	reason: PiGoalEventReason;
-	runner: PostCompletionActionRunner;
-	triggerTurn?: boolean;
-	force?: boolean;
-	deliverAs?: "steer" | "followUp";
+  goal: GoalState | null;
+  reason: PiGoalEventReason;
+  runner: PostCompletionActionRunner;
+  triggerTurn?: boolean;
+  force?: boolean;
+  deliverAs?: "steer" | "followUp";
 };
 
-export async function processTerminalGoalWorkflow(pi: ExtensionAPI, ctx: ExtensionContext, input: TerminalGoalWorkflowInput): Promise<GoalState | null> {
-	let ticket = decideTerminalContinuationTicket(input.goal, getQueue(), { triggerTurn: input.triggerTurn, force: input.force, deliverAs: input.deliverAs });
-	const beforeActions = input.goal?.postCompletionActions;
-	const afterActions = await runPostCompletionActionsSafely(pi, ctx, input.goal, input.reason, input.runner);
-	if (completedContextResetNavigation(beforeActions, afterActions?.postCompletionActions)) ticket = repairContinuationQueueAfterReset(pi, input.goal, ticket);
-	syncGoalUi(ctx, afterActions);
-	const currentGoal = getGoal();
-	if (revalidateContinuationTicket(ticket, currentGoal, getQueue()).ok) dispatchContinuationTicket(pi, ticket);
-	return afterActions;
+export async function processTerminalGoalWorkflow(
+  pi: ExtensionAPI,
+  ctx: ExtensionContext,
+  input: TerminalGoalWorkflowInput,
+): Promise<GoalState | null> {
+  let ticket = decideTerminalContinuationTicket(input.goal, getQueue(), {
+    triggerTurn: input.triggerTurn,
+    force: input.force,
+    deliverAs: input.deliverAs,
+  });
+  const beforeActions = input.goal?.postCompletionActions;
+  const afterActions = await runPostCompletionActionsSafely(
+    pi,
+    ctx,
+    input.goal,
+    input.reason,
+    input.runner,
+  );
+  if (completedContextResetNavigation(beforeActions, afterActions?.postCompletionActions))
+    ticket = repairContinuationQueueAfterReset(pi, input.goal, ticket);
+  syncGoalUi(ctx, afterActions);
+  const currentGoal = getGoal();
+  if (revalidateContinuationTicket(ticket, currentGoal, getQueue()).ok)
+    dispatchContinuationTicket(pi, ticket);
+  return afterActions;
 }
 
-function repairContinuationQueueAfterReset(pi: ExtensionAPI, goal: GoalState | null, ticket: ContinuationTicket): ContinuationTicket {
-	if (goal?.sourceQueueId) {
-		consumeQueueIdForRepair(pi, goal.sourceQueueId, "context_reset_source_queue_repair");
-	}
-	if (ticket.kind === "none") return ticket;
-	restoreQueueHeadForRepair(pi, ticket.queuedGoal, "context_reset_queue_handoff_repair");
-	return refreshContinuationTicketQueueRevision(ticket);
+function repairContinuationQueueAfterReset(
+  pi: ExtensionAPI,
+  goal: GoalState | null,
+  ticket: ContinuationTicket,
+): ContinuationTicket {
+  if (goal?.sourceQueueId) {
+    consumeQueueIdForRepair(pi, goal.sourceQueueId, "context_reset_source_queue_repair");
+  }
+  if (ticket.kind === "none") return ticket;
+  restoreQueueHeadForRepair(pi, ticket.queuedGoal, "context_reset_queue_handoff_repair");
+  return refreshContinuationTicketQueueRevision(ticket);
 }
 
-function completedContextResetNavigation(before: PostCompletionActionState[] | undefined, after: PostCompletionActionState[] | undefined): boolean {
-	for (const action of after ?? []) {
-		if (action.type !== "context.reset" || action.status !== "done") continue;
-		const previous = before?.find((candidate) => candidate.id === action.id);
-		if (previous?.status !== "done") return true;
-	}
-	return false;
+function completedContextResetNavigation(
+  before: PostCompletionActionState[] | undefined,
+  after: PostCompletionActionState[] | undefined,
+): boolean {
+  for (const action of after ?? []) {
+    if (action.type !== "context.reset" || action.status !== "done") continue;
+    const previous = before?.find((candidate) => candidate.id === action.id);
+    if (previous?.status !== "done") return true;
+  }
+  return false;
 }

@@ -41,7 +41,8 @@ export function createToolBlockOverlay(options: ToolBlockOverlayOptions): {
   handleInput(data: string): void;
 } {
   const { theme, requestRender, done, tools } = options;
-  let layer: ToolBlockLayer = options.initialLayer === "session" && options.session ? "session" : "global";
+  let layer: ToolBlockLayer =
+    options.initialLayer === "session" && options.session ? "session" : "global";
   let globalDraft = options.initial;
   let sessionDraft: ToolBlockConfig | null = options.session ?? null;
   let draft = layer === "session" && sessionDraft ? sessionDraft : globalDraft;
@@ -56,7 +57,8 @@ export function createToolBlockOverlay(options: ToolBlockOverlayOptions): {
     list: ToolBlockRow[],
   ): Extract<ToolBlockRow, { kind: "layer" | "enabled" | "tool" }>[] {
     return list.filter(
-      (row): row is Extract<ToolBlockRow, { kind: "layer" | "enabled" | "tool" }> => row.kind !== "header",
+      (row): row is Extract<ToolBlockRow, { kind: "layer" | "enabled" | "tool" }> =>
+        row.kind !== "header",
     );
   }
 
@@ -245,13 +247,21 @@ function indexOfSelectable(list: readonly ToolBlockRow[], selectableIndex: numbe
   return 0;
 }
 
-function windowLines(lines: string[], selectedAbs: number, budget: number, dim: (s: string) => string): string[] {
+function windowLines(
+  lines: string[],
+  selectedAbs: number,
+  budget: number,
+  dim: (s: string) => string,
+): string[] {
   if (lines.length === 0) return [dim("  No matching tools")];
   if (lines.length <= budget) return lines;
   let itemBudget = Math.max(1, budget);
   if (itemBudget >= 2) itemBudget -= 1;
   if (itemBudget >= 2 && lines.length > itemBudget + 1) itemBudget -= 1;
-  let start = Math.max(0, Math.min(selectedAbs - Math.floor(itemBudget / 2), lines.length - itemBudget));
+  let start = Math.max(
+    0,
+    Math.min(selectedAbs - Math.floor(itemBudget / 2), lines.length - itemBudget),
+  );
   let end = Math.min(start + itemBudget, lines.length);
   if (selectedAbs < start) {
     start = selectedAbs;
@@ -281,12 +291,16 @@ function fitBody(lines: string[], footer: string[], budget: number, pathLine: st
       body.splice(pathIdx, 1);
       continue;
     }
-    const more = body.findIndex((line) => line.includes("more above") || line.includes("more below"));
+    const more = body.findIndex(
+      (line) => line.includes("more above") || line.includes("more below"),
+    );
     if (more >= 0) {
       body.splice(more, 1);
       continue;
     }
-    const dropAt = body.findIndex((line) => !line.includes("›") && !line.includes("filter:") && !line.includes("─"));
+    const dropAt = body.findIndex(
+      (line) => !line.includes("›") && !line.includes("filter:") && !line.includes("─"),
+    );
     if (dropAt >= 0) {
       body.splice(dropAt, 1);
       continue;

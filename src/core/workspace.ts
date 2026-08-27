@@ -2,7 +2,9 @@ import { getActiveTab } from "./tabs.js";
 import type { MixCodeState, WorkspaceSnapshot, WorkspaceTabSnapshot } from "./types.js";
 
 export interface WorkspaceRuntimeSnapshotSource {
-  getTab?: (sessionId: string) => { session?: { getSessionFile?: () => string | null | undefined } } | undefined;
+  getTab?: (
+    sessionId: string,
+  ) => { session?: { getSessionFile?: () => string | null | undefined } } | undefined;
 }
 
 export function snapshotWorkspace(
@@ -18,7 +20,8 @@ export function snapshotWorkspace(
     // Home (config) should record the selected agent row, not always tabs[0].
     activeSessionId: getActiveTab(state)?.sessionId,
     tabs: state.tabs.map((tab): WorkspaceTabSnapshot => {
-      const sessionPath = runtime?.getTab?.(tab.sessionId)?.session?.getSessionFile?.() ?? undefined;
+      const sessionPath =
+        runtime?.getTab?.(tab.sessionId)?.session?.getSessionFile?.() ?? undefined;
       return {
         sessionId: tab.sessionId,
         sessionPath: sessionPath || undefined,

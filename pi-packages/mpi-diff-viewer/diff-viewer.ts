@@ -1,8 +1,4 @@
-import {
-  getLanguageFromPath,
-  highlightCode,
-  type Theme,
-} from "@earendil-works/pi-coding-agent";
+import { getLanguageFromPath, highlightCode, type Theme } from "@earendil-works/pi-coding-agent";
 import {
   Editor,
   type EditorTheme,
@@ -232,8 +228,9 @@ function renderSplitBox(
     const inner = Math.max(1, width - 2);
     return [
       `${border("┌")}${border("─".repeat(inner))}${border("┐")}`,
-      ...Array.from({ length: bodyHeight }, (_, index) =>
-        `${border("│")}${fit(right[index] ?? "", inner)}${border("│")}`,
+      ...Array.from(
+        { length: bodyHeight },
+        (_, index) => `${border("│")}${fit(right[index] ?? "", inner)}${border("│")}`,
       ),
       border(`└${"─".repeat(inner)}┘`),
     ];
@@ -241,8 +238,10 @@ function renderSplitBox(
   const rightInner = Math.max(1, width - leftInner - 3);
   return [
     `${border("┌")}${border("─".repeat(leftInner))}${border("┬")}${border("─".repeat(rightInner))}${border("┐")}`,
-    ...Array.from({ length: bodyHeight }, (_, index) =>
-      `${border("│")}${fit(left[index] ?? "", leftInner)}${border("│")}${fit(right[index] ?? "", rightInner)}${border("│")}`,
+    ...Array.from(
+      { length: bodyHeight },
+      (_, index) =>
+        `${border("│")}${fit(left[index] ?? "", leftInner)}${border("│")}${fit(right[index] ?? "", rightInner)}${border("│")}`,
     ),
     `${border("└")}${border("─".repeat(leftInner))}${border("┴")}${border("─".repeat(rightInner))}${border("┘")}`,
   ];
@@ -819,8 +818,7 @@ export class DiffViewer {
   private moveNavigator(delta: number): void {
     const rows = this.navigatorRows();
     if (rows.length === 0) return;
-    this.selectedNavigatorIndex =
-      (this.selectedNavigatorIndex + delta + rows.length) % rows.length;
+    this.selectedNavigatorIndex = (this.selectedNavigatorIndex + delta + rows.length) % rows.length;
     this.selectedLineIndex = 0;
     this.rangeAnchorIndex = undefined;
     this.commentMode = false;
@@ -1562,7 +1560,10 @@ export class DiffViewer {
       const selected = absoluteIndex === this.selectedNavigatorIndex;
       if (row.kind === "root") {
         const icon = this.collapsedPaths.has("/") ? "" : "";
-        const rendered = fit(this.config.theme.bold(this.config.theme.fg("accent", `${icon} /`)), width);
+        const rendered = fit(
+          this.config.theme.bold(this.config.theme.fg("accent", `${icon} /`)),
+          width,
+        );
         lines.push(selected ? this.config.theme.bg("selectedBg", rendered) : rendered);
         return;
       }

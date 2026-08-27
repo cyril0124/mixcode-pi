@@ -52,9 +52,9 @@ test("applyMixCodeKeybindings installs mixcode manager on top-level pi-tui", () 
       MIXCODE_EXTENSION_KEYBINDINGS_MANAGER,
       "top-level pi-tui must point at the mixcode manager",
     );
-    const expandKeys = (
-      getOuterKeybindings() as { getKeys: (id: never) => string[] }
-    ).getKeys("app.tools.expand" as never);
+    const expandKeys = (getOuterKeybindings() as { getKeys: (id: never) => string[] }).getKeys(
+      "app.tools.expand" as never,
+    );
     assert.deepEqual(expandKeys, ["ctrl+o"]);
   } finally {
     restore();
@@ -86,9 +86,9 @@ test("when nested pi-tui exists, applyMixCodeKeybindings mirrors onto it", async
       MIXCODE_EXTENSION_KEYBINDINGS_MANAGER,
       "nested pi-tui must point at the same mixcode manager",
     );
-    const expandKeys = (
-      nested.getKeybindings() as { getKeys: (id: never) => string[] }
-    ).getKeys("app.tools.expand" as never);
+    const expandKeys = (nested.getKeybindings() as { getKeys: (id: never) => string[] }).getKeys(
+      "app.tools.expand" as never,
+    );
     assert.deepEqual(expandKeys, ["ctrl+o"]);
   } finally {
     restore();

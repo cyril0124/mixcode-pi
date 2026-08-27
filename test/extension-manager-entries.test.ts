@@ -40,12 +40,7 @@ function testPanel(
 
 // Build a minimal Extension-like object with just the fields the entry mapper
 // reads. The tools/commands Maps only need keys; values are irrelevant here.
-function fakeExtension(
-  path: string,
-  source: string,
-  toolNames: string[],
-  commandNames: string[],
-) {
+function fakeExtension(path: string, source: string, toolNames: string[], commandNames: string[]) {
   return {
     path,
     resolvedPath: path,
@@ -200,7 +195,9 @@ test("extension manager names local extensions from their entry path", () => {
     },
   ];
 
-  const rendered = stripAnsi(testPanel(state, entries, { selectedIndex: 1 }).render(100).join("\n"));
+  const rendered = stripAnsi(
+    testPanel(state, entries, { selectedIndex: 1 }).render(100).join("\n"),
+  );
   assert.match(rendered, /● mpi-loop/);
   assert.match(rendered, /● pkg/);
 });
@@ -394,13 +391,17 @@ test("extension manager switches to two panes at 80 terminal columns", () => {
   try {
     Object.defineProperty(process.stdout, "columns", { configurable: true, value: 79 });
     const singlePane = stripAnsi(
-      testPanel(state, entries).render(Math.floor(79 * 0.78)).join("\n"),
+      testPanel(state, entries)
+        .render(Math.floor(79 * 0.78))
+        .join("\n"),
     );
     assert.doesNotMatch(singlePane, /status\s+enabled/);
 
     Object.defineProperty(process.stdout, "columns", { configurable: true, value: 80 });
     const doublePane = stripAnsi(
-      testPanel(state, entries).render(Math.floor(80 * 0.78)).join("\n"),
+      testPanel(state, entries)
+        .render(Math.floor(80 * 0.78))
+        .join("\n"),
     );
     assert.match(doublePane, /status\s+enabled/);
   } finally {

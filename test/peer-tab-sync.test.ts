@@ -45,9 +45,7 @@ test("listTabsToReconcile opens missing and closes extras", () => {
     ],
   });
   assert.deepEqual(plan.toClose, ["drop-me"]);
-  assert.deepEqual(plan.toOpen, [
-    { sessionId: "new-one", title: "Peer New", workdir: "/repo" },
-  ]);
+  assert.deepEqual(plan.toOpen, [{ sessionId: "new-one", title: "Peer New", workdir: "/repo" }]);
   assert.deepEqual(plan.desiredOrder, ["keep", "new-one"]);
 });
 
@@ -207,7 +205,10 @@ test("startPeerTabSync opens and closes against shared open_tabs", async () => {
     removeOpenTab(openTabsPath, created.sessionId);
     await sync.reconcileNow();
     assert.deepEqual(closed, [created.sessionId]);
-    assert.equal(stateB.tabs.some((tab) => tab.sessionId === created.sessionId), false);
+    assert.equal(
+      stateB.tabs.some((tab) => tab.sessionId === created.sessionId),
+      false,
+    );
 
     sync.dispose();
   } finally {
@@ -374,10 +375,7 @@ test("completeAgentTabClear publishes open_tabs before session id swaps so recon
     let seenNewSessionId: string | undefined;
     const runtime = {
       getTab: (id: string) => runtimeTabs.get(id),
-      clearTab: async (
-        sessionId: string,
-        options?: { newSessionId?: string },
-      ) => {
+      clearTab: async (sessionId: string, options?: { newSessionId?: string }) => {
         const existingRt = runtimeTabs.get(sessionId);
         if (!existingRt) throw new Error(`Unknown tab session: ${sessionId}`);
         const tab = existingRt.tab as { sessionId: string; title: string; index: number };
@@ -479,10 +477,7 @@ test("prepareAgentTabClear rejects corrupt open_tabs before wiping the tab", asy
       },
     };
 
-    assert.throws(
-      () => prepareAgentTabClear(state, runtime as never, tab.sessionId),
-      SyntaxError,
-    );
+    assert.throws(() => prepareAgentTabClear(state, runtime as never, tab.sessionId), SyntaxError);
     assert.equal(projectionClears, 0);
     assert.equal(tab.unreadDone, true);
     assert.equal(tab.sessionId, "keep-session");

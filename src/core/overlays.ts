@@ -1,8 +1,17 @@
-import { LOCAL_COMMANDS, type LocalCommandPaletteMeta, type PaletteRequirement } from "./commands.js";
+import {
+  LOCAL_COMMANDS,
+  type LocalCommandPaletteMeta,
+  type PaletteRequirement,
+} from "./commands.js";
 import { fuzzyFilter } from "@earendil-works/pi-tui";
 import { fuzzyMatch, fuzzyMatchAllPositions } from "./fuzzy.js";
 import { activateTab, findActiveTab } from "./tabs.js";
-import { HOME_TAB_ID, type CommandPaletteEntry, type MixCodeState, type MixCodeTabInfo } from "./types.js";
+import {
+  HOME_TAB_ID,
+  type CommandPaletteEntry,
+  type MixCodeState,
+  type MixCodeTabInfo,
+} from "./types.js";
 import { tabIsNonIdle, tabIsWaitingForInput } from "./tab-state.js";
 import { clearScrollFreeze } from "../ui/rendering/agent-surface-scroll.js";
 
@@ -46,7 +55,6 @@ export function clearChatScrollAnchor(tab: MixCodeTabInfo): void {
   tab.chatScrollAnchorText = undefined;
 }
 
-
 export function tabJumpEntries(
   state: MixCodeState,
 ): Array<{ id: string; label: string; busy: boolean; done: boolean; waitingForInput: boolean }> {
@@ -68,9 +76,7 @@ export function filterTabJumpEntries(
 ): ReturnType<typeof tabJumpEntries> {
   let entries = tabJumpEntries(state);
   if (state.tabJumpNonIdleOnly) {
-    const attentionIds = new Set(
-      state.tabs.filter(tabIsNonIdle).map((tab) => tab.sessionId),
-    );
+    const attentionIds = new Set(state.tabs.filter(tabIsNonIdle).map((tab) => tab.sessionId));
     entries = entries.filter((entry) => attentionIds.has(entry.id));
   }
   if (!query.trim()) return entries;
@@ -137,17 +143,22 @@ export function pickerIsLive(state: MixCodeState): boolean {
 }
 
 export function sessionSelectorIsLive(state: MixCodeState): boolean {
-  return state.sessionSelector.open && overlayOwnerIsActive(state, state.sessionSelector.ownerSessionId);
+  return (
+    state.sessionSelector.open && overlayOwnerIsActive(state, state.sessionSelector.ownerSessionId)
+  );
 }
 
 export function sessionActionConfirmIsLive(state: MixCodeState): boolean {
   return (
-    state.sessionActionConfirm !== null && overlayOwnerIsActive(state, state.sessionActionConfirm.sessionId)
+    state.sessionActionConfirm !== null &&
+    overlayOwnerIsActive(state, state.sessionActionConfirm.sessionId)
   );
 }
 
 export function settingsPanelIsLive(state: MixCodeState): boolean {
-  return state.settingsPanel.open && overlayOwnerIsActive(state, state.settingsPanel.ownerSessionId);
+  return (
+    state.settingsPanel.open && overlayOwnerIsActive(state, state.settingsPanel.ownerSessionId)
+  );
 }
 
 /** True when this tab opened a MixCode picker, confirm, or resume selector. */
@@ -323,9 +334,16 @@ function homeCommandPaletteEntries(state: MixCodeState): CommandPaletteEntry[] {
     hasTabs: state.tabs.length > 0,
   };
   return LOCAL_COMMANDS.filter(
-    (command) => command.palette && (command.palette.scope === "home" || command.palette.scope === "both"),
+    (command) =>
+      command.palette && (command.palette.scope === "home" || command.palette.scope === "both"),
   ).map((command) =>
-    paletteEntryFromCommand(HOME_TAB_ID, command.name, command.description, command.palette!, flags),
+    paletteEntryFromCommand(
+      HOME_TAB_ID,
+      command.name,
+      command.description,
+      command.palette!,
+      flags,
+    ),
   );
 }
 

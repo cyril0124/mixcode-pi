@@ -569,7 +569,10 @@ test("extension chrome truncates narrow terminal rows instead of wrapping", () =
   assert.equal(plain.filter((line) => line.includes("pi-web-access")).length, 1);
   assert.equal(plain.filter((line) => line.includes("Warning: tmux")).length, 1);
   assert.equal(plain.filter((line) => line.includes("footer with")).length, 1);
-  assert.equal(lines.every((line) => visibleWidth(line) <= 55), true);
+  assert.equal(
+    lines.every((line) => visibleWidth(line) <= 55),
+    true,
+  );
   assert.match(plain.join("\n"), /\.\.\./);
 });
 

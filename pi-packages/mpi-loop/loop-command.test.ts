@@ -18,12 +18,10 @@ test("mpi-loop stops after the configured total fire count", async () => {
   globalThis.clearInterval = ((id) => {
     clearedIntervals.push(id);
   }) as typeof clearInterval;
-  globalThis.setTimeout = ((() => 2) as unknown) as typeof setTimeout;
+  globalThis.setTimeout = (() => 2) as unknown as typeof setTimeout;
   globalThis.clearTimeout = (() => {}) as typeof clearTimeout;
 
-  let commandHandler:
-    | ((args: string, ctx: TestCommandContext) => Promise<void>)
-    | undefined;
+  let commandHandler: ((args: string, ctx: TestCommandContext) => Promise<void>) | undefined;
   let shutdownHandler: ((event: unknown, ctx: unknown) => unknown) | undefined;
   let overlay: TestOverlay | undefined;
   const ctx: TestCommandContext = {
@@ -88,9 +86,7 @@ test("mpi-loop stops after the configured total fire count", async () => {
 
 test("mpi-loop preserves multiline prompt text after a leading interval", async () => {
   const sent: string[] = [];
-  let commandHandler:
-    | ((args: string, ctx: TestCommandContext) => Promise<void>)
-    | undefined;
+  let commandHandler: ((args: string, ctx: TestCommandContext) => Promise<void>) | undefined;
   let shutdownHandler: ((event: unknown, ctx: unknown) => unknown) | undefined;
   const ctx: TestCommandContext = {
     ui: { notify: () => {} },
@@ -117,9 +113,7 @@ test("mpi-loop preserves multiline prompt text after a leading interval", async 
 
 test("mpi-loop queues immediate and overlay fires when the agent is busy", async () => {
   const sent: Array<{ prompt: string; options: unknown }> = [];
-  let commandHandler:
-    | ((args: string, ctx: TestCommandContext) => Promise<void>)
-    | undefined;
+  let commandHandler: ((args: string, ctx: TestCommandContext) => Promise<void>) | undefined;
   let shutdownHandler: ((event: unknown, ctx: unknown) => unknown) | undefined;
   let overlay: TestOverlay | undefined;
   const ctx: TestCommandContext = {
@@ -183,12 +177,10 @@ test("mpi-loop defer coalesces busy ticks and flushes once on agent_settled", as
     return 1 as unknown as ReturnType<typeof setInterval>;
   }) as typeof setInterval;
   globalThis.clearInterval = (() => {}) as typeof clearInterval;
-  globalThis.setTimeout = ((() => 1) as unknown) as typeof setTimeout;
+  globalThis.setTimeout = (() => 1) as unknown as typeof setTimeout;
   globalThis.clearTimeout = (() => {}) as typeof clearTimeout;
 
-  let commandHandler:
-    | ((args: string, ctx: TestCommandContext) => Promise<void>)
-    | undefined;
+  let commandHandler: ((args: string, ctx: TestCommandContext) => Promise<void>) | undefined;
   let agentSettledHandler: ((event: unknown, ctx: TestCommandContext) => unknown) | undefined;
   let shutdownHandler: ((event: unknown, ctx: unknown) => unknown) | undefined;
   // Match real Pi: isIdle stays false through agent_end; true only after settle.
@@ -230,9 +222,7 @@ test("mpi-loop defer coalesces busy ticks and flushes once on agent_settled", as
 
     idle = true;
     await agentSettledHandler?.({ type: "agent_settled" }, ctx);
-    assert.deepEqual(sent, [
-      { prompt: "defer prompt", options: { expandPromptTemplates: true } },
-    ]);
+    assert.deepEqual(sent, [{ prompt: "defer prompt", options: { expandPromptTemplates: true } }]);
 
     sent.length = 0;
     await agentSettledHandler?.({ type: "agent_settled" }, ctx);
@@ -258,12 +248,10 @@ test("mpi-loop skip drops busy timer ticks and never flushes them", async () => 
     return 1 as unknown as ReturnType<typeof setInterval>;
   }) as typeof setInterval;
   globalThis.clearInterval = (() => {}) as typeof clearInterval;
-  globalThis.setTimeout = ((() => 1) as unknown) as typeof setTimeout;
+  globalThis.setTimeout = (() => 1) as unknown as typeof setTimeout;
   globalThis.clearTimeout = (() => {}) as typeof clearTimeout;
 
-  let commandHandler:
-    | ((args: string, ctx: TestCommandContext) => Promise<void>)
-    | undefined;
+  let commandHandler: ((args: string, ctx: TestCommandContext) => Promise<void>) | undefined;
   let agentSettledHandler: ((event: unknown, ctx: TestCommandContext) => unknown) | undefined;
   let shutdownHandler: ((event: unknown, ctx: unknown) => unknown) | undefined;
   let overlay: TestOverlay | undefined;
@@ -324,9 +312,7 @@ test("mpi-loop skip drops busy timer ticks and never flushes them", async () => 
 });
 
 test("mpi-loop interval completion leaves the interval token free-form", async () => {
-  let commandHandler:
-    | ((args: string, ctx: TestCommandContext) => Promise<void>)
-    | undefined;
+  let commandHandler: ((args: string, ctx: TestCommandContext) => Promise<void>) | undefined;
   let getArgumentCompletions:
     | ((prefix: string) => Array<{ label: string; value: string }> | null)
     | undefined;
@@ -388,12 +374,10 @@ test("mpi-loop reschedules an existing loop interval without re-firing", async (
   globalThis.clearInterval = ((id) => {
     cleared.push(id);
   }) as typeof clearInterval;
-  globalThis.setTimeout = ((() => 1) as unknown) as typeof setTimeout;
+  globalThis.setTimeout = (() => 1) as unknown as typeof setTimeout;
   globalThis.clearTimeout = (() => {}) as typeof clearTimeout;
 
-  let commandHandler:
-    | ((args: string, ctx: TestCommandContext) => Promise<void>)
-    | undefined;
+  let commandHandler: ((args: string, ctx: TestCommandContext) => Promise<void>) | undefined;
   let shutdownHandler: ((event: unknown, ctx: unknown) => unknown) | undefined;
   let overlay: TestOverlay | undefined;
   const notifies: Array<{ message: string; level: string }> = [];
@@ -438,11 +422,7 @@ test("mpi-loop reschedules an existing loop interval without re-firing", async (
     assert.ok(cleared.includes(originalTimerId), "old timer must be cleared");
     assert.equal(intervalCalls.length, 2, "new timer must be scheduled");
     assert.equal(intervalCalls[1]!.ms, 30_000);
-    assert.match(
-      notifies.at(-1)?.message ?? "",
-      /30s/,
-      "notify should report the new interval",
-    );
+    assert.match(notifies.at(-1)?.message ?? "", /30s/, "notify should report the new interval");
 
     await commandHandler("", ctx);
     assert.ok(overlay);
@@ -470,12 +450,10 @@ test("mpi-loop updates an existing loop prompt without re-firing", async () => {
     return 1 as unknown as ReturnType<typeof setInterval>;
   }) as typeof setInterval;
   globalThis.clearInterval = (() => {}) as typeof clearInterval;
-  globalThis.setTimeout = ((() => 1) as unknown) as typeof setTimeout;
+  globalThis.setTimeout = (() => 1) as unknown as typeof setTimeout;
   globalThis.clearTimeout = (() => {}) as typeof clearTimeout;
 
-  let commandHandler:
-    | ((args: string, ctx: TestCommandContext) => Promise<void>)
-    | undefined;
+  let commandHandler: ((args: string, ctx: TestCommandContext) => Promise<void>) | undefined;
   let getArgumentCompletions:
     | ((prefix: string) => Array<{ label: string; value: string }> | null)
     | undefined;
@@ -556,7 +534,11 @@ test("mpi-loop updates an existing loop prompt without re-firing", async () => {
     await commandHandler("prompt missing brand-new", ctx);
     assert.equal(notifies.length, missingNotifiesBefore + 1);
     assert.equal(notifies.at(-1)?.level, "warning");
-    assert.deepEqual(sent, ["new prompt\nline two"], "failed updates must not create or fire a loop");
+    assert.deepEqual(
+      sent,
+      ["new prompt\nline two"],
+      "failed updates must not create or fire a loop",
+    );
   } finally {
     await shutdownHandler?.({}, ctx);
     globalThis.setInterval = realSetInterval;
@@ -567,9 +549,7 @@ test("mpi-loop updates an existing loop prompt without re-firing", async () => {
 });
 
 test("mpi-loop counts the immediate first fire in RUNS", async () => {
-  let commandHandler:
-    | ((args: string, ctx: TestCommandContext) => Promise<void>)
-    | undefined;
+  let commandHandler: ((args: string, ctx: TestCommandContext) => Promise<void>) | undefined;
   let shutdownHandler: ((event: unknown, ctx: unknown) => unknown) | undefined;
   let overlay: TestOverlay | undefined;
   const idleCtx: TestCommandContext = {
@@ -738,12 +718,10 @@ test("mpi-loop refresh and timer tolerate stale ctx after session replacement", 
   globalThis.clearInterval = ((id) => {
     clearedIntervals.push(id);
   }) as typeof clearInterval;
-  globalThis.setTimeout = ((() => 1) as unknown) as typeof setTimeout;
+  globalThis.setTimeout = (() => 1) as unknown as typeof setTimeout;
   globalThis.clearTimeout = (() => {}) as typeof clearTimeout;
 
-  let commandHandler:
-    | ((args: string, ctx: TestCommandContext) => Promise<void>)
-    | undefined;
+  let commandHandler: ((args: string, ctx: TestCommandContext) => Promise<void>) | undefined;
   let sessionStartHandler: ((event: unknown, ctx: TestCommandContext) => unknown) | undefined;
   let shutdownHandler: ((event: unknown, ctx: unknown) => unknown) | undefined;
   const changeListeners: Array<() => void> = [];
@@ -824,7 +802,11 @@ test("mpi-loop refresh and timer tolerate stale ctx after session replacement", 
       listenersBeforeStale - 1,
       "stale refresh must destroy the widget subscription",
     );
-    assert.equal(setWidgetCalls, widgetsBeforeStale, "stale refresh must not re-register the widget");
+    assert.equal(
+      setWidgetCalls,
+      widgetsBeforeStale,
+      "stale refresh must not re-register the widget",
+    );
 
     // Timer tick with stale isIdle cancels the loop instead of firing.
     sent.length = 0;
@@ -886,7 +868,10 @@ interface TestOverlay {
 
 type TestOverlayFactory = (
   tui: { terminal: { rows: number }; requestRender: () => void },
-  theme: { fg: (color: string, text: string) => string; bg: (color: string, text: string) => string },
+  theme: {
+    fg: (color: string, text: string) => string;
+    bg: (color: string, text: string) => string;
+  },
   keybindings: object,
   done: () => void,
 ) => TestOverlay;

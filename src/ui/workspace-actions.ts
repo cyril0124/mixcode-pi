@@ -60,7 +60,9 @@ export async function restoreWorkspaceByName(
   name: string,
   onStateChanged?: (state: MixCodeState) => void | Promise<void>,
 ): Promise<void> {
-  const workspace = (await loadOptionalWorkspaces(workspaceFile)).find((item) => item.name === name);
+  const workspace = (await loadOptionalWorkspaces(workspaceFile)).find(
+    (item) => item.name === name,
+  );
   if (!workspace) throw new Error(`Error: Unknown workspace: ${name}`);
   await restoreWorkspace(state, runtime, tui, workspace, onStateChanged);
 }

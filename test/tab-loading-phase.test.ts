@@ -43,8 +43,6 @@ test("ready tabs never show a loading chip", () => {
   tab.loadingPhase = undefined;
   state.tabs.push(tab);
 
-  const rendered = stripAnsi(
-    renderHome(state, 120, activeRenderTheme, 0, 30).join("\n"),
-  );
+  const rendered = stripAnsi(renderHome(state, 120, activeRenderTheme, 0, 30).join("\n"));
   assert.ok(!/\[(loading|session|resources|transcript)\]/.test(rendered));
 });

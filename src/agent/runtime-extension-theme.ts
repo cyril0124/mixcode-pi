@@ -10,10 +10,7 @@ import {
   TUI_KEYBINDINGS,
 } from "@earendil-works/pi-tui";
 import { getAgentDir, loadKeybindingsConfigFile } from "@earendil-works/pi-coding-agent";
-import {
-  applyPiThemeInstance,
-  initTheme,
-} from "../ui/pi-theme-api.js";
+import { applyPiThemeInstance, initTheme } from "../ui/pi-theme-api.js";
 import {
   getActiveExtensionThemeId,
   listThemeInfos,
@@ -26,11 +23,7 @@ import {
 } from "../ui/themes.js";
 import type { ExtensionThemeHost } from "./runtime-types.js";
 
-export {
-  getActiveExtensionThemeId,
-  noteActiveExtensionThemeId,
-  registerMixCodeThemes,
-};
+export { getActiveExtensionThemeId, noteActiveExtensionThemeId, registerMixCodeThemes };
 
 const MIXCODE_EXTENSION_KEYBINDING_DEFINITIONS = {
   ...TUI_KEYBINDINGS,

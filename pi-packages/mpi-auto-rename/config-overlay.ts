@@ -51,7 +51,8 @@ export function createAutoRenameConfigOverlay(options: AutoRenameConfigOverlayOp
   const modelOptions = uniqueOptions([AUTO_RENAME_INHERIT, ...options.modelOptions]);
 
   function currentThinkingOptions(): string[] {
-    const extra = options.getThinkingOptions?.(currentModelLabel()) ?? options.thinkingOptions ?? [];
+    const extra =
+      options.getThinkingOptions?.(currentModelLabel()) ?? options.thinkingOptions ?? [];
     return uniqueOptions([AUTO_RENAME_INHERIT, ...extra]);
   }
 
@@ -248,7 +249,10 @@ export function createAutoRenameConfigOverlay(options: AutoRenameConfigOverlayOp
       { label: "On first message", value: currentOnFirstLabel() },
       { label: "Max context chars", value: currentMaxContextLabel() },
     ];
-    const body: string[] = [theme.fg("dim", " Changes apply immediately · Enter edit / toggle"), ""];
+    const body: string[] = [
+      theme.fg("dim", " Changes apply immediately · Enter edit / toggle"),
+      "",
+    ];
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i]!;
       const selected = i === mainIndex;
@@ -272,7 +276,10 @@ export function createAutoRenameConfigOverlay(options: AutoRenameConfigOverlayOp
     const opts = filteredPickOptions();
     const maxVisible = Math.max(3, options.getMaxVisible?.() ?? 10);
     const body: string[] = [
-      theme.fg("dim", ` Filter: ${pickQuery.length > 0 ? pickQuery : "(type to filter)"} · applies on Enter`),
+      theme.fg(
+        "dim",
+        ` Filter: ${pickQuery.length > 0 ? pickQuery : "(type to filter)"} · applies on Enter`,
+      ),
       "",
     ];
     if (opts.length === 0) {

@@ -70,10 +70,7 @@ test("isModelDisabled matches provider list and provider/modelId list", () => {
   assert.equal(isModelDisabled("openai", "gpt-4o", [], ["openai/gpt-4"]), false);
   assert.equal(isModelDisabled("anthropic", "claude-opus", ["openai"], ["openai/gpt-4"]), false);
   // modelId may contain slashes; match on first slash only
-  assert.equal(
-    isModelDisabled("custom", "org/model", [], ["custom/org/model"]),
-    true,
-  );
+  assert.equal(isModelDisabled("custom", "org/model", [], ["custom/org/model"]), true);
 });
 
 test("mixcode settings load/write disabledProviders and disabledModels", async () => {
@@ -247,7 +244,11 @@ test("reloadRuntimeModels updates the shared extension model policy", async () =
   const state = createInitialState("/repo");
 
   try {
-    await fsPromises.writeFile(file, JSON.stringify({ disabledProviders: ["disabled-provider"] }), "utf8");
+    await fsPromises.writeFile(
+      file,
+      JSON.stringify({ disabledProviders: ["disabled-provider"] }),
+      "utf8",
+    );
     assert.deepEqual(
       await reloadRuntimeModels(
         state,
@@ -326,11 +327,7 @@ test("reload applies disabled policy when models.json is invalid", async () => {
 
 test("models picker marks disabled items and keeps them listed", () => {
   const state = createInitialState("/repo");
-  state.availableModels = applyDisabledModelFlags(
-    [openaiGpt, anthropicOpus],
-    ["openai"],
-    [],
-  );
+  state.availableModels = applyDisabledModelFlags([openaiGpt, anthropicOpus], ["openai"], []);
   const items = pickerItems("models", state);
   assert.equal(items.length, 2);
   assert.equal(items[0]!.disabled, true);
@@ -339,7 +336,10 @@ test("models picker marks disabled items and keeps them listed", () => {
   assert.match(items[1]!.description, /context/);
 
   const picker = createPicker("models", state);
-  assert.equal(picker.items.some((item) => item.id === "openai/gpt-4" && item.disabled), true);
+  assert.equal(
+    picker.items.some((item) => item.id === "openai/gpt-4" && item.disabled),
+    true,
+  );
 });
 
 test("applyModelSelection rejects disabled models", async () => {
@@ -348,10 +348,7 @@ test("applyModelSelection rejects disabled models", async () => {
   state.tabs = [tab];
   state.model = anthropicOpus;
   const disabled = { ...openaiGpt, disabled: true };
-  await assert.rejects(
-    () => applyModelSelection(state, tab, disabled),
-    /disabled/i,
-  );
+  await assert.rejects(() => applyModelSelection(state, tab, disabled), /disabled/i);
   assert.equal(tab.model.modelId, "claude-opus");
 });
 

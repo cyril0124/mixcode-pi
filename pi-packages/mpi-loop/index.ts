@@ -14,7 +14,14 @@
 
 import type { ExtensionAPI, ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
-import { Container, Spacer, Text, type TUI, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import {
+  Container,
+  Spacer,
+  Text,
+  type TUI,
+  truncateToWidth,
+  visibleWidth,
+} from "@earendil-works/pi-tui";
 import {
   DEFAULT_INTERVAL,
   MAX_AGE_MS,
@@ -173,9 +180,10 @@ class LoopWidget {
       const promptText = theme.fg("dim", fitCell(loop.prompt, promptWidth));
       const nextLabel = loop.pending ? "waiting" : formatRelativeTime(loop.nextRunAt);
       const nextText = fitCell(nextLabel, 8);
-      const fireCount = loop.maxFireCount === null
-        ? String(loop.fireCount)
-        : `${loop.fireCount}/${loop.maxFireCount}`;
+      const fireCount =
+        loop.maxFireCount === null
+          ? String(loop.fireCount)
+          : `${loop.fireCount}/${loop.maxFireCount}`;
       const countText = theme.fg("accent", fitCell(fireCount, 9));
 
       lines.push(
@@ -263,8 +271,7 @@ export default function (pi: ExtensionAPI) {
     entry.pending = false;
     entry.fireCount++;
     entry.nextRunAt = Date.now() + entry.intervalMs;
-    const reachedLimit =
-      entry.maxFireCount !== null && entry.fireCount >= entry.maxFireCount;
+    const reachedLimit = entry.maxFireCount !== null && entry.fireCount >= entry.maxFireCount;
     if (reachedLimit) cancelLoop(entry);
     pi.events.emit("loop:change", {});
     if (!deliverPrompt(entry.prompt, idle)) {
@@ -339,7 +346,7 @@ export default function (pi: ExtensionAPI) {
       if (trimmed.startsWith("stop")) {
         const loops = Array.from(activeLoops.values());
         if (loops.length === 0) return null;
-        return loops.map(loop => ({
+        return loops.map((loop) => ({
           label: `${loop.id} (${loop.name})`,
           description: `Stop "${loop.prompt}"`,
           value: `stop ${loop.id}`,
@@ -363,8 +370,7 @@ export default function (pi: ExtensionAPI) {
         if (parts.length >= 2) return null;
         const q = parts[0]!.toLowerCase();
         const matched = loops.filter(
-          (loop) =>
-            loop.id.startsWith(q) || loop.name.toLowerCase().startsWith(q),
+          (loop) => loop.id.startsWith(q) || loop.name.toLowerCase().startsWith(q),
         );
         if (matched.length === 0) return null;
         return matched.map((loop) => ({
@@ -390,8 +396,7 @@ export default function (pi: ExtensionAPI) {
         if (parts.length >= 2) return null;
         const q = parts[0]!.toLowerCase();
         const matched = loops.filter(
-          (loop) =>
-            loop.id.startsWith(q) || loop.name.toLowerCase().startsWith(q),
+          (loop) => loop.id.startsWith(q) || loop.name.toLowerCase().startsWith(q),
         );
         if (matched.length === 0) return null;
         return matched.map((loop) => ({

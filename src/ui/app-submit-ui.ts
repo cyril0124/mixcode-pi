@@ -22,7 +22,11 @@ import { getConfiguredQuitOptions, quitMixCode } from "./quit.js";
 import { clearConversationCache, renderCommandPalette, renderTabJumpOverlay } from "./rendering.js";
 import { renderSystemToolsText } from "./system-tools.js";
 import { renderSystemPromptSectionStats } from "./components/system-prompt-stats.js";
-import { closeTreeSelector, openTreeSelector, type TreeSelectorRuntime } from "./components/tree-selector.js";
+import {
+  closeTreeSelector,
+  openTreeSelector,
+  type TreeSelectorRuntime,
+} from "./components/tree-selector.js";
 
 /** Delay before bell + external done signals so the user can leave the pane first. */
 const MARK_DONE_SIGNAL_DELAY_MS = 5_000;

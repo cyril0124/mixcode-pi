@@ -8,7 +8,12 @@ import { createRequire } from "node:module";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { getKeybindings as getPkgKeybindings, setKeybindings as setPkgKeybindings, KeybindingsManager, TUI_KEYBINDINGS } from "@earendil-works/pi-tui";
+import {
+  getKeybindings as getPkgKeybindings,
+  setKeybindings as setPkgKeybindings,
+  KeybindingsManager,
+  TUI_KEYBINDINGS,
+} from "@earendil-works/pi-tui";
 
 import { MIXCODE_EXTENSION_KEYBINDINGS_MANAGER } from "../src/agent/runtime-extension-theme.js";
 import { applyMixCodeKeybindings } from "../src/agent/runtime-pi-tui-bridge.js";
@@ -45,10 +50,7 @@ test("CJS require of keybindings.js sees the same global manager as package impo
   // must share state with the ESM package entry — the bun --compile failure mode.
   const require = createRequire(import.meta.url);
   const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-  const kbPath = path.join(
-    repoRoot,
-    "node_modules/@earendil-works/pi-tui/dist/keybindings.js",
-  );
+  const kbPath = path.join(repoRoot, "node_modules/@earendil-works/pi-tui/dist/keybindings.js");
   const cjs = require(kbPath) as {
     setKeybindings: (m: unknown) => void;
     getKeybindings: () => unknown;

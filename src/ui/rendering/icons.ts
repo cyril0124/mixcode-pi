@@ -1,7 +1,4 @@
-import {
-  DEFAULT_ICON_MODE,
-  type IconMode,
-} from "../../core/mixcode-settings.js";
+import { DEFAULT_ICON_MODE, type IconMode } from "../../core/mixcode-settings.js";
 
 export interface IconGlyphs {
   model: string;
@@ -51,9 +48,7 @@ const NERD_FONT_TERMINALS = new Set([
 ]);
 
 /** Heuristic Nerd Font support from terminal env. */
-export function detectNerdFont(
-  env: NodeJS.ProcessEnv = process.env,
-): boolean {
+export function detectNerdFont(env: NodeJS.ProcessEnv = process.env): boolean {
   const termProgram = env.TERM_PROGRAM;
   if (termProgram && NERD_FONT_TERMINALS.has(termProgram)) return true;
   const lcTerminal = env.LC_TERMINAL;

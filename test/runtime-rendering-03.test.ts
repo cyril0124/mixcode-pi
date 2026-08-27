@@ -70,7 +70,10 @@ test("queue preview shows count, shortcuts, and latest messages", () => {
   );
   const narrow = stripAnsi(narrowLines.join("\n"));
 
-  assert.equal(narrowLines.every((line) => visibleWidth(line) <= 38), true);
+  assert.equal(
+    narrowLines.every((line) => visibleWidth(line) <= 38),
+    true,
+  );
   assert.match(narrow, /Ctrl\+U,S->edit/);
   assert.match(narrow, /Ctrl\+U,F->edit/);
 });
@@ -130,5 +133,8 @@ test("extension-rendered tool lines with tabs stay within terminal width", () =>
     } as never,
     width,
   );
-  assert.equal(lines.every((line) => visibleWidth(line) <= width), true);
+  assert.equal(
+    lines.every((line) => visibleWidth(line) <= width),
+    true,
+  );
 });

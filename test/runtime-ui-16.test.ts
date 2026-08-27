@@ -4,20 +4,14 @@ import * as fsPromises from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import { test } from "node:test";
-import {
-  Type,
-} from "@earendil-works/pi-ai";
-import {
-  SettingsManager,
-  type ExtensionFactory,
-} from "@earendil-works/pi-coding-agent";
-import {
-  MixCodeRuntime,
-  createTab,
-} from "./helpers/mixcode.js";
+import { Type } from "@earendil-works/pi-ai";
+import { SettingsManager, type ExtensionFactory } from "@earendil-works/pi-coding-agent";
+import { MixCodeRuntime, createTab } from "./helpers/mixcode.js";
 
 test("runtime dispatches pi extension shortcuts and surfaces handler errors", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-shortcuts-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-extension-shortcuts-"),
+  );
   const seen: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.registerShortcut("ctrl+x", {
@@ -65,7 +59,9 @@ test("runtime dispatches pi extension shortcuts and surfaces handler errors", as
 });
 
 test("runtime reports extension command and shortcut conflicts while extension tools can own builtin names", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-conflict-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-extension-conflict-"),
+  );
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("clear", {
       description: "Conflicting local command",
@@ -113,7 +109,9 @@ test("runtime reports extension command and shortcut conflicts while extension t
 });
 
 test("runtime surfaces pi extension load errors explicitly", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-load-error-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-extension-load-error-"),
+  );
   const extensionPath = path.join(dir, "missing-extension.ts");
   try {
     const runtime = new MixCodeRuntime({
@@ -126,7 +124,11 @@ test("runtime surfaces pi extension load errors explicitly", async () => {
       workdir: process.cwd(),
     });
 
-    assert.ok(runtimeTab.services.resourceLoader.getExtensions().errors.some((error) => error.path === extensionPath));
+    assert.ok(
+      runtimeTab.services.resourceLoader
+        .getExtensions()
+        .errors.some((error) => error.path === extensionPath),
+    );
     // Load errors surface in the startup header's [Diagnostics] section.
     assert.match(runtimeTab.tab.startupSummary ?? "", /\[Diagnostics\]/);
     assert.ok(
@@ -138,7 +140,9 @@ test("runtime surfaces pi extension load errors explicitly", async () => {
 });
 
 test("runtime loads pi package resources from project package sources", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-package-extension-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-package-extension-"),
+  );
   try {
     const packageRoot = path.join(dir, "package");
     const extensionPath = path.join(packageRoot, "src", "extension", "index.ts");

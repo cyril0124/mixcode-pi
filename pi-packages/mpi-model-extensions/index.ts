@@ -274,7 +274,11 @@ export default function modelExtensionsExtension(pi: ExtensionAPI) {
 
       const plan = enabled
         ? planModelExtensionLoads(config.rules, model, getAgentDir())
-        : { paths: [] as string[], warnings: [] as PlanWarning[], matchedRuleIndexes: [] as number[] };
+        : {
+            paths: [] as string[],
+            warnings: [] as PlanWarning[],
+            matchedRuleIndexes: [] as number[],
+          };
 
       showPanel(
         pi,

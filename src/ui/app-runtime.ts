@@ -5,10 +5,7 @@ import { HOME_TAB_ID, type MixCodeState } from "../core/types.js";
 import { addPromptHistory } from "./app-editor.js";
 import type { RuntimeChangeSource } from "./app-types.js";
 
-import {
-  TAB_ACTIVE_SHIMMER_PERIOD_MS,
-  TAB_ACTIVE_SHIMMER_SWEEP_MS,
-} from "./rendering/chrome.js";
+import { TAB_ACTIVE_SHIMMER_PERIOD_MS, TAB_ACTIVE_SHIMMER_SWEEP_MS } from "./rendering/chrome.js";
 
 export const WORKING_REDRAW_INTERVAL_MS = 80;
 export const SHIMMER_REDRAW_INTERVAL_MS = 50;
@@ -62,11 +59,8 @@ export function bindLoadingRedraw(
 ): () => void {
   // Loading glyphs/phase chips are wall-clock driven; repaint while any tab is
   // still Not Ready so tabStatusGlyph animates on Home cards and the tab bar.
-  return bindConditionalRedraw(
-    state,
-    tui,
-    WORKING_REDRAW_INTERVAL_MS,
-    (current) => current.tabs.some((tab) => tab.status === "Not Ready"),
+  return bindConditionalRedraw(state, tui, WORKING_REDRAW_INTERVAL_MS, (current) =>
+    current.tabs.some((tab) => tab.status === "Not Ready"),
   );
 }
 
@@ -82,19 +76,12 @@ export function bindActiveTabShimmerRedraw(
   state: MixCodeState,
   tui: Pick<TuiType, "requestRender">,
 ): () => void {
-  return bindConditionalRedraw(
-    state,
-    tui,
-    SHIMMER_REDRAW_INTERVAL_MS,
-    activeTabNeedsShimmerRedraw,
-  );
+  return bindConditionalRedraw(state, tui, SHIMMER_REDRAW_INTERVAL_MS, activeTabNeedsShimmerRedraw);
 }
 
 function activeTabNeedsShimmerRedraw(state: MixCodeState, now = Date.now()): boolean {
   const baseTime =
-    state.activeTabId === HOME_TAB_ID
-      ? state.homeActivatedAt
-      : getActiveTab(state)?.activatedAt;
+    state.activeTabId === HOME_TAB_ID ? state.homeActivatedAt : getActiveTab(state)?.activatedAt;
   const elapsed = (now - (baseTime ?? 0)) % TAB_ACTIVE_SHIMMER_PERIOD_MS;
   return elapsed < TAB_ACTIVE_SHIMMER_SWEEP_MS;
 }
@@ -113,7 +100,8 @@ function bindConditionalRedraw(
 }
 
 function activeTabNeedsWorkingRedraw(state: MixCodeState): boolean {
-  if (state.activeTabId === HOME_TAB_ID) return state.tabs.some((tab) => isWorkingStatus(tab.status));
+  if (state.activeTabId === HOME_TAB_ID)
+    return state.tabs.some((tab) => isWorkingStatus(tab.status));
   const active = getActiveTab(state);
   if (isWorkingStatus(active?.status)) return true;
   if (active?.zenMode === true && state.tabs.some((tab) => isWorkingStatus(tab.status))) {

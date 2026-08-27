@@ -34,17 +34,13 @@ function fakeRuntimeTab(): RuntimeTab {
 test("user message puts local send time on the first body line", () => {
   const timestamp = Date.UTC(2026, 7, 9, 9, 7, 0);
   const clock = expectedClock(timestamp);
-  const plain = renderConversation(
-    [{ role: "user", text: "hello there", timestamp }],
-    40,
-  ).map(stripAnsi);
+  const plain = renderConversation([{ role: "user", text: "hello there", timestamp }], 40).map(
+    stripAnsi,
+  );
 
   // Blank top spacing preserved; first body line holds text + right-aligned clock.
   assert.equal((plain[0] ?? "").trim(), "");
-  assert.match(
-    plain[1] ?? "",
-    new RegExp(`hello there\\s+${escapeRegExp(clock)}\\s*$`),
-  );
+  assert.match(plain[1] ?? "", new RegExp(`hello there\\s+${escapeRegExp(clock)}\\s*$`));
 });
 
 test("user message without timestamp keeps a blank top pad", () => {
@@ -58,10 +54,7 @@ test("narrow width still renders without overflowing the clock", () => {
   const timestamp = Date.UTC(2026, 7, 9, 21, 45, 0);
   const clock = expectedClock(timestamp);
   const width = 12;
-  const plain = renderConversation(
-    [{ role: "user", text: "hi", timestamp }],
-    width,
-  ).map(stripAnsi);
+  const plain = renderConversation([{ role: "user", text: "hi", timestamp }], width).map(stripAnsi);
 
   for (const line of plain) {
     assert.ok(line.length <= width, `line wider than ${width}: ${JSON.stringify(line)}`);

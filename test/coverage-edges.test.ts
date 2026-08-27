@@ -9,16 +9,10 @@ import { InMemoryCredentialStore } from "@earendil-works/pi-ai";
 import type { AutocompleteItem, AutocompleteProvider } from "@earendil-works/pi-tui";
 import { createInitialState, createTab } from "./helpers/mixcode.js";
 import { reopenSessionInWorkdir } from "../src/agent/runtime-session.js";
-import {
-  applyExtensionTheme,
-  extensionThemeByName,
-} from "../src/agent/runtime-extension-theme.js";
+import { applyExtensionTheme, extensionThemeByName } from "../src/agent/runtime-extension-theme.js";
 import { MIXCODE_EXTENSION_THEME } from "../src/ui/themes.js";
 import { clearPendingEscape } from "../src/core/escape.js";
-import {
-  appendActiveSystemMessage,
-  applyModelSelection,
-} from "../src/ui/app-actions.js";
+import { appendActiveSystemMessage, applyModelSelection } from "../src/ui/app-actions.js";
 import {
   activeExtensionCommands,
   createActiveAutocompleteProvider,

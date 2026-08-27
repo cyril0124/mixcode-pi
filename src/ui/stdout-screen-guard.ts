@@ -56,9 +56,7 @@ function stripUnauthorizedScreenClears(text: string): {
   return { text: next, stripped };
 }
 
-export function installStdoutScreenGuard(options: {
-  onBlockedClear?: () => void;
-}): () => void {
+export function installStdoutScreenGuard(options: { onBlockedClear?: () => void }): () => void {
   if (installed) {
     onBlockedClear = options.onBlockedClear;
     return uninstallStdoutScreenGuard;
@@ -74,21 +72,27 @@ export function installStdoutScreenGuard(options: {
   ): boolean => {
     if (!originalWrite) return false;
     if (hostWriteDepth > 0) {
-      return (
-        originalWrite as (c: typeof chunk, e?: typeof encoding, f?: typeof cb) => boolean
-      )(chunk, encoding, cb);
+      return (originalWrite as (c: typeof chunk, e?: typeof encoding, f?: typeof cb) => boolean)(
+        chunk,
+        encoding,
+        cb,
+      );
     }
     const asString = chunkToString(chunk);
     if (asString === undefined) {
-      return (
-        originalWrite as (c: typeof chunk, e?: typeof encoding, f?: typeof cb) => boolean
-      )(chunk, encoding, cb);
+      return (originalWrite as (c: typeof chunk, e?: typeof encoding, f?: typeof cb) => boolean)(
+        chunk,
+        encoding,
+        cb,
+      );
     }
     const { text, stripped } = stripUnauthorizedScreenClears(asString);
     if (!stripped) {
-      return (
-        originalWrite as (c: typeof chunk, e?: typeof encoding, f?: typeof cb) => boolean
-      )(chunk, encoding, cb);
+      return (originalWrite as (c: typeof chunk, e?: typeof encoding, f?: typeof cb) => boolean)(
+        chunk,
+        encoding,
+        cb,
+      );
     }
     scheduleBlockedClearRepaint();
     if (text.length === 0) {
@@ -97,9 +101,11 @@ export function installStdoutScreenGuard(options: {
       else if (typeof cb === "function") cb();
       return true;
     }
-    return (
-      originalWrite as (c: string, e?: typeof encoding, f?: typeof cb) => boolean
-    )(text, encoding, cb);
+    return (originalWrite as (c: string, e?: typeof encoding, f?: typeof cb) => boolean)(
+      text,
+      encoding,
+      cb,
+    );
   }) as typeof process.stdout.write;
 
   return uninstallStdoutScreenGuard;
@@ -144,8 +150,7 @@ export function withHostStdoutGuard(terminal: Terminal): Terminal {
   return {
     start: (onInput, onResize) => withHostStdoutWrite(() => terminal.start(onInput, onResize)),
     stop: () => withHostStdoutWrite(() => terminal.stop()),
-    drainInput: (maxMs, idleMs) =>
-      withHostStdoutWrite(() => terminal.drainInput(maxMs, idleMs)),
+    drainInput: (maxMs, idleMs) => withHostStdoutWrite(() => terminal.drainInput(maxMs, idleMs)),
     write: (data) => withHostStdoutWrite(() => terminal.write(data)),
     get columns() {
       return terminal.columns;

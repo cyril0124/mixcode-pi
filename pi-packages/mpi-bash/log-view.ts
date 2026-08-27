@@ -1,7 +1,12 @@
 import { spawn } from "node:child_process";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
-import { matchesKey, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import {
+  matchesKey,
+  truncateToWidth,
+  visibleWidth,
+  wrapTextWithAnsi,
+} from "@earendil-works/pi-tui";
 
 /** Theme surface used by the log viewer overlay. */
 type LogViewTheme = Pick<Theme, "fg">;
@@ -127,7 +132,8 @@ export class LogView implements Component {
       matchesKey(data, "ctrl+f")
     ) {
       this.scrollBy(rows);
-    } else if (matchesKey(data, "pageUp") || matchesKey(data, "ctrl+b")) this.scrollBy(-rows, false);
+    } else if (matchesKey(data, "pageUp") || matchesKey(data, "ctrl+b"))
+      this.scrollBy(-rows, false);
     else if (matchesKey(data, "home") || matchesKey(data, "g")) {
       this.following = false;
       this.scrollTo(0);
@@ -152,7 +158,8 @@ export class LogView implements Component {
     this.scroll = this.following ? bottom : clamp(this.scroll, 0, bottom);
     const visible = rows.slice(this.scroll, this.scroll + height);
     const last = Math.min(rows.length, this.scroll + height);
-    const range = rows.length > height ? `${this.scroll + 1}-${last}/${rows.length}` : `${rows.length} lines`;
+    const range =
+      rows.length > height ? `${this.scroll + 1}-${last}/${rows.length}` : `${rows.length} lines`;
 
     const border = (text: string) => this.theme.fg("border", text);
     const blank = `${border("│")}${" ".repeat(innerWidth)}${border("│")}`;
@@ -162,9 +169,7 @@ export class LogView implements Component {
       `${border("┌")}${border(this.pad(this.headline(innerWidth, range), innerWidth))}${border("┐")}`,
       blank,
       ...visible.map(({ number, text }) =>
-        row(
-          ` ${this.theme.fg("dim", String(number ?? "").padStart(gutter))}  ${text}`,
-        ),
+        row(` ${this.theme.fg("dim", String(number ?? "").padStart(gutter))}  ${text}`),
       ),
       ...Array.from({ length: Math.max(0, height - visible.length) }, () => blank),
       `${border("├")}${border("─".repeat(innerWidth))}${border("┤")}`,

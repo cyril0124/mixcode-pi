@@ -296,7 +296,10 @@ test("#102 wheel still scrolls chat while Notice is open", () => {
   let renders = 0;
   const tui = {
     requestRender: () => renders++,
-    showOverlay: (component: { render: (width: number) => string[] }, options: { width?: number }) => {
+    showOverlay: (
+      component: { render: (width: number) => string[] },
+      options: { width?: number },
+    ) => {
       component.render(typeof options.width === "number" ? options.width : 40);
       return testOverlayHandle();
     },
@@ -305,7 +308,15 @@ test("#102 wheel still scrolls chat while Notice is open", () => {
   showNoticeTextOverlay(tui, "notice while scrolling");
   try {
     assert.equal(
-      handleMouseInput(state, tab, "\x1b[<64;2;6M", tui, undefined, undefined, async () => undefined),
+      handleMouseInput(
+        state,
+        tab,
+        "\x1b[<64;2;6M",
+        tui,
+        undefined,
+        undefined,
+        async () => undefined,
+      ),
       true,
     );
     assert.equal(tab.chatScrollOffset, 3);

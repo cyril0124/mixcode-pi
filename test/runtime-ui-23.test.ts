@@ -36,7 +36,8 @@ function delayedAssistantStream(text: string, ready: Promise<void>, options?: Si
       return;
     }
     const first = message.content[0];
-    if (first?.type !== "text") throw new Error("delayedAssistantStream expects a text content block");
+    if (first?.type !== "text")
+      throw new Error("delayedAssistantStream expects a text content block");
     stream.push({ type: "start", partial: { ...message, content: [] } });
     stream.push({
       type: "text_start",
@@ -269,7 +270,9 @@ test("runtime pop removes matching Pi steering queue entries", async () => {
 });
 
 test("runtime pop removes only the explicitly selected queue", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-queue-pop-selected-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-queue-pop-selected-"),
+  );
   const { runtime, release, model } = createBlockedQueueRuntime(dir);
   try {
     const tab = createTab(1, "s1", process.cwd());
@@ -289,11 +292,17 @@ test("runtime pop removes only the explicitly selected queue", async () => {
     assert.deepEqual([...runtimeTab.agentSession.getSteeringMessages()], []);
     assert.deepEqual(tab.pendingFollowUps, ["follow-up from extension"]);
     assert.equal(runtimeTab.queuedFollowUpCount, 1);
-    assert.deepEqual([...runtimeTab.agentSession.getFollowUpMessages()], ["follow-up from extension"]);
+    assert.deepEqual(
+      [...runtimeTab.agentSession.getFollowUpMessages()],
+      ["follow-up from extension"],
+    );
 
     assert.equal(runtime.popPendingMessage("s1", "steering"), undefined);
     assert.deepEqual(tab.pendingFollowUps, ["follow-up from extension"]);
-    assert.deepEqual([...runtimeTab.agentSession.getFollowUpMessages()], ["follow-up from extension"]);
+    assert.deepEqual(
+      [...runtimeTab.agentSession.getFollowUpMessages()],
+      ["follow-up from extension"],
+    );
 
     assert.equal(runtime.popPendingMessage("s1", "followUp"), "follow-up from extension");
     assert.deepEqual(tab.pendingFollowUps, []);
@@ -309,7 +318,9 @@ test("runtime pop removes only the explicitly selected queue", async () => {
 });
 
 test("runtime consecutive pops remove every returned steering message", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-queue-pop-consecutive-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-queue-pop-consecutive-"),
+  );
   const { runtime, release, model } = createBlockedQueueRuntime(dir);
   let prompt: Promise<void> | undefined;
   try {
@@ -326,10 +337,7 @@ test("runtime consecutive pops remove every returned steering message", async ()
     await runtime.prompt("s1", "third queued");
 
     assert.deepEqual(
-      [
-        runtime.popPendingMessage("s1", "steering"),
-        runtime.popPendingMessage("s1", "steering"),
-      ],
+      [runtime.popPendingMessage("s1", "steering"), runtime.popPendingMessage("s1", "steering")],
       ["third queued", "second queued"],
     );
     await new Promise<void>((resolve) => setImmediate(resolve));
@@ -347,7 +355,9 @@ test("runtime consecutive pops remove every returned steering message", async ()
 test("runtime pop tolerates agent queue already drained for a tracked steer", async () => {
   // Pi drains agent.steeringQueue before message_start clears _steeringMessages.
   // Pop during that window must not throw or re-surface the delivered text.
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-queue-pop-drained-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-queue-pop-drained-"),
+  );
   const { runtime, release, model } = createBlockedQueueRuntime(dir);
   let prompt: Promise<void> | undefined;
   try {
@@ -381,7 +391,9 @@ test("runtime pop tolerates agent queue already drained for a tracked steer", as
 });
 
 test("runtime pop preserves an unrelated custom follow-up", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-queue-pop-custom-follow-up-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-queue-pop-custom-follow-up-"),
+  );
   const { runtime, release, model } = createBlockedQueueRuntime(dir);
   let prompt: Promise<void> | undefined;
   try {
@@ -451,7 +463,9 @@ test("runtime waits for idle before flushing queued prompts", async () => {
 });
 
 test("runtime flush preserves unrelated Pi follow-up queue entries", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-queue-flush-preserve-follow-up-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-queue-flush-preserve-follow-up-"),
+  );
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     const tab = createTab(1, "s1", process.cwd());
@@ -460,7 +474,9 @@ test("runtime flush preserves unrelated Pi follow-up queue entries", async () =>
       thinkingLevel: "medium",
       workdir: process.cwd(),
     });
-    const anyAgent = runtimeTab.agentSession.agent as unknown as { _state: { isStreaming: boolean } };
+    const anyAgent = runtimeTab.agentSession.agent as unknown as {
+      _state: { isStreaming: boolean };
+    };
     anyAgent._state.isStreaming = true;
     await runtime.prompt("s1", "steer queued");
     await runtimeTab.agentSession.followUp("follow-up from extension");
@@ -476,9 +492,10 @@ test("runtime flush preserves unrelated Pi follow-up queue entries", async () =>
     assert.deepEqual(tab.pendingMessages, []);
     assert.equal(runtimeTab.queuedPromptCount, 0);
     assert.deepEqual([...runtimeTab.agentSession.getSteeringMessages()], []);
-    assert.deepEqual([...runtimeTab.agentSession.getFollowUpMessages()], [
-      "follow-up from extension",
-    ]);
+    assert.deepEqual(
+      [...runtimeTab.agentSession.getFollowUpMessages()],
+      ["follow-up from extension"],
+    );
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }

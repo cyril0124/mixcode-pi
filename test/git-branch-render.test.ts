@@ -35,7 +35,11 @@ test("renderInputMeta does not block the event loop on git", async () => {
   fs.chmodSync(path.join(bin, "git"), 0o755);
 
   const result = Bun.spawnSync(
-    [process.execPath, path.join(import.meta.dir, "helpers", "git-branch-render-scenario.ts"), workdir],
+    [
+      process.execPath,
+      path.join(import.meta.dir, "helpers", "git-branch-render-scenario.ts"),
+      workdir,
+    ],
     {
       env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? ""}` },
       stdout: "pipe",
@@ -44,7 +48,10 @@ test("renderInputMeta does not block the event loop on git", async () => {
     },
   );
   assert.equal(result.exitCode, 0, `scenario child failed: ${result.stderr.toString()}`);
-  const report = JSON.parse(result.stdout.toString().trim()) as { firstMs: number; painted: string };
+  const report = JSON.parse(result.stdout.toString().trim()) as {
+    firstMs: number;
+    painted: string;
+  };
   assert.ok(
     report.firstMs < 80,
     `first paint blocked ${report.firstMs.toFixed(1)}ms (must not await git)`,

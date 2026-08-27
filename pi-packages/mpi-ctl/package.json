@@ -3,9 +3,15 @@
   "version": "0.1.0",
   "type": "module",
   "description": "Agent Tab collaboration skill: prompt peer MixCode tabs via mpi status and mpi ctl.",
-  "keywords": ["pi-package"],
+  "keywords": [
+    "pi-package"
+  ],
   "pi": {
-    "extensions": ["./index.ts"],
-    "skills": ["./skills"]
+    "extensions": [
+      "./index.ts"
+    ],
+    "skills": [
+      "./skills"
+    ]
   }
 }

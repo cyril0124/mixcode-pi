@@ -7,11 +7,7 @@ import { createInitialState, createTab } from "../src/core/defaults.js";
 import { serializeState } from "../src/core/state-store.js";
 import { activateTab, closeAgentTab } from "../src/core/tabs.js";
 import { CompactPromptEditor, EditorSlot, editorThemeFor } from "../src/ui/app-editor.js";
-import {
-  MixCodeFooterRoot,
-  MixCodeLayoutRoot,
-  MixCodeRoot,
-} from "../src/ui/app-layout.js";
+import { MixCodeFooterRoot, MixCodeLayoutRoot, MixCodeRoot } from "../src/ui/app-layout.js";
 import { handleSubmittedInput } from "../src/ui/app-submit.js";
 import type { OverlayTui } from "../src/ui/app-types.js";
 import { buildLabeledTopBorder } from "../src/ui/components/editor-top-border.js";
@@ -53,9 +49,7 @@ function border(opts: {
   );
 }
 
-function widgetTab(
-  overrides: Parameters<typeof createTab>[3] = {},
-): ReturnType<typeof createTab> {
+function widgetTab(overrides: Parameters<typeof createTab>[3] = {}): ReturnType<typeof createTab> {
   return createTab(1, "s1", "/repo", {
     inlineWidgets: true,
     extensionUi: {
@@ -94,11 +88,8 @@ function buildLayout(viewportRows: number, width = 80) {
     state,
     runtime,
     () => viewportRows,
-    () =>
-      editorRows +
-      metaRows +
-      renderExtensionFooter(tab, width).length
-    );
+    () => editorRows + metaRows + renderExtensionFooter(tab, width).length,
+  );
   const layout = new MixCodeLayoutRoot(
     state,
     main,
@@ -237,11 +228,9 @@ test("inline widgets use a surface wash that dock widgets do not", () => {
 test("inline widgets sit after messages and before the queue preview", () => {
   const tab = widgetTab({ pendingMessages: ["steer-me"] });
   const text = stripAnsi(
-    renderAgentSurface(
-      tab,
-      { chat: [{ role: "user", text: "hello-user" }] } as never,
-      80,
-    ).join("\n"),
+    renderAgentSurface(tab, { chat: [{ role: "user", text: "hello-user" }] } as never, 80).join(
+      "\n",
+    ),
   );
   const userAt = text.indexOf("hello-user");
   const aboveAt = text.indexOf("INLINE-ABOVE");
@@ -371,9 +360,7 @@ test("inline mode removes docked widgets and grows the chat surface", () => {
 
 test("inline widgets stay in the chat column, not the editor dock", () => {
   const { layout, main, tab } = buildLayout(24);
-  tab.extensionUi.widgets = [
-    { key: "above", placement: "aboveEditor", lines: ["INLINE-ABOVE"] },
-  ];
+  tab.extensionUi.widgets = [{ key: "above", placement: "aboveEditor", lines: ["INLINE-ABOVE"] }];
 
   const dockedMain = stripAnsi(main.render(80).join("\n"));
   assert.doesNotMatch(dockedMain, /INLINE-ABOVE/);
@@ -476,7 +463,13 @@ test("custom()/dialog takeover hides [INL] on the separator until restore", () =
   state.tabs = [tab];
   state.activeTabId = "s1";
   const runtime = new MixCodeRuntime();
-  const main = new MixCodeRoot(state, runtime, () => 24, () => 4, () => true);
+  const main = new MixCodeRoot(
+    state,
+    runtime,
+    () => 24,
+    () => 4,
+    () => true,
+  );
 
   const during = stripAnsi(main.render(80).join("\n"));
   assert.match(during, /Agent-01/);

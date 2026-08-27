@@ -16,9 +16,7 @@ export function contentText(content: string | Array<{ type: string; text?: strin
  * Pi interactive-mode getUserMessageText: only text blocks, images omitted from the body.
  * Image blocks are carried separately via contentImages() for TUI rendering.
  */
-export function userMessageText(
-  content: string | Array<{ type: string; text?: string }>,
-): string {
+export function userMessageText(content: string | Array<{ type: string; text?: string }>): string {
   if (typeof content === "string") return content;
   return content
     .filter((block) => block.type === "text" && typeof block.text === "string")
@@ -171,9 +169,7 @@ export function summarizeUnknown(value: unknown): string {
   return compactMultiline(compactJson(value), 4, 480);
 }
 
-function isAgentToolResult(
-  value: unknown,
-): value is {
+function isAgentToolResult(value: unknown): value is {
   content: string | (TextContent | ImageContent)[];
   details?: unknown;
   isError?: boolean;

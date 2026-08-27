@@ -10,11 +10,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createTab } from "../src/core/defaults.js";
-import {
-  retryStatusMessage,
-  setTabContextTokens,
-  setTabStatus,
-} from "../src/core/tab-state.js";
+import { retryStatusMessage, setTabContextTokens, setTabStatus } from "../src/core/tab-state.js";
 
 function tab() {
   return createTab(1, "s1", "/tmp");
@@ -55,7 +51,10 @@ test("setTabStatus: preserve keeps the stamp and skips duration when continuing"
   const started = "2026-01-01T00:00:00.000Z";
   t.workingStartedAt = started;
   // auto-compaction continuation: stay running, keep the original timer
-  setTabStatus(t, "running", { now: new Date("2026-01-01T00:00:09.000Z"), preserveStartedAt: true });
+  setTabStatus(t, "running", {
+    now: new Date("2026-01-01T00:00:09.000Z"),
+    preserveStartedAt: true,
+  });
   assert.equal(t.workingStartedAt, started);
   assert.equal(t.lastWorkedDurationSeconds, undefined);
 });

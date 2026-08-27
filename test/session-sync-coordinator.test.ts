@@ -96,9 +96,9 @@ test("same size and mtime with replaced content still reloads", async () => {
     const coord = new SessionSyncCoordinator({
       sessionsRoot: dir,
       onExternalChange: (id) => {
-      changed.push(id);
-      return true;
-    },
+        changed.push(id);
+        return true;
+      },
       debounceMs: 5,
       pollIntervalMs: POLL_MS,
     });

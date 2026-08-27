@@ -68,7 +68,11 @@ function renderHomeInner(
     (maxRows === undefined ||
       (LOGO_ROWS + updateRows.length) / Math.max(1, maxRows) <= LOGO_MAX_HEIGHT_RATIO);
   const logoLines = showLogo
-    ? ["", ...logo.map((line) => centerLine(activeRenderTheme.accent(line), Math.max(1, width - 2))), ""]
+    ? [
+        "",
+        ...logo.map((line) => centerLine(activeRenderTheme.accent(line), Math.max(1, width - 2))),
+        "",
+      ]
     : [""];
   const staticBodyRows = logoLines.length + updateRows.length;
   // configPanelBox adds a leading spacer, top border, and bottom border around body rows.
@@ -80,12 +84,17 @@ function renderHomeInner(
     ...updateRows.map((line) => `  ${line}`),
     ...agentTableRows.map((line) => `  ${line}`),
   ];
-  const framed = fitConfigRows(configPanelBox("", lines, width, [`v${pkg.version}`]), maxRows, width);
+  const framed = fitConfigRows(
+    configPanelBox("", lines, width, [`v${pkg.version}`]),
+    maxRows,
+    width,
+  );
   // Home has no agent surface — paint the selected agent tab's toast here so
   // pushToast(getActiveTab()) remains visible while activeTabId is home.
   const selected = state.tabs[state.homeSelectedTabIndex];
   if (!selected) return framed;
-  const height = maxRows === undefined ? framed.length : Math.max(framed.length, Math.floor(maxRows));
+  const height =
+    maxRows === undefined ? framed.length : Math.max(framed.length, Math.floor(maxRows));
   return applyToastOverlay(framed, activeToast(selected), width, height, activeRenderTheme);
 }
 
@@ -97,15 +106,30 @@ function fitConfigRows(lines: string[], maxRows: number | undefined, width: numb
   const blank = `${activeRenderTheme.borderMuted("│")}${padLine("", innerWidth)}${activeRenderTheme.borderMuted("│")}`;
   const fill = limit - lines.length;
   if (lines.length === 0) return Array.from({ length: limit }, () => padLine("", width));
-  return [...lines.slice(0, -1), ...Array.from({ length: fill }, () => blank), lines[lines.length - 1]!];
+  return [
+    ...lines.slice(0, -1),
+    ...Array.from({ length: fill }, () => blank),
+    lines[lines.length - 1]!,
+  ];
 }
 
-function configPanelBox(title: string, lines: string[], width: number, meta: string[] = []): string[] {
+function configPanelBox(
+  title: string,
+  lines: string[],
+  width: number,
+  meta: string[] = [],
+): string[] {
   const innerWidth = Math.max(0, width - 2);
-  const top = renderBoxTop(title, meta, innerWidth, {
-    ...activeRenderTheme,
-    border: activeRenderTheme.borderMuted,
-  }, true);
+  const top = renderBoxTop(
+    title,
+    meta,
+    innerWidth,
+    {
+      ...activeRenderTheme,
+      border: activeRenderTheme.borderMuted,
+    },
+    true,
+  );
   const body = lines.map(
     (line) =>
       `${activeRenderTheme.borderMuted("│")}${padLine(line, innerWidth)}${activeRenderTheme.borderMuted("│")}`,
@@ -187,7 +211,9 @@ function renderAgentViewTable(
   const showAbove = maxCards > 0 && start > 0;
   const showBelow = maxCards > 0 && end < totalCards;
   const listBudget =
-    cardBudget === undefined ? undefined : Math.max(0, cardBudget - (showAbove ? 1 : 0) - (showBelow ? 1 : 0));
+    cardBudget === undefined
+      ? undefined
+      : Math.max(0, cardBudget - (showAbove ? 1 : 0) - (showBelow ? 1 : 0));
   if (showAbove) {
     pushAgentRows(lines, [agentWindowMarker("↑ older above", width)], cardBudget);
   }
@@ -616,7 +642,9 @@ function renderCommandPaletteInner(
       }
     }
     if (plan.showMoreBelow) {
-      lines.push(activeRenderTheme.dim(`  ... (${plan.entries.length - plan.endIndex} more below)`));
+      lines.push(
+        activeRenderTheme.dim(`  ... (${plan.entries.length - plan.endIndex} more below)`),
+      );
     }
   }
 
@@ -703,9 +731,16 @@ function renderTabJumpOverlayInner(state: MixCodeState, width: number): string[]
     }
     for (let index = plan.startIndex; index < plan.endIndex; index++) {
       const entry = plan.entries[index]!;
-      const line = renderTabJumpRow(entry, index === state.tabJumpIndex, innerWidth, state.tabJumpQuery);
+      const line = renderTabJumpRow(
+        entry,
+        index === state.tabJumpIndex,
+        innerWidth,
+        state.tabJumpQuery,
+      );
       lines.push(
-        index === state.tabJumpIndex ? activeRenderTheme.selectedBg(padLine(line, innerWidth)) : line,
+        index === state.tabJumpIndex
+          ? activeRenderTheme.selectedBg(padLine(line, innerWidth))
+          : line,
       );
     }
     if (plan.showMoreBelow) {
@@ -894,11 +929,7 @@ function renderContextLimitCustomInput(
   picker: NonNullable<MixCodeState["picker"]>,
   width: number,
 ): string[] {
-  const lines: string[] = [
-    "Enter context limit (e.g. 32k, 40000)",
-    "",
-    `> ${picker.query}_`,
-  ];
+  const lines: string[] = ["Enter context limit (e.g. 32k, 40000)", "", `> ${picker.query}_`];
   if (picker.customInputError) {
     lines.push(activeRenderTheme.error(`\u2716 ${picker.customInputError}`));
   }

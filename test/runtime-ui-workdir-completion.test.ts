@@ -74,13 +74,13 @@ test("createMixCodeTui uses the active tab workdir for Pi file completion", asyn
         tab.workdir = workdir;
       },
       applyExtensionAutocompleteProviders: (_sessionId: string, base: AutocompleteProvider) => base,
-    getPromptHistory: () => [],
-    setExtensionUiHost: () => undefined,
-    onTabClosed: () => () => undefined,
-    onModelsChanged: () => () => undefined,
-    appendSystemMessage: () => undefined,
-    getSharedModelRuntime: () => undefined,
-    getExtensionTools: () => [],
+      getPromptHistory: () => [],
+      setExtensionUiHost: () => undefined,
+      onTabClosed: () => () => undefined,
+      onModelsChanged: () => () => undefined,
+      appendSystemMessage: () => undefined,
+      getSharedModelRuntime: () => undefined,
+      getExtensionTools: () => [],
     } as unknown as MixCodeRuntime;
     const tui = createMixCodeTui(state, runtime, {
       terminal: silentTerminal(),

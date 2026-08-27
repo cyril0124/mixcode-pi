@@ -75,9 +75,7 @@ class ScreenTerminal implements Terminal {
   }
 
   private blank(): string[][] {
-    return Array.from({ length: this.rows }, () =>
-      Array.from({ length: this.columns }, () => " "),
-    );
+    return Array.from({ length: this.rows }, () => Array.from({ length: this.columns }, () => " "));
   }
 
   private clone(cells: string[][]): string[][] {
@@ -115,8 +113,10 @@ class ScreenTerminal implements Terminal {
           this.col = Math.max(0, (c || 1) - 1);
         } else if (cmd === "K") this.clearLine();
         else if (cmd === "A") this.row = Math.max(0, this.row - (Number.isFinite(n) ? n : 1));
-        else if (cmd === "B") this.row = Math.min(this.rows - 1, this.row + (Number.isFinite(n) ? n : 1));
-        else if (cmd === "C") this.col = Math.min(this.columns - 1, this.col + (Number.isFinite(n) ? n : 1));
+        else if (cmd === "B")
+          this.row = Math.min(this.rows - 1, this.row + (Number.isFinite(n) ? n : 1));
+        else if (cmd === "C")
+          this.col = Math.min(this.columns - 1, this.col + (Number.isFinite(n) ? n : 1));
         else if (cmd === "D") this.col = Math.max(0, this.col - (Number.isFinite(n) ? n : 1));
         i += 3 + end;
         continue;
@@ -185,11 +185,7 @@ test("MixCode TUI start() clearScreen + renderNow(false) keeps the model meta ro
     tui.start();
     tui.renderNow(false);
 
-    assert.equal(
-      hasModelMeta(stripAnsi(tui.render(80).join("\n"))),
-      true,
-      "layout still has meta",
-    );
+    assert.equal(hasModelMeta(stripAnsi(tui.render(80).join("\n"))), true, "layout still has meta");
     assert.equal(
       hasModelMeta(screen.snapshot().join("\n")),
       true,

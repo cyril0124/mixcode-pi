@@ -20,7 +20,9 @@ export function getActiveTab(
 }
 
 /** Finds the tab identified by activeTabId, without fallback. Returns undefined when not found. */
-export function findActiveTab(state: Pick<MixCodeState, "tabs" | "activeTabId">): MixCodeTabInfo | undefined {
+export function findActiveTab(
+  state: Pick<MixCodeState, "tabs" | "activeTabId">,
+): MixCodeTabInfo | undefined {
   return state.tabs.find((tab) => tab.sessionId === state.activeTabId);
 }
 
@@ -33,7 +35,10 @@ export function closeAgentTab(state: MixCodeState, sessionId: string): MixCodeTa
   });
   forgetRecentAgentTab(state, sessionId);
   if (state.activeTabId === sessionId) {
-    activateTab(state, state.tabs[Math.min(index, state.tabs.length - 1)]?.sessionId ?? HOME_TAB_ID);
+    activateTab(
+      state,
+      state.tabs[Math.min(index, state.tabs.length - 1)]?.sessionId ?? HOME_TAB_ID,
+    );
   }
   // Closing a tab before the Home selection shifts later tabs down — keep the
   // same agent selected by moving the index with them.

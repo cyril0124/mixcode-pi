@@ -46,9 +46,7 @@ function scopeCapturingExtension(seen: string[][]): ExtensionFactory {
   };
 }
 
-async function scopeSeenByExtension(
-  configure: (runtime: ModelRuntime) => void,
-): Promise<string[]> {
+async function scopeSeenByExtension(configure: (runtime: ModelRuntime) => void): Promise<string[]> {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-scoped-models-"));
   try {
     const modelRuntime = await policyRuntime();

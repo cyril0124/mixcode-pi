@@ -1,9 +1,4 @@
-import type {
-  AuthEvent,
-  AuthInteraction,
-  AuthPrompt,
-  AuthType,
-} from "@earendil-works/pi-ai";
+import type { AuthEvent, AuthInteraction, AuthPrompt, AuthType } from "@earendil-works/pi-ai";
 import type { TUI } from "@earendil-works/pi-tui";
 import {
   LoginDialogComponent,
@@ -290,10 +285,7 @@ async function performLogin(
     },
   };
 
-  await Promise.race([
-    modelRuntime.login(provider.id, provider.authType, interaction),
-    cancelled,
-  ]);
+  await Promise.race([modelRuntime.login(provider.id, provider.authType, interaction), cancelled]);
 }
 
 async function showOAuthMethodSelector(

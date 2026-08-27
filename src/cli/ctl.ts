@@ -255,7 +255,9 @@ export function parseCtlArgs(args: string[], fallbackWorkdir: string): CtlArgs {
   if (pid !== undefined && workdir !== undefined) {
     throw new Error("--pid and --workdir are mutually exclusive");
   }
-  const selectors = [focusSessionId, focusTabTitle, sessionId, tabTitle].filter((value) => value !== undefined);
+  const selectors = [focusSessionId, focusTabTitle, sessionId, tabTitle].filter(
+    (value) => value !== undefined,
+  );
   if (selectors.length > 1) {
     throw new Error("--tab, --session, --focus-tab, and --focus-session are mutually exclusive");
   }
@@ -280,7 +282,9 @@ export function parseCtlArgs(args: string[], fallbackWorkdir: string): CtlArgs {
     op === "last-user-message" ||
     op === "last-tool";
   if ((from !== undefined || to !== undefined) && !messageOp) {
-    throw new Error("--from/--to only apply to last-message, last-assistant-message, last-user-message, and last-tool");
+    throw new Error(
+      "--from/--to only apply to last-message, last-assistant-message, last-user-message, and last-tool",
+    );
   }
   if (timeout !== undefined && op !== "wait") {
     throw new Error("--timeout only applies to wait");
@@ -303,7 +307,9 @@ export function parseCtlArgs(args: string[], fallbackWorkdir: string): CtlArgs {
       ? rest.slice(1).map((token) => encodeSendKeys([token], { literal }))
       : undefined;
   const promptArgs = op === "send-prompt" ? rest.slice(1) : [];
-  const promptFromStdin = op === "send-prompt" && (promptArgs.length === 0 || (promptArgs.length === 1 && promptArgs[0] === "-"));
+  const promptFromStdin =
+    op === "send-prompt" &&
+    (promptArgs.length === 0 || (promptArgs.length === 1 && promptArgs[0] === "-"));
   const prompt = op === "send-prompt" && !promptFromStdin ? promptArgs.join(" ") : undefined;
   return {
     pid,
@@ -388,14 +394,13 @@ export function ctlClientTimeoutMs(request: Pick<CtlRequest, "op" | "timeout">):
   return CTL_CLIENT_IDLE_TIMEOUT_MS;
 }
 
-export async function requestCtl(
-  socketPath: string,
-  request: CtlRequest,
-): Promise<CtlResponse> {
+export async function requestCtl(socketPath: string, request: CtlRequest): Promise<CtlResponse> {
   const payload = `${JSON.stringify(request)}\n`;
   return await new Promise((resolve, reject) => {
     const socket = net.createConnection(socketPath);
-    socket.setTimeout(ctlClientTimeoutMs(request), () => socket.destroy(new Error("ctl socket timed out")));
+    socket.setTimeout(ctlClientTimeoutMs(request), () =>
+      socket.destroy(new Error("ctl socket timed out")),
+    );
     let buf = "";
     socket.setEncoding("utf8");
     socket.on("connect", () => {
@@ -488,7 +493,9 @@ export async function resolveSendPromptText(
   }
   const isTTY = options.isTTY ?? Boolean(process.stdin.isTTY);
   if (isTTY) {
-    throw new Error("send-prompt: no text on argv; pass arguments or a heredoc/pipe (stdin is a TTY)");
+    throw new Error(
+      "send-prompt: no text on argv; pass arguments or a heredoc/pipe (stdin is a TTY)",
+    );
   }
   const text = options.readStdin ? await options.readStdin() : await Bun.stdin.text();
   if (!text) throw new Error("send-prompt requires text");
@@ -504,8 +511,7 @@ export async function runCtlCommand(
     process.stdout.write(`${CTL_HELP}\n`);
     return;
   }
-  const prompt =
-    parsed.op === "send-prompt" ? await resolveSendPromptText(parsed) : parsed.prompt;
+  const prompt = parsed.op === "send-prompt" ? await resolveSendPromptText(parsed) : parsed.prompt;
   const fromTabTitle = process.env.MIXCODE_TAB_TITLE?.trim() || undefined;
   if (parsed.expectResponse && !fromTabTitle) {
     throw new Error("send-prompt --expect-response requires MIXCODE_TAB_TITLE");

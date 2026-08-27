@@ -10,9 +10,7 @@
 import { pathToFileURL } from "node:url";
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 
-export type LoadAttempt =
-  | { path: string; ok: true }
-  | { path: string; ok: false; error: string };
+export type LoadAttempt = { path: string; ok: true } | { path: string; ok: false; error: string };
 
 export type DynamicLoader = {
   /** Paths successfully loaded in this session (absolute). */

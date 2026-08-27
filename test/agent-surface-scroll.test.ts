@@ -68,6 +68,9 @@ test("chat block scroll anchor survives width reflow", () => {
   // Progress within the block (~(15-10)/20 = 0.25) should map to row 10 of height 40.
   // With viewport row 0, start ≈ 8 + 10 = 18 → offset = 80 - (18 + 10) = 52.
   const start = Math.max(0, 80 - (tab.chatScrollOffset + 10));
-  assert.ok(start >= 8 && start < 8 + 40, `start ${start} should land inside reflowed target block`);
+  assert.ok(
+    start >= 8 && start < 8 + 40,
+    `start ${start} should land inside reflowed target block`,
+  );
   assert.ok(Math.abs(start - 18) <= 2, `start ${start} should be near progress-mapped row 18`);
 });

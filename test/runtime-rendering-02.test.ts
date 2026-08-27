@@ -22,7 +22,13 @@ test("chat renders user text without a role label and keeps tool/system content"
     renderConversation(
       [
         { role: "assistant", text: "agent reply" },
-        { role: "tool", title: "bash", status: "success", text: "tool output", args: { command: "pwd" } },
+        {
+          role: "tool",
+          title: "bash",
+          status: "success",
+          text: "tool output",
+          args: { command: "pwd" },
+        },
         { role: "system", text: "system notice" },
       ],
       80,

@@ -403,6 +403,8 @@ function toolOwnerSummary(runtimeTab: RuntimeTab): string[] {
   return runtimeTab.agentSession
     .getAllTools()
     .filter((tool) => builtInToolNames.has(tool.name) && tool.sourceInfo?.source !== "builtin")
-    .map((tool) => `${tool.name} -> ${tool.sourceInfo?.source || tool.sourceInfo?.path || "unknown"}`)
+    .map(
+      (tool) => `${tool.name} -> ${tool.sourceInfo?.source || tool.sourceInfo?.path || "unknown"}`,
+    )
     .sort((left, right) => left.localeCompare(right));
 }

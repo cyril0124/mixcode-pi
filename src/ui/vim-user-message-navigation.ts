@@ -27,7 +27,10 @@ export function handleVimUserMessageNavigation(
   const runtimeTab = runtime?.getTab?.(active.sessionId);
   const branch = runtimeTab?.session.getBranch?.();
   if (!runtimeTab || !branch) {
-    pushToast(active, { type: "warning", message: "User-message navigation requires an active agent chat" });
+    pushToast(active, {
+      type: "warning",
+      message: "User-message navigation requires an active agent chat",
+    });
     return true;
   }
 
@@ -150,7 +153,10 @@ function previewWindow(
     const newer = entries.length - end;
     const hintRows = (older > 0 ? 1 : 0) + (newer > 0 ? 1 : 0);
     const messageRows = Math.max(1, maxRows - hintRows);
-    const nextStart = Math.max(0, Math.min(selected - Math.floor(messageRows / 2), entries.length - messageRows));
+    const nextStart = Math.max(
+      0,
+      Math.min(selected - Math.floor(messageRows / 2), entries.length - messageRows),
+    );
     const nextEnd = Math.min(entries.length, nextStart + messageRows);
     if (nextStart === start && nextEnd === end) break;
     start = nextStart;
@@ -160,7 +166,8 @@ function previewWindow(
   const lines: string[] = [];
   if (start > 0) lines.push(`↑ ${start} older above`);
   const highlightedIndex = lines.length + selected - start;
-  for (let index = start; index < end; index++) lines.push(truncateToWidth(entries[index]!.label, 28));
+  for (let index = start; index < end; index++)
+    lines.push(truncateToWidth(entries[index]!.label, 28));
   if (end < entries.length) lines.push(`↓ ${entries.length - end} newer below`);
   return { lines, highlightedIndex };
 }

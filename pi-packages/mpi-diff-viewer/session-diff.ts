@@ -3,7 +3,6 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { generateUnifiedPatch } from "@earendil-works/pi-coding-agent";
 
-
 interface ToolCallBlock {
   type: "toolCall";
   id?: string;
@@ -398,8 +397,7 @@ export function buildSessionDiff(
   baselineEntries: SessionEntry[] = [],
 ): SessionDiff {
   const tracked = collectFileMods(entries, cwd);
-  const baselineMods =
-    baselineEntries.length > 0 ? collectFileMods(baselineEntries, cwd) : null;
+  const baselineMods = baselineEntries.length > 0 ? collectFileMods(baselineEntries, cwd) : null;
   const files: DiffFile[] = [];
 
   for (const file of tracked.values()) {
@@ -456,9 +454,7 @@ function countRowDeltas(hunks: DiffHunk[]): { additions: number; deletions: numb
 }
 
 function gitDiffChunks(patch: string): string[] {
-  return patch
-    .split(/^(?=diff --git )/m)
-    .filter((chunk) => chunk.startsWith("diff --git "));
+  return patch.split(/^(?=diff --git )/m).filter((chunk) => chunk.startsWith("diff --git "));
 }
 
 const GIT_PATH_ESCAPES: Readonly<Record<string, number>> = {
@@ -494,11 +490,7 @@ function decodeGitPath(raw: string): string {
     }
     if (/^[0-7]$/.test(escaped)) {
       let octal = escaped;
-      while (
-        octal.length < 3 &&
-        index + 1 < raw.length - 1 &&
-        /^[0-7]$/.test(raw[index + 1]!)
-      ) {
+      while (octal.length < 3 && index + 1 < raw.length - 1 && /^[0-7]$/.test(raw[index + 1]!)) {
         octal += raw[++index]!;
       }
       bytes.push(Number.parseInt(octal, 8));

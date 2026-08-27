@@ -443,7 +443,6 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
   }
 });
 
-
 test("deleteWorkspace rejects unknown names", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-ws-unknown-"));
   const workspaceFile = path.join(dir, "workspaces.json");

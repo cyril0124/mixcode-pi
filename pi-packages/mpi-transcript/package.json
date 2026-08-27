@@ -4,6 +4,8 @@
   "type": "module",
   "description": "View session transcript slices (effective LLM context, chatlog, thinking, latest agent reply, latest user message) via /transcript — opens in $VISUAL/$EDITOR, falling back to the in-app editor.",
   "pi": {
-    "extensions": ["./index.ts"]
+    "extensions": [
+      "./index.ts"
+    ]
   }
 }

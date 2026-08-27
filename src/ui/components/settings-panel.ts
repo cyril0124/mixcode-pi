@@ -167,7 +167,9 @@ const ITEMS: SettingItem[] = [
     defaultValue: 60,
     getValue: ({ settingsManager }) => {
       const width = settingsManager.getGlobalSettings().terminal?.imageWidthCells;
-      return typeof width === "number" && Number.isFinite(width) ? Math.max(1, Math.floor(width)) : undefined;
+      return typeof width === "number" && Number.isFinite(width)
+        ? Math.max(1, Math.floor(width))
+        : undefined;
     },
     setValue: async ({ settingsManager }, v) => {
       if (v === undefined) return;
@@ -681,8 +683,7 @@ function renderMainSettingsLines(
       valuePlain = formatNumber((isSet ? rawValue : item.defaultValue) as number);
     } else if (item.kind === "multi-enum") {
       const vals = multiValues ?? item.defaultValue;
-      valuePlain =
-        vals.length === 0 ? "none  (default)" : `${vals.length} selected · /reload`;
+      valuePlain = vals.length === 0 ? "none  (default)" : `${vals.length} selected · /reload`;
     } else {
       valuePlain = String(isSet ? rawValue : item.defaultValue);
     }
@@ -841,8 +842,7 @@ function renderEnumFocusLines(
       const opt = opts[oi]!;
       const optSelected = oi === panel.enumIndex;
       const optMarker = optSelected ? accent("› ") : "  ";
-      const checked =
-        item.kind === "multi-enum" ? (multiSelected!.has(opt) ? "[x] " : "[ ] ") : "";
+      const checked = item.kind === "multi-enum" ? (multiSelected!.has(opt) ? "[x] " : "[ ] ") : "";
       const optRow = `  ${optMarker}${checked}${truncateToWidth(opt, Math.max(1, innerWidth - 4 - checked.length), "…")}`;
       lines.push(optSelected ? sel(padLine(optRow, innerWidth)) : dim(optRow));
     }
@@ -880,9 +880,7 @@ function isByteSizeSetting(item: SettingItem | undefined): boolean {
 function parseSettingsNumber(raw: string, allowByteUnits = false): number | undefined {
   const trimmed = raw.trim().toLowerCase();
   if (!trimmed) return undefined;
-  const match = allowByteUnits
-    ? /^(\d+)\s*(mb|m|kb|k|b)?$/.exec(trimmed)
-    : /^(\d+)$/.exec(trimmed);
+  const match = allowByteUnits ? /^(\d+)\s*(mb|m|kb|k|b)?$/.exec(trimmed) : /^(\d+)$/.exec(trimmed);
   if (!match) return undefined;
   const n = Number(match[1]);
   if (!Number.isFinite(n) || n <= 0) return undefined;
@@ -1123,7 +1121,7 @@ function handleEdit(panel: SettingsPanel, data: string): void {
 function handleEnum(panel: SettingsPanel, data: string): void {
   const item = ITEMS[panel.selectedIndex];
   const ctx = panelCtx(panel);
-  if (!item || item.kind !== "enum" && item.kind !== "multi-enum") return;
+  if (!item || (item.kind !== "enum" && item.kind !== "multi-enum")) return;
   const opts = item.getOptions(ctx);
 
   if (matchesKey(data, "up") || data === "\x1b[A") {
@@ -1174,7 +1172,11 @@ function handleEnum(panel: SettingsPanel, data: string): void {
 }
 
 /** Live-preview enum values that only affect UI (currently theme). */
-function previewEnumSelection(panel: SettingsPanel, item: EnumItem, value: string | undefined): void {
+function previewEnumSelection(
+  panel: SettingsPanel,
+  item: EnumItem,
+  value: string | undefined,
+): void {
   if (item.label !== "theme" || value === undefined) return;
   setTheme(panel.deps.state, value);
 }

@@ -10,7 +10,9 @@ describe("image-hoist: hoistImages", () => {
         { role: "user", content: "read the image" },
         {
           role: "assistant",
-          content: [{ type: "tool_use", id: "toolu_01", name: "read", input: { path: "/tmp/img.png" } }],
+          content: [
+            { type: "tool_use", id: "toolu_01", name: "read", input: { path: "/tmp/img.png" } },
+          ],
         },
         {
           role: "user",
@@ -20,7 +22,10 @@ describe("image-hoist: hoistImages", () => {
               tool_use_id: "toolu_01",
               content: [
                 { type: "text", text: "Read image file [image/png]" },
-                { type: "image", source: { type: "base64", media_type: "image/png", data: "AAAA" } },
+                {
+                  type: "image",
+                  source: { type: "base64", media_type: "image/png", data: "AAAA" },
+                },
               ],
             },
           ],
@@ -105,8 +110,14 @@ describe("image-hoist: hoistImages", () => {
               tool_use_id: "toolu_01",
               content: [
                 { type: "text", text: "Two images" },
-                { type: "image", source: { type: "base64", media_type: "image/png", data: "IMG1" } },
-                { type: "image", source: { type: "base64", media_type: "image/jpeg", data: "IMG2" } },
+                {
+                  type: "image",
+                  source: { type: "base64", media_type: "image/png", data: "IMG1" },
+                },
+                {
+                  type: "image",
+                  source: { type: "base64", media_type: "image/jpeg", data: "IMG2" },
+                },
               ],
             },
           ],

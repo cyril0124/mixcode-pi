@@ -40,7 +40,9 @@ function createOverlayCaptureTui() {
       });
     },
     hasOverlay: () => visible,
-    hideOverlay: () => { visible = false; },
+    hideOverlay: () => {
+      visible = false;
+    },
   };
 }
 
@@ -87,7 +89,16 @@ test("global key input dispatches extension shortcuts only from the main editor 
   });
   assert.deepEqual(dispatched, ['s1:"\\u0018"']);
   assert.deepEqual(
-    handleMixCodeKeyInput(state, "\x1b[A", tui, undefined, runtime, undefined, undefined, editorActions),
+    handleMixCodeKeyInput(
+      state,
+      "\x1b[A",
+      tui,
+      undefined,
+      runtime,
+      undefined,
+      undefined,
+      editorActions,
+    ),
     { consume: true },
   );
   assert.equal(historyBrowsed, false);
@@ -302,7 +313,10 @@ test("submitted input saves, restores, and deletes workspaces", async () => {
       workspaceFile,
     );
     assert.deepEqual(systemMessages, []);
-    assert.equal(state.tabs.find((tab) => tab.sessionId === state.activeTabId)?.toast?.message, "Workspace deleted: main");
+    assert.equal(
+      state.tabs.find((tab) => tab.sessionId === state.activeTabId)?.toast?.message,
+      "Workspace deleted: main",
+    );
     assert.doesNotMatch(
       overlays.join("\n"),
       /Workspace saved: main|Workspace restored: main|Workspace deleted: main/,
@@ -424,7 +438,9 @@ test("submitted input marks done, exports state, imports sessions, and exits dir
   const editorScript = path.join(dir, "editor.sh");
   const sessionFile = path.join(dir, "session.jsonl");
   const cancelledFile = path.join(dir, "cancelled.jsonl");
-  await fsPromises.writeFile(editorScript, `#!/bin/sh\ncp "$1" "${captureFile}"\n`, { mode: 0o755 });
+  await fsPromises.writeFile(editorScript, `#!/bin/sh\ncp "$1" "${captureFile}"\n`, {
+    mode: 0o755,
+  });
   const sessionContents = `${JSON.stringify({ type: "session", version: 1, id: "imported", timestamp: "2026-05-10T00:00:00.000Z", cwd: dir })}\n`;
   await fsPromises.writeFile(sessionFile, sessionContents);
   await fsPromises.writeFile(
@@ -540,7 +556,9 @@ test("submitted input opens system prompt in external editor by default", async 
   const editorScript = path.join(dir, "editor.sh");
   const previousEditor = process.env.EDITOR;
   try {
-    await fsPromises.writeFile(editorScript, `#!/bin/sh\ncp "$1" "${captureFile}"\n`, { mode: 0o755 });
+    await fsPromises.writeFile(editorScript, `#!/bin/sh\ncp "$1" "${captureFile}"\n`, {
+      mode: 0o755,
+    });
     const state = createInitialState("/repo");
     const tab = createTab(1, "s1", "/repo", { status: "done" });
     state.tabs.push(tab);
@@ -597,7 +615,9 @@ test("submitted input opens system tools in external editor by default", async (
   const editorScript = path.join(dir, "editor.sh");
   const previousEditor = process.env.EDITOR;
   try {
-    await fsPromises.writeFile(editorScript, `#!/bin/sh\ncp "$1" "${captureFile}"\n`, { mode: 0o755 });
+    await fsPromises.writeFile(editorScript, `#!/bin/sh\ncp "$1" "${captureFile}"\n`, {
+      mode: 0o755,
+    });
     const state = createInitialState("/repo");
     const tab = createTab(1, "s1", "/repo", { status: "done" });
     state.tabs.push(tab);

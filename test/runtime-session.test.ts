@@ -225,10 +225,7 @@ test("listAllSessionsGlobal scans Pi sessions/ sibling encoded-cwd directories",
 
     const sessions = await listAllSessionsGlobal(activeRoot);
 
-    assert.deepEqual(
-      sessions.map((session) => session.id).sort(),
-      ["active-pi", "other-pi"],
-    );
+    assert.deepEqual(sessions.map((session) => session.id).sort(), ["active-pi", "other-pi"]);
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }
@@ -292,7 +289,9 @@ test("reopenSessionInWorkdir publishes a link so the new cwd's Current Folder ca
 });
 
 test("listAllSessionsGlobal lists a /workdir session once", async () => {
-  const agentDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-session-cwd-all-once-"));
+  const agentDir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-session-cwd-all-once-"),
+  );
   const dir1 = path.join(agentDir, "dir1");
   const dir2 = path.join(agentDir, "dir2");
   try {
@@ -374,7 +373,10 @@ test("listSessionsForCwd preserves complete searchable session metadata", async 
 
     const cachedStartedAt = performance.now();
     const cached = await listSessionsForCwd(cwd, sessionsRoot);
-    assert.ok(performance.now() - cachedStartedAt < 250, "unchanged sessions must reuse the catalog");
+    assert.ok(
+      performance.now() - cachedStartedAt < 250,
+      "unchanged sessions must reuse the catalog",
+    );
     assert.equal(cached[0]?.allMessagesText, sessions[0]?.allMessagesText);
 
     await fsPromises.appendFile(

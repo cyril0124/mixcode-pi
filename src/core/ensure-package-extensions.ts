@@ -95,7 +95,9 @@ function hashPackageTree(packageDir: string): string {
 }
 
 function updatePackageHash(hash: Bun.CryptoHasher, dir: string, relativeDir: string): void {
-  const entries = fs.readdirSync(dir, { withFileTypes: true }).sort((left, right) => left.name.localeCompare(right.name));
+  const entries = fs
+    .readdirSync(dir, { withFileTypes: true })
+    .sort((left, right) => left.name.localeCompare(right.name));
   for (const entry of entries) {
     const relativePath = relativeDir ? `${relativeDir}/${entry.name}` : entry.name;
     const sourcePath = path.join(dir, entry.name);
@@ -178,7 +180,10 @@ function packageRootFromEntry(entryFile: string, packageName: string): string | 
   let dir = path.dirname(entryFile);
   const needle = `${path.sep}node_modules${path.sep}${packageName}`;
   while (true) {
-    if (dir.endsWith(needle) || dir.endsWith(`${path.sep}node_modules${path.sep}${packageName.replaceAll("/", path.sep)}`)) {
+    if (
+      dir.endsWith(needle) ||
+      dir.endsWith(`${path.sep}node_modules${path.sep}${packageName.replaceAll("/", path.sep)}`)
+    ) {
       return dir;
     }
     const pkgJson = path.join(dir, "package.json");

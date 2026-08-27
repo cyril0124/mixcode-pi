@@ -385,9 +385,7 @@ function renderSinglePane(
     const entry = entries[i]!;
     const selected = i === panel.selectedIndex;
     const raw = buildListRow(entry, selected, selectedKeys.has(entry.key), false, iconStyle);
-    body.push(
-      selected ? activeRenderTheme.selectedBg(padLine(raw, width)) : padLine(raw, width),
-    );
+    body.push(selected ? activeRenderTheme.selectedBg(padLine(raw, width)) : padLine(raw, width));
   }
   return {
     body,
@@ -410,12 +408,7 @@ function renderDoublePane(
   const rightWidth = Math.max(16, contentWidth - gap - leftWidth);
   const selectedEntry = entries[panel.selectedIndex];
   const detailLines = selectedEntry
-    ? buildDetailLines(
-        selectedEntry,
-        rightWidth,
-        selectedKeys.has(selectedEntry.key),
-        iconStyle,
-      )
+    ? buildDetailLines(selectedEntry, rightWidth, selectedKeys.has(selectedEntry.key), iconStyle)
     : [];
   const listVisible = Math.min(entries.length, maxBody);
   const bodyRows = Math.max(1, Math.min(maxBody, Math.max(listVisible, detailLines.length)));
@@ -472,10 +465,7 @@ function scrollFooter(
   return activeRenderTheme.dim(`  ${position}${scroll}`);
 }
 
-function extensionStatusIcon(
-  entry: ExtensionManagerEntry,
-  iconStyle: IconStyle,
-): string {
+function extensionStatusIcon(entry: ExtensionManagerEntry, iconStyle: IconStyle): string {
   if (entry.error) {
     return activeRenderTheme.error(iconStyle.resolved === "ascii" ? "!" : "⚠");
   }

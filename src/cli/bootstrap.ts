@@ -13,7 +13,13 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { MixCodeRuntime } from "../agent/runtime.js";
 import { scanSkillEntries } from "../core/attachments.js";
-import { createInitialState, createSessionId, createTab, DEFAULT_MODEL_REF, DEFAULT_THINKING_LEVEL } from "../core/defaults.js";
+import {
+  createInitialState,
+  createSessionId,
+  createTab,
+  DEFAULT_MODEL_REF,
+  DEFAULT_THINKING_LEVEL,
+} from "../core/defaults.js";
 import {
   extensionManagerFile,
   loadExtensionManagerConfig,
@@ -33,10 +39,7 @@ import {
   setStateModel,
   setTabModel,
 } from "../core/models.js";
-import {
-  configureDisabledModelRuntime,
-  createPiModelRegistryBundle,
-} from "../core/pi-models.js";
+import { configureDisabledModelRuntime, createPiModelRegistryBundle } from "../core/pi-models.js";
 import { expandTilde, resolveMixcodeStateDir } from "./status.js";
 import {
   loadStateFile,
@@ -100,7 +103,9 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
   const agentDir = options.agentDir ?? getAgentDir();
   // Create SettingsManager early so its sessionDir/httpProxy settings can be
   // read before we resolve the session root or issue any network request.
-  const settingsManager = SettingsManager.create(options.workdir, agentDir, { projectTrusted: true });
+  const settingsManager = SettingsManager.create(options.workdir, agentDir, {
+    projectTrusted: true,
+  });
   const sessionsRoot = resolveSessionsRoot({
     workdir: options.workdir,
     agentDir,

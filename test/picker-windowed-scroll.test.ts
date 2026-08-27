@@ -34,7 +34,10 @@ test("model picker windows long lists so the selected item stays visible", () =>
   );
   // Far-from-selection head item should be scrolled out.
   assert.doesNotMatch(plain, /> m00\b/);
-  assert.ok(!body.some((line) => line.includes("m00") && !line.includes("filter")), "m00 scrolled out");
+  assert.ok(
+    !body.some((line) => line.includes("m00") && !line.includes("filter")),
+    "m00 scrolled out",
+  );
 });
 
 test("thinking picker windows long lists around the selection", () => {

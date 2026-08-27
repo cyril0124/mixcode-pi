@@ -62,9 +62,7 @@ const injectedNestedPiTui: PiTuiKeybindingsModule | undefined = (() => {
 // evaluation order still surfaces the nested copy on subsequent calls).
 let nestedPiTui: PiTuiKeybindingsModule | undefined = injectedNestedPiTui;
 const nestedResolve: Promise<PiTuiKeybindingsModule | undefined> =
-  injectedNestedPiTui !== undefined
-    ? Promise.resolve(injectedNestedPiTui)
-    : resolveNestedPiTui();
+  injectedNestedPiTui !== undefined ? Promise.resolve(injectedNestedPiTui) : resolveNestedPiTui();
 void nestedResolve.then((mod) => {
   if (mod !== undefined) nestedPiTui = mod;
 });

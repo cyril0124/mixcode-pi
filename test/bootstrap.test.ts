@@ -5,7 +5,11 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
 import { Type } from "@earendil-works/pi-ai";
-import { getAgentDir, SessionManager, type ExtensionFactory } from "@earendil-works/pi-coding-agent";
+import {
+  getAgentDir,
+  SessionManager,
+  type ExtensionFactory,
+} from "@earendil-works/pi-coding-agent";
 import {
   bootstrapMixCode,
   createInitialState,
@@ -19,7 +23,12 @@ import {
   stateFilePath,
 } from "./helpers/mixcode.js";
 import { UUIDV7_SESSION_ID_PATTERN } from "./helpers/session-id.js";
-import { delegateToRealPiCli, exposeLocalPiCli, parseMainArgs, shouldDelegateToRealPiCli } from "../src/cli/main.js";
+import {
+  delegateToRealPiCli,
+  exposeLocalPiCli,
+  parseMainArgs,
+  shouldDelegateToRealPiCli,
+} from "../src/cli/main.js";
 import { resolveMixcodeStateDir } from "../src/core/paths.js";
 
 test("bootstrap creates initial state and persists it when no state exists", async () => {
@@ -139,12 +148,16 @@ test("bootstrap ignores an unknown theme key in the state file", async () => {
     await fsPromises.mkdir(scopedDir, { recursive: true });
     await fsPromises.writeFile(
       stateFilePath(scopedDir),
-      `${JSON.stringify({
-        children: [],
-        workdirs: {},
-        startup_workdir: repo,
-        theme: "not-a-theme",
-      }, null, 2)}\n`,
+      `${JSON.stringify(
+        {
+          children: [],
+          workdirs: {},
+          startup_workdir: repo,
+          theme: "not-a-theme",
+        },
+        null,
+        2,
+      )}\n`,
     );
 
     const boot = await bootstrapMixCode({
@@ -310,27 +323,31 @@ test("bootstrap ignores unknown model and thinking keys in the state file", asyn
     await fsPromises.mkdir(scopedDir, { recursive: true });
     await fsPromises.writeFile(
       stateFilePath(scopedDir),
-      `${JSON.stringify({
-        children: ["s1", "s2"],
-        workdirs: { s1: repo, s2: repo },
-        startup_workdir: repo,
-        model: {
-          provider: "mixcode-bootstrap-restore",
-          modelId: "restore-model",
-          displayName: "old display",
-          contextWindow: 1,
-        },
-        tab_models: {
-          s2: {
+      `${JSON.stringify(
+        {
+          children: ["s1", "s2"],
+          workdirs: { s1: repo, s2: repo },
+          startup_workdir: repo,
+          model: {
             provider: "mixcode-bootstrap-restore",
-            modelId: "tab-model",
-            displayName: "old tab display",
+            modelId: "restore-model",
+            displayName: "old display",
             contextWindow: 1,
           },
+          tab_models: {
+            s2: {
+              provider: "mixcode-bootstrap-restore",
+              modelId: "tab-model",
+              displayName: "old tab display",
+              contextWindow: 1,
+            },
+          },
+          variant: "max",
+          tab_variants: { s2: "max" },
         },
-        variant: "max",
-        tab_variants: { s2: "max" },
-      }, null, 2)}\n`,
+        null,
+        2,
+      )}\n`,
     );
 
     const boot = await bootstrapMixCode({
@@ -387,11 +404,15 @@ test("bootstrap hydrates a restored tab model from the session file", async () =
     await fsPromises.mkdir(scopedDir, { recursive: true });
     await fsPromises.writeFile(
       stateFilePath(scopedDir),
-      `${JSON.stringify({
-        children: ["s1"],
-        workdirs: { s1: repo },
-        startup_workdir: repo,
-      }, null, 2)}\n`,
+      `${JSON.stringify(
+        {
+          children: ["s1"],
+          workdirs: { s1: repo },
+          startup_workdir: repo,
+        },
+        null,
+        2,
+      )}\n`,
     );
     const boot = await bootstrapMixCode({
       workdir: repo,
@@ -526,7 +547,9 @@ test("bootstrap wires configured pi models into runtime auth streaming", async (
 });
 
 test("bootstrap selects an available model at startup", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-bootstrap-unavailable-model-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-bootstrap-unavailable-model-"),
+  );
   try {
     const stateDir = path.join(dir, "state");
     const repo = path.join(dir, "repo");
@@ -559,7 +582,8 @@ test("bootstrap selects an available model at startup", async () => {
     assert.ok(
       boot.state.availableModels.some(
         (model) =>
-          model.provider === boot.state.model.provider && model.modelId === boot.state.model.modelId,
+          model.provider === boot.state.model.provider &&
+          model.modelId === boot.state.model.modelId,
       ),
       "startup model should be present in availableModels",
     );
@@ -601,11 +625,17 @@ test("bootstrap stores default UI state under Pi agent and sessions in Pi SDK di
     });
     assert.equal(
       boot.stateFile,
-      path.join(scopedStateDir(path.join(dir, "pi-agent", "mixcode-pi"), dir), "mixcode_state.json"),
+      path.join(
+        scopedStateDir(path.join(dir, "pi-agent", "mixcode-pi"), dir),
+        "mixcode_state.json",
+      ),
     );
     await boot.tabsReady;
     const runtimeTab = boot.runtime.getTab(boot.state.tabs[0]!.sessionId);
-    assert.equal(runtimeTab?.session.getSessionDir(), defaultPiSessionDir(dir, path.join(dir, "pi-agent")));
+    assert.equal(
+      runtimeTab?.session.getSessionDir(),
+      defaultPiSessionDir(dir, path.join(dir, "pi-agent")),
+    );
   } finally {
     if (oldXdg === undefined) delete process.env.XDG_CONFIG_HOME;
     else process.env.XDG_CONFIG_HOME = oldXdg;
@@ -645,7 +675,11 @@ test("bootstrap surfaces invalid persisted state errors", async () => {
     await fsPromises.mkdir(scopedDir, { recursive: true });
     await fsPromises.writeFile(stateFilePath(scopedDir), "not-json", "utf8");
     await assert.rejects(
-      bootstrapMixCode({ workdir: dir, stateDir, modelConfigPath: path.join(dir, "missing.jsonc") }),
+      bootstrapMixCode({
+        workdir: dir,
+        stateDir,
+        modelConfigPath: path.join(dir, "missing.jsonc"),
+      }),
       /Unexpected token|JSON/,
     );
   } finally {
@@ -727,7 +761,10 @@ test("cli only delegates when argv explicitly requests --print/-p off a TTY", ()
   // testing. Neither shape below may delegate, even though mixcode-pi's own
   // parser rejects both of them too.
   assert.equal(shouldDelegateToRealPiCli(["create a file and write to it"], false), false);
-  assert.equal(shouldDelegateToRealPiCli(["--model", "anthropic/claude", "do something"], false), false);
+  assert.equal(
+    shouldDelegateToRealPiCli(["--model", "anthropic/claude", "do something"], false),
+    false,
+  );
   assert.equal(shouldDelegateToRealPiCli(["--some-future-flag-nobody-guessed"], false), false);
   // Same explicit --print/-p argv, but a human is at an interactive terminal:
   // surface mixcode-pi's own error instead of silently redirecting them elsewhere.

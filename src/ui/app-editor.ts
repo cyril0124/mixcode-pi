@@ -594,7 +594,10 @@ export class EditorSlot implements Component {
     return this.editorReplacements.get(sessionId)?.factory;
   }
 
-  setEmbeddedTerminalRows(rows: number | undefined, sessionId = this.mixState.activeTabId): boolean {
+  setEmbeddedTerminalRows(
+    rows: number | undefined,
+    sessionId = this.mixState.activeTabId,
+  ): boolean {
     if (rows === undefined) {
       const changed = this.embeddedTerminalRows.delete(sessionId);
       if (changed) this.tui.requestRender();
@@ -707,7 +710,8 @@ export class EditorSlot implements Component {
   private updateActiveTabDraft(): void {
     const active = this.mixState.tabs.find((tab) => tab.sessionId === this.activeTabId);
     // Keep draft for both default and custom editors so history Down restores it.
-    if (active) active.draftInput = this.activeEditor.getExpandedText?.() ?? this.activeEditor.getText();
+    if (active)
+      active.draftInput = this.activeEditor.getExpandedText?.() ?? this.activeEditor.getText();
   }
 
   private activeTab(): MixCodeState["tabs"][number] | undefined {
@@ -820,7 +824,11 @@ function renderPlaceholderLine(
   return padLine(`${cursor}${theme.dim(truncateToWidth(placeholder, available))}`, width);
 }
 
-function renderStaticPlaceholderLine(placeholder: string, width: number, theme: MixCodeTheme): string {
+function renderStaticPlaceholderLine(
+  placeholder: string,
+  width: number,
+  theme: MixCodeTheme,
+): string {
   const prefix = " ";
   const available = Math.max(0, width - prefix.length);
   return padLine(`${prefix}${theme.dim(truncateToWidth(placeholder, available))}`, width);

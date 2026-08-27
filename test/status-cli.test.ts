@@ -79,8 +79,14 @@ test("parseMainArgs resolves status --workdir as absolute, relative, and ~", () 
   assert.equal(tilde.statusWorkdir, path.join(home, "proj"));
   assert.equal(expandTilde("~"), home);
 
-  assert.throws(() => parseMainArgs(["status", "--workdir"], "/caller"), /--workdir requires a path/);
-  assert.throws(() => parseMainArgs(["status", "--workdir="], "/caller"), /--workdir requires a path/);
+  assert.throws(
+    () => parseMainArgs(["status", "--workdir"], "/caller"),
+    /--workdir requires a path/,
+  );
+  assert.throws(
+    () => parseMainArgs(["status", "--workdir="], "/caller"),
+    /--workdir requires a path/,
+  );
 
   const all = parseMainArgs(["status"], "/caller");
   assert.equal(all.statusWorkdir, undefined);

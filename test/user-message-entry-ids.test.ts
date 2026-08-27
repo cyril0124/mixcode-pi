@@ -3,11 +3,7 @@ import { test } from "node:test";
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 import { userMessageEntryIdsInBranch } from "../src/ui/chat-scroll-target.js";
 
-function entry(
-  id: string,
-  type: string,
-  role?: string,
-): SessionEntry {
+function entry(id: string, type: string, role?: string): SessionEntry {
   if (type !== "message") {
     return { type, id } as unknown as SessionEntry;
   }

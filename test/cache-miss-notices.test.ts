@@ -225,7 +225,10 @@ test("runtime cache notice setting updates open tabs without overriding project 
     assert.notEqual(tabA.agentSession.settingsManager, settingsManager);
     assert.notEqual(tabB.agentSession.settingsManager, settingsManager);
     assert.notEqual(tabA.agentSession.settingsManager, tabB.agentSession.settingsManager);
-    assert.equal(tabB.agentSession.settingsManager.getProjectSettings().showCacheMissNotices, false);
+    assert.equal(
+      tabB.agentSession.settingsManager.getProjectSettings().showCacheMissNotices,
+      false,
+    );
     const miss = significantMiss();
     tabA.session.appendMessage(miss.previous);
     tabA.session.appendMessage(miss.message);
@@ -233,8 +236,14 @@ test("runtime cache notice setting updates open tabs without overriding project 
     tabB.session.appendMessage(miss.message);
     runtime.rebuildChatFromSession("sA");
     runtime.rebuildChatFromSession("sB");
-    assert.equal(tabA.chat.some((line) => line.variant === "system-warning"), false);
-    assert.equal(tabB.chat.some((line) => line.variant === "system-warning"), false);
+    assert.equal(
+      tabA.chat.some((line) => line.variant === "system-warning"),
+      false,
+    );
+    assert.equal(
+      tabB.chat.some((line) => line.variant === "system-warning"),
+      false,
+    );
     const compaction = tabA.agentSession.settingsManager.getCompactionSettings();
     tabA.agentSession.settingsManager.applyOverrides({
       compaction: { ...compaction, reserveTokens: compaction.reserveTokens + 1 },
@@ -247,7 +256,10 @@ test("runtime cache notice setting updates open tabs without overriding project 
     assert.equal(tabA.agentSession.settingsManager.getShowCacheMissNotices(), true);
     assert.equal(tabB.agentSession.settingsManager.getShowCacheMissNotices(), false);
     assert.equal(tabA.chat.at(-1)?.variant, "system-warning");
-    assert.equal(tabB.chat.some((line) => line.variant === "system-warning"), false);
+    assert.equal(
+      tabB.chat.some((line) => line.variant === "system-warning"),
+      false,
+    );
     assert.deepEqual(
       tabA.agentSession.settingsManager.getCompactionSettings(),
       overriddenCompaction,
@@ -259,7 +271,10 @@ test("runtime cache notice setting updates open tabs without overriding project 
 
     assert.equal(settingsManager.getShowCacheMissNotices(), false);
     assert.equal(tabA.agentSession.settingsManager.getShowCacheMissNotices(), false);
-    assert.equal(tabA.chat.some((line) => line.variant === "system-warning"), false);
+    assert.equal(
+      tabA.chat.some((line) => line.variant === "system-warning"),
+      false,
+    );
     persisted = await Bun.file(path.join(agentDir, "settings.json")).json();
     assert.equal(persisted.showCacheMissNotices, false);
   } finally {

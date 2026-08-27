@@ -14,9 +14,7 @@ export interface ToolDisplayConfigOverlayOptions {
   initial: ToolDisplayRuntimeConfig;
   persist: (
     config: ToolDisplayRuntimeConfig,
-  ) =>
-    | { ok: true; config: ToolDisplayRuntimeConfig }
-    | { ok: false; error: string };
+  ) => { ok: true; config: ToolDisplayRuntimeConfig } | { ok: false; error: string };
   onError: (message: string) => void;
 }
 

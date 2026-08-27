@@ -129,7 +129,9 @@ test("tool block keeps exactly one blank row below the previous block", () => {
     isPartial: false,
   });
 
-  const lines = renderConversation([{ role: "assistant", text: "answer" }, toolLine], 40).map(stripAnsi);
+  const lines = renderConversation([{ role: "assistant", text: "answer" }, toolLine], 40).map(
+    stripAnsi,
+  );
   const answerRow = lines.findIndex((line) => line.includes("answer"));
   const callRow = lines.findIndex((line) => line.includes("agent call"));
   assert.ok(answerRow >= 0 && callRow > answerRow, "both blocks must render");
@@ -163,7 +165,9 @@ test("error system messages show error text without a System label", () => {
   assert.match(error, /Error: 503 Service Unavailable/);
   assert.doesNotMatch(error, /\[System\]:/);
 
-  const plain = stripAnsi(renderConversation([{ role: "system", text: "Just a note" }], 60).join("\n"));
+  const plain = stripAnsi(
+    renderConversation([{ role: "system", text: "Just a note" }], 60).join("\n"),
+  );
   assert.match(plain, /Just a note/);
   assert.doesNotMatch(plain, /\[System\]:/);
 });

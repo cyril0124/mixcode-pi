@@ -159,7 +159,10 @@ export async function loadLiveInstanceStatus(
     }
     const snapshot = parsed.snapshot;
     if (!snapshot) continue;
-    if (options.workdir && normalizeWorkdir(snapshot.workdir) !== normalizeWorkdir(options.workdir)) {
+    if (
+      options.workdir &&
+      normalizeWorkdir(snapshot.workdir) !== normalizeWorkdir(options.workdir)
+    ) {
       continue;
     }
     if (!snapshotIsLive(snapshot, now, options)) continue;
@@ -209,7 +212,10 @@ export async function cleanupInstanceRegistry(
 
 export function formatDisplayWorkdir(workdir: string, home = os.homedir()): string {
   if (workdir === home) return "~";
-  if (workdir.startsWith(`${home}/`) || (process.platform === "win32" && workdir.startsWith(`${home}\\`))) {
+  if (
+    workdir.startsWith(`${home}/`) ||
+    (process.platform === "win32" && workdir.startsWith(`${home}\\`))
+  ) {
     return `~${workdir.slice(home.length)}`;
   }
   return workdir;
@@ -235,7 +241,8 @@ export function formatInstanceStatusJson(report: InstanceStatusReport): string {
       // Focus is an enum, never a title: a tab named "home" yields focus "tab",
       // so it cannot be confused with the Home surface.
       const focus = instanceFocusOf(instance);
-      const activeTabTitle = focus === "tab" ? instance.tabs.find((tab) => tab.active)?.title : undefined;
+      const activeTabTitle =
+        focus === "tab" ? instance.tabs.find((tab) => tab.active)?.title : undefined;
       return {
         pid: instance.pid,
         workdir: formatDisplayWorkdir(instance.workdir),
@@ -369,7 +376,9 @@ async function readSnapshotFile(filePath: string): Promise<{
     const raw = await Bun.file(filePath).text();
     return { snapshot: parseSnapshot(JSON.parse(raw), filePath) };
   } catch (error) {
-    return { warning: { file: filePath, message: error instanceof Error ? error.message : String(error) } };
+    return {
+      warning: { file: filePath, message: error instanceof Error ? error.message : String(error) },
+    };
   }
 }
 
@@ -389,7 +398,9 @@ function parseSnapshot(value: unknown, filePath: string): InstanceRegistrySnapsh
     activeTabId: stringField(raw, "activeTabId", filePath),
     createdAt: stringField(raw, "createdAt", filePath),
     updatedAt: stringField(raw, "updatedAt", filePath),
-    tabs: arrayField(raw, "tabs", filePath).map((tab, index) => parseTabSnapshot(tab, filePath, index)),
+    tabs: arrayField(raw, "tabs", filePath).map((tab, index) =>
+      parseTabSnapshot(tab, filePath, index),
+    ),
   };
   return snapshot;
 }

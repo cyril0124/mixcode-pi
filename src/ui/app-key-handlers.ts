@@ -34,24 +34,13 @@ import {
   updatePickerQuery,
 } from "../core/pickers.js";
 import { HOME_TAB_ID, type MixCodeState } from "../core/types.js";
-import {
-  assertConfiguredOpenTabsReadable,
-  noteTabsReplaced,
-} from "../core/open-tabs-store.js";
+import { assertConfiguredOpenTabsReadable, noteTabsReplaced } from "../core/open-tabs-store.js";
 import { pushToast } from "../core/toast.js";
 import { tabIsWaitingForInput } from "../core/tab-state.js";
 import { activateTab, clampHomeSelectedTabIndex, getActiveTab } from "../core/tabs.js";
 import { closeExistingAgentTab, deleteAgentTab } from "./agent-tab-actions.js";
-import {
-  applyModelSelection,
-  applyThinkingLevel,
-  applyWorkdirSelection,
-} from "./app-actions.js";
-import {
-  armPendingEscape,
-  clearPendingEscape,
-  isPendingEscapeActive,
-} from "../core/escape.js";
+import { applyModelSelection, applyThinkingLevel, applyWorkdirSelection } from "./app-actions.js";
+import { armPendingEscape, clearPendingEscape, isPendingEscapeActive } from "../core/escape.js";
 import {
   closeAppOverlay,
   dispatchAppOverlayInput,
@@ -137,9 +126,7 @@ export function handleQueuedFlushKey(
   return true;
 }
 
-function runtimeQueuedMessageCount(
-  runtimeTab: RuntimeTab | undefined,
-): number {
+function runtimeQueuedMessageCount(runtimeTab: RuntimeTab | undefined): number {
   const queuedPromptCount =
     typeof runtimeTab?.queuedPromptCount === "number" ? runtimeTab.queuedPromptCount : 0;
   const steeringCount = runtimeTab?.agentSession?.getSteeringMessages().length ?? 0;
@@ -298,7 +285,12 @@ export function canOpenCommandPalette(
 ): boolean {
   if (isEditorAutocompleteOpen()) return false;
   if (hasAnyOverlay(tui)) return false;
-  if (pickerIsLive(state) || sessionSelectorIsLive(state) || state.treeSelector.open || state.tabJumpOpen)
+  if (
+    pickerIsLive(state) ||
+    sessionSelectorIsLive(state) ||
+    state.treeSelector.open ||
+    state.tabJumpOpen
+  )
     return false;
   // Home only highlights a send target; that agent's extension dialog is not on this surface.
   if (state.activeTabId !== HOME_TAB_ID && active && tabIsWaitingForInput(active)) return false;
@@ -329,7 +321,10 @@ export function handleCommandPaletteKey(
     const selectable = selectableCommandPaletteEntries(state, extensionCommands);
     const selected =
       selectable[
-        Math.min(Math.max(state.commandPalette.selectedIndex, 0), Math.max(0, selectable.length - 1))
+        Math.min(
+          Math.max(state.commandPalette.selectedIndex, 0),
+          Math.max(0, selectable.length - 1),
+        )
       ];
     if (selected && !commandPaletteActions?.executeCommand) {
       throw new Error("Command palette selection requires command execution support");
@@ -567,12 +562,7 @@ export function handleEscapeKey(
         // Confirming double-Esc
         active.lastEscapeTime = undefined;
         if (action === "tree") {
-          openTreeSelector(
-            state,
-            runtime as unknown as TreeSelectorRuntime,
-            tui,
-            active.sessionId,
-          );
+          openTreeSelector(state, runtime as unknown as TreeSelectorRuntime, tui, active.sessionId);
         } else {
           // action === "fork"
           openForkSelector(state, active.sessionId, runtime!, tui);

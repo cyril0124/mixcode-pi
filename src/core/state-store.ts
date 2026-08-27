@@ -90,10 +90,7 @@ function objectRecord(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-export async function saveStateFile(
-  filePath: string,
-  state: MixCodeState,
-): Promise<void> {
+export async function saveStateFile(filePath: string, state: MixCodeState): Promise<void> {
   const temp = tempFilePath(filePath);
   await Bun.write(temp, `${JSON.stringify(serializeState(state), null, 2)}\n`);
   await fs.rename(temp, filePath);

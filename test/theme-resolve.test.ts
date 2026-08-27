@@ -1,10 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import {
-  listThemeInfos,
-  normalizeThemeId,
-  THEMES,
-} from "./helpers/mixcode.js";
+import { listThemeInfos, normalizeThemeId, THEMES } from "./helpers/mixcode.js";
 
 test("normalizeThemeId maps known id to itself, unknown to undefined, trims/case-folds", () => {
   const [primary] = THEMES;

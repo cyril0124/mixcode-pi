@@ -1,7 +1,12 @@
 import type { ExtensionCommandContext, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import { createDiffViewerComponent } from "./diff-viewer.js";
 import { composeReviewPrompt, type ReviewDraft } from "./review.js";
-import { buildGitDiff, buildSessionDiff, type SessionDiff, type SessionEntry } from "./session-diff.js";
+import {
+  buildGitDiff,
+  buildSessionDiff,
+  type SessionDiff,
+  type SessionEntry,
+} from "./session-diff.js";
 
 function userMessageIndexes(entries: SessionEntry[]): number[] {
   const indexes: number[] = [];
@@ -42,8 +47,7 @@ async function openDiff(
   }
 
   const review = await ctx.ui.custom<ReviewDraft | undefined>(
-    (tui, theme, _keybindings, done) =>
-      createDiffViewerComponent({ tui, theme, diff, done }),
+    (tui, theme, _keybindings, done) => createDiffViewerComponent({ tui, theme, diff, done }),
     {
       overlay: true,
       overlayOptions: {
@@ -58,9 +62,7 @@ async function openDiff(
   if (!review) return;
   const prompt = composeReviewPrompt(review);
   const existing = ctx.ui.getEditorText?.() ?? "";
-  ctx.ui.setEditorText(
-    existing.trim() ? `${existing.replace(/\s*$/, "")}\n\n${prompt}` : prompt,
-  );
+  ctx.ui.setEditorText(existing.trim() ? `${existing.replace(/\s*$/, "")}\n\n${prompt}` : prompt);
   ctx.ui.notify("Inserted review feedback into the editor.", "info");
 }
 

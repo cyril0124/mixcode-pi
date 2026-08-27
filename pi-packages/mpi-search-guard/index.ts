@@ -10,7 +10,7 @@ import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
  * - (process.env.HOME || os.homedir())        e.g. /nfs/home/alice
  * - path.dirname(home)  e.g. /nfs/home  (covers non-standard home prefixes)
  */
-const home = (process.env.HOME || os.homedir());
+const home = process.env.HOME || os.homedir();
 const BLACKLIST: ReadonlySet<string> = new Set([
   "/",
   "/home",
@@ -118,10 +118,22 @@ function stripLineComment(line: string): string {
 
   for (let i = 0; i < line.length; i++) {
     const ch = line[i];
-    if (esc) { esc = false; continue; }
-    if (ch === "\\" && !inSingle) { esc = true; continue; }
-    if (ch === "'" && !inDouble) { inSingle = !inSingle; continue; }
-    if (ch === '"' && !inSingle) { inDouble = !inDouble; continue; }
+    if (esc) {
+      esc = false;
+      continue;
+    }
+    if (ch === "\\" && !inSingle) {
+      esc = true;
+      continue;
+    }
+    if (ch === "'" && !inDouble) {
+      inSingle = !inSingle;
+      continue;
+    }
+    if (ch === '"' && !inSingle) {
+      inDouble = !inDouble;
+      continue;
+    }
     if (ch === "#" && !inSingle && !inDouble) {
       // A # is a comment if preceded by whitespace or at start of line
       // charAt returns "" past the start of the line, which is not whitespace.
@@ -139,12 +151,31 @@ const SEARCH_CMDS = new Set(["grep", "rg", "find", "fd", "ag", "ack"]);
 // Note: bare -E is ERE mode for grep (no value); only rg's -E/--encoding takes a value.
 // We omit -E/--encoding here so grep -E is not mis-parsed; rg still checks paths correctly.
 const FLAGS_WITH_VALUE = new Set([
-  "-e", "-f", "--include", "--exclude", "--exclude-dir",
-  "-m", "--max-count", "-A", "-B", "-C", "--context",
-  "--color", "--colours", "-g", "--glob", "-t", "--type",
-  "--type-add", "--type-not",
-  "--max-depth", "--maxdepth", "-d", "--depth",
-  "--ignore-file", "--path-separator",
+  "-e",
+  "-f",
+  "--include",
+  "--exclude",
+  "--exclude-dir",
+  "-m",
+  "--max-count",
+  "-A",
+  "-B",
+  "-C",
+  "--context",
+  "--color",
+  "--colours",
+  "-g",
+  "--glob",
+  "-t",
+  "--type",
+  "--type-add",
+  "--type-not",
+  "--max-depth",
+  "--maxdepth",
+  "-d",
+  "--depth",
+  "--ignore-file",
+  "--path-separator",
 ]);
 
 // Flags that already supply the pattern; remaining positionals are all paths.
@@ -166,7 +197,9 @@ function checkSegment(segment: string, cwd: string): string | null {
   if (cleaned.length === 0) return null;
 
   // Skip leading env assignments and sudo
-  const cmdIndex = cleaned.findIndex((token) => !token.includes("=") && token !== "sudo" && token !== "env");
+  const cmdIndex = cleaned.findIndex(
+    (token) => !token.includes("=") && token !== "sudo" && token !== "env",
+  );
   const cmdToken = cmdIndex < 0 ? undefined : cleaned[cmdIndex];
   // Nothing but env assignments / sudo means there is no command to inspect.
   if (cmdToken === undefined) return null;
@@ -311,12 +344,28 @@ export function tokenize(input: string): string[] {
   let esc = false;
 
   for (const ch of input) {
-    if (esc) { cur += ch; esc = false; continue; }
-    if (ch === "\\" && !inSingle) { esc = true; continue; }
-    if (ch === "'" && !inDouble) { inSingle = !inSingle; continue; }
-    if (ch === '"' && !inSingle) { inDouble = !inDouble; continue; }
+    if (esc) {
+      cur += ch;
+      esc = false;
+      continue;
+    }
+    if (ch === "\\" && !inSingle) {
+      esc = true;
+      continue;
+    }
+    if (ch === "'" && !inDouble) {
+      inSingle = !inSingle;
+      continue;
+    }
+    if (ch === '"' && !inSingle) {
+      inDouble = !inDouble;
+      continue;
+    }
     if (/\s/.test(ch) && !inSingle && !inDouble) {
-      if (cur) { tokens.push(cur); cur = ""; }
+      if (cur) {
+        tokens.push(cur);
+        cur = "";
+      }
       continue;
     }
     cur += ch;

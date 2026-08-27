@@ -65,7 +65,10 @@ const inFlight = new Map<string, Promise<SessionInfo[]>>();
 // existing jsonl must invalidate too; names-only leaves /resume previews and
 // search text stale. Poll replaces fs.watch (inotify is a scarce per-user quota).
 const DEFAULT_CATALOG_POLL_INTERVAL_MS = 5_000;
-const rootSnapshots = new Map<string, { timer: ReturnType<typeof setInterval>; names: string[] | undefined }>();
+const rootSnapshots = new Map<
+  string,
+  { timer: ReturnType<typeof setInterval>; names: string[] | undefined }
+>();
 
 export function listSessionsInBackground(
   request: SessionCatalogRequest,
@@ -117,7 +120,9 @@ export async function runSessionCatalogWorkerCommand(args: string[]): Promise<bo
   try {
     const encoded = process.env[SESSION_CATALOG_REQUEST_ENV];
     if (!encoded) throw new Error("Missing session catalog worker request");
-    const request = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8")) as SessionCatalogRequest;
+    const request = JSON.parse(
+      Buffer.from(encoded, "base64url").toString("utf8"),
+    ) as SessionCatalogRequest;
     const sessions = await executeSessionCatalogRequest(request);
     process.stdout.write(JSON.stringify({ type: "result", sessions } satisfies WorkerResult));
   } catch (error) {
@@ -128,7 +133,9 @@ export async function runSessionCatalogWorkerCommand(args: string[]): Promise<bo
   return true;
 }
 
-async function executeSessionCatalogRequest(request: SessionCatalogRequest): Promise<SessionInfo[]> {
+async function executeSessionCatalogRequest(
+  request: SessionCatalogRequest,
+): Promise<SessionInfo[]> {
   return executeSessionCatalogRequestWithManager(request, SessionManager);
 }
 
@@ -239,7 +246,10 @@ async function runListingSubprocess(
  * when session files in a root appear, disappear, or change size/mtime.
  * Listing requests start it lazily; the interval is injectable for tests.
  */
-export function ensureSessionCatalogPoll(root: string, intervalMs = DEFAULT_CATALOG_POLL_INTERVAL_MS): void {
+export function ensureSessionCatalogPoll(
+  root: string,
+  intervalMs = DEFAULT_CATALOG_POLL_INTERVAL_MS,
+): void {
   if (rootSnapshots.has(root)) return;
   const entry: { timer: ReturnType<typeof setInterval>; names: string[] | undefined } = {
     timer: undefined as unknown as ReturnType<typeof setInterval>,

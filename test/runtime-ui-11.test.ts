@@ -4,14 +4,14 @@ import * as fsPromises from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import { test } from "node:test";
-import type {
-  ExtensionFactory,
-} from "@earendil-works/pi-coding-agent";
-import { TuiMainScreen, type Component, type OverlayOptions, type Terminal } from "@earendil-works/pi-tui";
+import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import {
-  MixCodeRuntime,
-  createTab,
-} from "./helpers/mixcode.js";
+  TuiMainScreen,
+  type Component,
+  type OverlayOptions,
+  type Terminal,
+} from "@earendil-works/pi-tui";
+import { MixCodeRuntime, createTab } from "./helpers/mixcode.js";
 
 async function waitForRuntime(predicate: () => boolean, attempts = 25): Promise<void> {
   for (let i = 0; i < attempts; i += 1) {
@@ -118,7 +118,9 @@ test("runtime merges resource loader and runtime extension factories across work
 });
 
 test("runtime emits pi extension shutdown on close, close-all, delete, delete-all, and clear", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-shutdown-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-extension-shutdown-"),
+  );
   const events: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.on("session_shutdown", (event, ctx) => {
@@ -231,7 +233,9 @@ test("runtime exposes editor component replacement as an explicit error without 
 });
 
 test("runtime maps pi extension custom overlay into a live TUI overlay", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-custom-overlay-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-extension-custom-overlay-"),
+  );
   const events: string[] = [];
   const terminal = silentTerminal();
   const tui = new TuiMainScreen(terminal);

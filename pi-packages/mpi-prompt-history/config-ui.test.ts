@@ -4,7 +4,11 @@ import * as os from "node:os";
 import * as nodePath from "node:path";
 import { test } from "node:test";
 import { formatBytes, parseByteSize, writeMaxBytes } from "./config-ui.js";
-import { CONFIG_FILENAME, DEFAULT_HISTORY_MAX_BYTES, readHistoryMaxBytes } from "./history-store.js";
+import {
+  CONFIG_FILENAME,
+  DEFAULT_HISTORY_MAX_BYTES,
+  readHistoryMaxBytes,
+} from "./history-store.js";
 
 const MB = 1024 * 1024;
 
@@ -43,7 +47,10 @@ test("writeMaxBytes round-trips through the config reader and preserves $schema"
       "utf8",
     );
     await writeMaxBytes(configFile, 8192);
-    const kept = JSON.parse(await fsPromises.readFile(configFile, "utf8")) as Record<string, unknown>;
+    const kept = JSON.parse(await fsPromises.readFile(configFile, "utf8")) as Record<
+      string,
+      unknown
+    >;
     assert.equal(kept.$schema, "./mpi-prompt-history.schema.json");
     assert.equal(kept.maxBytes, 8192);
 
@@ -54,7 +61,11 @@ test("writeMaxBytes round-trips through the config reader and preserves $schema"
     assert.equal(await readHistoryMaxBytes(configFile), DEFAULT_HISTORY_MAX_BYTES);
 
     // Clearing with a $schema present keeps the file so the editor hint survives.
-    await fsPromises.writeFile(configFile, JSON.stringify({ $schema: "./s.json", maxBytes: 1 }), "utf8");
+    await fsPromises.writeFile(
+      configFile,
+      JSON.stringify({ $schema: "./s.json", maxBytes: 1 }),
+      "utf8",
+    );
     assert.equal(await writeMaxBytes(configFile, undefined), configFile);
     assert.equal(await readHistoryMaxBytes(configFile), DEFAULT_HISTORY_MAX_BYTES);
   } finally {

@@ -49,8 +49,7 @@ const liveProcesses = new Map<number, ProcessIdentity>([
   [102, { alive: false }],
 ]);
 
-const processInfo = (pid: number): ProcessIdentity =>
-  liveProcesses.get(pid) ?? { alive: false };
+const processInfo = (pid: number): ProcessIdentity => liveProcesses.get(pid) ?? { alive: false };
 
 test("parseMainArgs parses status subcommand without launching TUI args", () => {
   const args = parseMainArgs(["status", "--json", "--workdir", "repo"], "/home/user");
@@ -58,8 +57,14 @@ test("parseMainArgs parses status subcommand without launching TUI args", () => 
   assert.equal(args.json, true);
   assert.equal(args.statusWorkdir, "/home/user/repo");
   assert.equal(args.workdir, "/home/user");
-  assert.throws(() => parseMainArgs(["status", "--batch", "x.lua"], "/home/user"), /Unknown status argument/);
-  assert.throws(() => parseMainArgs(["--workdir", "/repo", "status"], "/home/user"), /Unknown argument/);
+  assert.throws(
+    () => parseMainArgs(["status", "--batch", "x.lua"], "/home/user"),
+    /Unknown status argument/,
+  );
+  assert.throws(
+    () => parseMainArgs(["--workdir", "/repo", "status"], "/home/user"),
+    /Unknown argument/,
+  );
 });
 
 test("createInstanceSnapshot captures live tab metadata without chat content", () => {
@@ -85,7 +90,9 @@ test("createInstanceSnapshot captures live tab metadata without chat content", (
   // Without an explicit value, createdAt defaults to this process's start time.
   const defaulted = createInstanceSnapshot(state);
   assert.equal(Number.isFinite(Date.parse(defaulted.createdAt)), true);
-  assert.ok(Math.abs(Date.now() - Date.parse(defaulted.createdAt) - process.uptime() * 1000) < 5_000);
+  assert.ok(
+    Math.abs(Date.now() - Date.parse(defaulted.createdAt) - process.uptime() * 1000) < 5_000,
+  );
   assert.equal(captured.tabs[0]?.title, "Worker");
   assert.equal(captured.tabs[0]?.waitingForInputCount, 1);
   assert.equal(JSON.stringify(captured).includes("questions"), false);
@@ -105,7 +112,11 @@ test("loadLiveInstanceStatus filters stale and dead snapshots", async () => {
     );
     await writeInstanceSnapshot(root, snapshot({ pid: 102 }));
     await fsPromises.mkdir(instanceRegistryDir(root), { recursive: true });
-    await fsPromises.writeFile(path.join(instanceRegistryDir(root), "999.json"), "not-json", "utf8");
+    await fsPromises.writeFile(
+      path.join(instanceRegistryDir(root), "999.json"),
+      "not-json",
+      "utf8",
+    );
 
     const result = await loadLiveInstanceStatus(root, {
       now: new Date("2026-06-06T00:00:12.000Z"),
@@ -215,7 +226,9 @@ test("formatDisplayWorkdir contracts homedir prefix to tilde", () => {
 });
 
 test("formatInstanceStatusTable renders grouped instances and active tabs", async () => {
-  const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-instance-registry-format-"));
+  const root = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-instance-registry-format-"),
+  );
   try {
     await writeInstanceSnapshot(
       root,
@@ -285,7 +298,9 @@ test("formatInstanceStatusTable renders grouped instances and active tabs", asyn
 });
 
 test("loadLiveInstanceStatus reports a warning for snapshots missing createdAt", async () => {
-  const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-instance-registry-create-"));
+  const root = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-instance-registry-create-"),
+  );
   try {
     const snapshotJson = { ...snapshot({ pid: 100 }) };
     delete (snapshotJson as Partial<InstanceRegistrySnapshot>).createdAt;
@@ -310,7 +325,9 @@ test("loadLiveInstanceStatus reports a warning for snapshots missing createdAt",
 });
 
 test("a tab titled home stays distinguishable from the Home surface", async () => {
-  const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-instance-registry-home-tab-"));
+  const root = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-instance-registry-home-tab-"),
+  );
   try {
     await writeInstanceSnapshot(
       root,
@@ -371,7 +388,10 @@ test("cleanupInstanceRegistry removes stale and dead snapshots", async () => {
       now: new Date("2026-06-06T00:00:12.000Z"),
       processInfo,
     });
-    assert.deepEqual(live.instances.map((instance) => instance.pid), [100]);
+    assert.deepEqual(
+      live.instances.map((instance) => instance.pid),
+      [100],
+    );
   } finally {
     await fsPromises.rm(root, { recursive: true, force: true });
   }
@@ -405,10 +425,10 @@ test("cleanupInstanceRegistry sweeps sockets and snapshot temps of dead pids onl
       "100.sock",
     ]);
     assert.equal(result.removed.length, 0);
-    assert.deepEqual(
-      result.removedFiles.map((file) => path.basename(file)).sort(),
-      ["102.json.102.ffffffff-0000-1111-2222-333333333333.tmp", "102.sock"],
-    );
+    assert.deepEqual(result.removedFiles.map((file) => path.basename(file)).sort(), [
+      "102.json.102.ffffffff-0000-1111-2222-333333333333.tmp",
+      "102.sock",
+    ]);
   } finally {
     await fsPromises.rm(root, { recursive: true, force: true });
   }
@@ -459,7 +479,10 @@ test("loadLiveInstanceStatus ignores atomic-write temp files beside snapshots", 
       now: new Date("2026-06-06T00:00:12.000Z"),
       processInfo,
     });
-    assert.deepEqual(result.instances.map((instance) => instance.pid), [100]);
+    assert.deepEqual(
+      result.instances.map((instance) => instance.pid),
+      [100],
+    );
     assert.equal(result.warnings.length, 0);
   } finally {
     await fsPromises.rm(root, { recursive: true, force: true });

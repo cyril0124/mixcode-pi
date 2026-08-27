@@ -222,14 +222,20 @@ test("runtime drains queued prompts automatically after agent_end reaches idle",
     releaseFirst();
     await firstPrompt;
     await waitForRuntime(
-      () => tab.pendingMessages.length === 0 && streamUserTextSnapshots.at(-1)?.includes("second queued") === true,
+      () =>
+        tab.pendingMessages.length === 0 &&
+        streamUserTextSnapshots.at(-1)?.includes("second queued") === true,
     );
 
     assert.deepEqual(tab.pendingMessages, []);
     assert.deepEqual(streamTexts, ["first", "second queued"]);
     assert.deepEqual(streamUserTextSnapshots.at(-1), ["first", "first queued", "second queued"]);
-    assert.ok(runtimeTab.chat.some((line) => line.role === "user" && line.text.includes("first queued")));
-    assert.ok(runtimeTab.chat.some((line) => line.role === "user" && line.text.includes("second queued")));
+    assert.ok(
+      runtimeTab.chat.some((line) => line.role === "user" && line.text.includes("first queued")),
+    );
+    assert.ok(
+      runtimeTab.chat.some((line) => line.role === "user" && line.text.includes("second queued")),
+    );
     assert.ok(
       runtimeTab.chat.some(
         (line) => line.role === "assistant" && line.text.includes("Echo: second queued"),
@@ -430,7 +436,6 @@ test("faux stream emits assistant text without external provider", async () => {
   );
 });
 
-
 test("core leaves long tool turns to Pi / packages (no mid-turn private continue)", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-no-mid-turn-"));
   try {
@@ -454,7 +459,9 @@ test("core leaves long tool turns to Pi / packages (no mid-turn private continue
             ),
           );
         }
-        return streamAssistantMessage(runtimeAssistantMessage(`warmup reply ${"history ".repeat(40)}`));
+        return streamAssistantMessage(
+          runtimeAssistantMessage(`warmup reply ${"history ".repeat(40)}`),
+        );
       },
       extensionFactories: [
         (pi) => {
@@ -502,12 +509,18 @@ test("core leaves long tool turns to Pi / packages (no mid-turn private continue
     await runtime.prompt("s1", "start");
     await waitForRuntime(() => tab.status === "idle" && postToolAssistantCalls >= 1);
 
-    assert.ok(postToolAssistantCalls >= 1, "tool loop must finish without MixCode mid-turn terminate");
+    assert.ok(
+      postToolAssistantCalls >= 1,
+      "tool loop must finish without MixCode mid-turn terminate",
+    );
     assert.equal(
       runtimeTab.session.getBranch().some((entry) => entry.type === "compaction"),
       false,
     );
-    assert.equal(runtimeTab.chat.some((line) => /Compaction failed/i.test(line.text)), false);
+    assert.equal(
+      runtimeTab.chat.some((line) => /Compaction failed/i.test(line.text)),
+      false,
+    );
     assert.equal(tab.status, "idle");
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
@@ -515,14 +528,18 @@ test("core leaves long tool turns to Pi / packages (no mid-turn private continue
 });
 
 test("runtime keeps restored pending messages when they are not runtime-queued", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-pending-not-flushed-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-pending-not-flushed-"),
+  );
   try {
     const seenContexts: Context[] = [];
     const runtime = new MixCodeRuntime({
       sessionsRoot: dir,
       streamFn: (_model: Model<any>, context: Context) => {
         seenContexts.push(context);
-        return streamAssistantMessage(runtimeAssistantMessage(`ok:${lastRuntimeUserText(context)}`));
+        return streamAssistantMessage(
+          runtimeAssistantMessage(`ok:${lastRuntimeUserText(context)}`),
+        );
       },
     });
     const model: MixCodeModel = {
@@ -555,7 +572,9 @@ test("runtime keeps restored pending messages when they are not runtime-queued",
     // Not counted in queuedPromptCount → agent_end must not auto-send them.
     assert.deepEqual(tab.pendingMessages, ["restored pending"]);
     assert.equal(
-      runtimeTab.chat.some((line) => line.role === "user" && line.text.includes("restored pending")),
+      runtimeTab.chat.some(
+        (line) => line.role === "user" && line.text.includes("restored pending"),
+      ),
       false,
     );
   } finally {
@@ -564,7 +583,9 @@ test("runtime keeps restored pending messages when they are not runtime-queued",
 });
 
 test("runtime rejects prompt while compaction is running", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-compact-prompt-guard-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-compact-prompt-guard-"),
+  );
   try {
     let releaseCompact!: () => void;
     const releaseCompactPromise = new Promise<void>((resolve) => {
@@ -597,7 +618,10 @@ test("runtime rejects prompt while compaction is running", async () => {
     // Wait until compaction is actually running
     await new Promise<void>((resolve) => {
       const unsub = runtime.onChange((event) => {
-        if (event.type === "compaction_start") { unsub(); resolve(); }
+        if (event.type === "compaction_start") {
+          unsub();
+          resolve();
+        }
       });
     });
     await assert.rejects(
@@ -651,7 +675,10 @@ test("runtime abortTab aborts compaction and leaves status idle", async () => {
     // Wait until compaction is running
     await new Promise<void>((resolve) => {
       const unsub = runtime.onChange((event) => {
-        if (event.type === "compaction_start") { unsub(); resolve(); }
+        if (event.type === "compaction_start") {
+          unsub();
+          resolve();
+        }
       });
     });
     // abortTab should abort compaction
@@ -659,10 +686,7 @@ test("runtime abortTab aborts compaction and leaves status idle", async () => {
     releaseCompact();
     await compactPromise;
     assert.equal(tab.status, "idle");
-    assert.doesNotMatch(
-      renderWorkingIndicator(tab, 80, new Date()).join("\n"),
-      /Compacting/,
-    );
+    assert.doesNotMatch(renderWorkingIndicator(tab, 80, new Date()).join("\n"), /Compacting/);
     // Chat should contain cancellation message, not a dangling "started" only
     const chatTexts = runtime.getTab("s1")!.chat.map((l) => l.text);
     assert.ok(chatTexts.some((t) => /[Cc]ancell?ed/.test(t)));

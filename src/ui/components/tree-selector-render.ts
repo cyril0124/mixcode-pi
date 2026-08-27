@@ -35,7 +35,9 @@ function renderTreeSelectorInner(
 }
 
 function customizeNavigateHeader(lines: string[]): void {
-  const titleIndex = lines.findIndex((line) => stripTerminalSequences(line).includes("Session Tree"));
+  const titleIndex = lines.findIndex((line) =>
+    stripTerminalSequences(line).includes("Session Tree"),
+  );
   if (titleIndex < 0) return;
   const borderIndex = lines.findIndex(
     (line, index) => index > titleIndex && /^─+$/.test(stripTerminalSequences(line).trim()),

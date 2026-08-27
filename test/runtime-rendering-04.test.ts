@@ -1,11 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import {
-  createInitialState,
-  createTab,
-  renderInputMeta,
-  renderTabBar,
-} from "./helpers/mixcode.js";
+import { createInitialState, createTab, renderInputMeta, renderTabBar } from "./helpers/mixcode.js";
 
 function stripAnsi(text: string): string {
   return text

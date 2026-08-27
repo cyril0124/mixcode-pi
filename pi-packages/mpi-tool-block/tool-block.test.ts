@@ -37,7 +37,10 @@ function tmpDir(): string {
 
 describe("parseToolBlockConfig", () => {
   test("$schema: accepted as string, preserved through toggle and file round-trip", () => {
-    const parsed = parseToolBlockConfig({ $schema: "./mpi-tool-block.schema.json", hidden: [{ tool: "grep" }] });
+    const parsed = parseToolBlockConfig({
+      $schema: "./mpi-tool-block.schema.json",
+      hidden: [{ tool: "grep" }],
+    });
     assert.equal(parsed.ok, true);
     if (!parsed.ok) return;
     assert.equal(parsed.config.schemaRef, "./mpi-tool-block.schema.json");
@@ -58,7 +61,10 @@ describe("parseToolBlockConfig", () => {
     assert.equal(loaded.ok, true);
     if (!loaded.ok || !loaded.config) return;
     assert.equal(loaded.config.schemaRef, "./mpi-tool-block.schema.json");
-    assert.deepEqual(loaded.config.hidden.map((item) => item.tool), ["find", "grep"]);
+    assert.deepEqual(
+      loaded.config.hidden.map((item) => item.tool),
+      ["find", "grep"],
+    );
   });
 
   test("accepts enabled + hidden tool/plugin pairs", () => {
@@ -96,7 +102,10 @@ describe("parseToolBlockConfig", () => {
     assert.equal(parseToolBlockConfig({ hidden: [{ tool: "", plugin: "x" }] }).ok, false);
     assert.equal(parseToolBlockConfig({ hidden: [{ tool: "bash", plugin: "" }] }).ok, false);
     assert.equal(parseToolBlockConfig({ extra: true }).ok, false);
-    assert.equal(parseToolBlockConfig({ hidden: [{ tool: "bash", plugin: "b", extra: 1 }] }).ok, false);
+    assert.equal(
+      parseToolBlockConfig({ hidden: [{ tool: "bash", plugin: "b", extra: 1 }] }).ok,
+      false,
+    );
     assert.equal(
       parseToolBlockConfig({
         hidden: [
@@ -136,7 +145,9 @@ describe("deniedToolNames / planActiveTools", () => {
     assert.equal(effectiveToolBlockConfig(null, null), null);
     assert.deepEqual(deniedToolNames(effectiveToolBlockConfig(globalCfg, sessionCfg)), ["read"]);
     assert.deepEqual(
-      deniedToolNames(effectiveToolBlockConfig(globalCfg, { enabled: false, hidden: [{ tool: "read" }] })),
+      deniedToolNames(
+        effectiveToolBlockConfig(globalCfg, { enabled: false, hidden: [{ tool: "read" }] }),
+      ),
       [],
     );
   });
@@ -203,7 +214,10 @@ describe("pluginTag / items / toggle", () => {
 
   test("pluginTag uses extension/npm source and leaves core tools untagged", () => {
     assert.equal(pluginTag({ source: "builtin", path: "<builtin:bash>" }), "");
-    assert.equal(pluginTag({ source: "npm:pi-web-access", path: "/x/node_modules/pi-web-access/index.ts" }), "pi-web-access");
+    assert.equal(
+      pluginTag({ source: "npm:pi-web-access", path: "/x/node_modules/pi-web-access/index.ts" }),
+      "pi-web-access",
+    );
     assert.equal(
       pluginTag({ source: "package", path: "/home/u/.pi/agent/extensions/mpi-goal/index.ts" }),
       "mpi-goal",
@@ -268,7 +282,11 @@ describe("pluginTag / items / toggle", () => {
   });
 
   test("filterToolBlockRows keeps plugin headers for matches", () => {
-    const rows = buildToolBlockRows(tools, { enabled: true, hidden: [] }, ["bash", "create_goal", "browser_navigate"]);
+    const rows = buildToolBlockRows(tools, { enabled: true, hidden: [] }, [
+      "bash",
+      "create_goal",
+      "browser_navigate",
+    ]);
     const filtered = filterToolBlockRows(rows, "goal");
     assert.equal(filtered[0]?.kind, "layer");
     assert.ok(filtered.some((row) => row.kind === "header" && row.plugin === "mpi-goal"));
@@ -476,7 +494,10 @@ describe("tool-block overlay", () => {
     view.handleInput("\x1b[A");
     view.handleInput("\x1b[A");
     view.handleInput(" "); // Layer -> Global, session stays
-    assert.match(view.render(60).join("\n"), /session override · \/tmp\/agent\/mpi-tool-block.json/);
+    assert.match(
+      view.render(60).join("\n"),
+      /session override · \/tmp\/agent\/mpi-tool-block.json/,
+    );
     const beforeGlobalEdit = writes.length;
     view.handleInput("\x1b[B"); // enabled
     view.handleInput("\x1b[B"); // bash on global draft (still empty hidden)
@@ -539,7 +560,10 @@ describe("tool-block overlay", () => {
       bg: (_c: string, text: string) => text,
       bold: (text: string) => text,
     };
-    const many = Array.from({ length: 40 }, (_, i) => ({ name: `tool_${String(i).padStart(2, "0")}`, plugin: "" }));
+    const many = Array.from({ length: 40 }, (_, i) => ({
+      name: `tool_${String(i).padStart(2, "0")}`,
+      plugin: "",
+    }));
     const view = createToolBlockOverlay({
       theme,
       requestRender: () => undefined,

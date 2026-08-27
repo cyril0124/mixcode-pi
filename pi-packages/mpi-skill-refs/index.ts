@@ -83,7 +83,9 @@ export default function (pi: ExtensionAPI) {
     scanned = await scanSkillDirsShared(ctx.cwd);
     if (!autocompleteRegistered) {
       autocompleteRegistered = true;
-      ctx.ui.addAutocompleteProvider((base) => createSkillCompletionWrapper(base, completionEntries));
+      ctx.ui.addAutocompleteProvider((base) =>
+        createSkillCompletionWrapper(base, completionEntries),
+      );
     }
   });
 

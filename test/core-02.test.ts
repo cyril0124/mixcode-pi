@@ -61,7 +61,9 @@ test("workdir picker completes directories and keeps custom path input", async (
     const workdirPicker = createPicker("workdir", state, tab);
     assert.equal(workdirPicker.query, "");
     assert.equal(workdirPicker.browsingDir, dir);
-    assert.ok(filteredPickerItems(workdirPicker).some((item) => item.id === path.join(dir, "alpha")));
+    assert.ok(
+      filteredPickerItems(workdirPicker).some((item) => item.id === path.join(dir, "alpha")),
+    );
 
     updatePickerQuery(workdirPicker, "al");
     assert.equal(filteredPickerItems(workdirPicker)[0]?.completeValue, path.join(dir, "alpha"));
@@ -85,8 +87,12 @@ test("skill scanning finds flat and nested skills with parsed descriptions", asy
   const workdir = path.join(dir, "repo");
   try {
     await fsPromises.mkdir(path.join(workdir, ".agents", "skills", "review"), { recursive: true });
-    await fsPromises.mkdir(path.join(workdir, ".agents", "skills", "not-a-skill", "SKILL.md"), { recursive: true });
-    await fsPromises.mkdir(path.join(home, ".agents", "skills", "nested-ns", "audit"), { recursive: true });
+    await fsPromises.mkdir(path.join(workdir, ".agents", "skills", "not-a-skill", "SKILL.md"), {
+      recursive: true,
+    });
+    await fsPromises.mkdir(path.join(home, ".agents", "skills", "nested-ns", "audit"), {
+      recursive: true,
+    });
     await fsPromises.writeFile(
       path.join(workdir, ".agents", "skills", "review", "SKILL.md"),
       "---\ndescription: Review code\n---\n\nBody",

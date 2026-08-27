@@ -87,7 +87,11 @@ function newSessionFocusCompletions(
   const needle = prefix.trim().toLowerCase();
   return [
     { value: "--focus", label: "--focus", description: "Switch UI to the new tab (default)" },
-    { value: "--no-focus", label: "--no-focus", description: "Create the tab without switching UI" },
+    {
+      value: "--no-focus",
+      label: "--no-focus",
+      description: "Create the tab without switching UI",
+    },
   ].filter((item) => !needle || item.value.startsWith(needle));
 }
 
@@ -279,7 +283,11 @@ export const LOCAL_COMMANDS: Array<{
     name: "settings",
     // Writes Pi global settings.json for several items; theme/history/ui also hit mixcode_settings.json.
     description: "[global] View and edit settings (theme, thinking visibility, defaults, …)",
-    palette: { label: "Settings", description: "Theme, thinking visibility, defaults, and more", scope: "both" },
+    palette: {
+      label: "Settings",
+      description: "Theme, thinking visibility, defaults, and more",
+      scope: "both",
+    },
   },
   {
     name: "hide-thinking",
@@ -356,14 +364,16 @@ export const LOCAL_COMMANDS: Array<{
     getArgumentCompletions: newSessionFocusCompletions,
     palette: {
       label: "New Session",
-      description: "Create a new pi agent session; optional title becomes the tab name; default focuses the new tab",
+      description:
+        "Create a new pi agent session; optional title becomes the tab name; default focuses the new tab",
       scope: "both",
       requires: "session",
     },
   },
   {
     name: "resume",
-    description: "Resume a different session (optional: /resume <session-id> or /resume N:<tab-name>)",
+    description:
+      "Resume a different session (optional: /resume <session-id> or /resume N:<tab-name>)",
     argumentHint: "[session-id | N:<tab-name>]",
     palette: { label: "Resume Session", scope: "both", requires: "session" },
   },

@@ -81,8 +81,7 @@ export function renderSessionInfoText(
   if (promptTokens > 0 && (cacheRead > 0 || cacheWrite > 0)) {
     const hitRate = ((cacheRead / promptTokens) * 100).toFixed(1);
     lines.push(`  Cached: ${cacheRead.toLocaleString()} (${hitRate}%)`);
-    const written =
-      cacheWrite > 0 ? ` (${cacheWrite.toLocaleString()} written to cache)` : "";
+    const written = cacheWrite > 0 ? ` (${cacheWrite.toLocaleString()} written to cache)` : "";
     lines.push(`  Uncached: ${(input + cacheWrite).toLocaleString()}${written}`);
   }
   lines.push(`Output: ${output.toLocaleString()}`, `Total: ${total.toLocaleString()}`);
@@ -97,8 +96,7 @@ export function renderSessionInfoText(
       }
     }
     if (cacheWaste.missedTokens > 0) {
-      const missLabel =
-        cacheWaste.missCount === 1 ? "1 miss" : `${cacheWaste.missCount} misses`;
+      const missLabel = cacheWaste.missCount === 1 ? "1 miss" : `${cacheWaste.missCount} misses`;
       const detail = `${cacheWaste.missedTokens.toLocaleString()} tokens, ${missLabel}`;
       lines.push(
         cacheWaste.missedCost >= 0.0001

@@ -254,7 +254,9 @@ test("workdir picker reuses directory listing across query keystrokes", async ()
   try {
     // Enough entries that repeated readdir+sort is clearly more expensive than filter-only.
     await Promise.all(
-      Array.from({ length: 2500 }, (_, i) => fsPromises.mkdir(path.join(dir, `d${String(i).padStart(4, "0")}`))),
+      Array.from({ length: 2500 }, (_, i) =>
+        fsPromises.mkdir(path.join(dir, `d${String(i).padStart(4, "0")}`)),
+      ),
     );
     await fsPromises.mkdir(path.join(dir, "target-hit"));
 

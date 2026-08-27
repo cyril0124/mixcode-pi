@@ -197,7 +197,10 @@ void (async () => {
 
   // Wait until UI state has both queues.
   for (let i = 0; i < 100; i++) {
-    if (tab.pendingMessages.includes("steer now") && tab.pendingFollowUps.includes("follow later")) {
+    if (
+      tab.pendingMessages.includes("steer now") &&
+      tab.pendingFollowUps.includes("follow later")
+    ) {
       tui.requestRender();
       fs.writeFileSync(
         marker,

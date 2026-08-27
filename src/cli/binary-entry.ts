@@ -38,62 +38,134 @@ import { setBedrockProviderModule } from "@earendil-works/pi-ai/compat";
 registerBunOAuthFlows();
 setBedrockProviderModule(bedrockProviderModule);
 
-import darkTheme from "../../node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/theme/dark.json" with { type: "json" };
-import lightTheme from "../../node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/theme/light.json" with { type: "json" };
-import exportTemplateCss from "../../node_modules/@earendil-works/pi-coding-agent/dist/core/export-html/template.css" with { type: "text" };
-import exportTemplateHtml from "../../node_modules/@earendil-works/pi-coding-agent/dist/core/export-html/template.html" with { type: "text" };
-import exportTemplateJs from "../../node_modules/@earendil-works/pi-coding-agent/dist/core/export-html/template.js" with { type: "text" };
-import exportVendorMarked from "../../node_modules/@earendil-works/pi-coding-agent/dist/core/export-html/vendor/marked.min.js" with { type: "text" };
-import exportVendorHighlight from "../../node_modules/@earendil-works/pi-coding-agent/dist/core/export-html/vendor/highlight.min.js" with { type: "text" };
-import clankolasImagePath from "../../node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/assets/clankolas.png" with { type: "file" };
-import photonWasmPath from "../../node_modules/@silvia-odwyer/photon-node/photon_rs_bg.wasm" with { type: "file" };
+import darkTheme from "../../node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/theme/dark.json" with {
+  type: "json",
+};
+import lightTheme from "../../node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/theme/light.json" with {
+  type: "json",
+};
+import exportTemplateCss from "../../node_modules/@earendil-works/pi-coding-agent/dist/core/export-html/template.css" with {
+  type: "text",
+};
+import exportTemplateHtml from "../../node_modules/@earendil-works/pi-coding-agent/dist/core/export-html/template.html" with {
+  type: "text",
+};
+import exportTemplateJs from "../../node_modules/@earendil-works/pi-coding-agent/dist/core/export-html/template.js" with {
+  type: "text",
+};
+import exportVendorMarked from "../../node_modules/@earendil-works/pi-coding-agent/dist/core/export-html/vendor/marked.min.js" with {
+  type: "text",
+};
+import exportVendorHighlight from "../../node_modules/@earendil-works/pi-coding-agent/dist/core/export-html/vendor/highlight.min.js" with {
+  type: "text",
+};
+import clankolasImagePath from "../../node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/assets/clankolas.png" with {
+  type: "file",
+};
+import photonWasmPath from "../../node_modules/@silvia-odwyer/photon-node/photon_rs_bg.wasm" with {
+  type: "file",
+};
 import searchGuardIndex from "../../pi-packages/mpi-search-guard/index.ts" with { type: "text" };
-import searchGuardPackageJson from "../../pi-packages/mpi-search-guard/package.json" with { type: "text" };
+import searchGuardPackageJson from "../../pi-packages/mpi-search-guard/package.json" with {
+  type: "text",
+};
 import imageHoistIndex from "../../pi-packages/mpi-image-hoist/index.ts" with { type: "text" };
-import imageHoistPackageJson from "../../pi-packages/mpi-image-hoist/package.json" with { type: "text" };
+import imageHoistPackageJson from "../../pi-packages/mpi-image-hoist/package.json" with {
+  type: "text",
+};
 import diffViewerIndex from "../../pi-packages/mpi-diff-viewer/index.ts" with { type: "text" };
-import diffViewerSessionDiff from "../../pi-packages/mpi-diff-viewer/session-diff.ts" with { type: "text" };
-import diffViewerComponent from "../../pi-packages/mpi-diff-viewer/diff-viewer.ts" with { type: "text" };
+import diffViewerSessionDiff from "../../pi-packages/mpi-diff-viewer/session-diff.ts" with {
+  type: "text",
+};
+import diffViewerComponent from "../../pi-packages/mpi-diff-viewer/diff-viewer.ts" with {
+  type: "text",
+};
 import diffViewerReview from "../../pi-packages/mpi-diff-viewer/review.ts" with { type: "text" };
-import diffViewerPackageJson from "../../pi-packages/mpi-diff-viewer/package.json" with { type: "text" };
+import diffViewerPackageJson from "../../pi-packages/mpi-diff-viewer/package.json" with {
+  type: "text",
+};
 import transcriptIndex from "../../pi-packages/mpi-transcript/index.ts" with { type: "text" };
-import transcriptPackageJson from "../../pi-packages/mpi-transcript/package.json" with { type: "text" };
+import transcriptPackageJson from "../../pi-packages/mpi-transcript/package.json" with {
+  type: "text",
+};
 import bashExec from "../../pi-packages/mpi-bash/exec.ts" with { type: "text" };
 import bashIndex from "../../pi-packages/mpi-bash/index.ts" with { type: "text" };
 import bashLogView from "../../pi-packages/mpi-bash/log-view.ts" with { type: "text" };
 import bashPackageJson from "../../pi-packages/mpi-bash/package.json" with { type: "text" };
 import bashWidget from "../../pi-packages/mpi-bash/widget.ts" with { type: "text" };
 import toolDisplayIndex from "../../pi-packages/mpi-tool-display/index.ts" with { type: "text" };
-import toolDisplayPackageJson from "../../pi-packages/mpi-tool-display/package.json" with { type: "text" };
+import toolDisplayPackageJson from "../../pi-packages/mpi-tool-display/package.json" with {
+  type: "text",
+};
 import toolDisplayConfig from "../../pi-packages/mpi-tool-display/config.ts" with { type: "text" };
-import toolDisplayConfigOverlay from "../../pi-packages/mpi-tool-display/config-overlay.ts" with { type: "text" };
+import toolDisplayConfigOverlay from "../../pi-packages/mpi-tool-display/config-overlay.ts" with {
+  type: "text",
+};
 import toolDisplayTypes from "../../pi-packages/mpi-tool-display/types.ts" with { type: "text" };
-import toolDisplayAnsiUtils from "../../pi-packages/mpi-tool-display/ansi-utils.ts" with { type: "text" };
-import toolDisplayRenderUtils from "../../pi-packages/mpi-tool-display/render-utils.ts" with { type: "text" };
-import toolDisplayDiffPresentation from "../../pi-packages/mpi-tool-display/diff-presentation.ts" with { type: "text" };
-import toolDisplayLineWidthSafety from "../../pi-packages/mpi-tool-display/line-width-safety.ts" with { type: "text" };
-import toolDisplayWriteDisplayUtils from "../../pi-packages/mpi-tool-display/write-display-utils.ts" with { type: "text" };
-import toolDisplayPendingDiffPreview from "../../pi-packages/mpi-tool-display/pending-diff-preview.ts" with { type: "text" };
-import toolDisplayDiffRenderer from "../../pi-packages/mpi-tool-display/diff-renderer.ts" with { type: "text" };
-import toolDisplayBashDisplay from "../../pi-packages/mpi-tool-display/bash-display.ts" with { type: "text" };
-import toolDisplayDisposable from "../../pi-packages/mpi-tool-display/disposable.ts" with { type: "text" };
-import toolDisplayToolSummaries from "../../pi-packages/mpi-tool-display/tool-summaries.ts" with { type: "text" };
-import toolDisplayThinkingLabel from "../../pi-packages/mpi-tool-display/thinking-label.ts" with { type: "text" };
-import toolDisplayExtensionLifecycle from "../../pi-packages/mpi-tool-display/extension-lifecycle.ts" with { type: "text" };
-import toolDisplayToolExecutionAdapter from "../../pi-packages/mpi-tool-display/tool-execution-adapter.ts" with { type: "text" };
-import toolDisplayToolCallRenderer from "../../pi-packages/mpi-tool-display/tool-call-renderer.ts" with { type: "text" };
+import toolDisplayAnsiUtils from "../../pi-packages/mpi-tool-display/ansi-utils.ts" with {
+  type: "text",
+};
+import toolDisplayRenderUtils from "../../pi-packages/mpi-tool-display/render-utils.ts" with {
+  type: "text",
+};
+import toolDisplayDiffPresentation from "../../pi-packages/mpi-tool-display/diff-presentation.ts" with {
+  type: "text",
+};
+import toolDisplayLineWidthSafety from "../../pi-packages/mpi-tool-display/line-width-safety.ts" with {
+  type: "text",
+};
+import toolDisplayWriteDisplayUtils from "../../pi-packages/mpi-tool-display/write-display-utils.ts" with {
+  type: "text",
+};
+import toolDisplayPendingDiffPreview from "../../pi-packages/mpi-tool-display/pending-diff-preview.ts" with {
+  type: "text",
+};
+import toolDisplayDiffRenderer from "../../pi-packages/mpi-tool-display/diff-renderer.ts" with {
+  type: "text",
+};
+import toolDisplayBashDisplay from "../../pi-packages/mpi-tool-display/bash-display.ts" with {
+  type: "text",
+};
+import toolDisplayDisposable from "../../pi-packages/mpi-tool-display/disposable.ts" with {
+  type: "text",
+};
+import toolDisplayToolSummaries from "../../pi-packages/mpi-tool-display/tool-summaries.ts" with {
+  type: "text",
+};
+import toolDisplayThinkingLabel from "../../pi-packages/mpi-tool-display/thinking-label.ts" with {
+  type: "text",
+};
+import toolDisplayExtensionLifecycle from "../../pi-packages/mpi-tool-display/extension-lifecycle.ts" with {
+  type: "text",
+};
+import toolDisplayToolExecutionAdapter from "../../pi-packages/mpi-tool-display/tool-execution-adapter.ts" with {
+  type: "text",
+};
+import toolDisplayToolCallRenderer from "../../pi-packages/mpi-tool-display/tool-call-renderer.ts" with {
+  type: "text",
+};
 import toolDisplayReadme from "../../pi-packages/mpi-tool-display/README.md" with { type: "text" };
-import toolDisplayReadmeZh from "../../pi-packages/mpi-tool-display/README.zh.md" with { type: "text" };
-import toolDisplayThirdPartyNotices from "../../pi-packages/mpi-tool-display/THIRD_PARTY_NOTICES.md" with { type: "text" };
+import toolDisplayReadmeZh from "../../pi-packages/mpi-tool-display/README.zh.md" with {
+  type: "text",
+};
+import toolDisplayThirdPartyNotices from "../../pi-packages/mpi-tool-display/THIRD_PARTY_NOTICES.md" with {
+  type: "text",
+};
 import herdrReportIndex from "../../pi-packages/mpi-herdr-report/index.ts" with { type: "text" };
-import herdrReportPackageJson from "../../pi-packages/mpi-herdr-report/package.json" with { type: "text" };
+import herdrReportPackageJson from "../../pi-packages/mpi-herdr-report/package.json" with {
+  type: "text",
+};
 import loopIndex from "../../pi-packages/mpi-loop/index.ts" with { type: "text" };
 import loopHelpers from "../../pi-packages/mpi-loop/loop-helpers.ts" with { type: "text" };
-import loopManagementView from "../../pi-packages/mpi-loop/loop-management-view.ts" with { type: "text" };
+import loopManagementView from "../../pi-packages/mpi-loop/loop-management-view.ts" with {
+  type: "text",
+};
 import loopPackageJson from "../../pi-packages/mpi-loop/package.json" with { type: "text" };
 import skillRefsIndex from "../../pi-packages/mpi-skill-refs/index.ts" with { type: "text" };
 import skillRefsCore from "../../pi-packages/mpi-skill-refs/skill-core.ts" with { type: "text" };
-import skillRefsPackageJson from "../../pi-packages/mpi-skill-refs/package.json" with { type: "text" };
+import skillRefsPackageJson from "../../pi-packages/mpi-skill-refs/package.json" with {
+  type: "text",
+};
 import mpiCtlIndex from "../../pi-packages/mpi-ctl/index.ts" with { type: "text" };
 import mpiCtlPackageJson from "../../pi-packages/mpi-ctl/package.json" with { type: "text" };
 import mpiCtlSkillMd from "../../pi-packages/mpi-ctl/skills/mpi-ctl/SKILL.md" with { type: "text" };
@@ -101,107 +173,271 @@ import mpiGoal_index_ts from "../../pi-packages/mpi-goal/index.ts" with { type: 
 import mpiGoal_package_json from "../../pi-packages/mpi-goal/package.json" with { type: "text" };
 import mpiGoal_src_app_ts from "../../pi-packages/mpi-goal/src/app.ts" with { type: "text" };
 import mpiGoal_src_shell_ts from "../../pi-packages/mpi-goal/src/shell.ts" with { type: "text" };
-import mpiGoal_src_session_gate_ts from "../../pi-packages/mpi-goal/src/session-gate.ts" with { type: "text" };
-import mpiGoal_src_domain_active_time_ts from "../../pi-packages/mpi-goal/src/domain/active-time.ts" with { type: "text" };
-import mpiGoal_src_domain_session_scope_ts from "../../pi-packages/mpi-goal/src/domain/session-scope.ts" with { type: "text" };
-import mpiGoal_src_domain_budget_ts from "../../pi-packages/mpi-goal/src/domain/budget.ts" with { type: "text" };
-import mpiGoal_src_domain_completion_gate_ts from "../../pi-packages/mpi-goal/src/domain/completion-gate.ts" with { type: "text" };
-import mpiGoal_src_domain_constants_ts from "../../pi-packages/mpi-goal/src/domain/constants.ts" with { type: "text" };
-import mpiGoal_src_domain_floor_steering_ts from "../../pi-packages/mpi-goal/src/domain/floor-steering.ts" with { type: "text" };
-import mpiGoal_src_domain_floor_ts from "../../pi-packages/mpi-goal/src/domain/floor.ts" with { type: "text" };
-import mpiGoal_src_domain_format_ts from "../../pi-packages/mpi-goal/src/domain/format.ts" with { type: "text" };
-import mpiGoal_src_domain_goal_intent_ts from "../../pi-packages/mpi-goal/src/domain/goal-intent.ts" with { type: "text" };
-import mpiGoal_src_domain_telemetry_ts from "../../pi-packages/mpi-goal/src/domain/telemetry.ts" with { type: "text" };
-import mpiGoal_src_domain_types_ts from "../../pi-packages/mpi-goal/src/domain/types.ts" with { type: "text" };
-import mpiGoal_src_persistence_goal_store_ts from "../../pi-packages/mpi-goal/src/persistence/goal-store.ts" with { type: "text" };
-import mpiGoal_src_persistence_queue_store_ts from "../../pi-packages/mpi-goal/src/persistence/queue-store.ts" with { type: "text" };
-import mpiGoal_src_queue_block_parser_ts from "../../pi-packages/mpi-goal/src/queue/block-parser.ts" with { type: "text" };
-import mpiGoal_src_queue_steering_ts from "../../pi-packages/mpi-goal/src/queue/steering.ts" with { type: "text" };
-import mpiGoal_src_runtime_context_reset_ts from "../../pi-packages/mpi-goal/src/runtime/context-reset.ts" with { type: "text" };
-import mpiGoal_src_runtime_continuation_ticket_ts from "../../pi-packages/mpi-goal/src/runtime/continuation-ticket.ts" with { type: "text" };
-import mpiGoal_src_runtime_continuation_ts from "../../pi-packages/mpi-goal/src/runtime/continuation.ts" with { type: "text" };
-import mpiGoal_src_runtime_lifecycle_ts from "../../pi-packages/mpi-goal/src/runtime/lifecycle.ts" with { type: "text" };
-import mpiGoal_src_runtime_post_completion_ts from "../../pi-packages/mpi-goal/src/runtime/post-completion.ts" with { type: "text" };
-import mpiGoal_src_runtime_prompts_ts from "../../pi-packages/mpi-goal/src/runtime/prompts.ts" with { type: "text" };
-import mpiGoal_src_runtime_terminal_workflow_ts from "../../pi-packages/mpi-goal/src/runtime/terminal-workflow.ts" with { type: "text" };
-import mpiGoal_src_surface_command_register_ts from "../../pi-packages/mpi-goal/src/surface/command/register.ts" with { type: "text" };
-import mpiGoal_src_surface_tools_dynamic_ts from "../../pi-packages/mpi-goal/src/surface/tools/dynamic.ts" with { type: "text" };
-import mpiGoal_src_surface_tools_goal_tools_ts from "../../pi-packages/mpi-goal/src/surface/tools/goal-tools.ts" with { type: "text" };
-import mpiGoal_src_surface_tools_names_ts from "../../pi-packages/mpi-goal/src/surface/tools/names.ts" with { type: "text" };
-import mpiGoal_src_surface_tools_queue_tools_ts from "../../pi-packages/mpi-goal/src/surface/tools/queue-tools.ts" with { type: "text" };
-import mpiGoal_src_surface_tools_results_ts from "../../pi-packages/mpi-goal/src/surface/tools/results.ts" with { type: "text" };
-import mpiGoal_src_surface_tools_schemas_ts from "../../pi-packages/mpi-goal/src/surface/tools/schemas.ts" with { type: "text" };
-import mpiGoal_src_surface_ui_goal_overlay_ts from "../../pi-packages/mpi-goal/src/surface/ui/goal-overlay.ts" with { type: "text" };
-import mpiGoal_src_surface_ui_notify_ts from "../../pi-packages/mpi-goal/src/surface/ui/notify.ts" with { type: "text" };
-import mpiGoal_src_surface_ui_widget_ts from "../../pi-packages/mpi-goal/src/surface/ui/widget.ts" with { type: "text" };
-import mpiGoal_src_templates_discover_ts from "../../pi-packages/mpi-goal/src/templates/discover.ts" with { type: "text" };
-import promptHistoryIndex from "../../pi-packages/mpi-prompt-history/index.ts" with { type: "text" };
-import promptHistoryBrowser from "../../pi-packages/mpi-prompt-history/prompt-history-browser.ts" with { type: "text" };
-import promptHistoryStore from "../../pi-packages/mpi-prompt-history/history-store.ts" with { type: "text" };
-import promptHistoryPidLock from "../../pi-packages/mpi-prompt-history/pid-lock.ts" with { type: "text" };
-import promptHistoryConfigUi from "../../pi-packages/mpi-prompt-history/config-ui.ts" with { type: "text" };
-import promptHistorySchemaJson from "../../pi-packages/mpi-prompt-history/mpi-prompt-history.schema.json" with { type: "text" };
-import promptHistoryPackageJson from "../../pi-packages/mpi-prompt-history/package.json" with { type: "text" };
+import mpiGoal_src_session_gate_ts from "../../pi-packages/mpi-goal/src/session-gate.ts" with {
+  type: "text",
+};
+import mpiGoal_src_domain_active_time_ts from "../../pi-packages/mpi-goal/src/domain/active-time.ts" with {
+  type: "text",
+};
+import mpiGoal_src_domain_session_scope_ts from "../../pi-packages/mpi-goal/src/domain/session-scope.ts" with {
+  type: "text",
+};
+import mpiGoal_src_domain_budget_ts from "../../pi-packages/mpi-goal/src/domain/budget.ts" with {
+  type: "text",
+};
+import mpiGoal_src_domain_completion_gate_ts from "../../pi-packages/mpi-goal/src/domain/completion-gate.ts" with {
+  type: "text",
+};
+import mpiGoal_src_domain_constants_ts from "../../pi-packages/mpi-goal/src/domain/constants.ts" with {
+  type: "text",
+};
+import mpiGoal_src_domain_floor_steering_ts from "../../pi-packages/mpi-goal/src/domain/floor-steering.ts" with {
+  type: "text",
+};
+import mpiGoal_src_domain_floor_ts from "../../pi-packages/mpi-goal/src/domain/floor.ts" with {
+  type: "text",
+};
+import mpiGoal_src_domain_format_ts from "../../pi-packages/mpi-goal/src/domain/format.ts" with {
+  type: "text",
+};
+import mpiGoal_src_domain_goal_intent_ts from "../../pi-packages/mpi-goal/src/domain/goal-intent.ts" with {
+  type: "text",
+};
+import mpiGoal_src_domain_telemetry_ts from "../../pi-packages/mpi-goal/src/domain/telemetry.ts" with {
+  type: "text",
+};
+import mpiGoal_src_domain_types_ts from "../../pi-packages/mpi-goal/src/domain/types.ts" with {
+  type: "text",
+};
+import mpiGoal_src_persistence_goal_store_ts from "../../pi-packages/mpi-goal/src/persistence/goal-store.ts" with {
+  type: "text",
+};
+import mpiGoal_src_persistence_queue_store_ts from "../../pi-packages/mpi-goal/src/persistence/queue-store.ts" with {
+  type: "text",
+};
+import mpiGoal_src_queue_block_parser_ts from "../../pi-packages/mpi-goal/src/queue/block-parser.ts" with {
+  type: "text",
+};
+import mpiGoal_src_queue_steering_ts from "../../pi-packages/mpi-goal/src/queue/steering.ts" with {
+  type: "text",
+};
+import mpiGoal_src_runtime_context_reset_ts from "../../pi-packages/mpi-goal/src/runtime/context-reset.ts" with {
+  type: "text",
+};
+import mpiGoal_src_runtime_continuation_ticket_ts from "../../pi-packages/mpi-goal/src/runtime/continuation-ticket.ts" with {
+  type: "text",
+};
+import mpiGoal_src_runtime_continuation_ts from "../../pi-packages/mpi-goal/src/runtime/continuation.ts" with {
+  type: "text",
+};
+import mpiGoal_src_runtime_lifecycle_ts from "../../pi-packages/mpi-goal/src/runtime/lifecycle.ts" with {
+  type: "text",
+};
+import mpiGoal_src_runtime_post_completion_ts from "../../pi-packages/mpi-goal/src/runtime/post-completion.ts" with {
+  type: "text",
+};
+import mpiGoal_src_runtime_prompts_ts from "../../pi-packages/mpi-goal/src/runtime/prompts.ts" with {
+  type: "text",
+};
+import mpiGoal_src_runtime_terminal_workflow_ts from "../../pi-packages/mpi-goal/src/runtime/terminal-workflow.ts" with {
+  type: "text",
+};
+import mpiGoal_src_surface_command_register_ts from "../../pi-packages/mpi-goal/src/surface/command/register.ts" with {
+  type: "text",
+};
+import mpiGoal_src_surface_tools_dynamic_ts from "../../pi-packages/mpi-goal/src/surface/tools/dynamic.ts" with {
+  type: "text",
+};
+import mpiGoal_src_surface_tools_goal_tools_ts from "../../pi-packages/mpi-goal/src/surface/tools/goal-tools.ts" with {
+  type: "text",
+};
+import mpiGoal_src_surface_tools_names_ts from "../../pi-packages/mpi-goal/src/surface/tools/names.ts" with {
+  type: "text",
+};
+import mpiGoal_src_surface_tools_queue_tools_ts from "../../pi-packages/mpi-goal/src/surface/tools/queue-tools.ts" with {
+  type: "text",
+};
+import mpiGoal_src_surface_tools_results_ts from "../../pi-packages/mpi-goal/src/surface/tools/results.ts" with {
+  type: "text",
+};
+import mpiGoal_src_surface_tools_schemas_ts from "../../pi-packages/mpi-goal/src/surface/tools/schemas.ts" with {
+  type: "text",
+};
+import mpiGoal_src_surface_ui_goal_overlay_ts from "../../pi-packages/mpi-goal/src/surface/ui/goal-overlay.ts" with {
+  type: "text",
+};
+import mpiGoal_src_surface_ui_notify_ts from "../../pi-packages/mpi-goal/src/surface/ui/notify.ts" with {
+  type: "text",
+};
+import mpiGoal_src_surface_ui_widget_ts from "../../pi-packages/mpi-goal/src/surface/ui/widget.ts" with {
+  type: "text",
+};
+import mpiGoal_src_templates_discover_ts from "../../pi-packages/mpi-goal/src/templates/discover.ts" with {
+  type: "text",
+};
+import promptHistoryIndex from "../../pi-packages/mpi-prompt-history/index.ts" with {
+  type: "text",
+};
+import promptHistoryBrowser from "../../pi-packages/mpi-prompt-history/prompt-history-browser.ts" with {
+  type: "text",
+};
+import promptHistoryStore from "../../pi-packages/mpi-prompt-history/history-store.ts" with {
+  type: "text",
+};
+import promptHistoryPidLock from "../../pi-packages/mpi-prompt-history/pid-lock.ts" with {
+  type: "text",
+};
+import promptHistoryConfigUi from "../../pi-packages/mpi-prompt-history/config-ui.ts" with {
+  type: "text",
+};
+import promptHistorySchemaJson from "../../pi-packages/mpi-prompt-history/mpi-prompt-history.schema.json" with {
+  type: "text",
+};
+import promptHistoryPackageJson from "../../pi-packages/mpi-prompt-history/package.json" with {
+  type: "text",
+};
 import autoRenameIndex from "../../pi-packages/mpi-auto-rename/index.ts" with { type: "text" };
 import autoRenameConfig from "../../pi-packages/mpi-auto-rename/config.ts" with { type: "text" };
-import autoRenameConfigOverlay from "../../pi-packages/mpi-auto-rename/config-overlay.ts" with { type: "text" };
-import autoRenamePackageJson from "../../pi-packages/mpi-auto-rename/package.json" with { type: "text" };
-import autoRenameSchemaJson from "../../pi-packages/mpi-auto-rename/mpi-auto-rename.schema.json" with { type: "text" };
-import optimizePromptIndex from "../../pi-packages/mpi-optimize-prompt/index.ts" with { type: "text" };
-import optimizePromptCore from "../../pi-packages/mpi-optimize-prompt/core.ts" with { type: "text" };
-import optimizePromptConfig from "../../pi-packages/mpi-optimize-prompt/config.ts" with { type: "text" };
-import optimizePromptConfigOverlay from "../../pi-packages/mpi-optimize-prompt/config-overlay.ts" with { type: "text" };
-import optimizePromptPackageJson from "../../pi-packages/mpi-optimize-prompt/package.json" with { type: "text" };
-import optimizePromptSchemaJson from "../../pi-packages/mpi-optimize-prompt/mpi-optimize-prompt.schema.json" with { type: "text" };
-import midTurnCompactIndex from "../../pi-packages/mpi-mid-turn-compact/index.ts" with { type: "text" };
-import midTurnCompactPackageJson from "../../pi-packages/mpi-mid-turn-compact/package.json" with { type: "text" };
+import autoRenameConfigOverlay from "../../pi-packages/mpi-auto-rename/config-overlay.ts" with {
+  type: "text",
+};
+import autoRenamePackageJson from "../../pi-packages/mpi-auto-rename/package.json" with {
+  type: "text",
+};
+import autoRenameSchemaJson from "../../pi-packages/mpi-auto-rename/mpi-auto-rename.schema.json" with {
+  type: "text",
+};
+import optimizePromptIndex from "../../pi-packages/mpi-optimize-prompt/index.ts" with {
+  type: "text",
+};
+import optimizePromptCore from "../../pi-packages/mpi-optimize-prompt/core.ts" with {
+  type: "text",
+};
+import optimizePromptConfig from "../../pi-packages/mpi-optimize-prompt/config.ts" with {
+  type: "text",
+};
+import optimizePromptConfigOverlay from "../../pi-packages/mpi-optimize-prompt/config-overlay.ts" with {
+  type: "text",
+};
+import optimizePromptPackageJson from "../../pi-packages/mpi-optimize-prompt/package.json" with {
+  type: "text",
+};
+import optimizePromptSchemaJson from "../../pi-packages/mpi-optimize-prompt/mpi-optimize-prompt.schema.json" with {
+  type: "text",
+};
+import midTurnCompactIndex from "../../pi-packages/mpi-mid-turn-compact/index.ts" with {
+  type: "text",
+};
+import midTurnCompactPackageJson from "../../pi-packages/mpi-mid-turn-compact/package.json" with {
+  type: "text",
+};
 import modelSkillsIndex from "../../pi-packages/mpi-model-skills/index.ts" with { type: "text" };
-import modelSkillsCore from "../../pi-packages/mpi-model-skills/model-skills-core.ts" with { type: "text" };
-import modelSkillsPackageJson from "../../pi-packages/mpi-model-skills/package.json" with { type: "text" };
-import modelSkillsSchemaJson from "../../pi-packages/mpi-model-skills/mpi-model-skills.schema.json" with { type: "text" };
-import modelExtensionsIndex from "../../pi-packages/mpi-model-extensions/index.ts" with { type: "text" };
-import modelExtensionsCore from "../../pi-packages/mpi-model-extensions/model-extensions-core.ts" with { type: "text" };
-import modelExtensionsLoader from "../../pi-packages/mpi-model-extensions/model-extensions-loader.ts" with { type: "text" };
-import modelExtensionsPackageJson from "../../pi-packages/mpi-model-extensions/package.json" with { type: "text" };
-import modelExtensionsSchemaJson from "../../pi-packages/mpi-model-extensions/mpi-model-extensions.schema.json" with { type: "text" };
+import modelSkillsCore from "../../pi-packages/mpi-model-skills/model-skills-core.ts" with {
+  type: "text",
+};
+import modelSkillsPackageJson from "../../pi-packages/mpi-model-skills/package.json" with {
+  type: "text",
+};
+import modelSkillsSchemaJson from "../../pi-packages/mpi-model-skills/mpi-model-skills.schema.json" with {
+  type: "text",
+};
+import modelExtensionsIndex from "../../pi-packages/mpi-model-extensions/index.ts" with {
+  type: "text",
+};
+import modelExtensionsCore from "../../pi-packages/mpi-model-extensions/model-extensions-core.ts" with {
+  type: "text",
+};
+import modelExtensionsLoader from "../../pi-packages/mpi-model-extensions/model-extensions-loader.ts" with {
+  type: "text",
+};
+import modelExtensionsPackageJson from "../../pi-packages/mpi-model-extensions/package.json" with {
+  type: "text",
+};
+import modelExtensionsSchemaJson from "../../pi-packages/mpi-model-extensions/mpi-model-extensions.schema.json" with {
+  type: "text",
+};
 import permissionIndex from "../../pi-packages/mpi-permission/index.ts" with { type: "text" };
-import permissionCore from "../../pi-packages/mpi-permission/permission-core.ts" with { type: "text" };
-import permissionBashPolicy from "../../pi-packages/mpi-permission/bash-policy.ts" with { type: "text" };
-import permissionOverlay from "../../pi-packages/mpi-permission/permission-overlay.ts" with { type: "text" };
-import permissionPackageJson from "../../pi-packages/mpi-permission/package.json" with { type: "text" };
-import permissionSchemaJson from "../../pi-packages/mpi-permission/mpi-permission.schema.json" with { type: "text" };
-import permissionUnbashJs from "../../pi-packages/mpi-permission/vendor/unbash.js" with { type: "text" };
-import permissionUnbashDts from "../../pi-packages/mpi-permission/vendor/unbash.d.ts" with { type: "text" };
-import permissionUnbashTypesDts from "../../pi-packages/mpi-permission/vendor/unbash-types.d.ts" with { type: "text" };
-import permissionUnbashLicense from "../../pi-packages/mpi-permission/vendor/UNBASH-LICENSE" with { type: "text" };
-import permissionUnbashNotice from "../../pi-packages/mpi-permission/vendor/UNBASH-NOTICE" with { type: "text" };
+import permissionCore from "../../pi-packages/mpi-permission/permission-core.ts" with {
+  type: "text",
+};
+import permissionBashPolicy from "../../pi-packages/mpi-permission/bash-policy.ts" with {
+  type: "text",
+};
+import permissionOverlay from "../../pi-packages/mpi-permission/permission-overlay.ts" with {
+  type: "text",
+};
+import permissionPackageJson from "../../pi-packages/mpi-permission/package.json" with {
+  type: "text",
+};
+import permissionSchemaJson from "../../pi-packages/mpi-permission/mpi-permission.schema.json" with {
+  type: "text",
+};
+import permissionUnbashJs from "../../pi-packages/mpi-permission/vendor/unbash.js" with {
+  type: "text",
+};
+import permissionUnbashDts from "../../pi-packages/mpi-permission/vendor/unbash.d.ts" with {
+  type: "text",
+};
+import permissionUnbashTypesDts from "../../pi-packages/mpi-permission/vendor/unbash-types.d.ts" with {
+  type: "text",
+};
+import permissionUnbashLicense from "../../pi-packages/mpi-permission/vendor/UNBASH-LICENSE" with {
+  type: "text",
+};
+import permissionUnbashNotice from "../../pi-packages/mpi-permission/vendor/UNBASH-NOTICE" with {
+  type: "text",
+};
 import toolBlockIndex from "../../pi-packages/mpi-tool-block/index.ts" with { type: "text" };
-import toolBlockCore from "../../pi-packages/mpi-tool-block/tool-block-core.ts" with { type: "text" };
-import toolBlockOverlay from "../../pi-packages/mpi-tool-block/tool-block-overlay.ts" with { type: "text" };
-import toolBlockPackageJson from "../../pi-packages/mpi-tool-block/package.json" with { type: "text" };
-import toolBlockSchemaJson from "../../pi-packages/mpi-tool-block/mpi-tool-block.schema.json" with { type: "text" };
+import toolBlockCore from "../../pi-packages/mpi-tool-block/tool-block-core.ts" with {
+  type: "text",
+};
+import toolBlockOverlay from "../../pi-packages/mpi-tool-block/tool-block-overlay.ts" with {
+  type: "text",
+};
+import toolBlockPackageJson from "../../pi-packages/mpi-tool-block/package.json" with {
+  type: "text",
+};
+import toolBlockSchemaJson from "../../pi-packages/mpi-tool-block/mpi-tool-block.schema.json" with {
+  type: "text",
+};
 // Documentation embedded for the system-prompt pointers; the binary has no
 // package tree on disk, so these are installed to <agentDir>/mixcode-docs.
 import mixcodeDoc_README_md from "../../docs/README.md" with { type: "text" };
 import mixcodeDoc_architecture_md from "../../docs/architecture.md" with { type: "text" };
 import mixcodeDoc_batch_scripts_md from "../../docs/batch-scripts.md" with { type: "text" };
-import mixcodeDoc_builtin_extensions_md from "../../docs/builtin-extensions.md" with { type: "text" };
+import mixcodeDoc_builtin_extensions_md from "../../docs/builtin-extensions.md" with {
+  type: "text",
+};
 import mixcodeDoc_cli_and_flags_md from "../../docs/cli-and-flags.md" with { type: "text" };
 import mixcodeDoc_commands_md from "../../docs/commands.md" with { type: "text" };
 import mixcodeDoc_environment_md from "../../docs/environment.md" with { type: "text" };
-import mixcodeDoc_extension_compatibility_md from "../../docs/extension-compatibility.md" with { type: "text" };
-import mixcodeDoc_extension_ui_and_widgets_md from "../../docs/extension-ui-and-widgets.md" with { type: "text" };
+import mixcodeDoc_extension_compatibility_md from "../../docs/extension-compatibility.md" with {
+  type: "text",
+};
+import mixcodeDoc_extension_ui_and_widgets_md from "../../docs/extension-ui-and-widgets.md" with {
+  type: "text",
+};
 import mixcodeDoc_inline_widgets_md from "../../docs/inline-widgets.md" with { type: "text" };
 import mixcodeDoc_instance_registry_md from "../../docs/instance-registry.md" with { type: "text" };
-import mixcodeDoc_keybindings_and_escape_md from "../../docs/keybindings-and-escape.md" with { type: "text" };
+import mixcodeDoc_keybindings_and_escape_md from "../../docs/keybindings-and-escape.md" with {
+  type: "text",
+};
 import mixcodeDoc_mixcode_settings_md from "../../docs/mixcode-settings.md" with { type: "text" };
 import mixcodeDoc_model_management_md from "../../docs/model-management.md" with { type: "text" };
 import mixcodeDoc_mouse_support_md from "../../docs/mouse-support.md" with { type: "text" };
-import mixcodeDoc_narrow_terminals_and_mobile_md from "../../docs/narrow-terminals-and-mobile.md" with { type: "text" };
-import mixcodeDoc_queue_and_follow_up_md from "../../docs/queue-and-follow-up.md" with { type: "text" };
+import mixcodeDoc_narrow_terminals_and_mobile_md from "../../docs/narrow-terminals-and-mobile.md" with {
+  type: "text",
+};
+import mixcodeDoc_queue_and_follow_up_md from "../../docs/queue-and-follow-up.md" with {
+  type: "text",
+};
 import mixcodeDoc_tui_components_md from "../../docs/tui-components.md" with { type: "text" };
-import mixcodeDoc_vim_and_navigation_md from "../../docs/vim-and-navigation.md" with { type: "text" };
-import mixcodeDoc_workspace_and_tabs_md from "../../docs/workspace-and-tabs.md" with { type: "text" };
+import mixcodeDoc_vim_and_navigation_md from "../../docs/vim-and-navigation.md" with {
+  type: "text",
+};
+import mixcodeDoc_workspace_and_tabs_md from "../../docs/workspace-and-tabs.md" with {
+  type: "text",
+};
 import mixcodeDoc_zen_mode_md from "../../docs/zen-mode.md" with { type: "text" };
 import packageJson from "../../package.json" with { type: "json" };
 import { installMixcodeDocs, materializeBinaryRuntimeAssets } from "./binary-assets.js";

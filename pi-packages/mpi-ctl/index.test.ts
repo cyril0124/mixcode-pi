@@ -23,7 +23,9 @@ test("mpi-ctl contributes its skill from an installed extension package", async 
     });
     await session.bindExtensions({ mode: "print" });
 
-    const skill = services.resourceLoader.getSkills().skills.find((entry) => entry.name === "mpi-ctl");
+    const skill = services.resourceLoader
+      .getSkills()
+      .skills.find((entry) => entry.name === "mpi-ctl");
     assert.ok(skill);
     assert.match(await fs.readFile(skill.filePath, "utf8"), /name: mpi-ctl/);
     await assert.rejects(fs.stat(path.join(agentDir, "skills", "mpi-ctl")), /ENOENT/);

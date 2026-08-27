@@ -110,8 +110,7 @@ export function buildLabeledTopBorder(opts: LabeledTopBorderOptions): string {
   const sysWidth = wantSys ? SYS_BADGE_FRAME_WIDTH : 0;
   const contextWidth = wantContext ? CONTEXT_SEP_WIDTH + visibleWidth(contextText) : 0;
   const minLead = wantVim || wantZen || wantInl ? MIN_BADGE_LEAD_DASHES : MIN_TITLE_LEAD_DASHES;
-  const maxTitleWidth =
-    width - leftWidth - minLead - TITLE_FRAME_WIDTH - sysWidth - contextWidth;
+  const maxTitleWidth = width - leftWidth - minLead - TITLE_FRAME_WIDTH - sysWidth - contextWidth;
   if (maxTitleWidth <= 0) {
     // Prefer dropping inl first, then zen, then vim, then sys, then context.
     if (wantInl) return buildLabeledTopBorder({ ...opts, inlineWidgets: false });

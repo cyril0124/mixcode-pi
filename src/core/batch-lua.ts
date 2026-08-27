@@ -161,7 +161,15 @@ export async function runLuaScript(
     const systemPrompt =
       getStringField(L, 1, "system_prompt", lua, lauxlib, to_luastring, to_jsstring) ?? undefined;
     const mode =
-      (getStringField(L, 1, "mode", lua, lauxlib, to_luastring, to_jsstring) as BatchReuseMode | null) ?? undefined;
+      (getStringField(
+        L,
+        1,
+        "mode",
+        lua,
+        lauxlib,
+        to_luastring,
+        to_jsstring,
+      ) as BatchReuseMode | null) ?? undefined;
 
     requests.push({ name, prompt, workdir, model, thinking, systemPrompt, mode });
     return 0;
@@ -188,7 +196,10 @@ export async function runLuaScript(
 
   lua.lua_pushcfunction(L, (L: any) => {
     const name = lua.lua_isnoneornil(L, 1) ? "" : to_jsstring(lua.lua_tostring(L, 1));
-    lua.lua_pushboolean(L, context.tabs.some((tab) => tab.name === name));
+    lua.lua_pushboolean(
+      L,
+      context.tabs.some((tab) => tab.name === name),
+    );
     return 1;
   });
   lua.lua_setfield(L, -2, to_luastring("tab_exists"));
@@ -263,7 +274,8 @@ export function validateBatchRequests(
   for (const request of requests) {
     const explicitModel = request.model ? resolveModel(request.model) : undefined;
     if (explicitModel) resolvedModels.set(request, explicitModel);
-    const model = explicitModel ?? effectiveModels.get(request.name) ?? resolveImplicitModel(request);
+    const model =
+      explicitModel ?? effectiveModels.get(request.name) ?? resolveImplicitModel(request);
     if (model) effectiveModels.set(request.name, model);
     if (request.thinking && !isThinkingLevelAvailable(request.thinking, model)) {
       throw new Error(
@@ -475,7 +487,10 @@ function getStringField(
     return null;
   }
   if (lua.lua_type(L, -1) !== lua.LUA_TSTRING) {
-    return lauxlib.luaL_error(L, to_luastring(`mixcode.open_tab: '${field}' field must be a string`));
+    return lauxlib.luaL_error(
+      L,
+      to_luastring(`mixcode.open_tab: '${field}' field must be a string`),
+    );
   }
   const value = to_jsstring(lua.lua_tostring(L, -1));
   lua.lua_pop(L, 1);

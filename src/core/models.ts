@@ -65,9 +65,7 @@ export function assertModelEnabled(model: MixCodeModelRef): void {
 }
 
 export function isModelRefAvailable(models: MixCodeModelRef[], model: MixCodeModelRef): boolean {
-  return models.some(
-    (item) => item.provider === model.provider && item.modelId === model.modelId,
-  );
+  return models.some((item) => item.provider === model.provider && item.modelId === model.modelId);
 }
 
 // Return the canonical ref from the available list (carrying its contextWindow
@@ -82,7 +80,10 @@ export function normalizeModelRef(
   );
 }
 
-export function resolveRegisteredModel(provider: string, modelId: string): MixCodeModel | undefined {
+export function resolveRegisteredModel(
+  provider: string,
+  modelId: string,
+): MixCodeModel | undefined {
   return registeredModels.get(modelKey(provider, modelId));
 }
 

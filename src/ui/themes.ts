@@ -68,7 +68,9 @@ type ThinkingThemeColors = {
   [Level in ThinkingLevel as `thinking${Capitalize<Level>}`]: string;
 };
 
-function thinkingBorderFor(anchors: string[]): (thinkingLevel?: string) => (text: string) => string {
+function thinkingBorderFor(
+  anchors: string[],
+): (thinkingLevel?: string) => (text: string) => string {
   const colors = new Map(thinkingColorScale(anchors).map(({ level, hex }) => [level, rgb(hex)]));
   return (thinkingLevel = THINKING_LEVELS[0] ?? "off") =>
     colors.get(thinkingLevel as ThinkingLevel) ?? rgb(anchors[0] ?? "#505050");
@@ -97,7 +99,9 @@ function extendThinkingColor(anchors: string[], index: number): string {
   const [previousH] = rgbToHsl(previous);
   const hueStep = normalizeHueDelta(lastH - previousH) || 18;
   const extra = index - anchors.length + 1;
-  return formatRgb(hslToRgb([wrapHue(lastH + hueStep * extra), lastS, clamp(lastL + 0.04 * extra, 0.25, 0.82)]));
+  return formatRgb(
+    hslToRgb([wrapHue(lastH + hueStep * extra), lastS, clamp(lastL + 0.04 * extra, 0.25, 0.82)]),
+  );
 }
 
 function terminalThinkingBorderFor(): (thinkingLevel?: string) => (text: string) => string {
@@ -143,7 +147,11 @@ function rgbToHsl([red, green, blue]: [number, number, number]): [number, number
   return [wrapHue(hue), saturation, lightness];
 }
 
-function hslToRgb([hue, saturation, lightness]: [number, number, number]): [number, number, number] {
+function hslToRgb([hue, saturation, lightness]: [number, number, number]): [
+  number,
+  number,
+  number,
+] {
   const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation;
   const x = chroma * (1 - Math.abs(((hue / 60) % 2) - 1));
   const match = lightness - chroma / 2;
@@ -196,7 +204,14 @@ export const MIXCODE_DARK_THEME: MixCodeTheme = {
   selectedBg: persistentBgRgb("#3a3a4a"),
   bashMode: rgb("#b5bd68"),
   vimBorder: rgb("#5f87ff"),
-  thinkingBorder: thinkingBorderFor(["#505050", "#6e6e6e", "#5f87af", "#81a2be", "#b294bb", "#d183e8"]),
+  thinkingBorder: thinkingBorderFor([
+    "#505050",
+    "#6e6e6e",
+    "#5f87af",
+    "#81a2be",
+    "#b294bb",
+    "#d183e8",
+  ]),
   toolPendingBg: bgPair("#282832"),
   toolSuccessBg: bgPair("#283228"),
   toolErrorBg: bgPair("#3c2828"),
@@ -238,7 +253,14 @@ export const CLAUDE_WARM_THEME: MixCodeTheme = {
   selectedBg: persistentBgRgb("#7a4a3a"),
   bashMode: rgb("#dcecf4"),
   vimBorder: rgb("#c9a4ff"),
-  thinkingBorder: thinkingBorderFor(["#3d3d3a", "#87867f", "#8f6b2f", "#d97757", "#c45d3d", "#a63d20"]),
+  thinkingBorder: thinkingBorderFor([
+    "#3d3d3a",
+    "#87867f",
+    "#8f6b2f",
+    "#d97757",
+    "#c45d3d",
+    "#a63d20",
+  ]),
   toolPendingBg: bgPair("#232321"),
   toolSuccessBg: bgPair("#253020"),
   toolErrorBg: bgPair("#34211e"),
@@ -280,7 +302,14 @@ export const TOKYO_NIGHT_THEME: MixCodeTheme = {
   selectedBg: persistentBgRgb("#33467c"),
   bashMode: rgb("#9ece6a"),
   vimBorder: rgb("#bb9af7"),
-  thinkingBorder: thinkingBorderFor(["#3b4261", "#565f89", "#7aa2f7", "#bb9af7", "#ff9e64", "#f7768e"]),
+  thinkingBorder: thinkingBorderFor([
+    "#3b4261",
+    "#565f89",
+    "#7aa2f7",
+    "#bb9af7",
+    "#ff9e64",
+    "#f7768e",
+  ]),
   toolPendingBg: bgPair("#24283b"),
   toolSuccessBg: bgPair("#203326"),
   toolErrorBg: bgPair("#3a202c"),
@@ -364,7 +393,14 @@ export const CATPPUCCIN_THEME: MixCodeTheme = {
   selectedBg: persistentBgRgb("#45475a"),
   bashMode: rgb("#a6e3a1"),
   vimBorder: rgb("#cba6f7"),
-  thinkingBorder: thinkingBorderFor(["#45475a", "#6c7086", "#89b4fa", "#cba6f7", "#fab387", "#f38ba8"]),
+  thinkingBorder: thinkingBorderFor([
+    "#45475a",
+    "#6c7086",
+    "#89b4fa",
+    "#cba6f7",
+    "#fab387",
+    "#f38ba8",
+  ]),
   toolPendingBg: bgPair("#313244"),
   toolSuccessBg: bgPair("#1e2b22"),
   toolErrorBg: bgPair("#3a2228"),
@@ -406,7 +442,14 @@ export const KANAGAWA_THEME: MixCodeTheme = {
   selectedBg: persistentBgRgb("#363646"),
   bashMode: rgb("#98BB6C"),
   vimBorder: rgb("#957FB8"),
-  thinkingBorder: thinkingBorderFor(["#2A2A37", "#727169", "#7E9CD8", "#957FB8", "#E6C384", "#FF5D62"]),
+  thinkingBorder: thinkingBorderFor([
+    "#2A2A37",
+    "#727169",
+    "#7E9CD8",
+    "#957FB8",
+    "#E6C384",
+    "#FF5D62",
+  ]),
   toolPendingBg: bgPair("#2A2A37"),
   toolSuccessBg: bgPair("#1e2b22"),
   toolErrorBg: bgPair("#3a2228"),
@@ -448,7 +491,14 @@ export const ROSE_PINE_THEME: MixCodeTheme = {
   selectedBg: persistentBgRgb("#403d52"),
   bashMode: rgb("#31748f"),
   vimBorder: rgb("#c4a7e7"),
-  thinkingBorder: thinkingBorderFor(["#26233a", "#6e6a86", "#31748f", "#c4a7e7", "#f6c177", "#eb6f92"]),
+  thinkingBorder: thinkingBorderFor([
+    "#26233a",
+    "#6e6a86",
+    "#31748f",
+    "#c4a7e7",
+    "#f6c177",
+    "#eb6f92",
+  ]),
   toolPendingBg: bgPair("#26233a"),
   toolSuccessBg: bgPair("#1b2a22"),
   toolErrorBg: bgPair("#3a2228"),
@@ -887,10 +937,7 @@ export function registerAdditionalTheme(theme: Theme): void {
   const next = new Map(themeRegistry);
   next.set(name, theme);
   // Keep loader list aware of in-memory themes for the next full register.
-  lastLoaderThemes = [
-    ...lastLoaderThemes.filter((entry) => entry.name !== name),
-    theme,
-  ];
+  lastLoaderThemes = [...lastLoaderThemes.filter((entry) => entry.name !== name), theme];
   publishRegistry(next);
 }
 

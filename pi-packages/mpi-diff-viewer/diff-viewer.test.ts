@@ -156,8 +156,12 @@ test("replace rows highlight English identifiers as whole words", () => {
   assert.match(output, /\x1b\[36m/);
   assert.ok(styledSpans(output, "\\x1b\\[4m", "\\x1b\\[24m").includes("src/changed.ts"));
 
-  const oldLine = stripTerminalSequences(output.split("\n").find((line) => line.includes("abc123xyz")) ?? "");
-  const newLine = stripTerminalSequences(output.split("\n").find((line) => line.includes("abc923xyq")) ?? "");
+  const oldLine = stripTerminalSequences(
+    output.split("\n").find((line) => line.includes("abc123xyz")) ?? "",
+  );
+  const newLine = stripTerminalSequences(
+    output.split("\n").find((line) => line.includes("abc923xyq")) ?? "",
+  );
   assert.match(oldLine, /\s+1\s+:\s+│ const code/);
   assert.match(newLine, /\s+:\s+1\s+│ const code/);
   assert.doesNotMatch(oldLine, /\s-\s/);
@@ -715,7 +719,10 @@ test("file and entire-diff comments require confirmation before discard", () => 
   component.handleInput("q");
 
   assert.equal(closed(), 0);
-  assert.match(stripTerminalSequences(component.render(120).join("\n")), /Discard 2 review comments/);
+  assert.match(
+    stripTerminalSequences(component.render(120).join("\n")),
+    /Discard 2 review comments/,
+  );
   component.handleInput("\r");
   assert.equal(closed(), 0);
   component.handleInput("q");
@@ -816,9 +823,7 @@ test("t filters files and keeps the selected match", () => {
 });
 
 test("file filtering ranks tighter fuzzy matches first", () => {
-  const rows: DiffRow[] = [
-    { kind: "insert", newLineNumber: 1, oldText: "", newText: "changed" },
-  ];
+  const rows: DiffRow[] = [{ kind: "insert", newLineNumber: 1, oldText: "", newText: "changed" }];
   const weak = file("b-e-t-a.ts", rows);
   const strong = file("beta.ts", rows);
   const { component } = createViewer({
@@ -856,7 +861,10 @@ test("comment mode Ctrl+D/U jumps the selected changed line by half a page", () 
   component.handleInput("c");
   assert.match(stripTerminalSequences(component.render(100).join("\n")), /Comment mode.*added 1/);
   component.handleInput("\x04");
-  assert.match(stripTerminalSequences(component.render(100).join("\n")), /Comment mode.*added (?:[5-9]|1[0-9])/);
+  assert.match(
+    stripTerminalSequences(component.render(100).join("\n")),
+    /Comment mode.*added (?:[5-9]|1[0-9])/,
+  );
   component.handleInput("\x15");
   assert.match(stripTerminalSequences(component.render(100).join("\n")), /Comment mode.*added 1/);
 });

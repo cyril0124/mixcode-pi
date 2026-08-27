@@ -209,9 +209,12 @@ export function createPiModelRuntimeAuth(
 async function assertPathIsNotDirectory(filePath: string): Promise<void> {
   try {
     if ((await fs.stat(filePath)).isDirectory()) {
-      throw Object.assign(new Error(`EISDIR: illegal operation on a directory, read '${filePath}'`), {
-        code: "EISDIR",
-      });
+      throw Object.assign(
+        new Error(`EISDIR: illegal operation on a directory, read '${filePath}'`),
+        {
+          code: "EISDIR",
+        },
+      );
     }
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return;

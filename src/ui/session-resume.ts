@@ -171,11 +171,7 @@ export async function openSessionSelector(
   listRef = list;
   const piDelete = list.onDeleteSession;
   list.onDeleteSession = async (sessionPath) => {
-    const openTab = findOpenSessionTab(
-      state,
-      runtime as unknown as MixCodeKeyRuntime,
-      sessionPath,
-    );
+    const openTab = findOpenSessionTab(state, runtime as unknown as MixCodeKeyRuntime, sessionPath);
     if (openTab) {
       list.onError?.(`Cannot delete session open in tab: ${openTab.title}`);
       return;
@@ -413,9 +409,7 @@ export function resumeSelectedSession(
     } catch (error: unknown) {
       if (runtimeTabCreated) {
         const runtimeKey =
-          runtimeRef.getTab(newTab.sessionId) !== undefined
-            ? newTab.sessionId
-            : ephemeralSessionId;
+          runtimeRef.getTab(newTab.sessionId) !== undefined ? newTab.sessionId : ephemeralSessionId;
         await runtimeRef.closeTab(runtimeKey);
       }
       noteTabClosed(identityPublished && durableId ? durableId : ephemeralSessionId);

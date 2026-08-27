@@ -4,9 +4,7 @@ import * as fsPromises from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import { test } from "node:test";
-import type {
-  ExtensionFactory,
-} from "@earendil-works/pi-coding-agent";
+import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import { TuiMainScreen, visibleWidth, type Terminal } from "@earendil-works/pi-tui";
 import {
   MixCodeRuntime,
@@ -48,8 +46,14 @@ test("extension string widgets wrap long lines instead of truncating", () => {
   const normalized = plain.join(" ").replace(/\s+/g, " ").trim();
 
   assert.match(normalized, /with message\./);
-  assert.equal(plain.some((line) => line.includes("...")), false);
-  assert.equal(lines.every((line) => visibleWidth(line) <= 48), true);
+  assert.equal(
+    plain.some((line) => line.includes("...")),
+    false,
+  );
+  assert.equal(
+    lines.every((line) => visibleWidth(line) <= 48),
+    true,
+  );
 });
 
 test("extension header and footer preserve full-width component output", () => {
@@ -79,7 +83,9 @@ test("extension header and footer preserve full-width component output", () => {
 });
 
 test("runtime exposes extension UI context as TUI during startup and clear", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-ui-mode-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-extension-ui-mode-"),
+  );
   const modes: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.on("session_start", (_event, ctx) => {
@@ -101,9 +107,10 @@ test("runtime exposes extension UI context as TUI during startup and clear", asy
     });
 
     assert.deepEqual(modes, ["tui"]);
-    assert.deepEqual(renderExtensionHeader(runtimeTab.tab, 80).map((line) => stripAnsi(line).trim()), [
-      "guarded header",
-    ]);
+    assert.deepEqual(
+      renderExtensionHeader(runtimeTab.tab, 80).map((line) => stripAnsi(line).trim()),
+      ["guarded header"],
+    );
 
     const cleared = await runtime.clearTab("s1", {
       systemPrompt: "system",
@@ -113,9 +120,10 @@ test("runtime exposes extension UI context as TUI during startup and clear", asy
     });
 
     assert.deepEqual(modes, ["tui", "tui"]);
-    assert.deepEqual(renderExtensionHeader(cleared.tab, 80).map((line) => stripAnsi(line).trim()), [
-      "guarded header",
-    ]);
+    assert.deepEqual(
+      renderExtensionHeader(cleared.tab, 80).map((line) => stripAnsi(line).trim()),
+      ["guarded header"],
+    );
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }
@@ -227,7 +235,9 @@ function silentTerminal(): Terminal {
 }
 
 test("runtime maps supported pi extension UI primitives into MixCode tab state", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-ui-noop-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-extension-ui-noop-"),
+  );
   const events: string[] = [];
   const modes: string[] = [];
   const extension: ExtensionFactory = (pi) => {
@@ -300,10 +310,7 @@ test("runtime maps supported pi extension UI primitives into MixCode tab state",
       runtimeTab.tab.extensionUi.statuses.map((s) => ({ key: s.key, text: s.text })),
       [{ key: "status", text: "ready" }],
     );
-    assert.match(
-      stripAnsi(renderExtensionFooter(runtimeTab.tab, 100).join("\n")),
-      /status=ready/,
-    );
+    assert.match(stripAnsi(renderExtensionFooter(runtimeTab.tab, 100).join("\n")), /status=ready/);
     assert.match(
       renderExtensionWidgets(runtimeTab.tab, 100, "aboveEditor").join("\n"),
       /above widget/,

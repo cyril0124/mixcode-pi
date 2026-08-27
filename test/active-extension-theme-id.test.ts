@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { DEFAULT_THEME_ID } from "../src/core/defaults.js";
-import {
-  getActiveExtensionThemeId,
-  noteActiveExtensionThemeId,
-} from "../src/ui/themes.js";
+import { getActiveExtensionThemeId, noteActiveExtensionThemeId } from "../src/ui/themes.js";
 
 const DEFAULT_THEME = DEFAULT_THEME_ID;
 

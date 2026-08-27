@@ -43,15 +43,24 @@ test("handleMouseInput drags and copies visible chat selection", async () => {
   const { state, tab, tui, renders } = setup();
   const copied: string[] = [];
 
-  assert.equal(handleMouseInput(state, tab, "\x1b[<0;7;5M", tui, undefined, undefined, async (text) => {
-    copied.push(text);
-  }), true);
-  assert.equal(handleMouseInput(state, tab, "\x1b[<32;6;6M", tui, undefined, undefined, async (text) => {
-    copied.push(text);
-  }), true);
-  assert.equal(handleMouseInput(state, tab, "\x1b[<0;6;6m", tui, undefined, undefined, async (text) => {
-    copied.push(text);
-  }), true);
+  assert.equal(
+    handleMouseInput(state, tab, "\x1b[<0;7;5M", tui, undefined, undefined, async (text) => {
+      copied.push(text);
+    }),
+    true,
+  );
+  assert.equal(
+    handleMouseInput(state, tab, "\x1b[<32;6;6M", tui, undefined, undefined, async (text) => {
+      copied.push(text);
+    }),
+    true,
+  );
+  assert.equal(
+    handleMouseInput(state, tab, "\x1b[<0;6;6m", tui, undefined, undefined, async (text) => {
+      copied.push(text);
+    }),
+    true,
+  );
 
   await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(copied, ["world\nagain"]);
@@ -185,15 +194,24 @@ test("handleMouseInput drags and copies home input editor body", async () => {
   ];
   const copied: string[] = [];
 
-  assert.equal(handleMouseInput(state, tab, "\x1b[<0;1;9M", tui, undefined, undefined, async (text) => {
-    copied.push(text);
-  }), true);
-  assert.equal(handleMouseInput(state, tab, "\x1b[<32;30;11M", tui, undefined, undefined, async (text) => {
-    copied.push(text);
-  }), true);
-  assert.equal(handleMouseInput(state, tab, "\x1b[<0;30;11m", tui, undefined, undefined, async (text) => {
-    copied.push(text);
-  }), true);
+  assert.equal(
+    handleMouseInput(state, tab, "\x1b[<0;1;9M", tui, undefined, undefined, async (text) => {
+      copied.push(text);
+    }),
+    true,
+  );
+  assert.equal(
+    handleMouseInput(state, tab, "\x1b[<32;30;11M", tui, undefined, undefined, async (text) => {
+      copied.push(text);
+    }),
+    true,
+  );
+  assert.equal(
+    handleMouseInput(state, tab, "\x1b[<0;30;11m", tui, undefined, undefined, async (text) => {
+      copied.push(text);
+    }),
+    true,
+  );
 
   await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(copied, ["home draft"]);
@@ -211,15 +229,24 @@ test("handleMouseInput drags and copies default input editor body", async () => 
   ];
   const copied: string[] = [];
 
-  assert.equal(handleMouseInput(state, tab, "\x1b[<0;1;9M", tui, undefined, undefined, async (text) => {
-    copied.push(text);
-  }), true);
-  assert.equal(handleMouseInput(state, tab, "\x1b[<32;30;12M", tui, undefined, undefined, async (text) => {
-    copied.push(text);
-  }), true);
-  assert.equal(handleMouseInput(state, tab, "\x1b[<0;30;12m", tui, undefined, undefined, async (text) => {
-    copied.push(text);
-  }), true);
+  assert.equal(
+    handleMouseInput(state, tab, "\x1b[<0;1;9M", tui, undefined, undefined, async (text) => {
+      copied.push(text);
+    }),
+    true,
+  );
+  assert.equal(
+    handleMouseInput(state, tab, "\x1b[<32;30;12M", tui, undefined, undefined, async (text) => {
+      copied.push(text);
+    }),
+    true,
+  );
+  assert.equal(
+    handleMouseInput(state, tab, "\x1b[<0;30;12m", tui, undefined, undefined, async (text) => {
+      copied.push(text);
+    }),
+    true,
+  );
 
   await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(copied, ["hello world\nsecond line"]);
@@ -240,18 +267,29 @@ test("handleMouseInput preserves meaningful input body formatting", async () => 
   ];
   const copied: string[] = [];
 
-  assert.equal(handleMouseInput(state, tab, "\x1b[<0;1;9M", tui, undefined, undefined, async (text) => {
-    copied.push(text);
-  }), true);
-  assert.equal(handleMouseInput(state, tab, "\x1b[<32;34;14M", tui, undefined, undefined, async (text) => {
-    copied.push(text);
-  }), true);
-  assert.equal(handleMouseInput(state, tab, "\x1b[<0;34;14m", tui, undefined, undefined, async (text) => {
-    copied.push(text);
-  }), true);
+  assert.equal(
+    handleMouseInput(state, tab, "\x1b[<0;1;9M", tui, undefined, undefined, async (text) => {
+      copied.push(text);
+    }),
+    true,
+  );
+  assert.equal(
+    handleMouseInput(state, tab, "\x1b[<32;34;14M", tui, undefined, undefined, async (text) => {
+      copied.push(text);
+    }),
+    true,
+  );
+  assert.equal(
+    handleMouseInput(state, tab, "\x1b[<0;34;14m", tui, undefined, undefined, async (text) => {
+      copied.push(text);
+    }),
+    true,
+  );
 
   await new Promise((resolve) => setImmediate(resolve));
-  assert.deepEqual(copied, ["    indented code\n---\nenter | accept are words\nscroll · marker is text"]);
+  assert.deepEqual(copied, [
+    "    indented code\n---\nenter | accept are words\nscroll · marker is text",
+  ]);
 });
 
 test("handleMouseInput drags and copies btw-style editor visible body", async () => {
@@ -266,15 +304,24 @@ test("handleMouseInput drags and copies btw-style editor visible body", async ()
   ];
   const copied: string[] = [];
 
-  assert.equal(handleMouseInput(state, tab, "\x1b[<0;1;9M", tui, undefined, undefined, async (text) => {
-    copied.push(text);
-  }), true);
-  assert.equal(handleMouseInput(state, tab, "\x1b[<32;34;13M", tui, undefined, undefined, async (text) => {
-    copied.push(text);
-  }), true);
-  assert.equal(handleMouseInput(state, tab, "\x1b[<0;34;13m", tui, undefined, undefined, async (text) => {
-    copied.push(text);
-  }), true);
+  assert.equal(
+    handleMouseInput(state, tab, "\x1b[<0;1;9M", tui, undefined, undefined, async (text) => {
+      copied.push(text);
+    }),
+    true,
+  );
+  assert.equal(
+    handleMouseInput(state, tab, "\x1b[<32;34;13M", tui, undefined, undefined, async (text) => {
+      copied.push(text);
+    }),
+    true,
+  );
+  assert.equal(
+    handleMouseInput(state, tab, "\x1b[<0;34;13m", tui, undefined, undefined, async (text) => {
+      copied.push(text);
+    }),
+    true,
+  );
 
   await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(copied, ["visible one\nvisible two"]);
@@ -287,7 +334,10 @@ test("handleMouseInput drags and copies active Notice panel text", async () => {
   const copied: string[] = [];
   const noticeTui = {
     requestRender: tui.requestRender,
-    showOverlay: (component: { render: (width: number) => string[] }, options: { width?: number }) => {
+    showOverlay: (
+      component: { render: (width: number) => string[] },
+      options: { width?: number },
+    ) => {
       component.render(typeof options.width === "number" ? options.width : 40);
       return testOverlayHandle();
     },
@@ -331,7 +381,10 @@ test("handleMixCodeKeyInput consumes c while Notice is open", async () => {
   const { state, tui } = setup();
   const noticeTui = {
     requestRender: tui.requestRender,
-    showOverlay: (component: { render: (width: number) => string[] }, options: { width?: number }) => {
+    showOverlay: (
+      component: { render: (width: number) => string[] },
+      options: { width?: number },
+    ) => {
       component.render(typeof options.width === "number" ? options.width : 40);
       return testOverlayHandle();
     },
@@ -399,10 +452,7 @@ test("tab drag motion does not switch tabs", () => {
   assert.equal(state.activeTabId, "s1");
 
   // A real press still switches.
-  assert.equal(
-    handleMouseInput(state, state.tabs[0], `\x1b[<0;${x};${y}M`, tui),
-    true,
-  );
+  assert.equal(handleMouseInput(state, state.tabs[0], `\x1b[<0;${x};${y}M`, tui), true);
   assert.equal(state.activeTabId, "s2");
 });
 

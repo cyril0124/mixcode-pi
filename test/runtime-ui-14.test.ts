@@ -4,9 +4,7 @@ import * as fsPromises from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import { test } from "node:test";
-import type {
-  ExtensionFactory,
-} from "@earendil-works/pi-coding-agent";
+import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import { TuiMainScreen, type AutocompleteProvider, type Terminal } from "@earendil-works/pi-tui";
 import {
   MixCodeCompletionProvider,
@@ -62,7 +60,9 @@ function silentTerminal(): Terminal {
 }
 
 test("runtime keeps the previous editor component when extension editor factory fails", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-editor-component-error-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-extension-editor-component-error-"),
+  );
   const events: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("editor-component-error", {
@@ -126,7 +126,9 @@ test("runtime keeps the previous editor component when extension editor factory 
 });
 
 test("runtime maps pi extension multiline editor primitive into an in-place editor swap", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-multiline-editor-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-extension-multiline-editor-"),
+  );
   const events: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("edit-smoke", {
@@ -207,7 +209,9 @@ test("runtime maps pi extension multiline editor primitive into an in-place edit
 });
 
 test("runtime extension multiline editor requires a live TUI host", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-editor-no-host-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-extension-editor-no-host-"),
+  );
   const events: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("edit-no-host", {
@@ -237,7 +241,9 @@ test("runtime extension multiline editor requires a live TUI host", async () => 
 });
 
 test("runtime applies pi extension autocomplete providers on top of MixCode completions", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-autocomplete-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-extension-autocomplete-"),
+  );
   const seen: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.on("session_start", (_event, ctx) => {
@@ -298,7 +304,9 @@ test("runtime applies pi extension autocomplete providers on top of MixCode comp
 });
 
 test("runtime refreshes live editor autocomplete providers registered after cache warmup", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-autocomplete-live-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-extension-autocomplete-live-"),
+  );
   let setProviderCalls = 0;
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("add-provider", {

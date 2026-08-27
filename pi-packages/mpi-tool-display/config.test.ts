@@ -51,10 +51,7 @@ test("global config round-trips one strict boolean with private permissions", ()
   assert.equal(written.ok, true);
   if (!written.ok) return;
   assert.equal(fs.statSync(written.path).mode & 0o777, 0o600);
-  assert.equal(
-    fs.readFileSync(written.path, "utf8"),
-    '{\n  "showRawToolArguments": true\n}\n',
-  );
+  assert.equal(fs.readFileSync(written.path, "utf8"), '{\n  "showRawToolArguments": true\n}\n');
 
   const loaded = loadToolDisplayRuntimeConfig(dir);
   assert.equal(loaded.ok, true);
@@ -64,10 +61,7 @@ test("global config round-trips one strict boolean with private permissions", ()
 });
 
 test("global config rejects malformed JSON, unknown keys, and wrong values", () => {
-  assert.throws(
-    () => parseToolDisplayRuntimeConfig({ extra: true }),
-    /unknown key "extra"/,
-  );
+  assert.throws(() => parseToolDisplayRuntimeConfig({ extra: true }), /unknown key "extra"/);
   assert.throws(
     () => parseToolDisplayRuntimeConfig({ showRawToolArguments: "yes" }),
     /must be a boolean/,

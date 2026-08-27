@@ -4,6 +4,8 @@
   "type": "module",
   "description": "Bash execution policy: default timeout, foreground window with auto-detach to the background, completion notices, and /bash-jobs",
   "pi": {
-    "extensions": ["./index.ts"]
+    "extensions": [
+      "./index.ts"
+    ]
   }
 }

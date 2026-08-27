@@ -144,7 +144,10 @@ test("configured proxy model sends a real OpenAI Responses request", {
     await fsPromises.mkdir(workdir, { recursive: true });
     const agentDir =
       process.env.PI_CODING_AGENT_DIR ?? nodePath.join(process.env.HOME ?? "", ".pi", "agent");
-    const bundle = await createPiModelRegistryBundle(undefined, nodePath.join(agentDir, "auth.json"));
+    const bundle = await createPiModelRegistryBundle(
+      undefined,
+      nodePath.join(agentDir, "auth.json"),
+    );
     const slash = RESPONSES_SMOKE_MODEL.indexOf("/");
     const provider = RESPONSES_SMOKE_MODEL.slice(0, slash);
     const modelId = RESPONSES_SMOKE_MODEL.slice(slash + 1);
@@ -278,21 +281,25 @@ test("pi model runtime auth merges request headers and surfaces auth errors", as
     const pendingResponses: Array<
       (context: Context, options?: SimpleStreamOptions) => ReturnType<typeof fauxAssistantMessage>
     > = [];
-    const authTestStreamSimple = (requestModel: Model<any>, context: Context, options?: SimpleStreamOptions) => {
-        const response = pendingResponses.shift();
-        const message = response
-          ? response(context, options)
-          : fauxAssistantMessage("", {
-              stopReason: "error",
-              errorMessage: `No response for ${requestModel.id}`,
-            });
-        return streamSingleMessage({
-          ...message,
-          api: requestModel.api,
-          provider: requestModel.provider,
-          model: requestModel.id,
-        });
-      };
+    const authTestStreamSimple = (
+      requestModel: Model<any>,
+      context: Context,
+      options?: SimpleStreamOptions,
+    ) => {
+      const response = pendingResponses.shift();
+      const message = response
+        ? response(context, options)
+        : fauxAssistantMessage("", {
+            stopReason: "error",
+            errorMessage: `No response for ${requestModel.id}`,
+          });
+      return streamSingleMessage({
+        ...message,
+        api: requestModel.api,
+        provider: requestModel.provider,
+        model: requestModel.id,
+      });
+    };
     bundle.registry.registerProvider("mixcode-auth-test", {
       api: "mixcode-auth-test-api",
       streamSimple: authTestStreamSimple,
@@ -391,10 +398,7 @@ test("pi model registry rejects directory paths and incomplete provider config",
   try {
     const directoryPath = nodePath.join(dir, "directory.jsonc");
     await fsPromises.mkdir(directoryPath);
-    await assert.rejects(
-      loadSources(directoryPath),
-      /EISDIR|illegal operation on a directory/,
-    );
+    await assert.rejects(loadSources(directoryPath), /EISDIR|illegal operation on a directory/);
 
     const noApiPath = nodePath.join(dir, "no-api.jsonc");
     await fsPromises.writeFile(

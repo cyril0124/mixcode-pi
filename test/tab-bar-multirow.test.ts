@@ -102,11 +102,7 @@ test("clicking a tab on a wrapped (non-first) row activates it", () => {
   const wrapped = regions.find((region) => (region.row ?? 0) >= 1 && region.id.startsWith("s"));
   assert.ok(wrapped, "need a wrapped agent tab region to click");
   const mouseY = (state.tabBarTopRow ?? 1) + (wrapped.row ?? 0);
-  const result = handleMixCodeKeyInput(
-    state,
-    `\x1b[<0;${wrapped.startX};${mouseY}M`,
-    noopTui(),
-  );
+  const result = handleMixCodeKeyInput(state, `\x1b[<0;${wrapped.startX};${mouseY}M`, noopTui());
   assert.deepEqual(result, { consume: true });
   assert.equal(state.activeTabId, wrapped.id);
 });
@@ -190,10 +186,7 @@ test("sliding window: Home pin is independent of agent window", () => {
   state.activeTabId = "s12";
   const endLine = stripAnsi(renderTabBar(state, width, undefined, 1)[0] ?? "");
   assert.match(endLine, /Agent-12/);
-  assert.ok(
-    /^ H |MixCode Home/.test(endLine),
-    `expected Home pin, got: ${endLine}`,
-  );
+  assert.ok(/^ H |MixCode Home/.test(endLine), `expected Home pin, got: ${endLine}`);
   if (endLine.startsWith(" H ")) {
     // Gap outside the H chip: " H  +N …" not " H+N".
     assert.match(endLine, /^ H {2}\+\d+ …/);
@@ -201,7 +194,10 @@ test("sliding window: Home pin is independent of agent window", () => {
   }
   const endRegions = tabBarHitRegions(state, width, 1);
   assert.ok(endRegions.some((region) => region.id === "s12"));
-  assert.ok(endRegions.some((region) => region.id === "home"), "Home pin must hit config");
+  assert.ok(
+    endRegions.some((region) => region.id === "home"),
+    "Home pin must hit config",
+  );
   const endLeft = Number(endLine.match(/\+(\d+) …/)?.[1] ?? 0);
   const endRight = Number(endLine.match(/… \+(\d+)/)?.[1] ?? 0);
   // regions include Home pin + visible agents; +L/+R are agents only.
@@ -276,11 +272,7 @@ test("H home anchor click activates MixCode Home", () => {
   const home = tabBarHitRegions(state, width, 1).find((region) => region.id === "home");
   assert.ok(home, "expected Home pin hit region for config");
   const y = (state.tabBarTopRow ?? 1) + (home.row ?? 0);
-  const result = handleMixCodeKeyInput(
-    state,
-    `\x1b[<0;${home.startX};${y}M`,
-    noopTui(),
-  );
+  const result = handleMixCodeKeyInput(state, `\x1b[<0;${home.startX};${y}M`, noopTui());
   assert.deepEqual(result, { consume: true });
   assert.equal(state.activeTabId, "home");
 });

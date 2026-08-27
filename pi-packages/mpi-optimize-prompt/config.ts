@@ -47,7 +47,11 @@ export function loadOptimizePromptConfig(agentDir: string): OptimizePromptConfig
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
       return { ok: true, path: filePath, config: {}, missing: true };
     }
-    return { ok: false, path: filePath, error: error instanceof Error ? error.message : String(error) };
+    return {
+      ok: false,
+      path: filePath,
+      error: error instanceof Error ? error.message : String(error),
+    };
   }
   try {
     const raw = JSON.parse(text) as unknown;

@@ -208,7 +208,9 @@ test("submitted thinking command updates the Pi runtime session", async () => {
 });
 
 test("workdir picker applies async runtime workdir updates", async () => {
-  const workdirTarget = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-workdir-runtime-"));
+  const workdirTarget = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-workdir-runtime-"),
+  );
   try {
     const state = createInitialState("/repo");
     const tab = createTab(1, "s1", "/repo");
@@ -404,9 +406,11 @@ test("unfocused /models does not consume focused-tab keys", async () => {
     requestRender: () => undefined,
     showOverlay: () => {
       overlayOpen = true;
-      return { hide: () => {
-        overlayOpen = false;
-      } };
+      return {
+        hide: () => {
+          overlayOpen = false;
+        },
+      };
     },
     hideOverlay: () => {
       overlayOpen = false;
@@ -417,7 +421,16 @@ test("unfocused /models does not consume focused-tab keys", async () => {
     getTab: () => undefined,
     appendSystemMessage: () => undefined,
   } as unknown as MixCodeRuntime;
-  await handleSubmittedInput(state, runtime, "/models", tui as never, undefined, undefined, undefined, owner);
+  await handleSubmittedInput(
+    state,
+    runtime,
+    "/models",
+    tui as never,
+    undefined,
+    undefined,
+    undefined,
+    owner,
+  );
   assert.equal(state.activeTabId, "s2");
   assert.equal(state.picker?.ownerSessionId, "s1");
   assert.equal(overlayOpen, false);

@@ -53,7 +53,11 @@ function writeExt(dir: string, name: string, toolName = name.replace(/-/g, "_"))
 }
 
 const noVision: ModelLike = { id: "deepseek-v4-flash", provider: "deepseek", input: ["text"] };
-const withVision: ModelLike = { id: "claude-sonnet", provider: "anthropic", input: ["text", "image"] };
+const withVision: ModelLike = {
+  id: "claude-sonnet",
+  provider: "anthropic",
+  input: ["text", "image"],
+};
 
 describe("isPathRef / expandEnvPath", () => {
   test("classifies path vs name", () => {
@@ -133,7 +137,8 @@ describe("parseModelExtensionsConfig / load / setEnabled", () => {
     assert.equal(Object.keys(raw)[0], "$schema");
     const loaded = loadModelExtensionsConfig(dir);
     assert.equal(loaded.ok, true);
-    if (loaded.ok && loaded.config) assert.equal(loaded.config.schemaRef, "./mpi-model-extensions.schema.json");
+    if (loaded.ok && loaded.config)
+      assert.equal(loaded.config.schemaRef, "./mpi-model-extensions.schema.json");
   });
 
   test("setModelExtensionsEnabled persists and preserves rules", () => {
@@ -243,7 +248,10 @@ describe("resolve + planModelExtensionLoads", () => {
     );
     assert.deepEqual(plan.matchedRuleIndexes, [1]);
     assert.deepEqual(plan.paths, []);
-    assert.equal(plan.warnings.some((w) => w.kind === "name"), true);
+    assert.equal(
+      plan.warnings.some((w) => w.kind === "name"),
+      true,
+    );
   });
 
   test("friendlyExtensionName", () => {

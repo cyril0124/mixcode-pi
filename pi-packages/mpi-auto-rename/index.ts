@@ -58,9 +58,7 @@ export type TitleFailure = {
   error: string;
 };
 
-export type AutoRenameResult =
-  | { ok: true; title: string }
-  | { ok: false; reason: string };
+export type AutoRenameResult = { ok: true; title: string } | { ok: false; reason: string };
 
 type ContentBlock = {
   type?: string;
@@ -155,7 +153,10 @@ export function buildConversationContext(
 
 export function parseCandidateTitle(raw: string): string {
   let text = raw.trim();
-  text = text.replace(/^```(?:\w+)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  text = text
+    .replace(/^```(?:\w+)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
   const firstLine = text
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -200,7 +201,6 @@ function assistantText(response: AssistantMessage): string {
     .join("\n")
     .trim();
 }
-
 
 function compactHeaders(
   headers: Record<string, string | null> | undefined,
@@ -284,9 +284,7 @@ function renderAutoRenameProgressLines(
   const spinner = SPINNER_FRAMES[state.frame % SPINNER_FRAMES.length]!;
   const elapsed = formatElapsed(Date.now() - state.startedAt);
   const bold = (text: string) => theme.bold?.(text) ?? text;
-  const title = bold(
-    `${theme.fg("accent", spinner)} ${theme.fg("accent", "Generating title")}`,
-  );
+  const title = bold(`${theme.fg("accent", spinner)} ${theme.fg("accent", "Generating title")}`);
   const meta = [
     theme.fg("success", elapsed),
     theme.fg("warning", state.modelLabel),
@@ -364,10 +362,7 @@ function listModelOptions(ctx: ExtensionCommandContext): string[] {
   return [...new Set(refs)].sort();
 }
 
-function findConfiguredModel(
-  ctx: ExtensionCommandContext,
-  modelRef: string | undefined,
-): unknown {
+function findConfiguredModel(ctx: ExtensionCommandContext, modelRef: string | undefined): unknown {
   if (!modelRef || modelRef === AUTO_RENAME_INHERIT) return ctx.model;
   const parsed = parseAutoRenameModelRef(modelRef);
   if (!parsed) return ctx.model;
@@ -430,7 +425,9 @@ export async function generateValidTitle(options: {
           messages: [
             {
               role: "user",
-              content: [{ type: "text", text: buildTitlePrompt(options.conversationContext, previous) }],
+              content: [
+                { type: "text", text: buildTitlePrompt(options.conversationContext, previous) },
+              ],
               timestamp: Date.now(),
             },
           ],
@@ -564,125 +561,127 @@ export async function runAutoRename(options: {
   }
   abortSlot.controller = abort;
   try {
+    const target = resolveAutoRenameTarget(
+      {
+        provider: activeModel?.provider ?? "",
+        modelId: activeModel?.id ?? "",
+        thinkingLevel: options.getThinkingLevel(),
+      },
+      config,
+    );
+    const registry = ctx.modelRegistry as {
+      find?: (provider: string, id: string) => unknown;
+      getApiKeyAndHeaders: ExtensionCommandContext["modelRegistry"]["getApiKeyAndHeaders"];
+    };
+    const model =
+      config.model && config.model !== AUTO_RENAME_INHERIT
+        ? (registry.find?.(target.provider, target.modelId) as typeof activeModel)
+        : activeModel;
+    if (!model) {
+      notify(`Unknown model: ${target.provider}/${target.modelId}`, "error");
+      return { ok: false, reason: "unknown_model" };
+    }
 
-  const target = resolveAutoRenameTarget(
-    {
-      provider: activeModel?.provider ?? "",
-      modelId: activeModel?.id ?? "",
-      thinkingLevel: options.getThinkingLevel(),
-    },
-    config,
-  );
-  const registry = ctx.modelRegistry as {
-    find?: (provider: string, id: string) => unknown;
-    getApiKeyAndHeaders: ExtensionCommandContext["modelRegistry"]["getApiKeyAndHeaders"];
-  };
-  const model =
-    config.model && config.model !== AUTO_RENAME_INHERIT
-      ? (registry.find?.(target.provider, target.modelId) as typeof activeModel)
-      : activeModel;
-  if (!model) {
-    notify(`Unknown model: ${target.provider}/${target.modelId}`, "error");
-    return { ok: false, reason: "unknown_model" };
-  }
-
-  if (abort.signal.aborted) {
-    notify("Cancelled", "info");
-    return { ok: false, reason: "cancelled" };
-  }
-
-  let auth: { apiKey?: string; headers?: Record<string, string>; env?: Record<string, string> };
-  try {
-    const resolved = await ctx.modelRegistry.getApiKeyAndHeaders(model);
     if (abort.signal.aborted) {
       notify("Cancelled", "info");
       return { ok: false, reason: "cancelled" };
     }
-    if (!resolved.ok || !hasRequestAuth({
-      apiKey: resolved.ok ? resolved.apiKey : undefined,
-      headers: resolved.ok ? compactHeaders(resolved.headers) : undefined,
-      env: resolved.ok ? resolved.env : undefined,
-    })) {
-      notify(resolved.ok ? `No credentials for ${model.provider}` : resolved.error, "error");
+
+    let auth: { apiKey?: string; headers?: Record<string, string>; env?: Record<string, string> };
+    try {
+      const resolved = await ctx.modelRegistry.getApiKeyAndHeaders(model);
+      if (abort.signal.aborted) {
+        notify("Cancelled", "info");
+        return { ok: false, reason: "cancelled" };
+      }
+      if (
+        !resolved.ok ||
+        !hasRequestAuth({
+          apiKey: resolved.ok ? resolved.apiKey : undefined,
+          headers: resolved.ok ? compactHeaders(resolved.headers) : undefined,
+          env: resolved.ok ? resolved.env : undefined,
+        })
+      ) {
+        notify(resolved.ok ? `No credentials for ${model.provider}` : resolved.error, "error");
+        return { ok: false, reason: "no_auth" };
+      }
+      auth = {
+        apiKey: resolved.apiKey,
+        headers: compactHeaders(resolved.headers),
+        env: resolved.env,
+      };
+    } catch (error: unknown) {
+      if (abort.signal.aborted) {
+        notify("Cancelled", "info");
+        return { ok: false, reason: "cancelled" };
+      }
+      notify(formatError(error), "error");
       return { ok: false, reason: "no_auth" };
     }
-    auth = {
-      apiKey: resolved.apiKey,
-      headers: compactHeaders(resolved.headers),
-      env: resolved.env,
+
+    const thinkingLevel = target.thinkingLevel;
+    const generateTitle = async (previous?: TitleFailure): Promise<AutoRenameResult> => {
+      const stopProgress = ctx.hasUI
+        ? startAutoRenameProgressWidget(ctx, {
+            modelLabel: `${target.provider}/${target.modelId}`,
+            thinkingLabel: thinkingLevel,
+            sourceChars: conversationContext.length,
+          })
+        : () => {};
+      abortSlot.stopProgress = stopProgress;
+      try {
+        return await generateValidTitle({
+          model: model as Model<string>,
+          conversationContext,
+          thinkingLevel,
+          auth,
+          signal: abort.signal,
+          complete: options.complete,
+          previous,
+        });
+      } catch (error: unknown) {
+        return abort.signal.aborted
+          ? { ok: false, reason: "cancelled" }
+          : { ok: false, reason: formatError(error) };
+      } finally {
+        if (abortSlot.stopProgress === stopProgress) abortSlot.stopProgress = undefined;
+        stopProgress();
+      }
     };
-  } catch (error: unknown) {
-    if (abort.signal.aborted) {
-      notify("Cancelled", "info");
-      return { ok: false, reason: "cancelled" };
-    }
-    notify(formatError(error), "error");
-    return { ok: false, reason: "no_auth" };
-  }
 
-  const thinkingLevel = target.thinkingLevel;
-  const generateTitle = async (previous?: TitleFailure): Promise<AutoRenameResult> => {
-    const stopProgress = ctx.hasUI
-      ? startAutoRenameProgressWidget(ctx, {
-          modelLabel: `${target.provider}/${target.modelId}`,
-          thinkingLabel: thinkingLevel,
-          sourceChars: conversationContext.length,
-        })
-      : () => {};
-    abortSlot.stopProgress = stopProgress;
-    try {
-      return await generateValidTitle({
-        model: model as Model<string>,
-        conversationContext,
-        thinkingLevel,
-        auth,
-        signal: abort.signal,
-        complete: options.complete,
-        previous,
-      });
-    } catch (error: unknown) {
-      return abort.signal.aborted
-        ? { ok: false, reason: "cancelled" }
-        : { ok: false, reason: formatError(error) };
-    } finally {
-      if (abortSlot.stopProgress === stopProgress) abortSlot.stopProgress = undefined;
-      stopProgress();
-    }
-  };
+    let previous: TitleFailure | undefined;
+    for (;;) {
+      const result = await generateTitle(previous);
+      if (!result.ok) {
+        if (result.reason === "cancelled") notify("Cancelled", "info");
+        else notify(`Auto-rename failed: ${result.reason}`, "error");
+        return result;
+      }
 
-  let previous: TitleFailure | undefined;
-  for (;;) {
-    const result = await generateTitle(previous);
-    if (!result.ok) {
-      if (result.reason === "cancelled") notify("Cancelled", "info");
-      else notify(`Auto-rename failed: ${result.reason}`, "error");
+      const currentName = ctx.sessionManager.getSessionName();
+      if (currentName) {
+        // MixCode select shows title only; preview + question go in the title.
+        const choice = await ctx.ui.select(
+          `${currentName} -> ${result.title}\nOverwrite the current session title?`,
+          ["Yes", "No", "Regenerate"],
+        );
+        if (choice === "Regenerate") {
+          previous = {
+            raw: result.title,
+            error: "user rejected this title; generate a different one",
+          };
+          continue;
+        }
+        if (choice !== "Yes") {
+          notify("Kept existing title", "info");
+          return { ok: false, reason: "declined" };
+        }
+      }
+
+      options.setSessionName(result.title);
+      notify(`Session renamed: ${result.title}`, "info");
       return result;
     }
-
-    const currentName = ctx.sessionManager.getSessionName();
-    if (currentName) {
-      // MixCode select shows title only; preview + question go in the title.
-      const choice = await ctx.ui.select(
-        `${currentName} -> ${result.title}\nOverwrite the current session title?`,
-        ["Yes", "No", "Regenerate"],
-      );
-      if (choice === "Regenerate") {
-        previous = {
-          raw: result.title,
-          error: "user rejected this title; generate a different one",
-        };
-        continue;
-      }
-      if (choice !== "Yes") {
-        notify("Kept existing title", "info");
-        return { ok: false, reason: "declined" };
-      }
-    }
-
-    options.setSessionName(result.title);
-    notify(`Session renamed: ${result.title}`, "info");
-    return result;
-  }
   } finally {
     if (abortSlot.controller === abort) abortSlot.controller = undefined;
   }
@@ -739,7 +738,11 @@ const autoRename: ExtensionFactory = (pi) => {
     description: "Generate a kebab-case session title; config opens the settings list",
     getArgumentCompletions: (prefix: string) => {
       const items = [
-        { value: "config", label: "config", description: "Open settings list (model / thinking / first message / max context chars)" },
+        {
+          value: "config",
+          label: "config",
+          description: "Open settings list (model / thinking / first message / max context chars)",
+        },
       ];
       const filtered = items.filter((item) => item.value.startsWith(prefix));
       return filtered.length > 0 ? filtered : null;

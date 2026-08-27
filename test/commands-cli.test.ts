@@ -16,7 +16,10 @@ test("isCommandsCliArgs and parseCommandsArgs", () => {
   assert.equal(isCommandsCliArgs(["commands", "compact"]), true);
   assert.equal(isCommandsCliArgs(["ctl"]), false);
   assert.equal(parseCommandsArgs(["--json"], "/caller").json, true);
-  assert.equal(parseCommandsArgs(["--workdir", "./rel"], "/caller").workdir, path.resolve("/caller", "./rel"));
+  assert.equal(
+    parseCommandsArgs(["--workdir", "./rel"], "/caller").workdir,
+    path.resolve("/caller", "./rel"),
+  );
   assert.equal(parseCommandsArgs(["--help"], "/caller").help, true);
   assert.throws(() => parseCommandsArgs(["--nope"], "/caller"), /Unknown commands argument/);
   assert.throws(() => parseCommandsArgs(["compact"], "/caller"), /Unexpected argument/);
@@ -24,7 +27,10 @@ test("isCommandsCliArgs and parseCommandsArgs", () => {
 
 test("mergeCommandCatalog prefers local names and formats usage", () => {
   const catalog = mergeCommandCatalog({
-    local: [{ name: "compact", description: "Compact context" }, { name: "context-limit", description: "Set limit", argumentHint: "<tokens|reset>" }],
+    local: [
+      { name: "compact", description: "Compact context" },
+      { name: "context-limit", description: "Set limit", argumentHint: "<tokens|reset>" },
+    ],
     extension: [
       { name: "compact", description: "extension compact" },
       { name: "commands", description: "Browse commands", path: "/ext/command-browser.ts" },

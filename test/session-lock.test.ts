@@ -63,8 +63,7 @@ test("a dead owner's stale lock is reclaimed", async () => {
       processInfo: () => LIVE,
     }); // never released — simulates a crash
     // A new process sees pid 999 as dead and reclaims the lock.
-    const processInfo = (pid: number) =>
-      pid === 999 ? { alive: false } : LIVE;
+    const processInfo = (pid: number) => (pid === 999 ? { alive: false } : LIVE);
     const reclaimed = acquireSessionTurnLock(root, "s1", { pid: 200, processInfo });
     assert.throws(
       () => acquireSessionTurnLock(root, "s1", { pid: 300, processInfo }),

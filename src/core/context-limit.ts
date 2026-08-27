@@ -70,10 +70,7 @@ export function contextLimitPickerItems(modelContextWindow: number): PickerItem[
  * Apply a context limit value to a tab.
  * Shows appropriate toast feedback.
  */
-export function applyContextLimit(
-  tab: MixCodeTabInfo,
-  value: number | "reset",
-): void {
+export function applyContextLimit(tab: MixCodeTabInfo, value: number | "reset"): void {
   if (value === "reset") {
     tab.contextLimit = tab.model.contextWindow;
     tab.contextLimitOverridden = false;

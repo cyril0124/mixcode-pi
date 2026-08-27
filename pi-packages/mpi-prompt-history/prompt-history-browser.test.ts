@@ -15,10 +15,7 @@ test("Enter on empty filter stays open instead of closing", () => {
       requestRender: () => undefined,
     },
     theme: theme as never,
-    items: [
-      { text: "HISTORY-ITEM-ALPHA" },
-      { text: "HISTORY-ITEM-BETA" },
-    ],
+    items: [{ text: "HISTORY-ITEM-ALPHA" }, { text: "HISTORY-ITEM-BETA" }],
     done: (result) => results.push(result),
   });
 

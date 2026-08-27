@@ -18,10 +18,7 @@ import { clearPendingEscape } from "../core/escape.js";
 import { discardVimTranscriptSearch } from "../core/tabs.js";
 import { formatSessionTokens } from "../ui/components/session-info.js";
 import { syncWaitingForInput } from "./runtime-extension-custom.js";
-import {
-  currentExtensionTheme,
-  getActiveExtensionThemeId,
-} from "./runtime-extension-theme.js";
+import { currentExtensionTheme, getActiveExtensionThemeId } from "./runtime-extension-theme.js";
 import { applyMixCodeKeybindings } from "./runtime-pi-tui-bridge.js";
 import { NullTerminal } from "./runtime-null-terminal.js";
 import {
@@ -407,7 +404,10 @@ export function assistantText(
     .join("\n");
 }
 
-function userMessageTimestamp(messageTimestamp: unknown, entryTimestamp: string): number | undefined {
+function userMessageTimestamp(
+  messageTimestamp: unknown,
+  entryTimestamp: string,
+): number | undefined {
   if (typeof messageTimestamp === "number" && Number.isFinite(messageTimestamp)) {
     return messageTimestamp;
   }
@@ -427,9 +427,7 @@ function entryToChatLines(entry: SessionEntry, runtimeTab: RuntimeTab): ChatLine
     ];
   }
   if (entry.type === "branch_summary") {
-    return [
-      { role: "system", text: entry.summary, branchSummary: true },
-    ];
+    return [{ role: "system", text: entry.summary, branchSummary: true }];
   }
   if (entry.type === "custom_message") {
     const line = customMessageToChatLine(

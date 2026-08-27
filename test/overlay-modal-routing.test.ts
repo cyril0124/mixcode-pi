@@ -61,19 +61,55 @@ test("ctrl+u and ctrl+t fall through to a focused component overlay without touc
     const editor = createEditorActions();
 
     // Ctrl+U (dequeue/edit queued) must NOT fire behind the modal.
-    assert.equal(handleMixCodeKeyInput(state, "\x15", tui, undefined, undefined, undefined, () => false, editor.actions), undefined);
+    assert.equal(
+      handleMixCodeKeyInput(
+        state,
+        "\x15",
+        tui,
+        undefined,
+        undefined,
+        undefined,
+        () => false,
+        editor.actions,
+      ),
+      undefined,
+    );
     assert.equal(tab.pendingFollowUps.length, 1);
     assert.equal(editor.text(), "");
     assert.equal(tab.vimEnterArmedAt, undefined);
 
     // Ctrl+T must not open Tab Jump over the modal (stale routing flags).
-    assert.equal(handleMixCodeKeyInput(state, "\x14", tui, undefined, undefined, undefined, () => false, editor.actions), undefined);
+    assert.equal(
+      handleMixCodeKeyInput(
+        state,
+        "\x14",
+        tui,
+        undefined,
+        undefined,
+        undefined,
+        () => false,
+        editor.actions,
+      ),
+      undefined,
+    );
     assert.equal(state.tabJumpOpen, false);
     assert.equal(state.workspaceOverlay.open, true);
 
     // Negative control: once the overlay closes, the editor owns ctrl+u again.
     closeWorkspaceOverlay(state, tui);
-    assert.deepEqual(handleMixCodeKeyInput(state, "\x15", tui, undefined, undefined, undefined, () => false, editor.actions), { consume: true });
+    assert.deepEqual(
+      handleMixCodeKeyInput(
+        state,
+        "\x15",
+        tui,
+        undefined,
+        undefined,
+        undefined,
+        () => false,
+        editor.actions,
+      ),
+      { consume: true },
+    );
     assert.equal(tab.pendingFollowUps.length, 0);
     assert.equal(editor.text(), "queued steer message");
   } finally {

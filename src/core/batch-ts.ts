@@ -58,8 +58,9 @@ export async function runTsScript(
   scriptPath: string,
   context: BatchLuaContext = { workdir: "", tabs: [] },
 ): Promise<BatchPlan> {
-  const module: unknown = await withScriptPath(scriptPath, () =>
-    import(pathToFileURL(scriptPath).href),
+  const module: unknown = await withScriptPath(
+    scriptPath,
+    () => import(pathToFileURL(scriptPath).href),
   );
   const script = (module as { default?: unknown }).default;
   if (typeof script !== "function") {

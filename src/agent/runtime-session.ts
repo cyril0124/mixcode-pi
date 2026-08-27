@@ -11,10 +11,7 @@ import {
   type ExtensionManagerEntry,
   syncExtensionManagerEntrySources,
 } from "../core/extension-manager.js";
-import {
-  invalidateSessionCatalog,
-  listSessionsInBackground,
-} from "../core/session-catalog.js";
+import { invalidateSessionCatalog, listSessionsInBackground } from "../core/session-catalog.js";
 import { clearWaitingForInputs } from "./runtime-extension-custom.js";
 import { closeExtensionCustomOverlays, disposeExtensionWidgets } from "./runtime-extension-ui.js";
 import type { ExtensionCustomUiHost, RuntimeTab } from "./runtime-types.js";
@@ -115,9 +112,7 @@ export function findSessionFileByName(sessionsRoot: string, sessionId: string): 
   } catch {
     return undefined;
   }
-  const matches = entries
-    .filter((name) => sessionIdFromFileName(name) === sessionId)
-    .sort();
+  const matches = entries.filter((name) => sessionIdFromFileName(name) === sessionId).sort();
   const latest = matches.at(-1);
   return latest ? path.join(sessionsRoot, latest) : undefined;
 }

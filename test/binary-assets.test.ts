@@ -37,7 +37,9 @@ test("binary runtime assets are written for both upstream Bun and dist layouts",
       },
     });
 
-    const packageJson = JSON.parse(await fsPromises.readFile(path.join(runtimeDir, "package.json"), "utf8"));
+    const packageJson = JSON.parse(
+      await fsPromises.readFile(path.join(runtimeDir, "package.json"), "utf8"),
+    );
     assert.equal(packageJson.name, "mixcode-pi");
     assert.equal(packageJson.version, "1.2.3");
     assert.equal(packageJson.piConfig.preserved, true);
@@ -50,18 +52,36 @@ test("binary runtime assets are written for both upstream Bun and dist layouts",
       path.join(runtimeDir, "theme"),
       path.join(runtimeDir, "dist", "modes", "interactive", "theme"),
     ]) {
-      assert.equal(await fsPromises.readFile(path.join(themeDir, "dark.json"), "utf8"), JSON.stringify({ name: "dark" }));
-      assert.equal(await fsPromises.readFile(path.join(themeDir, "light.json"), "utf8"), JSON.stringify({ name: "light" }));
+      assert.equal(
+        await fsPromises.readFile(path.join(themeDir, "dark.json"), "utf8"),
+        JSON.stringify({ name: "dark" }),
+      );
+      assert.equal(
+        await fsPromises.readFile(path.join(themeDir, "light.json"), "utf8"),
+        JSON.stringify({ name: "light" }),
+      );
     }
 
     for (const exportHtmlDir of [
       path.join(runtimeDir, "export-html"),
       path.join(runtimeDir, "dist", "core", "export-html"),
     ]) {
-      assert.equal(await fsPromises.readFile(path.join(exportHtmlDir, "template.css"), "utf8"), "css");
-      assert.equal(await fsPromises.readFile(path.join(exportHtmlDir, "template.html"), "utf8"), "html");
-      assert.equal(await fsPromises.readFile(path.join(exportHtmlDir, "template.js"), "utf8"), "js");
-      assert.equal(await fsPromises.readFile(path.join(exportHtmlDir, "vendor", "marked.min.js"), "utf8"), "marked");
+      assert.equal(
+        await fsPromises.readFile(path.join(exportHtmlDir, "template.css"), "utf8"),
+        "css",
+      );
+      assert.equal(
+        await fsPromises.readFile(path.join(exportHtmlDir, "template.html"), "utf8"),
+        "html",
+      );
+      assert.equal(
+        await fsPromises.readFile(path.join(exportHtmlDir, "template.js"), "utf8"),
+        "js",
+      );
+      assert.equal(
+        await fsPromises.readFile(path.join(exportHtmlDir, "vendor", "marked.min.js"), "utf8"),
+        "marked",
+      );
       assert.equal(
         await fsPromises.readFile(path.join(exportHtmlDir, "vendor", "highlight.min.js"), "utf8"),
         "highlight",
@@ -73,16 +93,28 @@ test("binary runtime assets are written for both upstream Bun and dist layouts",
       path.join(runtimeDir, "dist", "modes", "interactive", "assets"),
     ]) {
       assert.equal((await fsPromises.stat(assetsDir)).isDirectory(), true);
-      assert.equal(await fsPromises.readFile(path.join(assetsDir, "clankolas.png"), "utf8"), "image-bytes");
+      assert.equal(
+        await fsPromises.readFile(path.join(assetsDir, "clankolas.png"), "utf8"),
+        "image-bytes",
+      );
     }
 
-    assert.equal(await fsPromises.readFile(path.join(runtimeDir, "photon_rs_bg.wasm"), "utf8"), "wasm-bytes");
+    assert.equal(
+      await fsPromises.readFile(path.join(runtimeDir, "photon_rs_bg.wasm"), "utf8"),
+      "wasm-bytes",
+    );
 
     // Built-in packages: nested-path files (e.g. "state/store.ts") must land in
     // their subdirectory, not flattened.
     const pkgDir = path.join(runtimeDir, "packages", "mpi-example");
-    assert.equal(await fsPromises.readFile(path.join(pkgDir, "index.ts"), "utf8"), "export default () => {};");
-    assert.equal(await fsPromises.readFile(path.join(pkgDir, "state", "store.ts"), "utf8"), "export const x = 1;");
+    assert.equal(
+      await fsPromises.readFile(path.join(pkgDir, "index.ts"), "utf8"),
+      "export default () => {};",
+    );
+    assert.equal(
+      await fsPromises.readFile(path.join(pkgDir, "state", "store.ts"), "utf8"),
+      "export const x = 1;",
+    );
   } finally {
     await fsPromises.rm(runtimeDir, { recursive: true, force: true });
   }
@@ -119,7 +151,10 @@ test("binary runtime built-in packages are installed as Pi extensions", async ()
     ensurePackageExtensions(runtimeDir);
 
     assert.equal(
-      await fsPromises.readFile(path.join(homeDir, ".pi", "agent", "extensions", "probe-extension", "index.ts"), "utf8"),
+      await fsPromises.readFile(
+        path.join(homeDir, ".pi", "agent", "extensions", "probe-extension", "index.ts"),
+        "utf8",
+      ),
       "export default () => {};",
     );
   } finally {
@@ -138,7 +173,12 @@ test("ensurePackageExtensions prunes renamed built-ins but keeps third-party ext
     await fsPromises.mkdir(dir, { recursive: true });
     await fsPromises.writeFile(
       path.join(dir, "package.json"),
-      JSON.stringify({ name, version: "0.0.0", type: "module", pi: { extensions: ["./index.ts"] } }),
+      JSON.stringify({
+        name,
+        version: "0.0.0",
+        type: "module",
+        pi: { extensions: ["./index.ts"] },
+      }),
       "utf8",
     );
     await fsPromises.writeFile(path.join(dir, "index.ts"), "export default 0;\n", "utf8");
@@ -172,7 +212,9 @@ test("ensurePackageExtensions prunes renamed built-ins but keeps third-party ext
 test("ensurePackageExtensions uses the same hash sync for source and binary package roots", async () => {
   for (const packageRootName of ["pi-packages", "packages"]) {
     const rootDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), `mixcode-${packageRootName}-`));
-    const agentDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), `mixcode-${packageRootName}-agent-`));
+    const agentDir = await fsPromises.mkdtemp(
+      path.join(os.tmpdir(), `mixcode-${packageRootName}-agent-`),
+    );
     const packageName = `probe-${packageRootName}`;
     const packageDir = path.join(rootDir, packageRootName, packageName);
     try {
@@ -235,7 +277,10 @@ test("ensurePackageExtensions leaves no success hash after a failed sync", async
     await fsPromises.chmod(extensionsDir, 0o500);
 
     assert.throws(() => ensurePackageExtensions(rootDir, { agentDir }), /EACCES|EPERM/);
-    await assert.rejects(fsPromises.stat(path.join(installedDir, ".mixcode-package-hash")), /ENOENT/);
+    await assert.rejects(
+      fsPromises.stat(path.join(installedDir, ".mixcode-package-hash")),
+      /ENOENT/,
+    );
 
     await fsPromises.chmod(extensionsDir, 0o700);
     ensurePackageExtensions(rootDir, { agentDir });
@@ -284,10 +329,15 @@ test("ensurePackageExtensions installs under the given agentDir, not global home
 
     // Installed under the effective agentDir/extensions ...
     assert.equal(
-      await fsPromises.readFile(path.join(agentDir, "extensions", "probe-extension", "index.ts"), "utf8"),
+      await fsPromises.readFile(
+        path.join(agentDir, "extensions", "probe-extension", "index.ts"),
+        "utf8",
+      ),
       "export default () => {};",
     );
-    assert.deepEqual(installedExtensionPaths, [path.join(agentDir, "extensions", "probe-extension")]);
+    assert.deepEqual(installedExtensionPaths, [
+      path.join(agentDir, "extensions", "probe-extension"),
+    ]);
     await assert.rejects(fsPromises.stat(path.join(agentDir, "skills", "probe-skill")), /ENOENT/);
 
     // ... and NOT under the default global home root.

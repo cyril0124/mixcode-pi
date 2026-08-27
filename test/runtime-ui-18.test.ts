@@ -4,10 +4,7 @@ import * as fsPromises from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import { test } from "node:test";
-import {
-  MixCodeRuntime,
-  createTab,
-} from "./helpers/mixcode.js";
+import { MixCodeRuntime, createTab } from "./helpers/mixcode.js";
 
 test("runtime surfaces assistant error and abort stop reasons", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-stop-reasons-"));

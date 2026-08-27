@@ -1,11 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { visibleWidth } from "@earendil-works/pi-tui";
-import {
-  MixCodeFooterRoot,
-  MixCodeLayoutRoot,
-  MixCodeRoot,
-} from "../src/ui/app-layout.js";
+import { MixCodeFooterRoot, MixCodeLayoutRoot, MixCodeRoot } from "../src/ui/app-layout.js";
 import type { EditorSlot } from "../src/ui/app-editor.js";
 import { renderExtensionFooter } from "../src/ui/rendering.js";
 import { createInitialState, createTab } from "../src/core/defaults.js";
@@ -39,11 +35,8 @@ function buildLayout(viewportRows: number, width = 80) {
     state,
     runtime,
     () => viewportRows,
-    () =>
-      editorRows +
-      metaRows +
-      renderExtensionFooter(getActiveTab(state), width).length
-    );
+    () => editorRows + metaRows + renderExtensionFooter(getActiveTab(state), width).length,
+  );
   const editor = fakeEditor(["editor-line-0", "editor-line-1"]);
   const layout = new MixCodeLayoutRoot(
     state,

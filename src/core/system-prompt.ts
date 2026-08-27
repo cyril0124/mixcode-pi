@@ -51,9 +51,10 @@ export interface SystemPromptSection {
  * (tool snippets/guidelines, appendSystemPrompt, skills, context files) all
  * flow through these options and are therefore accounted for.
  */
-export function buildMixCodeSystemPromptSections(
-  options: MixCodeSystemPromptPartsOptions,
-): { prompt: string; sections: SystemPromptSection[] } {
+export function buildMixCodeSystemPromptSections(options: MixCodeSystemPromptPartsOptions): {
+  prompt: string;
+  sections: SystemPromptSection[];
+} {
   const {
     customPrompt,
     selectedTools,
@@ -211,7 +212,10 @@ function findPiPackageDir(): string | undefined {
   candidates.push(path.join(process.cwd(), "node_modules", "@earendil-works", "pi-coding-agent"));
 
   for (const dir of candidates) {
-    if (existsSync(path.join(dir, "docs", "index.md")) && existsSync(path.join(dir, "package.json"))) {
+    if (
+      existsSync(path.join(dir, "docs", "index.md")) &&
+      existsSync(path.join(dir, "package.json"))
+    ) {
       return dir;
     }
   }
@@ -245,7 +249,9 @@ function buildDocsSection(): string {
 
     if (existsSync(piReadme)) lines.push(`- Pi overview: ${piReadme}`);
     if (existsSync(path.join(piDocs, "index.md"))) {
-      lines.push(`- Pi docs: ${piDocs} (extensions, skills, themes, TUI, SDK, keybindings, models)`);
+      lines.push(
+        `- Pi docs: ${piDocs} (extensions, skills, themes, TUI, SDK, keybindings, models)`,
+      );
     }
     if (existsSync(piExamples)) {
       lines.push(`- Pi examples: ${piExamples} (extensions, custom tools, SDK)`);

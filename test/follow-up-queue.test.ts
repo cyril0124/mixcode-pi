@@ -94,15 +94,30 @@ function streamMessage(message: AssistantMessage, options?: SimpleStreamOptions)
     const firstContent = message.content[0];
     if (firstContent?.type === "toolCall") {
       stream.push({ type: "toolcall_start", contentIndex: 0, partial: message });
-      stream.push({ type: "toolcall_end", contentIndex: 0, toolCall: firstContent, partial: message });
+      stream.push({
+        type: "toolcall_end",
+        contentIndex: 0,
+        toolCall: firstContent,
+        partial: message,
+      });
     } else if (firstContent?.type === "text") {
       stream.push({
         type: "text_start",
         contentIndex: 0,
         partial: { ...message, content: [{ type: "text", text: "" }] },
       });
-      stream.push({ type: "text_delta", contentIndex: 0, delta: firstContent.text, partial: message });
-      stream.push({ type: "text_end", contentIndex: 0, content: firstContent.text, partial: message });
+      stream.push({
+        type: "text_delta",
+        contentIndex: 0,
+        delta: firstContent.text,
+        partial: message,
+      });
+      stream.push({
+        type: "text_end",
+        contentIndex: 0,
+        content: firstContent.text,
+        partial: message,
+      });
     }
     stream.push({
       type: "done",

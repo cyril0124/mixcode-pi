@@ -1,10 +1,7 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import {
-  MixCodeRuntime,
-  createTab,
-} from "./helpers/mixcode.js";
+import { MixCodeRuntime, createTab } from "./helpers/mixcode.js";
 
 test("runtime maps tool and thinking events into tab UI state", async () => {
   const runtime = new MixCodeRuntime();
@@ -65,18 +62,18 @@ test("runtime maps tool and thinking events into tab UI state", async () => {
   assert.equal(tab.thinkingLevel, "high");
   // Compaction progress and in-flight retry countdown use the working loader
   // (Pi StatusIndicator), not chat lines. Only terminal failures stay in chat.
-  assert.ok(
-    !runtimeTab.chat.some((line) => line.text.includes("Compaction started")),
-  );
-  assert.ok(
-    !runtimeTab.chat.some((line) => line.text.includes("Error: Retry 2/3")),
-  );
+  assert.ok(!runtimeTab.chat.some((line) => line.text.includes("Compaction started")));
+  assert.ok(!runtimeTab.chat.some((line) => line.text.includes("Error: Retry 2/3")));
   assert.ok(
     runtimeTab.chat.some((line) => line.text.includes("Compaction failed: compact failed")),
   );
-  assert.ok(runtimeTab.chat.some((line) => line.text.includes("Error: Retry failed: unknown error")));
   assert.ok(
-    runtimeTab.chat.some((line) => line.text.includes("Error: Retry failed: provider exhausted retries")),
+    runtimeTab.chat.some((line) => line.text.includes("Error: Retry failed: unknown error")),
+  );
+  assert.ok(
+    runtimeTab.chat.some((line) =>
+      line.text.includes("Error: Retry failed: provider exhausted retries"),
+    ),
   );
   anyRuntime.applyEvent(runtimeTab, {
     type: "message_update",

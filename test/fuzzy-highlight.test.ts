@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { stripTerminalSequences as stripAnsi } from "@earendil-works/pi-tui";
-import { fuzzyMatchAllPositions, fuzzyMatchPositions, substringMatchPositions } from "../src/core/fuzzy.js";
+import {
+  fuzzyMatchAllPositions,
+  fuzzyMatchPositions,
+  substringMatchPositions,
+} from "../src/core/fuzzy.js";
 import {
   createInitialState,
   createPicker,
@@ -53,7 +57,10 @@ test("highlightRanges groups consecutive positions into one styled span and leav
   );
   assert.equal(result, "[a]<bc>[d]<e>[f]");
   // Default styleRest is the identity function.
-  assert.equal(highlightRanges("abc", [], (s) => `<${s}>`), "abc");
+  assert.equal(
+    highlightRanges("abc", [], (s) => `<${s}>`),
+    "abc",
+  );
 });
 
 test("command palette highlights matched query characters in label and command columns only", () => {

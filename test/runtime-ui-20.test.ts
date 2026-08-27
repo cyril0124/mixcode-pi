@@ -104,7 +104,10 @@ async function waitFor(predicate: () => boolean, attempts = 25): Promise<void> {
 
 let blockedRuntimeSequence = 0;
 
-function createBlockedRuntime(sessionsRoot?: string, initialOptions: { getApiKey?: () => string } = {}) {
+function createBlockedRuntime(
+  sessionsRoot?: string,
+  initialOptions: { getApiKey?: () => string } = {},
+) {
   let release!: () => void;
   const ready = new Promise<void>((resolve) => {
     release = resolve;
@@ -179,7 +182,11 @@ test("runtime restores a session whose filename id differs from its header id", 
         },
       },
     ];
-    await fsPromises.writeFile(sessionFile, `${entries.map((e) => JSON.stringify(e)).join("\n")}\n`, "utf8");
+    await fsPromises.writeFile(
+      sessionFile,
+      `${entries.map((e) => JSON.stringify(e)).join("\n")}\n`,
+      "utf8",
+    );
 
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     const restored = await runtime.createTab(createTab(1, "session-12345", workdir), {
@@ -533,9 +540,11 @@ test("runtime updates workdir, system prompt, and tool closures", async () => {
     const result = await readTool.execute("call-1", { path: "marker.txt" });
     assert.deepEqual(result.content, [{ type: "text", text: "new" }]);
 
-    const { runtime: busyRuntime, release, model: busyModel } = createBlockedRuntime(
-      path.join(dir, "busy-sessions"),
-    );
+    const {
+      runtime: busyRuntime,
+      release,
+      model: busyModel,
+    } = createBlockedRuntime(path.join(dir, "busy-sessions"));
     const busyTab = createTab(1, "busy", newDir);
     await busyRuntime.createTab(busyTab, {
       systemPrompt: "system",

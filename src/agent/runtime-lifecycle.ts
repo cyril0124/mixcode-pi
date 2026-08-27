@@ -153,9 +153,7 @@ export async function createRuntimeTab(
   context: RuntimeLifecycleContext,
 ): Promise<RuntimeTab> {
   // Caller omitted model: use the session's last model, then tab.model.
-  const model = config.model
-    ? config.model
-    : context.resolveModelFromSession(session, tab.model);
+  const model = config.model ? config.model : context.resolveModelFromSession(session, tab.model);
   const reusedServices = config.reuseServices;
   // Reload extensions on reused services so this tab gets a fresh
   // extensionsResult (fresh runtime + fresh pi closures). Without this, the
@@ -337,11 +335,7 @@ async function createAgentSessionForReplacementWithServices(
     thinkingLevel: config.thinkingLevel,
     sessionStartEvent: config.sessionStartEvent,
     scopedModels: mixcodeScopedModels(services.modelRuntime),
-    customTools: mixcodeBashCustomTools(
-      services,
-      config.getTabTitle ?? (() => ""),
-      context,
-    ),
+    customTools: mixcodeBashCustomTools(services, config.getTabTitle ?? (() => ""), context),
   });
   activateMixCodeTools(result.session);
   applyMixCodeSystemPrompt(result.session, cachedSearchTools);
@@ -375,10 +369,7 @@ export function disposeRuntimeTabAfterShutdown(
 }
 
 /** Map key for a RuntimeTab — identity first, then tab.sessionId fallback. */
-function mapKeyForRuntimeTab(
-  tabs: Map<string, RuntimeTab>,
-  runtimeTab: RuntimeTab,
-): string {
+function mapKeyForRuntimeTab(tabs: Map<string, RuntimeTab>, runtimeTab: RuntimeTab): string {
   for (const [key, value] of tabs) {
     if (value === runtimeTab) return key;
   }
@@ -398,12 +389,7 @@ export async function replaceRuntimeTabSession(
   runtimeTab.replaceLock = replaceLock;
   await previousLock.catch(() => undefined);
   try {
-    return await replaceRuntimeTabSessionUnlocked(
-      runtimeTab,
-      sessionManager,
-      reason,
-      context,
-    );
+    return await replaceRuntimeTabSessionUnlocked(runtimeTab, sessionManager, reason, context);
   } finally {
     releaseLock();
   }
@@ -557,7 +543,10 @@ export async function createRuntimeServices(
         skills: overridden.skills.filter((skill) => {
           if (skill.sourceInfo?.scope === "user") return false;
           const skillPath = path.resolve(skill.filePath);
-          return skillPath === normalizedWorkdir || skillPath.startsWith(`${normalizedWorkdir}${path.sep}`);
+          return (
+            skillPath === normalizedWorkdir ||
+            skillPath.startsWith(`${normalizedWorkdir}${path.sep}`)
+          );
         }),
       };
     },
@@ -708,11 +697,7 @@ export async function updateRuntimeTabWorkdir(
     { type: "session_shutdown", reason: "reload" },
     context.getExtensionUiHost(),
   );
-  const sessionManager = await reopenSessionInWorkdir(
-    runtimeTab.session,
-    workdir,
-    sessionsRoot,
-  );
+  const sessionManager = await reopenSessionInWorkdir(runtimeTab.session, workdir, sessionsRoot);
   const { session: agentSession } = await createAgentSessionFromServices({
     services,
     sessionManager,
@@ -735,7 +720,10 @@ export async function updateRuntimeTabWorkdir(
   refreshStartupHeader(runtimeTab);
 }
 
-export function subscribeRuntimeTab(runtimeTab: RuntimeTab, context: RuntimeLifecycleContext): void {
+export function subscribeRuntimeTab(
+  runtimeTab: RuntimeTab,
+  context: RuntimeLifecycleContext,
+): void {
   runtimeTab.agentSession.subscribe((event: AgentSessionEvent) => {
     context.applyEvent(runtimeTab, event);
     if (event.type === "agent_end") {

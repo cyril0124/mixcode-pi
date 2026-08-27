@@ -25,9 +25,7 @@ function fakeRuntimeTab(settingsManager: SettingsManager): RuntimeTab {
       _theme: unknown,
       context: { showImages: boolean },
     ) => ({
-      render: () => [
-        `result showImages=${context.showImages} expanded=${options.expanded}`,
-      ],
+      render: () => [`result showImages=${context.showImages} expanded=${options.expanded}`],
     }),
   };
   return {
@@ -55,11 +53,7 @@ test("running tool rows always mark ToolExecutionComponent execution started", (
       _args: unknown,
       _theme: unknown,
       context: { executionStarted: boolean; isPartial: boolean },
-    ) => new Text(
-      `started=${context.executionStarted} partial=${context.isPartial}`,
-      0,
-      0,
-    ),
+    ) => new Text(`started=${context.executionStarted} partial=${context.isPartial}`, 0, 0),
   };
   const runtimeTab = {
     chat: [],

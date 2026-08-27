@@ -36,7 +36,9 @@ export type ModelExtensionsConfig = {
 };
 
 /** Effective enabled flag (missing → true). */
-export function isModelExtensionsEnabled(config: ModelExtensionsConfig | null | undefined): boolean {
+export function isModelExtensionsEnabled(
+  config: ModelExtensionsConfig | null | undefined,
+): boolean {
   if (!config) return true;
   return config.enabled !== false;
 }
@@ -143,7 +145,9 @@ export function isPathRef(ref: string): boolean {
 }
 
 /** Expand `~`, `${VAR}`, and `$VAR`. Unknown vars → error (caller skips that add). */
-export function expandEnvPath(input: string): { ok: true; path: string } | { ok: false; error: string } {
+export function expandEnvPath(
+  input: string,
+): { ok: true; path: string } | { ok: false; error: string } {
   let s = input;
   if (s === "~") {
     s = os.homedir();
@@ -164,7 +168,10 @@ export function expandEnvPath(input: string): { ok: true; path: string } | { ok:
   });
 
   if (missing.length > 0) {
-    return { ok: false, error: `unknown environment variable(s): ${[...new Set(missing)].join(", ")}` };
+    return {
+      ok: false,
+      error: `unknown environment variable(s): ${[...new Set(missing)].join(", ")}`,
+    };
   }
 
   if (!path.isAbsolute(s)) {
@@ -274,7 +281,9 @@ export function parseModelExtensionsConfig(
 }
 
 /** On-disk shape: schemaRef goes back under its `$schema` key, first. */
-export function serializeModelExtensionsConfig(config: ModelExtensionsConfig): Record<string, unknown> {
+export function serializeModelExtensionsConfig(
+  config: ModelExtensionsConfig,
+): Record<string, unknown> {
   const { schemaRef, ...fields } = config;
   return { ...(schemaRef !== undefined ? { $schema: schemaRef } : {}), ...fields };
 }
@@ -283,7 +292,9 @@ export function serializeModelExtensionsConfig(config: ModelExtensionsConfig): R
 export function setModelExtensionsEnabled(
   agentDir: string,
   enabled: boolean,
-): { ok: true; config: ModelExtensionsConfig; path: string } | { ok: false; path: string; error: string } {
+):
+  | { ok: true; config: ModelExtensionsConfig; path: string }
+  | { ok: false; path: string; error: string } {
   const filePath = modelExtensionsConfigPath(agentDir);
   const current = loadModelExtensionsConfig(agentDir);
   if (!current.ok) {
@@ -294,7 +305,11 @@ export function setModelExtensionsEnabled(
       ? { enabled, rules: [] }
       : { ...current.config!, enabled };
   try {
-    fs.writeFileSync(filePath, `${JSON.stringify(serializeModelExtensionsConfig(config), null, 2)}\n`, "utf8");
+    fs.writeFileSync(
+      filePath,
+      `${JSON.stringify(serializeModelExtensionsConfig(config), null, 2)}\n`,
+      "utf8",
+    );
     return { ok: true, config, path: filePath };
   } catch (err) {
     return { ok: false, path: filePath, error: err instanceof Error ? err.message : String(err) };

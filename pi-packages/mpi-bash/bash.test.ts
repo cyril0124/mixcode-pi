@@ -40,7 +40,10 @@ function collector() {
   };
 }
 
-function operations(foregroundSeconds: number, onDetachedExit: (run: DetachedRun) => void = () => {}) {
+function operations(
+  foregroundSeconds: number,
+  onDetachedExit: (run: DetachedRun) => void = () => {},
+) {
   return createDetachingBashOperations({
     shellPath: undefined,
     foregroundSeconds,
@@ -102,7 +105,10 @@ test("/bash-jobs lists this session's runs and opens the full log", async () => 
         handlers[event] ??= [];
         handlers[event].push(handler);
       },
-      registerCommand: (name: string, options: { handler: (args: string, ctx: unknown) => Promise<void> }) => {
+      registerCommand: (
+        name: string,
+        options: { handler: (args: string, ctx: unknown) => Promise<void> },
+      ) => {
         commands[name] = options.handler;
       },
       registerTool: (tool: BashTool) => {
@@ -152,7 +158,11 @@ test("/bash-jobs lists this session's runs and opens the full log", async () => 
     assert.match(finished, /early/);
     assert.match(finished, /late/);
 
-    assert.match(finished, new RegExp(logPath.split("/").pop() ?? ""), "the pager must name the log");
+    assert.match(
+      finished,
+      new RegExp(logPath.split("/").pop() ?? ""),
+      "the pager must name the log",
+    );
     assert.equal(
       fs.readFileSync(logPath, "utf8"),
       '# Command: printf "early\\n"; sleep 1; printf "late\\n"\n# ---\nearly\nlate\n',
@@ -217,7 +227,10 @@ test("the pager follows a live log and leaves a finished one alone", async () =>
         handlers[event] ??= [];
         handlers[event].push(handler);
       },
-      registerCommand: (name: string, options: { handler: (args: string, ctx: unknown) => Promise<void> }) => {
+      registerCommand: (
+        name: string,
+        options: { handler: (args: string, ctx: unknown) => Promise<void> },
+      ) => {
         commands[name] = options.handler;
       },
       registerTool: (tool: BashTool) => {
@@ -236,7 +249,9 @@ test("the pager follows a live log and leaves a finished one alone", async () =>
     assert.ok(logPath, `the detach notice must name the log: ${started?.content[0]?.text}`);
 
     void commands["bash-jobs"]?.("", { ui });
-    await waitFor(() => (screen().includes("alpha\n") || screen().includes("3  alpha") ? true : undefined));
+    await waitFor(() =>
+      screen().includes("alpha\n") || screen().includes("3  alpha") ? true : undefined,
+    );
     assert.doesNotMatch(screen(), /\b[34] {2}beta/, "the command has not printed it yet");
 
     // The command keeps writing; the pager must pick it up on its own.
@@ -329,7 +344,10 @@ test("foreground window rejects a malformed value instead of defaulting", () => 
 test("/bash-jobs rows line up in columns and stay unique per run", () => {
   const now = 100_000;
   const rows = [
-    formatRunChoice({ id: 111, command: "bun run check", startedAt: now - 8_000, logPath: "/tmp/a.log" }, now),
+    formatRunChoice(
+      { id: 111, command: "bun run check", startedAt: now - 8_000, logPath: "/tmp/a.log" },
+      now,
+    ),
     formatRunChoice({
       id: 222,
       command: "bun run check",
@@ -366,7 +384,12 @@ test("the widget spends one line per run at any width", () => {
     bold: (text: string) => text,
   } as unknown as Parameters<typeof renderBackgroundWidget>[1];
   const runs = [
-    { id: 1, command: `printf "${"x".repeat(200)}"`, startedAt: now - 5_000, logPath: "/tmp/a.log" },
+    {
+      id: 1,
+      command: `printf "${"x".repeat(200)}"`,
+      startedAt: now - 5_000,
+      logPath: "/tmp/a.log",
+    },
     { id: 2, command: "bun run check", startedAt: now - 72_000, logPath: "/tmp/b.log" },
   ];
 
@@ -376,11 +399,7 @@ test("the widget spends one line per run at any width", () => {
   // its height and push the transcript up.
   for (const width of [30, 40, 80, 200]) {
     const lines = renderBackgroundWidget(runs, theme, width, now);
-    assert.equal(
-      lines.length,
-      runs.length + 1,
-      `width ${width} wrapped: ${JSON.stringify(lines)}`,
-    );
+    assert.equal(lines.length, runs.length + 1, `width ${width} wrapped: ${JSON.stringify(lines)}`);
     assert.ok(
       lines.every((line) => visibleWidth(line) <= width),
       `width ${width} overflowed: ${JSON.stringify(lines)}`,
@@ -515,7 +534,10 @@ test("a command outliving the window detaches, then reports its exit code out of
   );
 
   assert.equal(result.exitCode, 0);
-  assert.ok(Date.now() - started < 900, "the tool call must return at the window, not at command end");
+  assert.ok(
+    Date.now() - started < 900,
+    "the tool call must return at the window, not at command end",
+  );
   assert.match(output.text(), /^before\n/);
   assert.match(output.text(), /detached to the background \(pid \d+\)/);
   // The command's shell is a process-group leader, so the advertised stop
@@ -530,7 +552,7 @@ test("a command outliving the window detaches, then reports its exit code out of
   assert.doesNotMatch(output.text(), /^after$/m);
   // The log is the one place the whole command can be read: the tool result
   // stops at detach, so the log must also carry what was already streamed.
-    assert.equal(
+  assert.equal(
     fs.readFileSync(run.logPath, "utf8"),
     '# Command: printf "before\\n"; sleep 1; printf "after\\n"\n# ---\nbefore\nafter\n',
   );
@@ -790,9 +812,14 @@ test("the registered bash tool detaches, shows the widget, and reports by starti
     assert.doesNotMatch(shown, /extension bash-detached-exit|Complete output/);
     assert.equal(widgets.at(-1), undefined, "the widget must clear with the last run");
 
-    const logPath = /Complete output \(foreground and background\): (\S+)/.exec(notice.content)?.[1];
+    const logPath = /Complete output \(foreground and background\): (\S+)/.exec(
+      notice.content,
+    )?.[1];
     assert.ok(logPath, `the notice must name the complete log: ${notice.content}`);
-    assert.equal(fs.readFileSync(logPath, "utf8"), '# Command: sleep 1; printf "late\\n"\n# ---\nlate\n');
+    assert.equal(
+      fs.readFileSync(logPath, "utf8"),
+      '# Command: sleep 1; printf "late\\n"\n# ---\nlate\n',
+    );
     fs.rmSync(logPath, { force: true });
   } finally {
     if (previousWindow === undefined) delete process.env.MPI_BASH_FOREGROUND_SECONDS;

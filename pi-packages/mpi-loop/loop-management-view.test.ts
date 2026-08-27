@@ -34,23 +34,29 @@ function loop(overrides: Partial<LoopViewEntry> = {}): LoopViewEntry {
 }
 
 function createView(entries: LoopViewEntry[]) {
-  return new LoopManagementView(theme, () => {}, () => {}, () => 12, {
-    getLoops: () => entries,
-    fire: () => {},
-    setMode: (id, mode) => {
-      const entry = entries.find((item) => item.id === id);
-      if (entry) {
-        entry.mode = mode;
-        if (mode === "skip") entry.pending = false;
-      }
+  return new LoopManagementView(
+    theme,
+    () => {},
+    () => {},
+    () => 12,
+    {
+      getLoops: () => entries,
+      fire: () => {},
+      setMode: (id, mode) => {
+        const entry = entries.find((item) => item.id === id);
+        if (entry) {
+          entry.mode = mode;
+          if (mode === "skip") entry.pending = false;
+        }
+      },
+      setMaxFireCount: (id, maxFireCount) => {
+        const entry = entries.find((item) => item.id === id);
+        if (entry) entry.maxFireCount = maxFireCount;
+      },
+      remove: () => {},
+      clear: () => {},
     },
-    setMaxFireCount: (id, maxFireCount) => {
-      const entry = entries.find((item) => item.id === id);
-      if (entry) entry.maxFireCount = maxFireCount;
-    },
-    remove: () => {},
-    clear: () => {},
-  });
+  );
 }
 
 test("Enter opens a detail view that preserves the complete multiline prompt", () => {
@@ -69,14 +75,20 @@ test("Enter opens a detail view that preserves the complete multiline prompt", (
 
 test("detail scrolling reaches every part of a long prompt", () => {
   const prompt = Array.from({ length: 20 }, (_, index) => `Line ${index + 1}`).join("\n");
-  const view = new LoopManagementView(theme, () => {}, () => {}, () => 8, {
-    getLoops: () => [loop({ prompt })],
-    fire: () => {},
-    setMode: () => {},
-    setMaxFireCount: () => {},
-    remove: () => {},
-    clear: () => {},
-  });
+  const view = new LoopManagementView(
+    theme,
+    () => {},
+    () => {},
+    () => 8,
+    {
+      getLoops: () => [loop({ prompt })],
+      fire: () => {},
+      setMode: () => {},
+      setMaxFireCount: () => {},
+      remove: () => {},
+      clear: () => {},
+    },
+  );
 
   view.handleInput(ENTER);
   assert.match(view.render(60).join("\n"), /Lines 1-5\/20/);
@@ -103,14 +115,20 @@ test("Enter opens details and f fires the prompt then closes", () => {
   const fired: string[] = [];
   let closed = 0;
   const entry = loop();
-  const view = new LoopManagementView(theme, () => {}, () => closed++, () => 12, {
-    getLoops: () => [entry],
-    fire: (prompt) => fired.push(prompt),
-    setMode: () => {},
-    setMaxFireCount: () => {},
-    remove: () => {},
-    clear: () => {},
-  });
+  const view = new LoopManagementView(
+    theme,
+    () => {},
+    () => closed++,
+    () => 12,
+    {
+      getLoops: () => [entry],
+      fire: (prompt) => fired.push(prompt),
+      setMode: () => {},
+      setMaxFireCount: () => {},
+      remove: () => {},
+      clear: () => {},
+    },
+  );
 
   view.handleInput(ENTER);
   assert.match(view.render(60).join("\n"), /┌ Loop 1 /);
@@ -125,18 +143,24 @@ test("Enter opens details and f fires the prompt then closes", () => {
 test("m toggles conflict mode in detail and clears pending on skip", () => {
   const entry = loop({ mode: "defer", pending: true });
   const modes: string[] = [];
-  const view = new LoopManagementView(theme, () => {}, () => {}, () => 12, {
-    getLoops: () => [entry],
-    fire: () => {},
-    setMode: (id, mode) => {
-      modes.push(`${id}:${mode}`);
-      entry.mode = mode;
-      if (mode === "skip") entry.pending = false;
+  const view = new LoopManagementView(
+    theme,
+    () => {},
+    () => {},
+    () => 12,
+    {
+      getLoops: () => [entry],
+      fire: () => {},
+      setMode: (id, mode) => {
+        modes.push(`${id}:${mode}`);
+        entry.mode = mode;
+        if (mode === "skip") entry.pending = false;
+      },
+      setMaxFireCount: () => {},
+      remove: () => {},
+      clear: () => {},
     },
-    setMaxFireCount: () => {},
-    remove: () => {},
-    clear: () => {},
-  });
+  );
 
   view.handleInput(ENTER);
   assert.match(view.render(60).join("\n"), /Mode: defer \(pending\)/);
@@ -173,14 +197,20 @@ test("f fires directly from the list", () => {
   const fired: string[] = [];
   let closed = 0;
   const entry = loop();
-  const view = new LoopManagementView(theme, () => {}, () => closed++, () => 12, {
-    getLoops: () => [entry],
-    fire: (prompt) => fired.push(prompt),
-    setMode: () => {},
-    setMaxFireCount: () => {},
-    remove: () => {},
-    clear: () => {},
-  });
+  const view = new LoopManagementView(
+    theme,
+    () => {},
+    () => closed++,
+    () => 12,
+    {
+      getLoops: () => [entry],
+      fire: (prompt) => fired.push(prompt),
+      setMode: () => {},
+      setMaxFireCount: () => {},
+      remove: () => {},
+      clear: () => {},
+    },
+  );
 
   view.handleInput("f");
 
@@ -226,16 +256,22 @@ test("deleting from details returns to the neighboring loop", () => {
     loop({ id: "2", name: "beta", prompt: "beta prompt" }),
     loop({ id: "3", name: "gamma", prompt: "gamma prompt" }),
   ];
-  const view = new LoopManagementView(theme, () => {}, () => {}, () => 12, {
-    getLoops: () => entries,
-    fire: () => {},
-    setMode: () => {},
-    setMaxFireCount: () => {},
-    remove: (id) => {
-      entries = entries.filter((entry) => entry.id !== id);
+  const view = new LoopManagementView(
+    theme,
+    () => {},
+    () => {},
+    () => 12,
+    {
+      getLoops: () => entries,
+      fire: () => {},
+      setMode: () => {},
+      setMaxFireCount: () => {},
+      remove: (id) => {
+        entries = entries.filter((entry) => entry.id !== id);
+      },
+      clear: () => {},
     },
-    clear: () => {},
-  });
+  );
 
   view.handleInput(DOWN);
   view.handleInput(ENTER);

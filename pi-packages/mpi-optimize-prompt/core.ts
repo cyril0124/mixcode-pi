@@ -109,7 +109,9 @@ export function resolveOptimizeTarget(
   return { provider, modelId, thinkingLevel };
 }
 
-export function resolveOptimizeSystemPrompt(config?: Pick<OptimizePromptConfig, "systemPrompt">): string {
+export function resolveOptimizeSystemPrompt(
+  config?: Pick<OptimizePromptConfig, "systemPrompt">,
+): string {
   const custom = config?.systemPrompt?.trim();
   return custom || DEFAULT_OPTIMIZE_SYSTEM_PROMPT;
 }
@@ -169,7 +171,9 @@ export function extractOptimizedText(response: {
   errorMessage?: string;
 }): string {
   if (response.stopReason === "error" || response.stopReason === "aborted") {
-    throw new Error(response.errorMessage?.trim() || `Optimize prompt failed (${response.stopReason})`);
+    throw new Error(
+      response.errorMessage?.trim() || `Optimize prompt failed (${response.stopReason})`,
+    );
   }
   const text = response.content
     .map((block) => (block.text !== undefined ? block.text : ""))

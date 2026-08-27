@@ -35,7 +35,10 @@ test("sections concatenate to the exact assembled prompt", () => {
   assert.match(prompt, /APPEND-MARKER/);
   assert.match(prompt, /<project_instructions path="\/home\/u\/\.pi\/agent\/AGENTS\.md">/);
   assert.match(prompt, /<available_skills>/);
-  assert.match(prompt, /\nCurrent date: \d{4}-\d{2}-\d{2}\nCurrent working directory: \/tmp\/some-cwd\n?$/);
+  assert.match(
+    prompt,
+    /\nCurrent date: \d{4}-\d{2}-\d{2}\nCurrent working directory: \/tmp\/some-cwd\n?$/,
+  );
 });
 
 test("project context files get one section each, global and project distinct", () => {
@@ -55,7 +58,10 @@ test("appendSystemPrompt lands in its own section", () => {
 });
 
 test("skills section is gated on the read tool like Pi's assembler", () => {
-  const withRead = buildMixCodeSystemPromptSections({ ...richOptions, selectedTools: ["read", "edit"] });
+  const withRead = buildMixCodeSystemPromptSections({
+    ...richOptions,
+    selectedTools: ["read", "edit"],
+  });
   assert.ok(withRead.sections.some((s) => s.name === "Skills"));
 
   const withoutRead = buildMixCodeSystemPromptSections({
@@ -64,10 +70,7 @@ test("skills section is gated on the read tool like Pi's assembler", () => {
   });
   assert.ok(!withoutRead.sections.some((s) => s.name === "Skills"));
   assert.doesNotMatch(withoutRead.prompt, /<available_skills>/);
-  assert.equal(
-    withoutRead.sections.map((s) => s.text).join(""),
-    withoutRead.prompt,
-  );
+  assert.equal(withoutRead.sections.map((s) => s.text).join(""), withoutRead.prompt);
 });
 
 test("all-disabled skills keep join equality with an empty Skills section", () => {

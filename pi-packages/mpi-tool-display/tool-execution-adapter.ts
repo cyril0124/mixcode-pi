@@ -114,11 +114,7 @@ function ownState(prototype: HostPrototype): InstallationState | undefined {
 
 function ownMethod(
   prototype: HostPrototype,
-  key:
-    | "formatToolExecution"
-    | "getCallRenderer"
-    | "getResultRenderer"
-    | "getRenderShell",
+  key: "formatToolExecution" | "getCallRenderer" | "getResultRenderer" | "getRenderShell",
 ): unknown {
   const descriptor = Object.getOwnPropertyDescriptor(prototype, key);
   return descriptor && "value" in descriptor ? descriptor.value : undefined;

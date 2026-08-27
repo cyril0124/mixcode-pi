@@ -60,7 +60,8 @@ function oversizedAssistantMessageInfo(
   const lines = text.split(/\r?\n/);
   if (bytes <= policy.maxBytes && lines.length <= policy.maxLines) return undefined;
   const head = lines.slice(0, 20);
-  const tailStart = lines.length > head.length ? Math.max(head.length, lines.length - 80) : lines.length;
+  const tailStart =
+    lines.length > head.length ? Math.max(head.length, lines.length - 80) : lines.length;
   return {
     bytes,
     lineCount: lines.length,

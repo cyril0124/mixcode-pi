@@ -4,10 +4,8 @@ import * as fsPromises from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import { test } from "node:test";
-import type {
-  ExtensionFactory,
-} from "@earendil-works/pi-coding-agent";
-import { Text, } from "@earendil-works/pi-tui";
+import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
+import { Text } from "@earendil-works/pi-tui";
 import {
   MixCodeRuntime,
   createInitialState,
@@ -36,7 +34,9 @@ function stripAnsi(text: string): string {
 }
 
 test("runtime maps extension select, confirm, and input UI primitives into editor component", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-dialogs-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-extension-dialogs-"),
+  );
   const events: string[] = [];
   let abortController: AbortController | undefined;
   const extension: ExtensionFactory = (pi) => {
@@ -195,7 +195,9 @@ test("runtime maps extension select, confirm, and input UI primitives into edito
 });
 
 test("extension select/confirm/input throw when MixCode TUI editor host is missing", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-dialog-no-host-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-extension-dialog-no-host-"),
+  );
   const events: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("dialog-no-host", {
@@ -241,7 +243,9 @@ test("extension select/confirm/input throw when MixCode TUI editor host is missi
 });
 
 test("runtime resolves pending extension dialogs when closing a tab", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-dialog-shutdown-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-extension-dialog-shutdown-"),
+  );
   const events: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("wait-dialog", {
@@ -277,9 +281,7 @@ test("runtime resolves pending extension dialogs when closing a tab", async () =
 
     const prompt = runtime.prompt("s1", "/wait-dialog");
     // Wait for the dialog to be installed (waitingForInput)
-    await waitForRuntime(
-      () => runtime.getTab("s1")?.tab.extensionUi.waitingForInputs.length === 1,
-    );
+    await waitForRuntime(() => runtime.getTab("s1")?.tab.extensionUi.waitingForInputs.length === 1);
     await runtime.deleteTab("s1");
     await prompt;
 
@@ -290,7 +292,9 @@ test("runtime resolves pending extension dialogs when closing a tab", async () =
 });
 
 test("extension dialog keeps the widget side panel open", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-panel-keep-dialog-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-panel-keep-dialog-"),
+  );
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("wait-dialog", {
       description: "Dialog opens without closing the side panel",
@@ -323,9 +327,7 @@ test("extension dialog keeps the widget side panel open", async () => {
     runtime.getTab("s1")!.tab.panelOpen = true;
 
     const prompt = runtime.prompt("s1", "/wait-dialog");
-    await waitForRuntime(
-      () => runtime.getTab("s1")?.tab.extensionUi.waitingForInputs.length === 1,
-    );
+    await waitForRuntime(() => runtime.getTab("s1")?.tab.extensionUi.waitingForInputs.length === 1);
     assert.equal(runtime.getTab("s1")?.tab.panelOpen, true);
     await runtime.deleteTab("s1");
     await prompt;
@@ -335,7 +337,9 @@ test("extension dialog keeps the widget side panel open", async () => {
 });
 
 test("extension custom editor keeps the widget side panel open", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-panel-keep-custom-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-panel-keep-custom-"),
+  );
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("wait-custom", {
       description: "Custom editor opens without closing the side panel",
@@ -373,9 +377,7 @@ test("extension custom editor keeps the widget side panel open", async () => {
     runtime.getTab("s1")!.tab.panelOpen = true;
 
     const prompt = runtime.prompt("s1", "/wait-custom");
-    await waitForRuntime(
-      () => runtime.getTab("s1")?.tab.extensionUi.waitingForInputs.length === 1,
-    );
+    await waitForRuntime(() => runtime.getTab("s1")?.tab.extensionUi.waitingForInputs.length === 1);
     assert.equal(runtime.getTab("s1")?.tab.panelOpen, true);
     await runtime.deleteTab("s1");
     await prompt;
@@ -385,7 +387,9 @@ test("extension custom editor keeps the widget side panel open", async () => {
 });
 
 test("extension message/entry renderers receive toolsExpanded as options.expanded", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-expanded-renderer-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-expanded-renderer-"),
+  );
   const extension: ExtensionFactory = (pi) => {
     pi.registerMessageRenderer(
       "exp-msg",
@@ -536,7 +540,11 @@ test("runtime renders pi custom messages with renderer, fallback, errors, and re
   };
 
   try {
-    const runtime = new MixCodeRuntime({ sessionsRoot: dir, agentDir: dir, extensionFactories: [extension] });
+    const runtime = new MixCodeRuntime({
+      sessionsRoot: dir,
+      agentDir: dir,
+      extensionFactories: [extension],
+    });
     const runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
       systemPrompt: "system",
       thinkingLevel: "medium",
@@ -620,7 +628,9 @@ test("/reload keeps factory-rendered custom entry and custom message", async () 
     assert.match(before, /entry:hello-entry/);
     assert.doesNotMatch(before, /must not display/);
     assert.equal(
-      runtimeTab.chat.some((line) => line.role === "extension" && line.customType === "no-renderer"),
+      runtimeTab.chat.some(
+        (line) => line.role === "extension" && line.customType === "no-renderer",
+      ),
       false,
     );
 

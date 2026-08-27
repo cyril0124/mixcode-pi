@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
-import {
-  isGenericAbortMessage,
-  surfaceAssistantStopReason,
-} from "../src/agent/runtime-chat.js";
+import { isGenericAbortMessage, surfaceAssistantStopReason } from "../src/agent/runtime-chat.js";
 import type { RuntimeTab } from "../src/agent/runtime-types.js";
 
 function emptyTab(): RuntimeTab {
@@ -95,10 +92,7 @@ test("empty non-generic abort still surfaces the provider message", () => {
 
 test("length stop always surfaces Pi truncation notice, even with assistant text", () => {
   const tab = emptyTab();
-  surfaceAssistantStopReason(
-    tab,
-    lengthAssistant([{ type: "text", text: "partial answer" }]),
-  );
+  surfaceAssistantStopReason(tab, lengthAssistant([{ type: "text", text: "partial answer" }]));
   assert.equal(tab.chat.length, 1);
   assert.equal(tab.chat[0]?.role, "system");
   assert.equal(tab.chat[0]?.text, TRUNCATED_NOTICE);

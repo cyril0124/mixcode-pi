@@ -7,10 +7,7 @@
 // events. Instance registry is only used here for optional title lookup.
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import {
-  loadLiveInstanceStatus,
-  type LoadInstanceStatusOptions,
-} from "./instance-registry.js";
+import { loadLiveInstanceStatus, type LoadInstanceStatusOptions } from "./instance-registry.js";
 import { readOpenTabs } from "./open-tabs-store.js";
 
 export interface PeerTabCandidate {
@@ -41,9 +38,9 @@ export interface ListTabsToReconcileInput {
 /** Pure diff: open missing desired ids, close local ids no longer desired. */
 export function listTabsToReconcile(input: ListTabsToReconcileInput): TabReconcilePlan {
   const local = new Set(input.localSessionIds);
-  const desiredOrder = [...new Set(
-    [...input.desiredSessionIds].map(String).filter((id) => id.trim()),
-  )];
+  const desiredOrder = [
+    ...new Set([...input.desiredSessionIds].map(String).filter((id) => id.trim())),
+  ];
   const desired = new Set(desiredOrder);
   const localWorkdir = normalizeWorkdir(input.localWorkdir);
   const hints = new Map<string, PeerTabCandidate>();
@@ -92,11 +89,13 @@ export interface StartPeerTabSyncOptions {
   loadStatus?: (
     rootStateDir: string,
     options?: LoadInstanceStatusOptions,
-  ) => Promise<{ instances: Array<{
-    pid: number;
-    workdir: string;
-    tabs: Array<{ sessionId: string; title: string; workdir: string }>;
-  }> }>;
+  ) => Promise<{
+    instances: Array<{
+      pid: number;
+      workdir: string;
+      tabs: Array<{ sessionId: string; title: string; workdir: string }>;
+    }>;
+  }>;
   readDesired?: (openTabsPath: string) => string[];
 }
 
@@ -192,7 +191,8 @@ export function startPeerTabSync(options: StartPeerTabSyncOptions): {
     await options.reorderTabs?.(plan.desiredOrder);
   };
 
-  void fs.mkdir(openTabsDir, { recursive: true })
+  void fs
+    .mkdir(openTabsDir, { recursive: true })
     .then(() => {
       if (disposed) return;
       pollTimer = setInterval(() => void reconcile(), pollIntervalMs);

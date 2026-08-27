@@ -14,14 +14,7 @@
  * Lua counterpart: `mixcode.lua`. Field names are camelCase here.
  */
 
-type MixCodeBatchThinkingLevel =
-  | "off"
-  | "minimal"
-  | "low"
-  | "medium"
-  | "high"
-  | "xhigh"
-  | "max";
+type MixCodeBatchThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 
 /** Behavior when a tab with the same name already exists. */
 type MixCodeBatchReuseMode = "append" | "clear" | "delete";

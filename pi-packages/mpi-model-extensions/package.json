@@ -4,6 +4,8 @@
   "type": "module",
   "description": "Per-model extension load via dynamic factory invoke",
   "pi": {
-    "extensions": ["./index.ts"]
+    "extensions": [
+      "./index.ts"
+    ]
   }
 }

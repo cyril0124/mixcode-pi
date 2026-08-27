@@ -31,12 +31,7 @@ function statusText(total: number, phase?: string) {
   return `${STATUS_PREFIX}${phase ? ` · ${phase}` : ""} · total ${total}`;
 }
 
-function createHarness(
-  options?: {
-    gate?: ContinueGate;
-    initialBranch?: unknown[];
-  },
-) {
+function createHarness(options?: { gate?: ContinueGate; initialBranch?: unknown[] }) {
   const handlers = new Map<string, Handler[]>();
   const commands = new Map<string, any>();
   const branch = [...(options?.initialBranch ?? [])];
@@ -308,7 +303,9 @@ test("endsWithThinkingOrToolCall helper", () => {
     true,
   );
   assert.equal(
-    endsWithThinkingOrToolCall({ content: [{ type: "toolCall", id: "x", name: "bash", arguments: {} }] }),
+    endsWithThinkingOrToolCall({
+      content: [{ type: "toolCall", id: "x", name: "bash", arguments: {} }],
+    }),
     true,
   );
   assert.equal(endsWithThinkingOrToolCall({ content: [{ type: "text", text: "ok" }] }), false);
@@ -469,7 +466,11 @@ test("mid-work stop ending in tool call sends continue $simple-plan", async () =
 test("error stop ending in thinking uses error flow, not continue $simple-plan", async () => {
   const harness = createHarness();
   await harness.emit("session_start");
-  await midWorkSettle(harness, { ...assistantThinking(), stopReason: "error", errorMessage: "boom" });
+  await midWorkSettle(harness, {
+    ...assistantThinking(),
+    stopReason: "error",
+    errorMessage: "boom",
+  });
 
   assert.equal(harness.sent.length, 1);
   assert.equal(harness.sent[0]?.kind, "message");

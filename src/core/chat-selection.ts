@@ -109,9 +109,7 @@ export function scrollableChatSelectionForViewport(
   };
 }
 
-export function normalizeChatSelection(
-  selection: ChatSelectionState,
-): NormalizedChatSelection {
+export function normalizeChatSelection(selection: ChatSelectionState): NormalizedChatSelection {
   const anchor = selection.anchor;
   const focus = selection.focus;
   if (anchor.row < focus.row || (anchor.row === focus.row && anchor.col <= focus.col)) {
@@ -121,7 +119,9 @@ export function normalizeChatSelection(
 }
 
 export function isCollapsedChatSelection(selection: ChatSelectionState): boolean {
-  return selection.anchor.row === selection.focus.row && selection.anchor.col === selection.focus.col;
+  return (
+    selection.anchor.row === selection.focus.row && selection.anchor.col === selection.focus.col
+  );
 }
 
 /** Visible [start, end) for `row`, snapped to grapheme cells like Pi TuiAltScreen.getSelectionColumns. */
@@ -225,10 +225,7 @@ export function highlightChatSelectionLine(
 }
 
 /** Re-apply selection after every SGR so tool/thinking block backgrounds cannot paint over it. */
-function applyChatSelectionHighlight(
-  text: string,
-  highlight: (text: string) => string,
-): string {
+function applyChatSelectionHighlight(text: string, highlight: (text: string) => string): string {
   const open = highlightOpen(highlight);
   if (!open || !text.includes("\x1b")) return highlight(text);
   return highlight(text.replace(/\x1b\[[0-9;:]*m/g, (sequence) => `${sequence}${open}`));
@@ -277,7 +274,9 @@ function trimInputChromePadding(line: string): string {
 }
 
 function isFramedInputHintLine(line: string): boolean {
-  return /[↑↓←→⏎]/.test(line) && /\b(?:enter|ctrl|shift|tab|scroll|select|accept|cancel)\b/i.test(line);
+  return (
+    /[↑↓←→⏎]/.test(line) && /\b(?:enter|ctrl|shift|tab|scroll|select|accept|cancel)\b/i.test(line)
+  );
 }
 
 function isChatScrollMarker(line: string): boolean {

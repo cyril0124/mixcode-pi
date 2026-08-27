@@ -98,17 +98,36 @@ function streamAssistantMessage(message: AssistantMessage, ready?: Promise<void>
     const firstContent = message.content[0];
     if (firstContent?.type === "toolCall") {
       stream.push({ type: "toolcall_start", contentIndex: 0, partial: message });
-      stream.push({ type: "toolcall_end", contentIndex: 0, toolCall: firstContent, partial: message });
+      stream.push({
+        type: "toolcall_end",
+        contentIndex: 0,
+        toolCall: firstContent,
+        partial: message,
+      });
     } else if (firstContent?.type === "text") {
       stream.push({
         type: "text_start",
         contentIndex: 0,
         partial: { ...message, content: [{ type: "text", text: "" }] },
       });
-      stream.push({ type: "text_delta", contentIndex: 0, delta: firstContent.text, partial: message });
-      stream.push({ type: "text_end", contentIndex: 0, content: firstContent.text, partial: message });
+      stream.push({
+        type: "text_delta",
+        contentIndex: 0,
+        delta: firstContent.text,
+        partial: message,
+      });
+      stream.push({
+        type: "text_end",
+        contentIndex: 0,
+        content: firstContent.text,
+        partial: message,
+      });
     }
-    stream.push({ type: "done", reason: message.stopReason === "toolUse" ? "toolUse" : "stop", message });
+    stream.push({
+      type: "done",
+      reason: message.stopReason === "toolUse" ? "toolUse" : "stop",
+      message,
+    });
     stream.end(message);
   });
   return stream;
@@ -136,9 +155,11 @@ test("SDK post-run compaction preserves the original working timer", async () =>
       thinkingLevel: "medium",
       workdir: process.cwd(),
     });
-    const applyRuntimeEvent = (runtime as unknown as {
-      applyEvent: (target: unknown, event: unknown) => void;
-    }).applyEvent.bind(runtime);
+    const applyRuntimeEvent = (
+      runtime as unknown as {
+        applyEvent: (target: unknown, event: unknown) => void;
+      }
+    ).applyEvent.bind(runtime);
     const startedAt = "2026-06-04T00:00:00.000Z";
     tab.status = "running";
     tab.workingStartedAt = startedAt;
@@ -303,7 +324,10 @@ test("runtime rejects a second manual compaction while one is running", async ()
     await Promise.allSettled([firstCompact, secondCompact]);
 
     assert.match(secondResult, /Cannot compact while compaction is running/);
-    assert.equal(runtimeTab.session.getBranch().filter((entry) => entry.type === "compaction").length, 1);
+    assert.equal(
+      runtimeTab.session.getBranch().filter((entry) => entry.type === "compaction").length,
+      1,
+    );
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }
@@ -362,7 +386,9 @@ test("core does not terminate a tool loop for mid-turn compaction pressure", asy
             ),
           );
         }
-        return streamAssistantMessage(runtimeAssistantMessage(`warmup reply ${"history ".repeat(40)}`));
+        return streamAssistantMessage(
+          runtimeAssistantMessage(`warmup reply ${"history ".repeat(40)}`),
+        );
       },
       extensionFactories: [
         (pi) => {
@@ -408,7 +434,9 @@ test("core does not terminate a tool loop for mid-turn compaction pressure", asy
     });
 
     await runtime.prompt("s1", "warmup");
-    await waitForRuntime(() => runtimeTab.session.getBranch().filter((entry) => entry.type === "message").length >= 2);
+    await waitForRuntime(
+      () => runtimeTab.session.getBranch().filter((entry) => entry.type === "message").length >= 2,
+    );
     await runtime.prompt("s1", "start");
     await waitForRuntime(() => tab.status === "idle" && postToolAssistantCalls >= 1);
 

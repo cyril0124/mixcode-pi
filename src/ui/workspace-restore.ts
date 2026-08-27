@@ -1,11 +1,14 @@
 import { createSessionId, createTab } from "../core/defaults.js";
-import {
-  assertConfiguredOpenTabsReadable,
-  noteTabsReplaced,
-} from "../core/open-tabs-store.js";
+import { assertConfiguredOpenTabsReadable, noteTabsReplaced } from "../core/open-tabs-store.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { activateTab, clampHomeSelectedTabIndex, closeAgentTab } from "../core/tabs.js";
-import { HOME_TAB_ID, type MixCodeState, type MixCodeTabInfo, type WorkspaceSnapshot, type WorkspaceTabSnapshot } from "../core/types.js";
+import {
+  HOME_TAB_ID,
+  type MixCodeState,
+  type MixCodeTabInfo,
+  type WorkspaceSnapshot,
+  type WorkspaceTabSnapshot,
+} from "../core/types.js";
 import { reindexWorkspaceTabs } from "../core/workspace.js";
 import { hydrateTabPromptHistory } from "./app-runtime.js";
 import type { OverlayTui } from "./app-types.js";
@@ -126,8 +129,9 @@ function restoreAlreadyOpenWorkspaceOrder(state: MixCodeState, workspace: Worksp
   const active = workspace.activeSessionId;
   activateTab(
     state,
-    (active && state.tabs.some((tab) => tab.sessionId === active) ? active : state.tabs[0]?.sessionId) ??
-      HOME_TAB_ID,
+    (active && state.tabs.some((tab) => tab.sessionId === active)
+      ? active
+      : state.tabs[0]?.sessionId) ?? HOME_TAB_ID,
   );
   clampHomeSelectedTabIndex(state);
 }

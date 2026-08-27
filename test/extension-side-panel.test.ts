@@ -85,12 +85,30 @@ test("Right on empty input toggles the panel; second Right closes it", () => {
 
   assert.equal(tab.panelOpen, false);
   assert.deepEqual(
-    handleMixCodeKeyInput(state, RIGHT, tui, undefined, undefined, undefined, () => false, emptyEditor()),
+    handleMixCodeKeyInput(
+      state,
+      RIGHT,
+      tui,
+      undefined,
+      undefined,
+      undefined,
+      () => false,
+      emptyEditor(),
+    ),
     { consume: true },
   );
   assert.equal(tab.panelOpen, true);
   assert.deepEqual(
-    handleMixCodeKeyInput(state, RIGHT, tui, undefined, undefined, undefined, () => false, emptyEditor()),
+    handleMixCodeKeyInput(
+      state,
+      RIGHT,
+      tui,
+      undefined,
+      undefined,
+      undefined,
+      () => false,
+      emptyEditor(),
+    ),
     { consume: true },
   );
   assert.equal(tab.panelOpen, false);
@@ -109,7 +127,16 @@ test("Right panel toggle has priority over extension shortcuts", () => {
   });
 
   assert.deepEqual(
-    handleMixCodeKeyInput(state, RIGHT, tui, undefined, runtime, undefined, undefined, emptyEditor()),
+    handleMixCodeKeyInput(
+      state,
+      RIGHT,
+      tui,
+      undefined,
+      runtime,
+      undefined,
+      undefined,
+      emptyEditor(),
+    ),
     { consume: true },
   );
   assert.equal(tab.panelOpen, true);
@@ -153,7 +180,16 @@ test("Right does not open the panel when the tab has no widgets", () => {
   const tab = state.tabs[0]!;
   const tui = fakeTui();
 
-  handleMixCodeKeyInput(state, RIGHT, tui, undefined, undefined, undefined, () => false, emptyEditor());
+  handleMixCodeKeyInput(
+    state,
+    RIGHT,
+    tui,
+    undefined,
+    undefined,
+    undefined,
+    () => false,
+    emptyEditor(),
+  );
   assert.equal(tab.panelOpen, false);
   assert.ok(tab.toast, "expected a toast explaining nothing to show");
 });
@@ -174,7 +210,8 @@ test("open panel renders widgets on the right and removes them from around the e
   // ...and chat is now sharing rows with the panel: a panel row carries both a
   // chat marker on the left and a widget on the right (true side-by-side).
   const sideBySide = open.some(
-    (line) => line.includes(CHAT_MARKER) && (line.includes(WIDGET_ABOVE) || line.includes(WIDGET_BELOW)),
+    (line) =>
+      line.includes(CHAT_MARKER) && (line.includes(WIDGET_ABOVE) || line.includes(WIDGET_BELOW)),
   );
   assert.ok(sideBySide, "expected a row with chat on the left and a widget on the right");
 
@@ -339,7 +376,9 @@ test("panel wraps wide widget lines instead of truncating with an ellipsis", () 
   assert.doesNotMatch(body, /\.\.\./);
   assert.match(body, /should wrap/);
   // The line occupied more than one content row (wrapped, not single-line).
-  const contentRows = rows.filter((r) => /\S/.test(r.replace(/\u2502/g, "").replace(/to close/, "")));
+  const contentRows = rows.filter((r) =>
+    /\S/.test(r.replace(/\u2502/g, "").replace(/to close/, "")),
+  );
   assert.ok(contentRows.length >= 2, "wide line should wrap onto multiple rows");
 });
 
@@ -350,7 +389,16 @@ test("panel below the width threshold refuses to open with a toast", () => {
   const original = Object.getOwnPropertyDescriptor(process.stdout, "columns");
   Object.defineProperty(process.stdout, "columns", { value: 60, configurable: true });
   try {
-    handleMixCodeKeyInput(state, RIGHT, tui, undefined, undefined, undefined, () => false, emptyEditor());
+    handleMixCodeKeyInput(
+      state,
+      RIGHT,
+      tui,
+      undefined,
+      undefined,
+      undefined,
+      () => false,
+      emptyEditor(),
+    );
     assert.equal(tab.panelOpen, false);
     assert.equal(tab.toast?.type, "warning");
   } finally {
@@ -381,7 +429,15 @@ test("panel content is mouse-selectable and copies to clipboard", async () => {
     copied = text;
   };
   // Press (button 0), drag to end of row, release — SGR mouse sequences.
-  handleMouseInput(state, tab, `\x1b[<0;${startCol};${screenRow}M`, tui, undefined, undefined, copy);
+  handleMouseInput(
+    state,
+    tab,
+    `\x1b[<0;${startCol};${screenRow}M`,
+    tui,
+    undefined,
+    undefined,
+    copy,
+  );
   handleMouseInput(state, tab, `\x1b[<32;${endCol};${screenRow}M`, tui, undefined, undefined, copy);
   handleMouseInput(state, tab, `\x1b[<0;${endCol};${screenRow}m`, tui, undefined, undefined, copy);
 
@@ -466,7 +522,15 @@ test("wheel routes to panel or chat by region, never both", () => {
 
   // Wheel-up over the chat column scrolls chat, leaves the panel offset alone.
   const panelBefore = tab.panelScrollOffset;
-  handleMouseInput(state, tab, `\x1b[<64;2;${bounds.top + 1}M`, tui, undefined, undefined, async () => {});
+  handleMouseInput(
+    state,
+    tab,
+    `\x1b[<64;2;${bounds.top + 1}M`,
+    tui,
+    undefined,
+    undefined,
+    async () => {},
+  );
   assert.equal(tab.panelScrollOffset, panelBefore, "panel not scrolled by chat wheel");
   assert.ok(tab.chatScrollOffset > chatBefore, "chat scrolled");
 });
@@ -554,7 +618,10 @@ test("Ctrl+G defers to the extension editor component when a pending interaction
         received.push(data);
       },
     });
-    assert.ok(capturedHost?.editor?.setEditorComponent, "extension UI host must expose editor replacement");
+    assert.ok(
+      capturedHost?.editor?.setEditorComponent,
+      "extension UI host must expose editor replacement",
+    );
     capturedHost.editor.setEditorComponent(stubFactory, "s1");
 
     // Ctrl+G (0x07) fed through the real tui input pipeline.

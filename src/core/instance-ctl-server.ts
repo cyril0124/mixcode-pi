@@ -130,12 +130,17 @@ export function resolveCtlDumpWidths(
   liveWidth: number,
 ): { dumpWidth: number; overlayWidth: number } {
   const dumpWidth = Math.max(20, requestWidth ?? liveWidth);
-  const overlayWidth = Math.max(20, requestWidth ?? Math.max(liveWidth, CTL_DUMP_OVERLAY_MIN_WIDTH));
+  const overlayWidth = Math.max(
+    20,
+    requestWidth ?? Math.max(liveWidth, CTL_DUMP_OVERLAY_MIN_WIDTH),
+  );
   return { dumpWidth, overlayWidth };
 }
 
 function renderCtlOverlayDump(
-  runtimeTab: { extensionCustomOverlayComponents?: Iterable<{ render: (width: number) => string[] }> } | undefined,
+  runtimeTab:
+    | { extensionCustomOverlayComponents?: Iterable<{ render: (width: number) => string[] }> }
+    | undefined,
   width: number,
 ): string[] {
   if (!runtimeTab?.extensionCustomOverlayComponents) return [];
@@ -146,7 +151,11 @@ function renderCtlOverlayDump(
   return lines;
 }
 
-function renderOwnedAppOverlayDump(state: MixCodeState, sessionId: string, width: number): string[] {
+function renderOwnedAppOverlayDump(
+  state: MixCodeState,
+  sessionId: string,
+  width: number,
+): string[] {
   const lines: string[] = [];
   if (state.picker?.ownerSessionId === sessionId) {
     lines.push(...renderPickerOverlay(state, width));
@@ -203,7 +212,9 @@ export function wrapCtlSubmitText(
   const senderLabel = fromPid ? `${title}, pid ${fromPid}` : title;
   const origin = `This prompt came from another MixCode tab (${senderLabel}) via \`mpi ctl\`, not from the human user.`;
   if (!expectResponse) return `${origin}\n\n${text}`;
-  const target = fromPid ? `--pid ${fromPid} --tab ${shellSingleQuote(title)}` : `--tab ${shellSingleQuote(title)}`;
+  const target = fromPid
+    ? `--pid ${fromPid} --tab ${shellSingleQuote(title)}`
+    : `--tab ${shellSingleQuote(title)}`;
   return [
     origin,
     "When finished, follow the mpi-ctl skill at:",
@@ -270,7 +281,8 @@ function tabIsWaitingForOverlay(
   tab: MixCodeTabInfo,
   options: Pick<StartInstanceCtlServerOptions, "hasAppOverlay" | "state">,
 ): boolean {
-  if (tabOwnsWaitingAppOverlay(options.state, tab.sessionId) || tabIsWaitingForInput(tab)) return true;
+  if (tabOwnsWaitingAppOverlay(options.state, tab.sessionId) || tabIsWaitingForInput(tab))
+    return true;
   if (isInstanceOverlayOpen(options.state)) return true;
   return options.hasAppOverlay?.() === true && options.state.activeTabId === tab.sessionId;
 }
@@ -305,7 +317,10 @@ function tabHasDriveableOverlay(
 function assertBackgroundSendKeys(
   tab: MixCodeTabInfo,
   keys: string[],
-  options: Pick<StartInstanceCtlServerOptions, "submitToTab" | "state" | "runtime" | "dispatchTabOverlayKeys">,
+  options: Pick<
+    StartInstanceCtlServerOptions,
+    "submitToTab" | "state" | "runtime" | "dispatchTabOverlayKeys"
+  >,
 ): void {
   let needsSubmit = false;
   let needsOverlay = false;
@@ -318,7 +333,9 @@ function assertBackgroundSendKeys(
   }
   if (tabHasDriveableOverlay(tab, options) && options.dispatchTabOverlayKeys) return;
   if (needsOverlay) {
-    throw new Error("send-keys --tab/--session only supports text and Enter; use --focus-tab for UI keys");
+    throw new Error(
+      "send-keys --tab/--session only supports text and Enter; use --focus-tab for UI keys",
+    );
   }
   if (needsSubmit && !options.submitToTab) {
     throw new Error("send-keys --tab/--session requires submitToTab");
@@ -338,7 +355,9 @@ async function applyBackgroundSendKeys(
   if (tabHasDriveableOverlay(tab, options) && options.dispatchTabOverlayKeys) {
     for (const chunk of keys) {
       if (!options.dispatchTabOverlayKeys(tab, chunk)) {
-        throw new Error("send-keys --tab/--session only supports text and Enter; use --focus-tab for UI keys");
+        throw new Error(
+          "send-keys --tab/--session only supports text and Enter; use --focus-tab for UI keys",
+        );
       }
     }
     return;
@@ -382,7 +401,11 @@ function lastChatMessages(
   }
   if (chronological.length === 0) {
     throw new Error(
-      role === "assistant" ? "No assistant message yet" : role === "user" ? "No user message yet" : "No message yet",
+      role === "assistant"
+        ? "No assistant message yet"
+        : role === "user"
+          ? "No user message yet"
+          : "No message yet",
     );
   }
   const n = chronological.length;
@@ -403,8 +426,13 @@ function lastChatTools(
   }
   const runtimeTab = runtime.getTab(sessionId);
   if (!runtimeTab) throw new Error(`Unknown session: ${sessionId}`);
-  const chronological: { title: string; status: string; text: string; command?: string; timestamp?: number }[] =
-    [];
+  const chronological: {
+    title: string;
+    status: string;
+    text: string;
+    command?: string;
+    timestamp?: number;
+  }[] = [];
   for (const line of runtimeTab.chat) {
     if (line.role !== "tool") continue;
     const command =
@@ -471,7 +499,11 @@ function lastSessionTimestamp(
   if (!messages) return undefined;
   for (let index = messages.length - 1; index >= 0; index--) {
     const message = messages[index];
-    if (message?.role === role && typeof message.timestamp === "number" && Number.isFinite(message.timestamp)) {
+    if (
+      message?.role === role &&
+      typeof message.timestamp === "number" &&
+      Number.isFinite(message.timestamp)
+    ) {
       return message.timestamp;
     }
   }
@@ -509,7 +541,12 @@ export async function handleCtlRequest(
         Promise.resolve(
           options.submitToTab(
             tab,
-            wrapCtlSubmitText(request.prompt, request.fromTabTitle, request.expectResponse === true, request.fromPid),
+            wrapCtlSubmitText(
+              request.prompt,
+              request.fromTabTitle,
+              request.expectResponse === true,
+              request.fromPid,
+            ),
           ),
         ),
         options,
@@ -524,7 +561,13 @@ export async function handleCtlRequest(
         if (!tab) throw new Error(`Unknown session: ${sessionId}`);
         assertBackgroundSendKeys(tab, request.keys, options);
         // ACK before submitToTab finishes; the client idle timeout must not wait on the agent turn.
-        const work = applyBackgroundSendKeys(tab, request.keys, options, request.fromTabTitle, request.fromPid);
+        const work = applyBackgroundSendKeys(
+          tab,
+          request.keys,
+          options,
+          request.fromTabTitle,
+          request.fromPid,
+        );
         const submitsPrompt =
           !tabHasDriveableOverlay(tab, options) &&
           request.keys.some((chunk) => chunk === "\r" || chunk === "\n");
@@ -575,7 +618,9 @@ export async function handleCtlRequest(
       const requested = request.from !== undefined || request.to !== undefined;
       const span = to - from + 1;
       const messages =
-        requested && selected.length !== span ? `${selected.length} (requested ${from}-${to})` : undefined;
+        requested && selected.length !== span
+          ? `${selected.length} (requested ${from}-${to})`
+          : undefined;
       return { ok: true, text: wrap(body === "" ? "" : `${body}\n`, { messages }) };
     }
     if (request.op === "last-tool") {
@@ -594,7 +639,9 @@ export async function handleCtlRequest(
       const requested = request.from !== undefined || request.to !== undefined;
       const span = to - from + 1;
       const messages =
-        requested && selected.length !== span ? `${selected.length} (requested ${from}-${to})` : undefined;
+        requested && selected.length !== span
+          ? `${selected.length} (requested ${from}-${to})`
+          : undefined;
       return { ok: true, text: wrap(body === "" ? "" : `${body}\n`, { messages }) };
     }
     if (request.op === "wait") {
@@ -625,22 +672,24 @@ export async function handleCtlRequest(
         sessionId === options.state.activeTabId &&
         !request.tabTitle &&
         !request.sessionId;
-      const base =
-        useLiveTui
-          ? options.renderTui!(dumpWidth)
-          : sessionId === HOME_TAB_ID
-            ? renderHome(options.state, dumpWidth, undefined, 0, undefined, (tabSessionId) =>
-                options.runtime.getTab(tabSessionId)?.chat,
-              )
-            : (() => {
-                const tab =
-                  options.state.tabs.find((candidate) => candidate.sessionId === sessionId) ??
-                  (sessionId === options.state.activeTabId
-                    ? getActiveTab(options.state)
-                    : undefined);
-                if (!tab) throw new Error(`Unknown session: ${sessionId}`);
-                return renderAgentSurface(tab, options.runtime.getTab(sessionId), dumpWidth);
-              })();
+      const base = useLiveTui
+        ? options.renderTui!(dumpWidth)
+        : sessionId === HOME_TAB_ID
+          ? renderHome(
+              options.state,
+              dumpWidth,
+              undefined,
+              0,
+              undefined,
+              (tabSessionId) => options.runtime.getTab(tabSessionId)?.chat,
+            )
+          : (() => {
+              const tab =
+                options.state.tabs.find((candidate) => candidate.sessionId === sessionId) ??
+                (sessionId === options.state.activeTabId ? getActiveTab(options.state) : undefined);
+              if (!tab) throw new Error(`Unknown session: ${sessionId}`);
+              return renderAgentSurface(tab, options.runtime.getTab(sessionId), dumpWidth);
+            })();
       const ownedOverlay = renderOwnedAppOverlayDump(options.state, sessionId, overlayWidth);
       const includeLiveOverlay =
         options.state.activeTabId === sessionId &&
@@ -650,7 +699,8 @@ export async function handleCtlRequest(
         ...ownedOverlay,
         ...(includeLiveOverlay ? (options.renderAppOverlay?.(overlayWidth) ?? []) : []),
       ];
-      const body = overlay.length === 0 ? base.join("\n") : `${base.join("\n")}\n${overlay.join("\n")}`;
+      const body =
+        overlay.length === 0 ? base.join("\n") : `${base.join("\n")}\n${overlay.join("\n")}`;
       return { ok: true, text: wrap(body) };
     }
     throw new Error(`Unknown ctl op: ${(request as { op: string }).op}`);
@@ -679,7 +729,9 @@ export function startInstanceCtlServer(options: StartInstanceCtlServerOptions): 
         request = JSON.parse(buf.slice(0, nl)) as CtlRequest;
         buf = buf.slice(nl + 1);
       } catch (error) {
-        socket.end(`${JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) })}\n`);
+        socket.end(
+          `${JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) })}\n`,
+        );
         return;
       }
       void handleCtlRequest(request, options).then((response) => {

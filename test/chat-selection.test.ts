@@ -18,7 +18,11 @@ const selection: ChatSelectionState = {
 
 test("chat selection normalizes reverse drag order", () => {
   assert.deepEqual(
-    normalizeChatSelection({ anchor: { row: 3, col: 2 }, focus: { row: 1, col: 4 }, dragging: true }),
+    normalizeChatSelection({
+      anchor: { row: 3, col: 2 },
+      focus: { row: 1, col: 4 },
+      dragging: true,
+    }),
     { start: { row: 1, col: 4 }, end: { row: 3, col: 2 } },
   );
 });
@@ -31,17 +35,17 @@ test("screen points clamp into chat surface coordinates", () => {
 });
 
 test("selectedChatText copies visible text across rows without ANSI styling", () => {
-  const lines = [
-    "ignored",
-    "hello \x1b[31mworld\x1b[39m   ",
-    "again there",
-    "ignored",
-  ];
+  const lines = ["ignored", "hello \x1b[31mworld\x1b[39m   ", "again there", "ignored"];
   assert.equal(selectedChatText(lines, selection), "world\nagain");
 });
 
 test("highlightChatSelectionLine highlights the selected visible cells", () => {
-  const highlighted = highlightChatSelectionLine("hello world", 1, selection, (text) => `[${text}]`);
+  const highlighted = highlightChatSelectionLine(
+    "hello world",
+    1,
+    selection,
+    (text) => `[${text}]`,
+  );
   assert.equal(highlighted, "hello [world]");
 });
 

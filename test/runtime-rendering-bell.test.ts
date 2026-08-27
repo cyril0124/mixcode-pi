@@ -73,10 +73,7 @@ test("runtime rendering rings terminal bell when a tab completes work", () => {
 
 test("runtime rendering rings terminal bell when a new user interaction appears", () => {
   let listener:
-    | ((
-        event: { type: string },
-        runtimeTab: { tab: MixCodeTabInfo },
-      ) => void)
+    | ((event: { type: string }, runtimeTab: { tab: MixCodeTabInfo }) => void)
     | undefined;
   const writes: string[] = [];
   const tab = createTab(1, "s1", "/repo", { status: "running" });

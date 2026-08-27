@@ -10,29 +10,33 @@ const storage = new AsyncLocalStorage<string>();
 const DEFAULT_KEY = "__no_session__";
 
 export type SessionIdSource = {
-	getSessionId?: () => string;
-	getSessionFile?: () => string | null | undefined;
+  getSessionId?: () => string;
+  getSessionFile?: () => string | null | undefined;
 };
 
 export function goalSessionKeyFromManager(sessionManager: SessionIdSource): string {
-	const id = typeof sessionManager.getSessionId === "function" ? sessionManager.getSessionId() : undefined;
-	if (id && id.length > 0) return id;
-	const file = typeof sessionManager.getSessionFile === "function" ? sessionManager.getSessionFile() : undefined;
-	if (file && file.length > 0) return file;
-	return DEFAULT_KEY;
+  const id =
+    typeof sessionManager.getSessionId === "function" ? sessionManager.getSessionId() : undefined;
+  if (id && id.length > 0) return id;
+  const file =
+    typeof sessionManager.getSessionFile === "function"
+      ? sessionManager.getSessionFile()
+      : undefined;
+  if (file && file.length > 0) return file;
+  return DEFAULT_KEY;
 }
 
 export function currentGoalSessionKey(): string {
-	return storage.getStore() ?? DEFAULT_KEY;
+  return storage.getStore() ?? DEFAULT_KEY;
 }
 
 export function runInGoalSession<T>(sessionKey: string, fn: () => T): T {
-	return storage.run(sessionKey, fn);
+  return storage.run(sessionKey, fn);
 }
 
 export function withGoalSessionFromCtx<T>(
-	ctx: { sessionManager: SessionIdSource },
-	fn: () => T,
+  ctx: { sessionManager: SessionIdSource },
+  fn: () => T,
 ): T {
-	return runInGoalSession(goalSessionKeyFromManager(ctx.sessionManager), fn);
+  return runInGoalSession(goalSessionKeyFromManager(ctx.sessionManager), fn);
 }

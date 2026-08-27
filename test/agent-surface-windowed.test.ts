@@ -177,11 +177,7 @@ test("windowed renderer preserves header-to-queue spacing with empty blocks", ()
   };
   const clean = (lines: string[]) => lines.map((line) => stripAnsi(line).trimEnd());
   const full = clean(
-    renderAgentSurface(
-      createTab(42, "s42-full", "/repo", overrides),
-      { chat } as never,
-      WIDTH - 1,
-    ),
+    renderAgentSurface(createTab(42, "s42-full", "/repo", overrides), { chat } as never, WIDTH - 1),
   );
   const windowed = clean(
     renderAgentSurface(
@@ -211,12 +207,18 @@ test("windowed renderer keeps scrolled view stable as new output arrives", () =>
   const chat = buildLongChat(120);
   const tab = createTab(20, "s20", "/repo", { status: "running", chatScrollOffset: 30 });
   const before = renderAgentSurface(tab, { chat } as never, WIDTH, HEIGHT).map(stripAnsi);
-  const firstMessageRow = before.findIndex((line) => /\b(?:assistant|user|output|system)-\d+\b/.test(line));
-  const firstVisibleMessage = before[firstMessageRow]?.match(/\b(?:assistant|user|output|system)-\d+\b/)?.[0];
+  const firstMessageRow = before.findIndex((line) =>
+    /\b(?:assistant|user|output|system)-\d+\b/.test(line),
+  );
+  const firstVisibleMessage = before[firstMessageRow]?.match(
+    /\b(?:assistant|user|output|system)-\d+\b/,
+  )?.[0];
 
   assert.ok(firstVisibleMessage, "expected a visible chat message below the older marker");
 
-  chat.push(...buildLongChat(10).map((line, index) => ({ ...line, text: `${line.text}-new-${index}` })));
+  chat.push(
+    ...buildLongChat(10).map((line, index) => ({ ...line, text: `${line.text}-new-${index}` })),
+  );
   const after = renderAgentSurface(tab, { chat } as never, WIDTH, HEIGHT).map(stripAnsi);
 
   assert.match(after[firstMessageRow] ?? "", new RegExp(`\\b${firstVisibleMessage}\\b`));
@@ -296,7 +298,9 @@ test("streaming completion keeps a PageUp anchor when the viewport grows", () =>
 
   renderAgentSurface(tab, streamingRuntimeTab as never, WIDTH, HEIGHT);
   scrollChat(tab, 10);
-  const before = renderAgentSurface(tab, streamingRuntimeTab as never, WIDTH, HEIGHT).map(stripAnsi);
+  const before = renderAgentSurface(tab, streamingRuntimeTab as never, WIDTH, HEIGHT).map(
+    stripAnsi,
+  );
   const anchorRow = before.findIndex((line) => line.includes("STREAM-LINE-"));
   const anchor = before[anchorRow];
 
@@ -326,7 +330,10 @@ test("short-chat renderer switch keeps an anchor inside the completed streaming 
     (_, index) => `STREAM-LINE-${String(index).padStart(4, "0")} ${"content ".repeat(8)}`,
   );
   // 24 blocks: windowed while running (>=20), full render once idle (<60).
-  const chat: ChatLine[] = [...buildLongChat(23), { role: "assistant", text: streamingLines.slice(0, 40).join("\n") }];
+  const chat: ChatLine[] = [
+    ...buildLongChat(23),
+    { role: "assistant", text: streamingLines.slice(0, 40).join("\n") },
+  ];
   const streamingIndex = chat.length - 1;
   const tab = createTab(46, "s46", "/repo", { status: "running", chatScrollOffset: 0 });
   const streamingRuntimeTab = {
@@ -341,7 +348,9 @@ test("short-chat renderer switch keeps an anchor inside the completed streaming 
 
   renderAgentSurface(tab, streamingRuntimeTab as never, WIDTH, HEIGHT);
   scrollChat(tab, 10);
-  const before = renderAgentSurface(tab, streamingRuntimeTab as never, WIDTH, HEIGHT).map(stripAnsi);
+  const before = renderAgentSurface(tab, streamingRuntimeTab as never, WIDTH, HEIGHT).map(
+    stripAnsi,
+  );
   const anchorRow = before.findIndex((line) => line.includes("STREAM-LINE-"));
   const anchor = before[anchorRow];
 
@@ -441,9 +450,7 @@ test("tool completion and agent-end notices do not shift a frozen history anchor
   const endedRuntimeTab = { tab, chat, streamingAssistant: undefined };
   renderAgentSurface(tab, endedRuntimeTab as never, WIDTH, HEIGHT);
   tab.status = "idle";
-  const after = renderAgentSurface(tab, endedRuntimeTab as never, WIDTH, HEIGHT + 1).map(
-    stripAnsi,
-  );
+  const after = renderAgentSurface(tab, endedRuntimeTab as never, WIDTH, HEIGHT + 1).map(stripAnsi);
 
   assert.equal(after[anchorRow], anchor);
 });
@@ -501,7 +508,9 @@ test("windowed renderer stays stable when user scrolls in the same frame as grow
 
   // Scroll-only baseline.
   tabA.chatScrollOffset += 5;
-  const onlyScroll = renderAgentSurface(tabA, { chat: chatA } as never, WIDTH, HEIGHT).map(stripAnsi);
+  const onlyScroll = renderAgentSurface(tabA, { chat: chatA } as never, WIDTH, HEIGHT).map(
+    stripAnsi,
+  );
   const onlyScrollIds = onlyScroll
     .map((line) => line.match(/\b(?:assistant|user|output|system)-\d+\b/)?.[0])
     .filter((id): id is string => Boolean(id));
@@ -556,7 +565,9 @@ test("running chats with historical tool renderers still use windowed rendering"
 
 test("complete long assistant messages render full text outside TUI oversized policy", () => {
   const text = `START ${"x".repeat(9000)} END`;
-  const rendered = renderConversation([{ role: "assistant", text }], WIDTH).map(stripAnsi).join("\n");
+  const rendered = renderConversation([{ role: "assistant", text }], WIDTH)
+    .map(stripAnsi)
+    .join("\n");
 
   assert.match(rendered, /START/);
   assert.match(rendered, /END/);
@@ -617,7 +628,14 @@ test("TUI surface folds oversized streaming assistant output immediately", () =>
 test("TUI surface keeps below-threshold assistant messages as markdown", () => {
   const chat: ChatLine[] = [{ role: "assistant", text: "normal **markdown** message" }];
   const tab = createTab(27, "s27", "/repo", { chatScrollOffset: 0 });
-  const text = renderAgentSurface(tab, { chat } as never, WIDTH, HEIGHT, undefined, DEFAULT_SURFACE_OPTIONS)
+  const text = renderAgentSurface(
+    tab,
+    { chat } as never,
+    WIDTH,
+    HEIGHT,
+    undefined,
+    DEFAULT_SURFACE_OPTIONS,
+  )
     .map(stripAnsi)
     .join("\n");
 
@@ -629,7 +647,13 @@ test("TUI oversized policy applies only to assistant and thinking roles", () => 
   const oversizedAssistantMessage = { enabled: true, maxLines: 1, maxBytes: 5 };
   const chat: ChatLine[] = [
     { role: "user", text: "USER-CONTENT-ABOVE-THRESHOLD" },
-    { role: "tool", title: "bash", toolCallId: "t-role", status: "success", text: "TOOL-CONTENT-ABOVE-THRESHOLD" },
+    {
+      role: "tool",
+      title: "bash",
+      toolCallId: "t-role",
+      status: "success",
+      text: "TOOL-CONTENT-ABOVE-THRESHOLD",
+    },
     { role: "system", text: "SYSTEM-CONTENT-ABOVE-THRESHOLD" },
     { role: "thinking", text: "THINKING-CONTENT-ABOVE-THRESHOLD" },
   ];
@@ -831,7 +855,9 @@ test("PageUp after stick-to-bottom without an idle render does not snap to the o
   tab.chatScrollOffset = 0;
   chat.push({ role: "user", text: "prompt-two" }, { role: "assistant", text: replyTwo });
   scrollChat(tab, 3);
-  const after = renderAgentSurface(tab, { chat } as never, WIDTH, HEIGHT).map(stripAnsi).join("\n");
+  const after = renderAgentSurface(tab, { chat } as never, WIDTH, HEIGHT)
+    .map(stripAnsi)
+    .join("\n");
   assert.match(after, /REPLY-TWO-/);
   assert.doesNotMatch(after, /REPLY-ONE-/);
 });
@@ -856,11 +882,7 @@ test("deep scroll paint stays near bottom paint cost (no unshift O(n^2))", () =>
   );
 });
 
-function measureRenderMs(
-  tab: MixCodeTabInfo,
-  chat: ChatLine[],
-  iterations: number,
-): number {
+function measureRenderMs(tab: MixCodeTabInfo, chat: ChatLine[], iterations: number): number {
   for (let i = 0; i < 5; i++) {
     renderAgentSurface(tab, { chat } as never, 120, 30);
   }

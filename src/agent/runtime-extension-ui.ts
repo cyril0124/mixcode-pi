@@ -235,9 +235,7 @@ export function createMixCodeExtensionUiContext(
       if (!editor?.setAutocompleteProvider) return;
       // Signal rebind only. Production host always keeps the multi-tab live
       // proxy; never pass a session-scoped concrete chain into EditorSlot.
-      (editor.setAutocompleteProvider as (provider?: AutocompleteProvider) => void)(
-        undefined,
-      );
+      (editor.setAutocompleteProvider as (provider?: AutocompleteProvider) => void)(undefined);
       requestRender();
     },
     setEditorComponent: (factory) => {

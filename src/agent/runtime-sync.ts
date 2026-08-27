@@ -3,10 +3,7 @@
 // Kept out of runtime.ts (already large) so the runtime only gains thin
 // delegations. Holds the single per-process SessionSyncCoordinator and the
 // per-session turn locks this instance currently owns.
-import {
-  acquireSessionTurnLock,
-  type SessionLockHandle,
-} from "../core/session-lock.js";
+import { acquireSessionTurnLock, type SessionLockHandle } from "../core/session-lock.js";
 import { invalidateSessionCatalog } from "../core/session-catalog.js";
 import { materializeSessionFile } from "./runtime-session.js";
 import { SessionSyncCoordinator } from "./session-sync-coordinator.js";

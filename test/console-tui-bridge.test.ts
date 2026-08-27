@@ -10,11 +10,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { installConsoleTuiBridge, wireConsoleSink } from "../src/cli/console-tui-bridge.js";
-import {
-  closeAppOverlay,
-  getActiveNotice,
-  showNoticeTextOverlay,
-} from "../src/ui/app-overlays.js";
+import { closeAppOverlay, getActiveNotice, showNoticeTextOverlay } from "../src/ui/app-overlays.js";
 
 test("console bridge queues before wiring, then flushes in order with prefixes", () => {
   const original = {

@@ -1,10 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import {
-  MixCodeFooterRoot,
-  MixCodeLayoutRoot,
-  MixCodeRoot,
-} from "../src/ui/app-layout.js";
+import { MixCodeFooterRoot, MixCodeLayoutRoot, MixCodeRoot } from "../src/ui/app-layout.js";
 import type { EditorSlot } from "../src/ui/app-editor.js";
 import { renderExtensionFooter } from "../src/ui/rendering.js";
 import { createInitialState, createTab } from "../src/core/defaults.js";
@@ -40,11 +36,7 @@ function buildLayout(viewportRows: number, width = 100) {
     () => viewportRows,
     () => {
       const active = getActiveTab(state);
-      return (
-        editorRows +
-        metaRows +
-        renderExtensionFooter(active, width).length
-      );
+      return editorRows + metaRows + renderExtensionFooter(active, width).length;
     },
   );
   const editor = fakeEditor(["editor-line-0"]);

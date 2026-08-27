@@ -31,7 +31,13 @@ function view(lineCount = 100) {
   );
   /** Content rows only: the panel adds a header, a blank, a rule and a hint. */
   const body = () => log.render(WIDTH).slice(2, 2 + ROWS);
-  return { log, body, isClosed: () => closed, renderCount: () => renders, externals: () => externals };
+  return {
+    log,
+    body,
+    isClosed: () => closed,
+    renderCount: () => renders,
+    externals: () => externals,
+  };
 }
 
 test("the viewer opens on the newest output", () => {
@@ -186,7 +192,11 @@ test("the external editor runs on the log and the TUI always comes back", async 
     fs.writeFileSync(fakeEditor, `#!/bin/sh\ncp "$1" "${marker}"\n`, { mode: 0o755 });
     process.env.EDITOR = fakeEditor;
     assert.equal(await openInExternalEditor(tui, logPath), undefined);
-    assert.equal(fs.readFileSync(marker, "utf8"), "hello\n", "the editor must receive the log file");
+    assert.equal(
+      fs.readFileSync(marker, "utf8"),
+      "hello\n",
+      "the editor must receive the log file",
+    );
     assert.deepEqual(calls, ["stop", "start", "render"]);
 
     // A broken editor must still hand the terminal back, or the session freezes.

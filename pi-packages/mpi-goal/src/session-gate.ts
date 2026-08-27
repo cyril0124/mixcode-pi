@@ -8,13 +8,16 @@ import { getQueue, replayQueueState } from "./persistence/queue-store.js";
  * and therefore needs the full mpi-goal surface (tools + lifecycle) on start.
  */
 export function sessionNeedsGoalWire(ctx: ExtensionContext): boolean {
-	return withGoalSessionFromCtx(ctx, () => {
-		replayGoalState(ctx);
-		replayQueueState(ctx);
-		const goal = getGoal();
-		if (goal && (goal.status === "active" || goal.status === "paused" || goal.status === "budgetLimited")) {
-			return true;
-		}
-		return getQueue().length > 0;
-	});
+  return withGoalSessionFromCtx(ctx, () => {
+    replayGoalState(ctx);
+    replayQueueState(ctx);
+    const goal = getGoal();
+    if (
+      goal &&
+      (goal.status === "active" || goal.status === "paused" || goal.status === "budgetLimited")
+    ) {
+      return true;
+    }
+    return getQueue().length > 0;
+  });
 }

@@ -192,10 +192,7 @@ export function fitCompactionBudgetsToWindow(
   if (keepRecentTokens >= contextWindow) {
     keepRecentTokens = Math.max(1, Math.round(contextWindow * 0.25));
   }
-  if (
-    reserveTokens === budgets.reserveTokens &&
-    keepRecentTokens === budgets.keepRecentTokens
-  ) {
+  if (reserveTokens === budgets.reserveTokens && keepRecentTokens === budgets.keepRecentTokens) {
     return budgets;
   }
   return { ...budgets, reserveTokens, keepRecentTokens };
@@ -240,13 +237,14 @@ export function resolveCompactionBudgets(cwd: string, agentDir?: string): Compac
   const globalDir =
     agentDir ??
     process.env.PI_CODING_AGENT_DIR ??
-    path.join((process.env.HOME || os.homedir()), ".pi", "agent");
+    path.join(process.env.HOME || os.homedir(), ".pi", "agent");
   const global = readCompactionSettings(path.join(globalDir, "settings.json"));
   const project = readCompactionSettings(path.join(cwd, ".pi", "settings.json"));
   return {
     enabled: project.enabled ?? global.enabled ?? true,
     reserveTokens: project.reserveTokens ?? global.reserveTokens ?? DEFAULT_RESERVE_TOKENS,
-    keepRecentTokens: project.keepRecentTokens ?? global.keepRecentTokens ?? DEFAULT_KEEP_RECENT_TOKENS,
+    keepRecentTokens:
+      project.keepRecentTokens ?? global.keepRecentTokens ?? DEFAULT_KEEP_RECENT_TOKENS,
   };
 }
 
@@ -320,7 +318,11 @@ function readCompactionSettings(settingsPath: string): Partial<CompactionBudgets
     if (!c || typeof c !== "object") return {};
     const out: Partial<CompactionBudgets> = {};
     if (typeof c.enabled === "boolean") out.enabled = c.enabled;
-    if (typeof c.reserveTokens === "number" && Number.isFinite(c.reserveTokens) && c.reserveTokens > 0) {
+    if (
+      typeof c.reserveTokens === "number" &&
+      Number.isFinite(c.reserveTokens) &&
+      c.reserveTokens > 0
+    ) {
       out.reserveTokens = Math.round(c.reserveTokens);
     }
     if (
@@ -418,7 +420,12 @@ function isBenignCompactError(error: unknown): boolean {
  * Inject resume as a hidden custom message (display: false). Pi converts custom
  * messages to user role for the LLM; TUI does not show them as chat bubbles.
  */
-function queueResume(pi: ExtensionAPI, ctx: ExtensionContext, prompt: string, notice: string): void {
+function queueResume(
+  pi: ExtensionAPI,
+  ctx: ExtensionContext,
+  prompt: string,
+  notice: string,
+): void {
   pi.sendMessage(
     {
       customType: RESUME_CUSTOM_TYPE,
@@ -507,8 +514,7 @@ export function createMidTurnCompactExtension(options?: {
       const tokens = estimateContextTokensFromMessages(event.messages).tokens;
       if (!(tokens > 0)) return;
 
-      const contextWindow =
-        ctx.model?.contextWindow ?? ctx.getContextUsage()?.contextWindow ?? 0;
+      const contextWindow = ctx.model?.contextWindow ?? ctx.getContextUsage()?.contextWindow ?? 0;
       if (!(contextWindow > 0)) return;
 
       const diskBudgets = resolveCompactionBudgets(ctx.cwd, options?.agentDir);
@@ -596,8 +602,7 @@ export function createMidTurnCompactExtension(options?: {
         return;
       }
 
-      const contextWindow =
-        ctx.model?.contextWindow ?? ctx.getContextUsage()?.contextWindow ?? 0;
+      const contextWindow = ctx.model?.contextWindow ?? ctx.getContextUsage()?.contextWindow ?? 0;
       if (
         isTinyLengthStall(lastAssistantOutputTokens, lastAssistantTotalTokens, contextWindow) &&
         consecutiveLengthResumes >= 1
@@ -648,8 +653,7 @@ export function createMidTurnCompactExtension(options?: {
       if (lengthResumePending) return;
       if (consecutiveLengthResumes >= MAX_LENGTH_RESUMES) return;
 
-      const contextWindow =
-        ctx.model?.contextWindow ?? ctx.getContextUsage()?.contextWindow ?? 0;
+      const contextWindow = ctx.model?.contextWindow ?? ctx.getContextUsage()?.contextWindow ?? 0;
       const tokens = ctx.getContextUsage()?.tokens ?? lastAssistantTotalTokens;
       if (!(contextWindow > 0) || typeof tokens !== "number" || !(tokens > 0)) return;
       const reserve = fitReserveToWindow(

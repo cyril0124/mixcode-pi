@@ -246,9 +246,8 @@ test("streaming-started user bash stays pending until agent_end", async () => {
     await promptDone;
     await waitForRuntime(
       () =>
-        runtimeTab.chat.find(
-          (line) => line.role === "tool" && line.variant === "user-bash",
-        )?.pendingBash !== true,
+        runtimeTab.chat.find((line) => line.role === "tool" && line.variant === "user-bash")
+          ?.pendingBash !== true,
     );
 
     const after = runtimeTab.chat.find(

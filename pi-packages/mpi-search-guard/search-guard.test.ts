@@ -235,17 +235,11 @@ test("safe: find targeting $HOME/subdir", () => {
 // ─── redirections ─────────────────────────────────────────────────────────────
 
 test("blocked: find with 2>/dev/null redirection", () => {
-  assert.equal(
-    inspectBashCommand(`find ${HOME} -name "x" -type f 2>/dev/null`, CWD),
-    HOME,
-  );
+  assert.equal(inspectBashCommand(`find ${HOME} -name "x" -type f 2>/dev/null`, CWD), HOME);
 });
 
 test("safe: redirection tokens not confused as paths", () => {
-  assert.equal(
-    inspectBashCommand("grep -r foo src/ 2>/dev/null", CWD),
-    null,
-  );
+  assert.equal(inspectBashCommand("grep -r foo src/ 2>/dev/null", CWD), null);
 });
 
 // ─── multiline combined scenarios ─────────────────────────────────────────────
@@ -262,10 +256,7 @@ find ${HOME} -name "mytool" -type f 2>/dev/null | head -3`;
 });
 
 test("blocked: find with multiple paths (second is dangerous)", () => {
-  assert.equal(
-    inspectBashCommand(`find ./safe ${HOME} -name "*.ts"`, CWD),
-    HOME,
-  );
+  assert.equal(inspectBashCommand(`find ./safe ${HOME} -name "*.ts"`, CWD), HOME);
 });
 
 test("blocked: newline-separated dangerous command", () => {

@@ -10,7 +10,10 @@ import { MIXCODE_RETRY_DEFAULTS } from "../src/agent/retry-settings.js";
 test("runtime sessions use MixCode retry defaults without persisting settings", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-retry-defaults-"));
   try {
-    const runtime = new MixCodeRuntime({ sessionsRoot: path.join(dir, "sessions"), agentDir: path.join(dir, "agent") });
+    const runtime = new MixCodeRuntime({
+      sessionsRoot: path.join(dir, "sessions"),
+      agentDir: path.join(dir, "agent"),
+    });
     const tab = createTab(1, "s1", dir);
 
     const runtimeTab = await runtime.createTab(tab, {

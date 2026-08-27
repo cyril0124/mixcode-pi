@@ -11,7 +11,12 @@ import {
 } from "@earendil-works/pi-ai";
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import { TuiMainScreen, type Terminal } from "@earendil-works/pi-tui";
-import { MIXCODE_FAUX_MODEL, MixCodeRuntime, createTab, type RuntimeTab } from "./helpers/mixcode.js";
+import {
+  MIXCODE_FAUX_MODEL,
+  MixCodeRuntime,
+  createTab,
+  type RuntimeTab,
+} from "./helpers/mixcode.js";
 
 function silentTerminal(): Terminal {
   return {
@@ -48,7 +53,9 @@ async function waitFor(predicate: () => boolean, attempts = 80): Promise<void> {
 }
 
 test("runtime extension fork covers root and at-position branches", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-fork-branches-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-extension-fork-branches-"),
+  );
   const events: string[] = [];
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
@@ -100,7 +107,9 @@ test("runtime extension fork covers root and at-position branches", async () => 
 });
 
 test("runtime extension fork treats visible non-user entries as prior conversation", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-fork-visible-prior-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-extension-fork-visible-prior-"),
+  );
   try {
     const cases: Array<{
       name: string;
@@ -210,7 +219,9 @@ test("runtime extension fork treats visible non-user entries as prior conversati
 });
 
 test("ctx.shutdown() closes the current tab when idle", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-shutdown-idle-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-extension-shutdown-idle-"),
+  );
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("shutdown-smoke", {
       description: "Request session shutdown",
@@ -255,7 +266,9 @@ test("ctx.shutdown() closes the current tab when idle", async () => {
 });
 
 test("ctx.shutdown() defers close until the tab is no longer streaming", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-shutdown-defer-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-extension-shutdown-defer-"),
+  );
   let release!: () => void;
   const released = new Promise<void>((resolve) => {
     release = resolve;

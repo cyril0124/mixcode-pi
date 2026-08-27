@@ -44,7 +44,10 @@ test("isMixcodeProcess requires MIXCODE truthy", () => {
 });
 
 test("herdrBridgeEnabled requires MIXCODE plus herdr pane env", () => {
-  assert.equal(herdrBridgeEnabled({ HERDR_ENV: "1", HERDR_SOCKET_PATH: "/s", HERDR_PANE_ID: "w1:p1" }), false);
+  assert.equal(
+    herdrBridgeEnabled({ HERDR_ENV: "1", HERDR_SOCKET_PATH: "/s", HERDR_PANE_ID: "w1:p1" }),
+    false,
+  );
   assert.equal(
     herdrBridgeEnabled({
       MIXCODE: "1",
@@ -91,7 +94,10 @@ test("readCtxIdle swallows only session-replacement stale errors", () => {
     }),
     undefined,
   );
-  assert.equal(isStaleCtxError(new Error("This extension ctx is stale after session replacement")), true);
+  assert.equal(
+    isStaleCtxError(new Error("This extension ctx is stale after session replacement")),
+    true,
+  );
   assert.throws(
     () =>
       readCtxIdle({
@@ -216,7 +222,9 @@ test("session_start does not read isIdle after the session ctx is replaced", asy
 
   let stale = false;
   let sessionStart: ((event: { reason: string }, ctx: unknown) => void) | undefined;
-  let sessionShutdown: ((event: { type: string; reason: string }) => void | Promise<void>) | undefined;
+  let sessionShutdown:
+    | ((event: { type: string; reason: string }) => void | Promise<void>)
+    | undefined;
   let agentStart: ((event: unknown, ctx: unknown) => void) | undefined;
   let waitingForInput: ((raw: unknown) => void) | undefined;
   herdrReportExtension({
@@ -250,20 +258,31 @@ test("session_start does not read isIdle after the session ctx is replaced", asy
     agentStart?.({}, ctx);
     await new Promise((resolve) => setTimeout(resolve, 80));
     assert.equal(rejections.length, 0, String(rejections[0]));
-    const states = reports.filter((r) => r.method === "pane.report_agent").map((r) => r.params?.state);
-    assert.ok(states.includes("working"), `expected a working report, got ${JSON.stringify(states)}`);
+    const states = reports
+      .filter((r) => r.method === "pane.report_agent")
+      .map((r) => r.params?.state);
+    assert.ok(
+      states.includes("working"),
+      `expected a working report, got ${JSON.stringify(states)}`,
+    );
     assert.notEqual(states.at(-1), "idle");
     waitingForInput?.({ count: 1, active: true });
     await new Promise((resolve) => setTimeout(resolve, 80));
-    const blocked = reports.filter((r) => r.method === "pane.report_agent").map((r) => r.params?.state);
+    const blocked = reports
+      .filter((r) => r.method === "pane.report_agent")
+      .map((r) => r.params?.state);
     assert.equal(blocked.at(-1), "blocked");
     await sessionShutdown?.({ type: "session_shutdown", reason: "quit" });
     assert.equal(rejections.length, 0, String(rejections[0]));
-    const afterShutdown = reports.filter((r) => r.method === "pane.report_agent").map((r) => r.params?.state);
+    const afterShutdown = reports
+      .filter((r) => r.method === "pane.report_agent")
+      .map((r) => r.params?.state);
     assert.equal(afterShutdown.at(-1), "idle");
   } finally {
     process.off("unhandledRejection", onReject);
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
     await fs.rm(dir, { recursive: true, force: true });
     restoreEnv("MIXCODE", prev.MIXCODE);
     restoreEnv("HERDR_ENV", prev.HERDR_ENV);

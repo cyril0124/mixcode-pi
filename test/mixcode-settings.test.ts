@@ -142,7 +142,11 @@ test("mixcode settings reject invalid oversized assistant message policy", async
       [{ enabled: "yes" }, /ui\.oversizedAssistantMessage\.enabled must be a boolean/],
       ["bad", /ui\.oversizedAssistantMessage must be an object/],
     ] as const) {
-      await fsPromises.writeFile(file, JSON.stringify({ ui: { oversizedAssistantMessage: value } }), "utf8");
+      await fsPromises.writeFile(
+        file,
+        JSON.stringify({ ui: { oversizedAssistantMessage: value } }),
+        "utf8",
+      );
       await assert.rejects(() => loadMixCodeSettings(file), message);
     }
   } finally {

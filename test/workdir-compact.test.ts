@@ -13,7 +13,10 @@ function visible(text: string): string {
 }
 
 test("compactWorkdir keeps the full path when it fits", () => {
-  assert.equal(compactWorkdir("~/workspace/project/mixcode-pi", 30), "~/workspace/project/mixcode-pi");
+  assert.equal(
+    compactWorkdir("~/workspace/project/mixcode-pi", 30),
+    "~/workspace/project/mixcode-pi",
+  );
 });
 
 test("compactWorkdir compresses left components progressively until it fits", () => {

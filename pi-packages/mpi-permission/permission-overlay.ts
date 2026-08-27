@@ -62,7 +62,13 @@ export function buildPermissionRows(config: PermissionConfig): PermissionRow[] {
   for (const entry of config.entries) {
     rows.push({ kind: "header", tool: entry.tool });
     entry.rules.forEach((rule, index) => {
-      rows.push({ kind: "rule", tool: entry.tool, index, pattern: rule.pattern, action: rule.action });
+      rows.push({
+        kind: "rule",
+        tool: entry.tool,
+        index,
+        pattern: rule.pattern,
+        action: rule.action,
+      });
     });
   }
   return rows;
@@ -223,7 +229,9 @@ export function createPermissionOverlay(options: PermissionOverlayOptions): {
     if (matchesKey(data, Key.enter)) {
       if (wizard.step === "key") {
         const picks = keyCandidates(wizard.buffer);
-        const chosen = (picks.length > 0 ? picks[wizard.picked] ?? picks[0]! : wizard.buffer).trim();
+        const chosen = (
+          picks.length > 0 ? (picks[wizard.picked] ?? picks[0]!) : wizard.buffer
+        ).trim();
         if (!chosen) return;
         if (RESERVED_RULE_KEYS.has(chosen)) {
           options.onError?.(`${chosen} is a reserved key, not a rule target`);
@@ -308,11 +316,16 @@ export function createPermissionOverlay(options: PermissionOverlayOptions): {
       lines.push(clip(`  ${theme.bold("new rule 1/3 · key:")} ${wizard.buffer}▌`));
       const picks = keyCandidates(wizard.buffer);
       if (picks.length === 0) {
-        lines.push(clip(dim(`  no known key matches — enter uses "${wizard.buffer.trim()}" as typed`)));
+        lines.push(
+          clip(dim(`  no known key matches — enter uses "${wizard.buffer.trim()}" as typed`)),
+        );
       } else {
         const start = Math.max(
           0,
-          Math.min(wizard.picked - Math.floor(KEY_CANDIDATE_ROWS / 2), picks.length - KEY_CANDIDATE_ROWS),
+          Math.min(
+            wizard.picked - Math.floor(KEY_CANDIDATE_ROWS / 2),
+            picks.length - KEY_CANDIDATE_ROWS,
+          ),
         );
         for (let i = start; i < Math.min(start + KEY_CANDIDATE_ROWS, picks.length); i++) {
           const marker = i === wizard.picked ? theme.fg("accent", "› ") : "  ";
@@ -327,7 +340,9 @@ export function createPermissionOverlay(options: PermissionOverlayOptions): {
       return lines;
     }
     if (wizard.step === "pattern") {
-      lines.push(clip(`  ${theme.bold(`new rule 2/3 · pattern for ${wizard.key}:`)} ${wizard.buffer}▌`));
+      lines.push(
+        clip(`  ${theme.bold(`new rule 2/3 · pattern for ${wizard.key}:`)} ${wizard.buffer}▌`),
+      );
       lines.push(clip(dim(`  ${patternExample(wizard.key)}`)));
       lines.push(clip(dim("  ⏎ next  esc back")));
       return lines;
@@ -336,7 +351,9 @@ export function createPermissionOverlay(options: PermissionOverlayOptions): {
       action === wizard.action ? theme.fg("accent", `[${action}]`) : dim(` ${action} `),
     ).join(" ");
     lines.push(
-      clip(`  ${theme.bold(`new rule 3/3 · action for ${wizard.key}[${wizard.pattern}]:`)} ${choices}`),
+      clip(
+        `  ${theme.bold(`new rule 3/3 · action for ${wizard.key}[${wizard.pattern}]:`)} ${choices}`,
+      ),
     );
     lines.push(clip(dim("  space/←→ choose  ⏎ add rule  esc back")));
     return lines;
@@ -439,13 +456,21 @@ function indexOfSelectable(list: readonly PermissionRow[], selectableIndex: numb
   return 0;
 }
 
-function windowLines(lines: string[], selectedAbs: number, budget: number, dim: (s: string) => string): string[] {
+function windowLines(
+  lines: string[],
+  selectedAbs: number,
+  budget: number,
+  dim: (s: string) => string,
+): string[] {
   if (lines.length === 0) return [dim("  No rules")];
   if (lines.length <= budget) return lines;
   let itemBudget = Math.max(1, budget);
   if (itemBudget >= 2) itemBudget -= 1;
   if (itemBudget >= 2 && lines.length > itemBudget + 1) itemBudget -= 1;
-  let start = Math.max(0, Math.min(selectedAbs - Math.floor(itemBudget / 2), lines.length - itemBudget));
+  let start = Math.max(
+    0,
+    Math.min(selectedAbs - Math.floor(itemBudget / 2), lines.length - itemBudget),
+  );
   let end = Math.min(start + itemBudget, lines.length);
   if (selectedAbs < start) {
     start = selectedAbs;
@@ -475,7 +500,9 @@ function fitBody(lines: string[], footer: string[], budget: number, pathLine: st
       body.splice(pathIdx, 1);
       continue;
     }
-    const more = body.findIndex((line) => line.includes("more above") || line.includes("more below"));
+    const more = body.findIndex(
+      (line) => line.includes("more above") || line.includes("more below"),
+    );
     if (more >= 0) {
       body.splice(more, 1);
       continue;

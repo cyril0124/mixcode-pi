@@ -123,19 +123,13 @@ export function splitLines(text: string): string[] {
     .map((line) => line.replace(/\t/g, "    "));
 }
 
-export function compactOutputLines(
-  lines: string[],
-  options: CompactOutputOptions,
-): string[] {
+export function compactOutputLines(lines: string[], options: CompactOutputOptions): string[] {
   const trimmed = trimTrailingEmptyLines(lines);
   if (options.expanded) {
     return trimmed;
   }
 
-  return collapseConsecutiveEmptyLines(
-    trimmed,
-    options.maxCollapsedConsecutiveEmptyLines ?? 1,
-  );
+  return collapseConsecutiveEmptyLines(trimmed, options.maxCollapsedConsecutiveEmptyLines ?? 1);
 }
 
 export function isLikelyQuietCommand(command: string | undefined): boolean {
@@ -159,10 +153,7 @@ export function isLikelyQuietCommand(command: string | undefined): boolean {
 
   for (const prefix of QUIET_COMMAND_PREFIXES) {
     const normalizedPrefix = prefix.toLowerCase();
-    if (
-      primarySegment === normalizedPrefix ||
-      primarySegment.startsWith(`${normalizedPrefix} `)
-    ) {
+    if (primarySegment === normalizedPrefix || primarySegment.startsWith(`${normalizedPrefix} `)) {
       return true;
     }
   }
@@ -170,11 +161,7 @@ export function isLikelyQuietCommand(command: string | undefined): boolean {
   return false;
 }
 
-export function pluralize(
-  count: number,
-  singular: string,
-  plural = `${singular}s`,
-): string {
+export function pluralize(count: number, singular: string, plural = `${singular}s`): string {
   return count === 1 ? singular : plural;
 }
 

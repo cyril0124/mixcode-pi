@@ -27,7 +27,8 @@ function renderWorkspaceOverlayInner(
   width: number,
 ): string[] {
   if (overlay.mode === "save") return renderSaveOverlay(overlay, state, width);
-  if (overlay.mode === "save-confirm-overwrite") return renderSaveConfirmOverlay(overlay, state, width);
+  if (overlay.mode === "save-confirm-overwrite")
+    return renderSaveConfirmOverlay(overlay, state, width);
   if (overlay.mode === "restore-confirm-close") return renderRestoreConfirmOverlay(overlay, width);
   if (overlay.mode === "delete-confirm") return renderDeleteConfirmOverlay(overlay, width);
   if (overlay.mode === "restoring") return renderRestoringOverlay(overlay, width);
@@ -191,7 +192,10 @@ function renderWorkspaceSelector(
   return overlayPanel("Project Workspaces", lines, panelWidth);
 }
 
-function workspaceSelectorRows(workspaceCount: number, workspace: WorkspaceSnapshot | undefined): number {
+function workspaceSelectorRows(
+  workspaceCount: number,
+  workspace: WorkspaceSnapshot | undefined,
+): number {
   const detailRows = workspace ? Math.min(18, workspace.tabs.length + 5) : 8;
   const listRows = workspaceCount + 2;
   return Math.max(10, Math.min(18, Math.max(detailRows, listRows)));
@@ -201,7 +205,11 @@ function renderWorkspaceList(overlay: WorkspaceOverlayView, width: number, rows:
   const workspaces = filteredWorkspaces(overlay);
   const lines = [`filter: ${overlay.query}`, ""];
   const startIndex = windowStart(overlay.selectedIndex, workspaces.length, rows - 2);
-  for (let index = startIndex; index < Math.min(workspaces.length, startIndex + rows - 2); index++) {
+  for (
+    let index = startIndex;
+    index < Math.min(workspaces.length, startIndex + rows - 2);
+    index++
+  ) {
     const workspace = workspaces[index]!;
     const selected = index === overlay.selectedIndex;
     const right = `${workspaceTabCount(workspace)} tabs \u00b7 ${formatWorkspaceDate(workspace.updatedAt)}`;
@@ -240,11 +248,18 @@ function renderWorkspaceDetails(
   return lines.map((line) => truncateToWidth(line, width));
 }
 
-function zipColumns(left: string[], right: string[], leftWidth: number, rightWidth: number): string[] {
+function zipColumns(
+  left: string[],
+  right: string[],
+  leftWidth: number,
+  rightWidth: number,
+): string[] {
   const count = Math.max(left.length, right.length);
   const lines: string[] = [];
   for (let index = 0; index < count; index++) {
-    lines.push(`${padLine(left[index] ?? "", leftWidth)} \u2502 ${padLine(right[index] ?? "", rightWidth)}`);
+    lines.push(
+      `${padLine(left[index] ?? "", leftWidth)} \u2502 ${padLine(right[index] ?? "", rightWidth)}`,
+    );
   }
   return lines;
 }

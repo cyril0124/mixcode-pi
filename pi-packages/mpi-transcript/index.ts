@@ -326,7 +326,8 @@ function cacheMissNotice(miss: CacheMiss): string | undefined {
   const cost = miss.missedCost >= 0.01 ? ` (~$${miss.missedCost.toFixed(2)})` : "";
   let label = "Cache miss";
   if (miss.modelChanged) label = "Cache miss after model switch";
-  else if (miss.idleMs >= CACHE_TTL_MS) label = `Cache miss after ${Math.round(miss.idleMs / 60_000)}m idle`;
+  else if (miss.idleMs >= CACHE_TTL_MS)
+    label = `Cache miss after ${Math.round(miss.idleMs / 60_000)}m idle`;
   return `${label}: ${fmtTokens(miss.missedTokens)} tokens re-billed${cost}`;
 }
 
@@ -343,7 +344,13 @@ function collectChatlog(entries: SessionEntry[], options: ChatlogOptions = {}): 
   const resultById = new Map<string, { status: string; text: string }>();
   for (const entry of entries) {
     const msg = messageOf(entry) as
-      | { role: string; toolCallId?: string; toolName?: string; content?: unknown; isError?: boolean }
+      | {
+          role: string;
+          toolCallId?: string;
+          toolName?: string;
+          content?: unknown;
+          isError?: boolean;
+        }
       | undefined;
     if (msg?.role === "toolResult" && msg.toolCallId) {
       resultById.set(msg.toolCallId, {
@@ -419,7 +426,9 @@ function collectChatlog(entries: SessionEntry[], options: ChatlogOptions = {}): 
       const text = blockText(msg.content);
       if (text.trim()) {
         turn += 1;
-        sections.push(`---\n\n## 👤 User · #${turn}\n\n_${formatTime(entry.timestamp)}_\n\n${text.trim()}`);
+        sections.push(
+          `---\n\n## 👤 User · #${turn}\n\n_${formatTime(entry.timestamp)}_\n\n${text.trim()}`,
+        );
       }
     } else if (msg.role === "assistant" && Array.isArray(msg.content)) {
       const parts: string[] = [];
@@ -431,17 +440,20 @@ function collectChatlog(entries: SessionEntry[], options: ChatlogOptions = {}): 
           const text = thinkingText(block as ThinkingBlock);
           // Render thinking as a labeled blockquote
           if (text.trim())
-            parts.push(
-              `> **💭 Thinking**\n>\n> ${text.trim().replace(/\n/g, "\n> ")}`,
-            );
+            parts.push(`> **💭 Thinking**\n>\n> ${text.trim().replace(/\n/g, "\n> ")}`);
         } else if (block.type === "toolCall") {
           const call = block as ToolCallBlock;
           const result = call.id ? resultById.get(call.id) : undefined;
           const name = call.name ?? "(unknown)";
           // No paired result means the call never completed (e.g. aborted).
-          const status = result ? (result.status === "error" ? "❌ error" : "✅ success") : "⏳ no result";
+          const status = result
+            ? result.status === "error"
+              ? "❌ error"
+              : "✅ success"
+            : "⏳ no result";
           // Tool call arguments as a fenced JSON block; empty/missing args render nothing.
-          const args = call.arguments && Object.keys(call.arguments).length ? call.arguments : undefined;
+          const args =
+            call.arguments && Object.keys(call.arguments).length ? call.arguments : undefined;
           let argsBlock = "";
           if (args) {
             const json = JSON.stringify(args, null, 2);
@@ -503,9 +515,12 @@ function collectChatlog(entries: SessionEntry[], options: ChatlogOptions = {}): 
           if (ctxTokens > 0) {
             const delta = prevContext !== undefined ? ctxTokens - prevContext : 0;
             const deltaPart = delta !== 0 ? `${delta > 0 ? "+" : "-"}${num(Math.abs(delta))}` : "";
-            const cw = msg.provider && msg.model ? contextWindowFor?.(msg.provider, msg.model) : undefined;
+            const cw =
+              msg.provider && msg.model ? contextWindowFor?.(msg.provider, msg.model) : undefined;
             if (cw) {
-              const inner = [`${((ctxTokens / cw) * 100).toFixed(1)}%`, deltaPart].filter(Boolean).join(", ");
+              const inner = [`${((ctxTokens / cw) * 100).toFixed(1)}%`, deltaPart]
+                .filter(Boolean)
+                .join(", ");
               meta.push(`${fmtTokens(ctxTokens)}/${fmtTokens(cw)} (${inner})`);
             } else {
               meta.push(`${num(ctxTokens)} tok${deltaPart ? ` (${deltaPart})` : ""}`);
@@ -871,12 +886,27 @@ refresh()
 // tty, and resume once it exits. Resolves true on success, false if the editor
 // could not be launched (so the caller can fall back to the in-app editor).
 function openInExternalEditor(
-  ctx: { ui: { custom<T>(factory: (tui: TUI, theme: unknown, keybindings: unknown, done: (result: T) => void) => Component): Promise<T> } },
+  ctx: {
+    ui: {
+      custom<T>(
+        factory: (
+          tui: TUI,
+          theme: unknown,
+          keybindings: unknown,
+          done: (result: T) => void,
+        ) => Component,
+      ): Promise<T>;
+    };
+  },
   editorCmd: string,
   content: string,
 ): Promise<boolean> {
   return ctx.ui.custom<boolean>((tui, _theme, _keybindings, done) => {
-    const t = tui as unknown as { stop: () => void; start: () => void; requestRender: (f?: boolean) => void };
+    const t = tui as unknown as {
+      stop: () => void;
+      start: () => void;
+      requestRender: (f?: boolean) => void;
+    };
     t.stop();
     const tmpFile = path.join(os.tmpdir(), `transcript-${process.pid}-${Date.now()}.md`);
     let luaFile: string | undefined;
@@ -907,7 +937,9 @@ function openInExternalEditor(
           luaFile = tmpFile.replace(/\.md$/, ".lua");
           await fs.writeFile(luaFile, NVIM_TRANSCRIPT_LUA);
         }
-        const child = spawn(cmd!, [...cmdArgs, ...editorExtraArgs(cmd!, luaFile), tmpFile], { stdio: "inherit" });
+        const child = spawn(cmd!, [...cmdArgs, ...editorExtraArgs(cmd!, luaFile), tmpFile], {
+          stdio: "inherit",
+        });
         await new Promise<void>((resolve, reject) => {
           child.once("error", reject);
           child.once("close", () => resolve());
@@ -968,7 +1000,10 @@ const extension: ExtensionFactory = (pi) => {
     if (countToken !== undefined) {
       const n = Number(countToken);
       if (!Number.isInteger(n) || n < 1) {
-        ctx.ui.notify(`Error: Invalid turn count: ${countToken}. Expected a positive integer.`, "error");
+        ctx.ui.notify(
+          `Error: Invalid turn count: ${countToken}. Expected a positive integer.`,
+          "error",
+        );
         return undefined;
       }
       lastTurns = n;
@@ -978,11 +1013,17 @@ const extension: ExtensionFactory = (pi) => {
 
   // Resolve the target: explicit token, or the select chooser when absent.
   // Returns undefined when the user cancels or passes an unknown id.
-  const resolveTarget = async (targetToken: string | undefined, ctx: UiCtx): Promise<TargetId | undefined> => {
+  const resolveTarget = async (
+    targetToken: string | undefined,
+    ctx: UiCtx,
+  ): Promise<TargetId | undefined> => {
     if (targetToken) {
       const target = normalizeTarget(targetToken);
       if (!target) {
-        ctx.ui.notify(`Error: Unknown transcript target: ${targetToken}. Try: ${TARGETS.map((t) => t.id).join(", ")}`, "error");
+        ctx.ui.notify(
+          `Error: Unknown transcript target: ${targetToken}. Try: ${TARGETS.map((t) => t.id).join(", ")}`,
+          "error",
+        );
       }
       return target;
     }
@@ -999,7 +1040,10 @@ const extension: ExtensionFactory = (pi) => {
     lastTurns: number | undefined,
     fullToolOutput: boolean | undefined,
     ctx: {
-      sessionManager: { getBranch: () => SessionEntry[]; buildContextEntries: () => SessionEntry[] };
+      sessionManager: {
+        getBranch: () => SessionEntry[];
+        buildContextEntries: () => SessionEntry[];
+      };
       modelRegistry: {
         find(
           provider: string,
@@ -1053,7 +1097,10 @@ const extension: ExtensionFactory = (pi) => {
       if (!parsed) return;
       const target = await resolveTarget(parsed.targetToken, ctx);
       if (!target) return;
-      if (parsed.lastTurns !== undefined && (target === "latest-agent" || target === "latest-user")) {
+      if (
+        parsed.lastTurns !== undefined &&
+        (target === "latest-agent" || target === "latest-user")
+      ) {
         ctx.ui.notify(`Error: Turn count is not supported for ${target}.`, "error");
         return;
       }

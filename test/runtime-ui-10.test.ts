@@ -4,18 +4,10 @@ import * as fsPromises from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import { test } from "node:test";
-import {
-  Type,
-} from "@earendil-works/pi-ai";
-import type {
-  ExtensionFactory,
-} from "@earendil-works/pi-coding-agent";
-import { Text, } from "@earendil-works/pi-tui";
-import {
-  MixCodeRuntime,
-  createTab,
-  renderAgentSurface,
-} from "./helpers/mixcode.js";
+import { Type } from "@earendil-works/pi-ai";
+import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
+import { Text } from "@earendil-works/pi-tui";
+import { MixCodeRuntime, createTab, renderAgentSurface } from "./helpers/mixcode.js";
 
 function stripAnsi(text: string): string {
   return text
@@ -206,7 +198,9 @@ test("runtime renders extension tool results with registered tool renderers", as
       result: { content: [{ type: "text", text: "raw broken string" }], details: {} },
       isError: false,
     });
-    const brokenStringResultSurface = renderAgentSurface(runtimeTab.tab, runtimeTab, 100).join("\n");
+    const brokenStringResultSurface = renderAgentSurface(runtimeTab.tab, runtimeTab, 100).join(
+      "\n",
+    );
     assert.match(brokenStringResultSurface, /raw broken string/);
     assert.doesNotMatch(brokenStringResultSurface, /renderer error/);
 

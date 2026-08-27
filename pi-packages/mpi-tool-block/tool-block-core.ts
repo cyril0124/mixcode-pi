@@ -172,7 +172,9 @@ export function loadToolBlockConfig(agentDir: string): ConfigLoadResult {
 export function writeToolBlockConfig(
   agentDir: string,
   config: ToolBlockConfig,
-): { ok: true; path: string; config: ToolBlockConfig } | { ok: false; path: string; error: string } {
+):
+  | { ok: true; path: string; config: ToolBlockConfig }
+  | { ok: false; path: string; error: string } {
   const filePath = toolBlockConfigPath(agentDir);
   const normalized: ToolBlockConfig = {
     enabled: config.enabled !== false,
@@ -244,7 +246,9 @@ export function sameToolNames(left: readonly string[], right: readonly string[])
 }
 
 /** Overlay display state. Hidden wins over active/inactive. */
-export function toolBlockRowState(row: Extract<ToolBlockRow, { kind: "tool" }>): ToolBlockToolState {
+export function toolBlockRowState(
+  row: Extract<ToolBlockRow, { kind: "tool" }>,
+): ToolBlockToolState {
   if (row.hidden) return "hidden";
   if (row.inactive) return "inactive";
   return "visible";
@@ -355,7 +359,10 @@ export function toggleToolBlockRow(
     "";
   return {
     ...config,
-    hidden: sortHidden([...config.hidden, plugin ? { tool: row.name, plugin } : { tool: row.name }]),
+    hidden: sortHidden([
+      ...config.hidden,
+      plugin ? { tool: row.name, plugin } : { tool: row.name },
+    ]),
   };
 }
 
@@ -374,5 +381,7 @@ function pluginKey(item: { plugin?: string }): string {
 }
 
 function sortHidden(hidden: ToolBlockHidden[]): ToolBlockHidden[] {
-  return [...hidden].sort((a, b) => pluginKey(a).localeCompare(pluginKey(b)) || a.tool.localeCompare(b.tool));
+  return [...hidden].sort(
+    (a, b) => pluginKey(a).localeCompare(pluginKey(b)) || a.tool.localeCompare(b.tool),
+  );
 }

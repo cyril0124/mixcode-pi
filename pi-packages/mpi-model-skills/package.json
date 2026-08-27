@@ -4,6 +4,8 @@
   "type": "module",
   "description": "Per-model skill add/remove via system prompt rebuild",
   "pi": {
-    "extensions": ["./index.ts"]
+    "extensions": [
+      "./index.ts"
+    ]
   }
 }

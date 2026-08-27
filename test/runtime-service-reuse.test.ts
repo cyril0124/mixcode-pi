@@ -453,9 +453,7 @@ test("reload recomputes the startup header and keeps conversation", async () => 
     await runtime.extensionReload("s1");
     const afterReload = runtime.getTab("s1");
     assert.ok(afterReload);
-    assert.ok(
-      afterReload.chat.some((line) => line.role === "user" && line.text === "hello"),
-    );
+    assert.ok(afterReload.chat.some((line) => line.role === "user" && line.text === "hello"));
     assert.match(afterReload.tab.startupSummary ?? "", /\[Context\]/);
     // Reload swaps in fresh services; the disposed session's runtime must not
     // survive into the reloaded tab.

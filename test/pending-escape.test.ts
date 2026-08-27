@@ -24,14 +24,8 @@ test("isPendingEscapeActive is true inside window and false after window+1", () 
   armPendingEscape(tab, now);
 
   assert.equal(isPendingEscapeActive(tab, now), true);
-  assert.equal(
-    isPendingEscapeActive(tab, now + PENDING_ESCAPE_CONFIRM_WINDOW_MS),
-    true,
-  );
-  assert.equal(
-    isPendingEscapeActive(tab, now + PENDING_ESCAPE_CONFIRM_WINDOW_MS + 1),
-    false,
-  );
+  assert.equal(isPendingEscapeActive(tab, now + PENDING_ESCAPE_CONFIRM_WINDOW_MS), true);
+  assert.equal(isPendingEscapeActive(tab, now + PENDING_ESCAPE_CONFIRM_WINDOW_MS + 1), false);
 });
 
 test("clearPendingEscape clears armedAt", () => {

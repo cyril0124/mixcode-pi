@@ -127,7 +127,9 @@ interface InstallResult {
 type PackageManagerLike = { installAndPersist(source: string): Promise<void> };
 
 async function createPackageManager(env: NodeJS.ProcessEnv): Promise<PackageManagerLike> {
-  const { DefaultPackageManager, SettingsManager } = await import("@earendil-works/pi-coding-agent");
+  const { DefaultPackageManager, SettingsManager } = await import(
+    "@earendil-works/pi-coding-agent"
+  );
   const cwd = process.cwd();
   const agentDir = resolveMixcodeAgentDir(env);
   const settingsManager = SettingsManager.create(cwd, agentDir);
@@ -165,7 +167,9 @@ function reportResults({ ok, failed }: InstallResult, retryHint: string): void {
   if (failed.length === 0) {
     p.outro(pc.green("Done!") + pc.dim("  Restart pi/mpi to load new extensions."));
   } else {
-    p.outro(pc.yellow(`Finished with ${failed.length} failure(s).`) + pc.dim(`  Re-run: ${retryHint}`));
+    p.outro(
+      pc.yellow(`Finished with ${failed.length} failure(s).`) + pc.dim(`  Re-run: ${retryHint}`),
+    );
   }
 }
 
@@ -220,7 +224,9 @@ export async function runInstallExtensionsFlow(
   // Interactive clack UI (skills-style).
   p.intro(pc.bgCyan(pc.black(" mixcode-pi ")));
   p.log.message(
-    pc.dim(`${missing.length} of ${RECOMMENDED.length} recommended Pi extensions are not installed yet.`),
+    pc.dim(
+      `${missing.length} of ${RECOMMENDED.length} recommended Pi extensions are not installed yet.`,
+    ),
   );
 
   const selected = await p.multiselect({
@@ -305,7 +311,9 @@ export async function maybeOfferFirstRunInstall(
 
   p.intro(pc.bgCyan(pc.black(" mixcode-pi ")));
   p.log.message(
-    pc.dim(`First run: ${missing.length} of ${RECOMMENDED.length} recommended Pi extensions are not installed.`),
+    pc.dim(
+      `First run: ${missing.length} of ${RECOMMENDED.length} recommended Pi extensions are not installed.`,
+    ),
   );
   const confirmed = await p.confirm({
     message: `Install ${missing.length} recommended Pi extension(s) now?`,

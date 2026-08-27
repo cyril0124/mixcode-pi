@@ -23,7 +23,10 @@ export function renderFloatingPanelOverlay(
   if (panel.expiresAt <= now) return lines;
 
   const terminalWidth = Math.max(0, Math.floor(options.width));
-  const panelWidth = Math.min(Math.max(4, panel.width), terminalWidth - SCROLLBAR_SAFE_RIGHT_MARGIN);
+  const panelWidth = Math.min(
+    Math.max(4, panel.width),
+    terminalWidth - SCROLLBAR_SAFE_RIGHT_MARGIN,
+  );
   if (panelWidth < 4) return lines;
 
   const box = renderFloatingPanelBox(panel, panelWidth, options.theme);
@@ -38,7 +41,13 @@ export function renderFloatingPanelOverlay(
   for (let index = 0; index < box.length; index++) {
     const row = startRow + index;
     // compositeTuiLine keeps content after the overlay so chat scrollbars survive.
-    result[row] = compositeTuiLine(result[row] ?? "", box[index]!, startCol, panelWidth, terminalWidth);
+    result[row] = compositeTuiLine(
+      result[row] ?? "",
+      box[index]!,
+      startCol,
+      panelWidth,
+      terminalWidth,
+    );
   }
   return result;
 }
@@ -57,7 +66,8 @@ function renderFloatingPanelBox(
   const top = renderFloatingPanelTop(panel.title, innerWidth, border, title);
   const body = panel.lines.map((line, index) => {
     const paddedContent = padLine(` ${truncateToWidth(line, contentWidth)} `, innerWidth);
-    const styled = index === panel.highlightedIndex ? highlighted(paddedContent) : bodyStyle(paddedContent);
+    const styled =
+      index === panel.highlightedIndex ? highlighted(paddedContent) : bodyStyle(paddedContent);
     return `${border("│")}${styled}${border("│")}`;
   });
   const bottom = `${border("╰")}${border("─".repeat(innerWidth))}${border("╯")}`;

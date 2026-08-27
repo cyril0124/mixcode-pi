@@ -589,7 +589,8 @@ test("zen separator left-anchors done markers and caps at 5 with [+N]", () => {
   const width = 40;
   const bare = (count: number) =>
     stripAnsi(
-      renderTabBarSeparator(width, { iconMode: "nerd",
+      renderTabBarSeparator(width, {
+        iconMode: "nerd",
         zenMode: true,
         zenStatusMarkers: Array.from({ length: count }, () => "done" as const),
       })[0]!,
@@ -610,7 +611,8 @@ test("zen separator left-anchors done markers and caps at 5 with [+N]", () => {
 
 test("non-zen separator never shows status markers", () => {
   const line = stripAnsi(
-    renderTabBarSeparator(40, { iconMode: "nerd",
+    renderTabBarSeparator(40, {
+      iconMode: "nerd",
       zenMode: false,
       zenStatusMarkers: ["working", "waiting", "done", "error"],
     })[0]!,
@@ -630,7 +632,8 @@ test("zen done dots use done color while dashes use the frame color", () => {
   } as unknown as MixCodeTheme;
   const line = renderTabBarSeparator(
     40,
-    { iconMode: "nerd",
+    {
+      iconMode: "nerd",
       zenMode: true,
       zenStatusMarkers: Array.from({ length: 7 }, () => "done" as const),
       vimMode: true,
@@ -660,7 +663,11 @@ test("zen separator uses neutral overflow color whenever visible states are mixe
   } as unknown as MixCodeTheme;
   const line = renderTabBarSeparator(
     40,
-    { iconMode: "nerd", zenMode: true, zenStatusMarkers: ["working", "waiting", "error", "done", "done", "done"] },
+    {
+      iconMode: "nerd",
+      zenMode: true,
+      zenStatusMarkers: ["working", "waiting", "error", "done", "done", "done"],
+    },
     identityTheme,
   )[0]!;
 
@@ -669,7 +676,8 @@ test("zen separator uses neutral overflow color whenever visible states are mixe
 
 test("zen separator drops markers when the row is too narrow", () => {
   const line = stripAnsi(
-    renderTabBarSeparator(4, { iconMode: "nerd",
+    renderTabBarSeparator(4, {
+      iconMode: "nerd",
       zenMode: true,
       zenStatusMarkers: ["working", "waiting", "done"],
     })[0]!,

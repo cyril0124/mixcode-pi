@@ -66,9 +66,7 @@ test("ctx.ui.custom editor replacement forwards focus so nested cursor is visibl
             render: () => {
               nestedFocused = focused;
               // Mimic pi-tui Editor: emit cursor marker only when focused.
-              return focused
-                ? ["TOP", `${CURSOR_MARKER}`, "BOTTOM"]
-                : ["TOP", " ", "BOTTOM"];
+              return focused ? ["TOP", `${CURSOR_MARKER}`, "BOTTOM"] : ["TOP", " ", "BOTTOM"];
             },
             handleInput: () => undefined,
             invalidate: () => undefined,

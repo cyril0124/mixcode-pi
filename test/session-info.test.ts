@@ -50,11 +50,10 @@ const BASE_STATS = {
 };
 
 test("renderSessionInfoText always includes Tab and Workdir when provided", () => {
-  const withName = renderSessionInfoText(
-    { getSessionName: () => "Daily work" },
-    BASE_STATS,
-    { tabTitle: "Agent-01", workdir: "/repo" },
-  );
+  const withName = renderSessionInfoText({ getSessionName: () => "Daily work" }, BASE_STATS, {
+    tabTitle: "Agent-01",
+    workdir: "/repo",
+  });
   assert.match(
     withName,
     /^Session Info\n\nTab: Agent-01\nWorkdir: \/repo\nName: Daily work\nFile: \/tmp\/session\.jsonl/,
@@ -157,11 +156,10 @@ test("system-plain session dump uses bold headers and dim labels", async () => {
   const { renderConversation } = await import("../src/ui/rendering/chat.js");
   const { MIXCODE_DARK_THEME } = await import("../src/ui/themes.js");
   const { renderWithTheme } = await import("../src/ui/rendering/context.js");
-  const text = renderSessionInfoText(
-    { getSessionName: () => "Daily work" },
-    BASE_STATS,
-    { tabTitle: "Agent-01", workdir: "/repo" },
-  );
+  const text = renderSessionInfoText({ getSessionName: () => "Daily work" }, BASE_STATS, {
+    tabTitle: "Agent-01",
+    workdir: "/repo",
+  });
   const rendered = renderWithTheme(MIXCODE_DARK_THEME, () =>
     renderConversation([{ role: "system", text, variant: "system-plain" }], 80).join("\n"),
   );

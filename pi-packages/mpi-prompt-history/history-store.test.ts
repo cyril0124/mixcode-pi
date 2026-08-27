@@ -121,7 +121,11 @@ test("appendHistoryEntry preserves raw submitted text", async () => {
   const dir = await tempDir("raw");
   const file = nodePath.join(dir, "history.jsonl");
   try {
-    await appendHistoryEntry(file, { sessionId: "s1", text: "!! echo hi  ", timestampSeconds: 10 }, 1024);
+    await appendHistoryEntry(
+      file,
+      { sessionId: "s1", text: "!! echo hi  ", timestampSeconds: 10 },
+      1024,
+    );
     assert.deepEqual(await readJsonl(file), [{ session_id: "s1", ts: 10, text: "!! echo hi  " }]);
     // Under budget the append path creates the file itself, so it owns the mode.
     assert.equal((await fsPromises.stat(file)).mode & 0o777, 0o600);
@@ -151,7 +155,11 @@ test("appendHistoryEntry skips entries with no session id or no text", async () 
   const file = nodePath.join(dir, "history.jsonl");
   try {
     assert.equal(
-      await appendHistoryEntry(file, { sessionId: "", text: "ignored", timestampSeconds: 10 }, 1024),
+      await appendHistoryEntry(
+        file,
+        { sessionId: "", text: "ignored", timestampSeconds: 10 },
+        1024,
+      ),
       false,
     );
     assert.equal(
@@ -170,7 +178,11 @@ test("appendHistoryEntry serializes concurrent appends", async () => {
   try {
     await Promise.all(
       Array.from({ length: 12 }, (_, index) =>
-        appendHistoryEntry(file, { sessionId: "s1", text: `prompt-${index}`, timestampSeconds: index }, MB),
+        appendHistoryEntry(
+          file,
+          { sessionId: "s1", text: `prompt-${index}`, timestampSeconds: index },
+          MB,
+        ),
       ),
     );
     const records = await readJsonl(file);
@@ -195,7 +207,11 @@ test("appendHistoryEntry reclaims a lock left by a dead process", async () => {
     // Simulate a crashed holder: lock published for a PID that is not running.
     acquirePidLock(dir, HISTORY_LOCK_ID, { pid: 999_999_999, processAlive: () => true });
 
-    await appendHistoryEntry(file, { sessionId: "s1", text: "after crash", timestampSeconds: 10 }, 1024);
+    await appendHistoryEntry(
+      file,
+      { sessionId: "s1", text: "after crash", timestampSeconds: 10 },
+      1024,
+    );
 
     assert.deepEqual(await readJsonl(file), [{ session_id: "s1", ts: 10, text: "after crash" }]);
   } finally {
@@ -255,7 +271,11 @@ test("ensurePromptHistoryState deduplicates against already-recorded prompts", a
           timestamp: Date.UTC(2026, 5, 20),
         },
       },
-      { type: "message", id: "u2", message: { role: "user", content: "old prompt", timestamp: Date.UTC(2026, 3, 1) } },
+      {
+        type: "message",
+        id: "u2",
+        message: { role: "user", content: "old prompt", timestamp: Date.UTC(2026, 3, 1) },
+      },
     ]);
     const paths = promptHistoryPaths(agentDir);
     await appendHistoryEntry(
@@ -318,8 +338,17 @@ test("ensurePromptHistoryState writes index records with session name fallback",
     const sessionsRoot = nodePath.join(agentDir, "sessions");
     const namedPath = await writeSessionFixture(sessionsRoot, "named", [
       { type: "session", id: "named", cwd: "/repo", timestamp: "2026-06-19T00:00:00.000Z" },
-      { type: "message", id: "u1", message: { role: "user", content: "first user prompt", timestamp: Date.UTC(2026, 5, 19) } },
-      { type: "session_info", id: "n1", name: "Named Thread", timestamp: "2026-06-19T00:00:00.000Z" },
+      {
+        type: "message",
+        id: "u1",
+        message: { role: "user", content: "first user prompt", timestamp: Date.UTC(2026, 5, 19) },
+      },
+      {
+        type: "session_info",
+        id: "n1",
+        name: "Named Thread",
+        timestamp: "2026-06-19T00:00:00.000Z",
+      },
     ]);
     const unnamedPath = await writeSessionFixture(sessionsRoot, "unnamed", [
       { type: "session", id: "unnamed", cwd: "/repo", timestamp: "2026-06-20T00:00:00.000Z" },
@@ -374,7 +403,11 @@ test("ensurePromptHistoryState backfills once and rescans only when a session ch
     const sessionsRoot = nodePath.join(agentDir, "workdirs", "repo", "sessions");
     const sessionPath = await writeSessionFixture(sessionsRoot, "s1", [
       { type: "session", id: "s1", cwd: "/repo", timestamp: "2026-06-20T00:00:00.000Z" },
-      { type: "message", id: "u1", message: { role: "user", content: "hello history", timestamp: Date.UTC(2026, 5, 20) } },
+      {
+        type: "message",
+        id: "u1",
+        message: { role: "user", content: "hello history", timestamp: Date.UTC(2026, 5, 20) },
+      },
     ]);
     const paths = promptHistoryPaths(agentDir);
 

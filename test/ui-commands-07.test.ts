@@ -238,7 +238,7 @@ test("command palette swallows unbound keys like Ctrl+T and PageUp", () => {
   state.commandPaletteOpen = true;
   const tui = {
     requestRender: () => undefined,
-    showOverlay: () => ({} as never),
+    showOverlay: () => ({}) as never,
     hideOverlay: () => undefined,
     hasOverlay: () => true,
   };
@@ -322,7 +322,7 @@ test("ctrl-p on Home opens command palette even if selected agent is waiting for
   state.homeSelectedTabIndex = 0;
   const tui = {
     requestRender: () => undefined,
-    showOverlay: () => ({} as never),
+    showOverlay: () => ({}) as never,
     hideOverlay: () => undefined,
     hasOverlay: () => false,
   };
@@ -445,14 +445,32 @@ test("vim mode still allows tab and shift-tab to switch agent tabs", () => {
   };
 
   assert.deepEqual(
-    handleMixCodeKeyInput(state, "\t", tui, undefined, undefined, undefined, () => false, editorActions),
+    handleMixCodeKeyInput(
+      state,
+      "\t",
+      tui,
+      undefined,
+      undefined,
+      undefined,
+      () => false,
+      editorActions,
+    ),
     { consume: true },
   );
   assert.equal(state.activeTabId, "s2");
   assert.equal(first.vimMode, false);
   assert.equal(second.vimMode, true);
   assert.deepEqual(
-    handleMixCodeKeyInput(state, "x", tui, undefined, undefined, undefined, () => false, editorActions),
+    handleMixCodeKeyInput(
+      state,
+      "x",
+      tui,
+      undefined,
+      undefined,
+      undefined,
+      () => false,
+      editorActions,
+    ),
     { consume: true },
   );
   assert.equal(text, "");

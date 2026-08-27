@@ -24,8 +24,8 @@ async function makeCounterExtension(dir: string): Promise<string> {
   await fsPromises.writeFile(
     path.join(extDir, "index.ts"),
     [
-      'const g = globalThis as Record<string, unknown>;',
-      'g.__singleFlightEvalCount = ((g.__singleFlightEvalCount as number) ?? 0) + 1;',
+      "const g = globalThis as Record<string, unknown>;",
+      "g.__singleFlightEvalCount = ((g.__singleFlightEvalCount as number) ?? 0) + 1;",
       "export default function counter() {}",
       "",
     ].join("\n"),
@@ -52,7 +52,10 @@ test("concurrent same-cwd loads evaluate an extension module exactly once", asyn
     ]);
     const uncached = await loadExtensions([extPath], dir);
 
-    assert.equal(results.every((r) => r.extensions.length === 1), true);
+    assert.equal(
+      results.every((r) => r.extensions.length === 1),
+      true,
+    );
     assert.equal(uncached.extensions.length, 1);
     // Cached racers share one evaluation; the uncached call re-evaluates.
     assert.equal(evalCount(), 2);

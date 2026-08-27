@@ -42,18 +42,16 @@ test("extension footer rebuilds with current theme after noteActiveExtensionThem
 
     assert.ok(runtimeTab.tab.extensionUi.footer);
     const first = stripAnsi(
-      (runtimeTab.tab.extensionUi.footer?.render?.(80) ?? runtimeTab.tab.extensionUi.footer!.lines).join(
-        "\n",
-      ),
+      (
+        runtimeTab.tab.extensionUi.footer?.render?.(80) ?? runtimeTab.tab.extensionUi.footer!.lines
+      ).join("\n"),
     );
     assert.match(first, /theme-name=/);
     const buildsAfterFirst = factoryBuilds;
 
     noteActiveExtensionThemeId("tokyo-night");
     assert.equal(getActiveExtensionThemeId(), "tokyo-night");
-    const second = stripAnsi(
-      (runtimeTab.tab.extensionUi.footer?.render?.(80) ?? []).join("\n"),
-    );
+    const second = stripAnsi((runtimeTab.tab.extensionUi.footer?.render?.(80) ?? []).join("\n"));
     assert.ok(
       factoryBuilds > buildsAfterFirst,
       "footer factory should rebuild when active extension theme id changes",
@@ -105,7 +103,11 @@ test("message renderer receives updated theme after noteActiveExtensionThemeId",
     line!.renderExtension!(80);
     const afterTokyo = names.at(-1);
 
-    assert.notEqual(afterDark, afterTokyo, "renderer theme should follow active extension theme id");
+    assert.notEqual(
+      afterDark,
+      afterTokyo,
+      "renderer theme should follow active extension theme id",
+    );
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }

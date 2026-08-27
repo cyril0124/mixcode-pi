@@ -40,7 +40,9 @@ function silentTerminal(): Terminal {
 }
 
 test("runtime extension reload rejects active streaming or compaction state", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-reload-busy-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-extension-reload-busy-"),
+  );
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     const runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
@@ -70,7 +72,9 @@ test("runtime extension reload rejects active streaming or compaction state", as
 });
 
 test("runtime wires extension command session actions into MixCode sessions", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-actions-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-extension-actions-"),
+  );
   const events: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("new-action-session", {
@@ -235,7 +239,9 @@ test("runtime wires extension command session actions into MixCode sessions", as
 });
 
 test("runtime extension newSession works without optional parent setup or callback", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-new-plain-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-extension-new-plain-"),
+  );
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     await runtime.createTab(createTab(1, "plain", process.cwd()), {
@@ -256,7 +262,9 @@ test("runtime extension newSession works without optional parent setup or callba
 });
 
 test("runtime extension session actions expose cancellation and boundary errors", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-action-boundaries-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-extension-action-boundaries-"),
+  );
   let forkCancelEntryId: string | undefined;
   let cancelNextResume = false;
   const extension: ExtensionFactory = (pi) => {

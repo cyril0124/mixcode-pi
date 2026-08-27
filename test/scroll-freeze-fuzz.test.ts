@@ -32,9 +32,21 @@ function buildHistory(rand: () => number): ChatLine[] {
   const chat: ChatLine[] = [];
   for (let i = 0; i < count; i++) {
     const kind = i % 4;
-    if (kind === 0) chat.push({ role: "assistant", text: `assistant-${i} ${"words ".repeat(1 + Math.floor(rand() * 12))}` });
+    if (kind === 0)
+      chat.push({
+        role: "assistant",
+        text: `assistant-${i} ${"words ".repeat(1 + Math.floor(rand() * 12))}`,
+      });
     else if (kind === 1) chat.push({ role: "user", text: `user-${i}` });
-    else if (kind === 2) chat.push({ role: "tool", title: "bash", toolCallId: `t-${i}`, status: "success", text: `out-${i}`, args: { command: `echo ${i}` } });
+    else if (kind === 2)
+      chat.push({
+        role: "tool",
+        title: "bash",
+        toolCallId: `t-${i}`,
+        status: "success",
+        text: `out-${i}`,
+        args: { command: `echo ${i}` },
+      });
     else chat.push({ role: "system", text: `system-${i}` });
   }
   return chat;
@@ -88,7 +100,10 @@ test("seeded scroll-freeze property sweep holds the top visible line", () => {
     });
     // streamingAssistant borrows the production type so it stays clearable when
     // the fuzz scenario ends the stream.
-    const runtimeTab: { tab: typeof tab; chat: ChatLine[] } & Pick<RuntimeTab, "streamingAssistant"> = {
+    const runtimeTab: { tab: typeof tab; chat: ChatLine[] } & Pick<
+      RuntimeTab,
+      "streamingAssistant"
+    > = {
       tab,
       chat,
       streamingAssistant: {

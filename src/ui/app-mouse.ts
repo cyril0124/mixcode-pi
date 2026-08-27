@@ -41,7 +41,7 @@ import {
   syncOwnedAppOverlay,
 } from "./app-overlays.js";
 import type { CommandPaletteActions, MixCodeKeyRuntime, OverlayTui } from "./app-types.js";
-import { handleListOverlayMouse, } from "./components/list-overlay-mouse.js";
+import { handleListOverlayMouse } from "./components/list-overlay-mouse.js";
 import {
   planCommandPaletteList,
   planTabJumpList,
@@ -199,9 +199,7 @@ export function handleMouseInput(
   if (handleInputSelectionMouse(active, mouse, tui, copyToClipboard)) return true;
   // While an extension dialog/custom UI owns input, keep the side panel visible
   // but do not let panel selection/scroll steal clicks or drags from the modal.
-  const panelInteractive =
-    active.panelOpen &&
-    active.extensionUi.waitingForInputs.length === 0;
+  const panelInteractive = active.panelOpen && active.extensionUi.waitingForInputs.length === 0;
   if (panelInteractive && handlePanelSelectionMouse(active, mouse, tui, copyToClipboard)) {
     return true;
   }
@@ -240,11 +238,7 @@ export function handleChromeMouseInput(
 }
 
 /** Wheel scrolls the selection; click on a row jumps (same as Enter). */
-export function handleTabJumpMouse(
-  state: MixCodeState,
-  data: string,
-  tui: OverlayTui,
-): boolean {
+export function handleTabJumpMouse(state: MixCodeState, data: string, tui: OverlayTui): boolean {
   return handleListOverlayMouse(data, {
     isOpen: () => state.tabJumpOpen,
     plan: () => planTabJumpList(state),
@@ -308,7 +302,12 @@ function handleChatScrollbarMouse(
   if (mouse.wheel || mouse.release || mouse.button !== 0) return false;
   const bounds = active.chatSurfaceBounds;
   const metrics = active.lastChatScrollMetrics;
-  if (!bounds || !metrics?.scrollable || metrics.viewport <= 0 || metrics.total <= metrics.viewport) {
+  if (
+    !bounds ||
+    !metrics?.scrollable ||
+    metrics.viewport <= 0 ||
+    metrics.total <= metrics.viewport
+  ) {
     return false;
   }
   // Scrollbar is painted in the last column of the full chat surface (bounds.width is content).
@@ -339,8 +338,7 @@ function handleChromeMouse(
   if (hasAnyOverlay(tui) && !hasActiveNotice()) return false;
   // Zen hides the tab bar; ghost hit-regions must not steal clicks on the
   // separator / chat that now occupy those screen rows.
-  const tabBarVisible =
-    !(active?.zenMode === true && state.activeTabId !== HOME_TAB_ID);
+  const tabBarVisible = !(active?.zenMode === true && state.activeTabId !== HOME_TAB_ID);
   const tabBarTop = state.tabBarTopRow ?? tabBarMouseRow(state, active);
   if (
     tabBarVisible &&

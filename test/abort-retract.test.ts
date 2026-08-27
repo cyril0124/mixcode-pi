@@ -22,7 +22,7 @@ import {
   createTab,
   handleMixCodeKeyInput,
 } from "./helpers/mixcode.js";
-import type { ExtensionCustomUiHost, } from "../src/agent/runtime-types.js";
+import type { ExtensionCustomUiHost } from "../src/agent/runtime-types.js";
 import { testTui } from "./helpers/tui.js";
 import { testRuntime } from "./helpers/runtime-stub.js";
 import { testRuntimeTab } from "./helpers/runtime-tab.js";
@@ -122,7 +122,12 @@ function delayedAbortStream(delayMs: number, options?: SimpleStreamOptions) {
 }
 
 function fauxModel(): MixCodeModel {
-  return { ...MIXCODE_FAUX_MODEL, provider: "retract-test", api: "retract-test", id: "retract-test-model" };
+  return {
+    ...MIXCODE_FAUX_MODEL,
+    provider: "retract-test",
+    api: "retract-test",
+    id: "retract-test-model",
+  };
 }
 
 function baseAssistantMessage(): AssistantMessage {
@@ -146,7 +151,10 @@ function baseAssistantMessage(): AssistantMessage {
 }
 
 // Completed assistant message stream with the given content blocks.
-function completedStream(content: AssistantMessage["content"], stopReason: AssistantMessage["stopReason"] = "stop") {
+function completedStream(
+  content: AssistantMessage["content"],
+  stopReason: AssistantMessage["stopReason"] = "stop",
+) {
   const stream = createAssistantMessageEventStream();
   queueMicrotask(() => {
     const message: AssistantMessage = { ...baseAssistantMessage(), content, stopReason };
@@ -189,7 +197,9 @@ test("retractCurrentTurn rewinds the leaf and returns the user message text when
     const pending = runtime.prompt("s1", "please retract me");
     await waitFor(() => runtimeTab.agentSession.agent.state.isStreaming === true);
     // The submitted user message is now part of the branch.
-    assert.ok(runtimeTab.session.getBranch().some((e) => e.type === "message" && e.message.role === "user"));
+    assert.ok(
+      runtimeTab.session.getBranch().some((e) => e.type === "message" && e.message.role === "user"),
+    );
 
     const result = await runtime.retractCurrentTurn("s1");
     release();
@@ -403,10 +413,28 @@ test("double escape with no assistant output retracts the message into an empty 
   };
 
   // First Esc arms the abort prompt.
-  handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime, undefined, () => false, editorActions);
+  handleMixCodeKeyInput(
+    state,
+    "\x1b",
+    tui,
+    undefined,
+    runtime,
+    undefined,
+    () => false,
+    editorActions,
+  );
   assert.equal(typeof tab.pendingEscapeArmedAt, "number");
   // Second Esc retracts because the turn produced no output; no separate abort.
-  handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime, undefined, () => false, editorActions);
+  handleMixCodeKeyInput(
+    state,
+    "\x1b",
+    tui,
+    undefined,
+    runtime,
+    undefined,
+    () => false,
+    editorActions,
+  );
   await waitFor(() => editorText === "please retract me");
   assert.equal(aborts, 0);
 });
@@ -436,8 +464,26 @@ test("double escape falls back to plain abort when the turn already has output",
     },
   };
 
-  handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime, undefined, () => false, editorActions);
-  handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime, undefined, () => false, editorActions);
+  handleMixCodeKeyInput(
+    state,
+    "\x1b",
+    tui,
+    undefined,
+    runtime,
+    undefined,
+    () => false,
+    editorActions,
+  );
+  handleMixCodeKeyInput(
+    state,
+    "\x1b",
+    tui,
+    undefined,
+    runtime,
+    undefined,
+    () => false,
+    editorActions,
+  );
   await waitFor(() => aborts === 1);
   assert.equal(editorText, "");
 });
@@ -470,8 +516,26 @@ test("double escape does not clobber a non-empty editor draft on retract", async
     },
   };
 
-  handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime, undefined, () => false, editorActions);
-  handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime, undefined, () => false, editorActions);
+  handleMixCodeKeyInput(
+    state,
+    "\x1b",
+    tui,
+    undefined,
+    runtime,
+    undefined,
+    () => false,
+    editorActions,
+  );
+  handleMixCodeKeyInput(
+    state,
+    "\x1b",
+    tui,
+    undefined,
+    runtime,
+    undefined,
+    () => false,
+    editorActions,
+  );
   // Plain abort, no retract attempted, draft untouched.
   assert.equal(aborts, 1);
   await Bun.sleep(20);
@@ -565,9 +629,27 @@ test("double escape requests a render immediately when starting retract", () => 
     setText: () => undefined,
   };
 
-  handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime, undefined, () => false, editorActions);
+  handleMixCodeKeyInput(
+    state,
+    "\x1b",
+    tui,
+    undefined,
+    runtime,
+    undefined,
+    () => false,
+    editorActions,
+  );
   const rendersAfterArm = renders;
-  handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime, undefined, () => false, editorActions);
+  handleMixCodeKeyInput(
+    state,
+    "\x1b",
+    tui,
+    undefined,
+    runtime,
+    undefined,
+    () => false,
+    editorActions,
+  );
   assert.ok(renders > rendersAfterArm, "confirming Esc must requestRender before retract settles");
   resolveRetract({ editorText: "please retract me" });
 });

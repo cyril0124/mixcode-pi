@@ -79,7 +79,10 @@ function readSnapshot(filePath: string): Snapshot {
 }
 
 /** Take a suspected-stale lock aside, re-verify, drop only if still stale. */
-function tryReclaimStale(filePath: string, isStale: (r: PidLockRecord | undefined) => boolean): boolean {
+function tryReclaimStale(
+  filePath: string,
+  isStale: (r: PidLockRecord | undefined) => boolean,
+): boolean {
   const quarantine = `${filePath}.reclaim.${process.pid}.${randomUUID()}`;
   try {
     fs.renameSync(filePath, quarantine);

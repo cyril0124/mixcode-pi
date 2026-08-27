@@ -139,7 +139,8 @@ async function openToolBlockOverlay(
             return { ok: true, config: next };
           }
           const written = writeToolBlockConfig(agentDir, next);
-          if (!written.ok) return { ok: false, error: `Failed to write ${written.path}: ${written.error}` };
+          if (!written.ok)
+            return { ok: false, error: `Failed to write ${written.path}: ${written.error}` };
           hooks.setCached({ status: "ok", path: written.path, config: written.config });
           hooks.sync();
           return { ok: true, config: written.config };

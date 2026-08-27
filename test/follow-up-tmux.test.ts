@@ -151,8 +151,7 @@ test("tmux TUI shows separate Steer and Follow-up queues", {
       tmux,
       label,
       session,
-      (plain) =>
-        /Follow-up \(1\)[\s\S]*follow again/.test(plain) && !/Steer \(1\)/.test(plain),
+      (plain) => /Follow-up \(1\)[\s\S]*follow again/.test(plain) && !/Steer \(1\)/.test(plain),
     );
     assert.match(afterEsc.plain, /Follow-up \(1\)[\s\S]*follow again/);
 

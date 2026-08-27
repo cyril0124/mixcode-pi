@@ -310,7 +310,10 @@ function canUseWindowedRender(
   // full-render path that blocks the event loop.
   const isActiveRun = tab.status === "running" || tab.status === "thinking";
   if (isActiveRun && chat.length >= WINDOW_RENDER_STREAMING_THRESHOLD) return true;
-  return chat.length >= WINDOW_RENDER_BLOCK_THRESHOLD || chat.some((line) => isOversizedAssistantBlock(line, oversizedPolicy));
+  return (
+    chat.length >= WINDOW_RENDER_BLOCK_THRESHOLD ||
+    chat.some((line) => isOversizedAssistantBlock(line, oversizedPolicy))
+  );
 }
 
 function isOversizedAssistantBlock(
@@ -321,7 +324,11 @@ function isOversizedAssistantBlock(
   if (line.role !== "assistant" && line.role !== "thinking") return false;
   if (Buffer.byteLength(line.text, "utf8") > policy.maxBytes) return true;
   let lineCount = 1;
-  for (let index = line.text.indexOf("\n"); index >= 0; index = line.text.indexOf("\n", index + 1)) {
+  for (
+    let index = line.text.indexOf("\n");
+    index >= 0;
+    index = line.text.indexOf("\n", index + 1)
+  ) {
     lineCount++;
     if (lineCount > policy.maxLines) return true;
   }
@@ -659,7 +666,11 @@ function renderAgentSurfaceAnchored(
   if (viewport <= 0) return [];
 
   let anchorIndex = tab.chatScrollAnchorIndex ?? -1;
-  if (anchorIndex < 0 || anchorIndex >= chat.length || !matchesChatAnchor(chat[anchorIndex]!, tab)) {
+  if (
+    anchorIndex < 0 ||
+    anchorIndex >= chat.length ||
+    !matchesChatAnchor(chat[anchorIndex]!, tab)
+  ) {
     anchorIndex = chat.findIndex((line) => matchesChatAnchor(line, tab));
   }
   if (anchorIndex < 0) {
@@ -735,13 +746,11 @@ function renderAgentSurfaceAnchored(
   const visible = lines.slice(windowStart, windowStart + viewport);
   while (visible.length < viewport) visible.push(chatBlockSeparator(mainWidth));
 
-  const total = estimateTotalHeight(
-    chat,
-    tailLines.length,
-    mainWidth,
-    frameBlockHeights,
+  const total = estimateTotalHeight(chat, tailLines.length, mainWidth, frameBlockHeights);
+  const start = Math.min(
+    Math.max(0, total - visible.length),
+    anchorIndex * BLOCK_HEIGHT_FALLBACK + windowStart,
   );
-  const start = Math.min(Math.max(0, total - visible.length), anchorIndex * BLOCK_HEIGHT_FALLBACK + windowStart);
   const decorated = decorateWindow(visible, start, total, viewport, mainWidth);
   const fitted: ScrolledLinesResult = {
     lines: highlightVisibleChatLines(decorated, tab, surfaceWidth, viewport),
@@ -758,7 +767,9 @@ function renderAgentSurfaceAnchored(
 
 function matchesChatAnchor(line: ChatLine, tab: MixCodeTabInfo): boolean {
   if (line.entryId && line.entryId === tab.chatScrollAnchorEntryId) return true;
-  return Boolean(tab.chatScrollAnchorText && line.role === "user" && line.text === tab.chatScrollAnchorText);
+  return Boolean(
+    tab.chatScrollAnchorText && line.role === "user" && line.text === tab.chatScrollAnchorText,
+  );
 }
 
 /** Join blocks already ordered top-to-bottom; insert separator between non-empty ones. */
@@ -834,10 +845,7 @@ function renderAgentSurfaceWindowed(
   // newerFirstBlocks is [newest, ..., oldest]; reverse to oldest-first top-to-bottom.
   const orderedBlocks = newerFirstBlocks.reverse();
   const orderedChatLines = newerFirstChatLines.reverse();
-  const olderLines = joinRenderedBlocksTopToBottom(
-    orderedBlocks,
-    chatBlockSeparator(mainWidth),
-  );
+  const olderLines = joinRenderedBlocksTopToBottom(orderedBlocks, chatBlockSeparator(mainWidth));
 
   // When the backward walk reached the very first block, the header sits
   // directly above it (Pi-style). Otherwise it stays part of the virtual
@@ -845,9 +853,7 @@ function renderAgentSurfaceWindowed(
   const reachedTop = oldestEmittedIndex === 0;
   let lines: string[];
   if (reachedTop && headerLines.length) {
-    lines = olderLines.length
-      ? [...headerLines, ...olderLines]
-      : [...headerLines];
+    lines = olderLines.length ? [...headerLines, ...olderLines] : [...headerLines];
   } else {
     lines = olderLines;
   }
@@ -1056,10 +1062,7 @@ function highlightVisibleChatLines(
   const selection = tab.chatSelection;
   if (!selection) return result;
   captureScrollableChatSelection(selection, lines, tab.chatScrollOffset);
-  const viewportSelection = scrollableChatSelectionForViewport(
-    selection,
-    tab.chatScrollOffset,
-  );
+  const viewportSelection = scrollableChatSelectionForViewport(selection, tab.chatScrollOffset);
   return result.map((line, row) =>
     highlightChatSelectionLine(line, row, viewportSelection, activeRenderTheme.selectedBg),
   );

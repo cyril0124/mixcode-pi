@@ -72,7 +72,11 @@ test("parseCtlArgs parses target flags and send-keys tokens", () => {
     /--pid and --workdir are mutually exclusive/,
   );
   assert.throws(
-    () => parseCtlArgs(["--focus-tab", "A", "--focus-session", "s1", "last-assistant-message"], "/caller"),
+    () =>
+      parseCtlArgs(
+        ["--focus-tab", "A", "--focus-session", "s1", "last-assistant-message"],
+        "/caller",
+      ),
     /mutually exclusive/,
   );
   const byTab = parseCtlArgs(["--tab", "Agent-01", "last-message"], "/caller");
@@ -85,8 +89,14 @@ test("parseCtlArgs parses target flags and send-keys tokens", () => {
   assert.equal(parseCtlArgs(["dump-screen"], "/caller").ansi, false);
   assert.equal(parseCtlArgs(["dump-screen", "--ansi"], "/caller").ansi, true);
   assert.equal(parseCtlArgs(["dump-screen", "--width", "120"], "/caller").width, 120);
-  assert.throws(() => parseCtlArgs(["wait", "--width", "80"], "/caller"), /only applies to dump-screen/);
-  assert.equal(parseCtlArgs(["send-prompt", "--expect-response", "hi"], "/caller").expectResponse, true);
+  assert.throws(
+    () => parseCtlArgs(["wait", "--width", "80"], "/caller"),
+    /only applies to dump-screen/,
+  );
+  assert.equal(
+    parseCtlArgs(["send-prompt", "--expect-response", "hi"], "/caller").expectResponse,
+    true,
+  );
   assert.throws(
     () => parseCtlArgs(["wait", "--expect-response"], "/caller"),
     /only applies to send-prompt/,
@@ -106,7 +116,10 @@ test("parseCtlArgs parses target flags and send-keys tokens", () => {
   assert.equal(waitArgs.timeout, 5);
   const toolArgs = parseCtlArgs(["last-tool", "--from", "1", "--to", "2"], "/caller");
   assert.equal(toolArgs.op, "last-tool");
-  assert.throws(() => parseCtlArgs(["dump-screen", "--timeout", "1"], "/caller"), /only applies to wait/);
+  assert.throws(
+    () => parseCtlArgs(["dump-screen", "--timeout", "1"], "/caller"),
+    /only applies to wait/,
+  );
   const mixed = parseCtlArgs(["last-message", "--from", "1", "--to", "2"], "/caller");
   assert.equal(mixed.op, "last-message");
   assert.equal(mixed.from, 1);
@@ -114,9 +127,18 @@ test("parseCtlArgs parses target flags and send-keys tokens", () => {
   const range = parseCtlArgs(["last-assistant-message", "--from", "1", "--to", "3"], "/caller");
   assert.equal(range.from, 1);
   assert.equal(range.to, 3);
-  assert.throws(() => parseCtlArgs(["last-assistant-message", "--from", "2"], "/caller"), /must be used together/);
-  assert.throws(() => parseCtlArgs(["last-assistant-message", "--from", "3", "--to", "1"], "/caller"), /cannot be greater/);
-  assert.throws(() => parseCtlArgs(["dump-screen", "--from", "1", "--to", "2"], "/caller"), /only apply/);
+  assert.throws(
+    () => parseCtlArgs(["last-assistant-message", "--from", "2"], "/caller"),
+    /must be used together/,
+  );
+  assert.throws(
+    () => parseCtlArgs(["last-assistant-message", "--from", "3", "--to", "1"], "/caller"),
+    /cannot be greater/,
+  );
+  assert.throws(
+    () => parseCtlArgs(["dump-screen", "--from", "1", "--to", "2"], "/caller"),
+    /only apply/,
+  );
   assert.throws(() => parseCtlArgs(["nope"], "/caller"), /Unknown ctl command/);
   assert.throws(() => parseCtlArgs(["--pid"], "/caller"), /--pid requires a number/);
   assert.throws(() => parseCtlArgs(["dump-screen", "-l"], "/caller"), /--literal only applies/);
@@ -152,11 +174,17 @@ test("selectCtlInstance targets MIXCODE_PID before cwd workdir", async () => {
     assert.equal(byWorkdir.pid, process.pid);
     // Stale env pid surfaces a targeted error instead of silently retargeting cwd.
     await assert.rejects(
-      selectCtlInstance({ op: "last-assistant-message" }, { stateDir: root, env: { MIXCODE_PID: "999999" } }),
+      selectCtlInstance(
+        { op: "last-assistant-message" },
+        { stateDir: root, env: { MIXCODE_PID: "999999" } },
+      ),
       /MIXCODE_PID=999999/,
     );
     await assert.rejects(
-      selectCtlInstance({ op: "last-assistant-message" }, { stateDir: root, env: { MIXCODE_PID: "42junk" } }),
+      selectCtlInstance(
+        { op: "last-assistant-message" },
+        { stateDir: root, env: { MIXCODE_PID: "42junk" } },
+      ),
       /Invalid MIXCODE_PID/,
     );
   } finally {
@@ -179,9 +207,22 @@ test("selectCtlInstance errors on zero or multiple matches", async () => {
       activeTabId: "s1",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      tabs: [{ index: 0, sessionId: "s1", title: "Agent-01", workdir: "/repo-a", status: "idle", unreadDone: false, waitingForInputCount: 0 }],
+      tabs: [
+        {
+          index: 0,
+          sessionId: "s1",
+          title: "Agent-01",
+          workdir: "/repo-a",
+          status: "idle",
+          unreadDone: false,
+          waitingForInputCount: 0,
+        },
+      ],
     });
-    const one = await selectCtlInstance({ op: "last-assistant-message", workdir: "/repo-a" }, { stateDir: root });
+    const one = await selectCtlInstance(
+      { op: "last-assistant-message", workdir: "/repo-a" },
+      { stateDir: root },
+    );
     assert.equal(one.pid, process.pid);
     const second = Bun.spawn(["sleep", "5"], { stdout: "ignore", stderr: "ignore" });
     try {
@@ -192,7 +233,17 @@ test("selectCtlInstance errors on zero or multiple matches", async () => {
         activeTabId: "home",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        tabs: [{ index: 0, sessionId: "s1", title: "Worker", workdir: "/repo-a", status: "idle", unreadDone: false, waitingForInputCount: 0 }],
+        tabs: [
+          {
+            index: 0,
+            sessionId: "s1",
+            title: "Worker",
+            workdir: "/repo-a",
+            status: "idle",
+            unreadDone: false,
+            waitingForInputCount: 0,
+          },
+        ],
       });
       await assert.rejects(
         selectCtlInstance({ op: "last-assistant-message", workdir: "/repo-a" }, { stateDir: root }),
@@ -238,7 +289,10 @@ test("InjectingTerminal forwards start callback to inject", () => {
   const seen: string[] = [];
   const injecting = new InjectingTerminal(stubTerminal());
   assert.throws(() => injecting.inject("x"), /before the TUI starts/);
-  injecting.start((data) => seen.push(data), () => undefined);
+  injecting.start(
+    (data) => seen.push(data),
+    () => undefined,
+  );
   injecting.inject("\x10");
   assert.deepEqual(seen, ["\x10"]);
 });
@@ -329,7 +383,10 @@ test("handleCtlRequest last-assistant-message send-keys and dump-screen", async 
   assert.match(screen.text ?? "", /from gif/);
   assert.match(screen.text ?? "", /Ask User Question w=100/);
   assert.match(screen.text ?? "", /\[x\] yes/);
-  const wide = await handleCtlRequest({ op: "dump-screen", width: 60 }, { ...opts, screenWidth: () => 40 });
+  const wide = await handleCtlRequest(
+    { op: "dump-screen", width: 60 },
+    { ...opts, screenWidth: () => 40 },
+  );
   assert.match(wide.text ?? "", /Ask User Question w=60/);
   const liveOpts = {
     ...opts,
@@ -384,11 +441,17 @@ test("handleCtlRequest last-assistant-message send-keys and dump-screen", async 
   );
   assert.equal(uiKeys.ok, false);
   assert.match(uiKeys.error ?? "", /only supports text and Enter/);
-  const missing = await handleCtlRequest({ op: "last-assistant-message", focusSessionId: "nope" }, opts);
+  const missing = await handleCtlRequest(
+    { op: "last-assistant-message", focusSessionId: "nope" },
+    opts,
+  );
   assert.equal(missing.ok, false);
   assert.equal(missing.text, undefined);
   assert.match(missing.error ?? "", /Unknown session/);
-  const byTitle = await handleCtlRequest({ op: "last-assistant-message", focusTabTitle: "Agent-01" }, opts);
+  const byTitle = await handleCtlRequest(
+    { op: "last-assistant-message", focusTabTitle: "Agent-01" },
+    opts,
+  );
   assert.equal(byTitle.ok, true);
   assert.equal(
     byTitle.text,
@@ -509,7 +572,9 @@ test("dump-screen on Home shows agent chat previews", async () => {
     state,
     runtime: {
       getTab: (sessionId: string) =>
-        sessionId === "s1" ? { chat: [{ role: "assistant", text: "latest preview text" }] } : undefined,
+        sessionId === "s1"
+          ? { chat: [{ role: "assistant", text: "latest preview text" }] }
+          : undefined,
     } as unknown as MixCodeRuntime,
     injectInput: () => undefined,
   };
@@ -617,12 +682,12 @@ test("parseCtlArgs and handleCtlRequest send-prompt", async () => {
   const heredoc = parseCtlArgs(["send-prompt"], "/caller");
   assert.equal(heredoc.promptFromStdin, true);
   assert.equal(parseCtlArgs(["send-prompt", "-"], "/caller").promptFromStdin, true);
+  assert.equal(await resolveSendPromptText({ prompt: "hi" }), "hi");
   assert.equal(
-    await resolveSendPromptText({ prompt: "hi" }),
-    "hi",
-  );
-  assert.equal(
-    await resolveSendPromptText({ promptFromStdin: true }, { isTTY: false, readStdin: async () => "line1\nline2\n" }),
+    await resolveSendPromptText(
+      { promptFromStdin: true },
+      { isTTY: false, readStdin: async () => "line1\nline2\n" },
+    ),
     "line1\nline2\n",
   );
   await assert.rejects(
@@ -657,7 +722,10 @@ test("parseCtlArgs and handleCtlRequest send-prompt", async () => {
   assert.match(skillPath, /\/extensions\/mpi-ctl\/skills\/mpi-ctl\/SKILL\.md$/);
   assert.equal(path.isAbsolute(skillPath), true);
   const expectedReply = wrapCtlSubmitText("hello", "Agent-01", true);
-  assert.match(expectedReply, /^This prompt came from another MixCode tab \(Agent-01\) via `mpi ctl`/);
+  assert.match(
+    expectedReply,
+    /^This prompt came from another MixCode tab \(Agent-01\) via `mpi ctl`/,
+  );
   assert.ok(expectedReply.includes(`When finished, follow the mpi-ctl skill at:\n${skillPath}\n`));
   assert.ok(expectedReply.includes("Send your result back with `mpi ctl`:"));
   assert.ok(expectedReply.includes("mpi ctl --tab 'Agent-01' send-prompt <<'EOF'"));
@@ -674,7 +742,13 @@ test("parseCtlArgs and handleCtlRequest send-prompt", async () => {
   assert.ok(expectedReplyPid.includes("mpi ctl --pid 4242 --tab 'Agent-01' send-prompt <<'EOF'"));
 
   const sent = await handleCtlRequest(
-    { op: "send-prompt", tabTitle: "Agent-01", prompt: "hello\nworld", fromTabTitle: "Sender", fromPid: 4242 },
+    {
+      op: "send-prompt",
+      tabTitle: "Agent-01",
+      prompt: "hello\nworld",
+      fromTabTitle: "Sender",
+      fromPid: 4242,
+    },
     opts,
   );
   assert.equal(sent.ok, true);
@@ -796,7 +870,10 @@ test("truncateCtlStdout leaves short output unchanged and dumps long output to t
       long.text,
       /\[Full output: .*mpi-ctl-99-last-user-message-123\.txt\. Truncated: showing last \d+ lines \(4\.0KB tail limit\)\]/,
     );
-    assert.ok(!long.text.includes("\u4e2d"), "preview must not split the leading CJK code point when taking tail");
+    assert.ok(
+      !long.text.includes("\u4e2d"),
+      "preview must not split the leading CJK code point when taking tail",
+    );
     const preview = long.text.split("\n\n")[1]!;
     assert.ok(Buffer.byteLength(preview, "utf8") <= 4096);
   } finally {
@@ -862,9 +939,11 @@ test("handleCtlRequest drives an unfocused tab picker without changing activeTab
     requestRender: () => undefined,
     showOverlay: () => {
       overlayOpen = true;
-      return { hide: () => {
-        overlayOpen = false;
-      } };
+      return {
+        hide: () => {
+          overlayOpen = false;
+        },
+      };
     },
     hideOverlay: () => {
       overlayOpen = false;
@@ -933,7 +1012,10 @@ test("handleCtlRequest drives instance overlays without changing activeTabId", a
   };
   const wait = await handleCtlRequest({ op: "wait", tabTitle: "Agent-01", timeout: 0 }, opts);
   assert.match(wait.text ?? "", /status: wait-for-input/);
-  const cancel = await handleCtlRequest({ op: "send-keys", tabTitle: "Agent-01", keys: ["n"] }, opts);
+  const cancel = await handleCtlRequest(
+    { op: "send-keys", tabTitle: "Agent-01", keys: ["n"] },
+    opts,
+  );
   assert.equal(cancel.ok, true);
   assert.equal(state.activeTabId, "s2");
   assert.equal(state.closeAllSessionsConfirmOpen, false);
@@ -951,9 +1033,11 @@ test("openSettingsPanel on an unfocused tab does not render on the focused TUI",
     requestRender: () => undefined,
     showOverlay: () => {
       overlayOpen = true;
-      return { hide: () => {
-        overlayOpen = false;
-      } };
+      return {
+        hide: () => {
+          overlayOpen = false;
+        },
+      };
     },
     hideOverlay: () => {
       overlayOpen = false;

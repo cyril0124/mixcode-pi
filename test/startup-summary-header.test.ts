@@ -15,7 +15,12 @@ import {
   type SimpleStreamOptions,
   createAssistantMessageEventStream,
 } from "@earendil-works/pi-ai";
-import { MIXCODE_FAUX_MODEL, MixCodeRuntime, createTab, type MixCodeModel } from "./helpers/mixcode.js";
+import {
+  MIXCODE_FAUX_MODEL,
+  MixCodeRuntime,
+  createTab,
+  type MixCodeModel,
+} from "./helpers/mixcode.js";
 import { renderAgentSurface } from "../src/ui/rendering/agent-surface.js";
 
 function stripAnsi(s: string): string {
@@ -182,7 +187,11 @@ test("extension load errors land in the startup summary diagnostics section", as
       thinkingLevel: "medium",
       workdir: process.cwd(),
     });
-    assert.ok(runtimeTab.services.resourceLoader.getExtensions().errors.some((error) => error.path === extensionPath));
+    assert.ok(
+      runtimeTab.services.resourceLoader
+        .getExtensions()
+        .errors.some((error) => error.path === extensionPath),
+    );
     assert.match(runtimeTab.tab.startupSummary ?? "", /\[Diagnostics\]/);
     assert.match(runtimeTab.tab.startupSummary ?? "", /Extension load error/);
   } finally {
@@ -341,7 +350,10 @@ test("skill conflicts render package source labels and non-collision diagnostics
     // Loser has no loaded sourceInfo -> plain ~-relative display path.
     assert.match(summary, /✗ ~\/project\/\.agents\/skills\/pkg-skill\/SKILL\.md \(skipped\)/);
     // Non-collision warning renders path line then message line.
-    assert.match(summary, /~\/\.agents\/skills\/bad-skill\/SKILL\.md\n\s+name contains invalid characters/);
+    assert.match(
+      summary,
+      /~\/\.agents\/skills\/bad-skill\/SKILL\.md\n\s+name contains invalid characters/,
+    );
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }

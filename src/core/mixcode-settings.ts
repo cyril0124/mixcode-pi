@@ -187,9 +187,7 @@ function parseIconMode(value: unknown, settingsFile: string): IconMode {
   if (value === undefined) return DEFAULT_ICON_MODE;
   const parsed = rawIconModeValue(value);
   if (parsed !== undefined) return parsed;
-  throw new Error(
-    `${settingsFile}: ui.icons.mode must be one of ${ICON_MODES.join(", ")}`,
-  );
+  throw new Error(`${settingsFile}: ui.icons.mode must be one of ${ICON_MODES.join(", ")}`);
 }
 
 function parseOversizedAssistantMessageSettings(
@@ -229,7 +227,9 @@ function positiveIntegerSetting(
   if (value === undefined) return fallback;
   const parsed = positiveInteger(value);
   if (parsed !== undefined) return parsed;
-  throw new Error(`${settingsFile}: ui.oversizedAssistantMessage.${field} must be a positive integer`);
+  throw new Error(
+    `${settingsFile}: ui.oversizedAssistantMessage.${field} must be a positive integer`,
+  );
 }
 
 function parseJsoncObject(text: string): Record<string, unknown> {

@@ -112,10 +112,7 @@ export function stripBackgroundSgrParams(params: readonly number[]): number[] {
   return sanitized;
 }
 
-export function filterSgrSequences(
-  text: string,
-  filter: (params: number[]) => number[],
-): string {
+export function filterSgrSequences(text: string, filter: (params: number[]) => number[]): string {
   if (!text?.includes("\x1b[")) {
     return text;
   }

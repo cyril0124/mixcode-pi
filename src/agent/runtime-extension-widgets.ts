@@ -59,8 +59,7 @@ function createLiveExtensionFooter(
   factory: ExtensionFooterFactory,
 ): ExtensionDynamicLines {
   return createLiveExtensionRenderer(
-    (tui) =>
-      factory(tui, currentExtensionTheme(), createMixCodeFooterDataProvider(runtimeTab)),
+    (tui) => factory(tui, currentExtensionTheme(), createMixCodeFooterDataProvider(runtimeTab)),
     runtimeTab.requestRender,
   );
 }
@@ -69,10 +68,7 @@ function createLiveExtensionHeader(
   factory: ExtensionHeaderFactory,
   requestRender: (() => void) | undefined,
 ): ExtensionDynamicLines {
-  return createLiveExtensionRenderer(
-    (tui) => factory(tui, currentExtensionTheme()),
-    requestRender,
-  );
+  return createLiveExtensionRenderer((tui) => factory(tui, currentExtensionTheme()), requestRender);
 }
 
 interface LiveExtensionRenderer {
@@ -167,10 +163,7 @@ function createLiveExtensionWidget(
   return {
     key,
     placement,
-    ...createLiveExtensionRenderer(
-      (tui) => factory(tui, currentExtensionTheme()),
-      requestRender,
-    ),
+    ...createLiveExtensionRenderer((tui) => factory(tui, currentExtensionTheme()), requestRender),
   };
 }
 

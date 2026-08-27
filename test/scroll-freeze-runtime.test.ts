@@ -15,7 +15,14 @@ import {
   type Context,
   type SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
-import { MixCodeRoot, MixCodeRuntime, MIXCODE_FAUX_MODEL, createInitialState, createTab, scrollChat } from "./helpers/mixcode.js";
+import {
+  MixCodeRoot,
+  MixCodeRuntime,
+  MIXCODE_FAUX_MODEL,
+  createInitialState,
+  createTab,
+  scrollChat,
+} from "./helpers/mixcode.js";
 
 const bigText = [
   "# Long streaming answer",
@@ -36,7 +43,14 @@ function assistantMessage(content: AssistantMessage["content"]): AssistantMessag
     api: "scroll-freeze-runtime",
     provider: "scroll-freeze-runtime",
     model: "scroll-freeze-runtime-model",
-    usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+    usage: {
+      input: 1,
+      output: 1,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 2,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    },
     stopReason: "stop",
     timestamp: Date.now(),
   };
@@ -63,10 +77,18 @@ function pacedStream(context: Context, options?: SimpleStreamOptions) {
           { type: "text", text: bigText },
         ])
       : assistantMessage([
-          { type: "text", text: isHistory ? `history answer ${userText}` : "compacted summary of earlier turns" },
+          {
+            type: "text",
+            text: isHistory ? `history answer ${userText}` : "compacted summary of earlier turns",
+          },
         ]);
     if (options?.signal?.aborted) {
-      const aborted = { ...base, content: [], stopReason: "aborted" as const, errorMessage: "Request was aborted" };
+      const aborted = {
+        ...base,
+        content: [],
+        stopReason: "aborted" as const,
+        errorMessage: "Request was aborted",
+      };
       stream.push({ type: "error", reason: "aborted", error: aborted });
       stream.end(aborted);
       return;
@@ -88,7 +110,11 @@ function pacedStream(context: Context, options?: SimpleStreamOptions) {
       });
     }
     const textIndex = isBig ? 1 : 0;
-    const fullText = isBig ? bigText : base.content.at(-1)!.type === "text" ? (base.content.at(-1) as { text: string }).text : "";
+    const fullText = isBig
+      ? bigText
+      : base.content.at(-1)!.type === "text"
+        ? (base.content.at(-1) as { text: string }).text
+        : "";
     stream.push({
       type: "text_start",
       contentIndex: textIndex,
@@ -100,7 +126,10 @@ function pacedStream(context: Context, options?: SimpleStreamOptions) {
       if (options?.signal?.aborted) return;
       await Bun.sleep(isBig ? 80 : 0);
       acc += chunk;
-      const partial = { ...base, content: [{ type: "text", text: acc }] as AssistantMessage["content"] };
+      const partial = {
+        ...base,
+        content: [{ type: "text", text: acc }] as AssistantMessage["content"],
+      };
       stream.push({ type: "text_delta", contentIndex: textIndex, delta: chunk, partial });
     }
     stream.push({ type: "text_end", contentIndex: textIndex, content: fullText, partial: base });
@@ -133,13 +162,23 @@ test("real runtime keeps a PageUp anchor across streaming growth and completion"
       systemPrompt: "system",
       thinkingLevel: "medium",
       workdir: process.cwd(),
-      model: { ...MIXCODE_FAUX_MODEL, provider: "scroll-rt", id: "local", api: "openai-completions" },
+      model: {
+        ...MIXCODE_FAUX_MODEL,
+        provider: "scroll-rt",
+        id: "local",
+        api: "openai-completions",
+      },
     });
     const tab = runtimeTab.tab;
     const state = createInitialState(process.cwd());
     state.tabs.push(tab);
     state.activeTabId = "s1";
-    const root = new MixCodeRoot(state, runtime, () => 30, () => 2);
+    const root = new MixCodeRoot(
+      state,
+      runtime,
+      () => 30,
+      () => 2,
+    );
 
     for (let i = 0; i < 12; i++) {
       await runtime.prompt("s1", `h${i}`);

@@ -4,11 +4,7 @@ import * as fsPromises from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import { test } from "node:test";
-import {
-  MixCodeRuntime,
-  createTab,
-  renderConversation,
-} from "./helpers/mixcode.js";
+import { MixCodeRuntime, createTab, renderConversation } from "./helpers/mixcode.js";
 
 function stripAnsi(text: string): string {
   return text
@@ -140,7 +136,9 @@ test("runtime restores bash tool results through assistant tool call args", asyn
 });
 
 test("runtime ignores restored orphan tool results like pi interactive rendering", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-orphan-tool-result-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-orphan-tool-result-"),
+  );
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     const tab = createTab(1, "s1", process.cwd());

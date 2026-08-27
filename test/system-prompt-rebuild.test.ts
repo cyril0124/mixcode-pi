@@ -70,7 +70,10 @@ test("MixCode system prompt includes active tool promptGuidelines", async () => 
       /Use bash for file operations like ls, rg, find/,
     );
     // Extension-provided guideline for the active custom tool must be present.
-    assert.match(runtimeTab.agentSession.agent.state.systemPrompt, new RegExp(GUIDELINE.replace(/\./g, "\\.")));
+    assert.match(
+      runtimeTab.agentSession.agent.state.systemPrompt,
+      new RegExp(GUIDELINE.replace(/\./g, "\\.")),
+    );
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }
@@ -97,7 +100,10 @@ test("edit guidelines stay complete even without forwarded tool metadata", () =>
 });
 
 test("documentation pointers never reference a path that is missing on disk", () => {
-  const prompt = buildMixCodeSystemPromptSections({ selectedTools: ["read"], cwd: process.cwd() }).prompt;
+  const prompt = buildMixCodeSystemPromptSections({
+    selectedTools: ["read"],
+    cwd: process.cwd(),
+  }).prompt;
   const section = /\nDocumentation \([^\n]*\n((?:- [^\n]*\n?)+)/.exec(prompt)?.[1] ?? "";
   const paths = [...section.matchAll(/^- [^:]+: (\S+)/gm)].map((m) => m[1] as string);
 
@@ -137,7 +143,9 @@ test("an unrelated docs directory is not reported as Pi's documentation", async 
 
 test("Pi documentation is resolved from disk when PI_PACKAGE_DIR lacks docs", async () => {
   // Simulate binary mode where PI_PACKAGE_DIR points to a runtimeDir without docs
-  const emptyRuntimeDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-empty-runtime-"));
+  const emptyRuntimeDir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-empty-runtime-"),
+  );
   const previous = process.env.PI_PACKAGE_DIR;
   process.env.PI_PACKAGE_DIR = emptyRuntimeDir;
   try {
@@ -163,13 +171,14 @@ test("Pi-triggered setActiveTools rebuild keeps the MixCode system prompt", asyn
 
     // Simulate an extension calling pi.setActiveTools() at runtime, which makes
     // Pi rebuild the base system prompt via its own builder.
-    runtimeTab.agentSession.setActiveToolsByName(
-      runtimeTab.agentSession.getActiveToolNames(),
-    );
+    runtimeTab.agentSession.setActiveToolsByName(runtimeTab.agentSession.getActiveToolNames());
 
     // After the rebuild the live prompt must still be MixCode's, not Pi's default.
     assert.doesNotMatch(runtimeTab.agentSession.agent.state.systemPrompt, /Pi documentation/);
-    assert.match(runtimeTab.agentSession.agent.state.systemPrompt, new RegExp(GUIDELINE.replace(/\./g, "\\.")));
+    assert.match(
+      runtimeTab.agentSession.agent.state.systemPrompt,
+      new RegExp(GUIDELINE.replace(/\./g, "\\.")),
+    );
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }

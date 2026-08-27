@@ -109,17 +109,11 @@ test("submitted input only accepts bare system prompt command", async () => {
   } as unknown as MixCodeRuntime;
   const tui = {
     requestRender: () => undefined,
-    showOverlay: () => ({} as never),
+    showOverlay: () => ({}) as never,
   };
 
   await assert.rejects(
-    () =>
-      handleSubmittedInput(
-        state,
-        runtime,
-        "/system-prompt --editor=false",
-        tui,
-      ),
+    () => handleSubmittedInput(state, runtime, "/system-prompt --editor=false", tui),
     /Usage: \/system-prompt/,
   );
   await assert.rejects(
@@ -265,7 +259,10 @@ test("submitted input confirms a single session close/delete before touching run
   let confirmationOptions: { anchor?: unknown; width?: unknown; margin?: unknown } | undefined;
   const tui = {
     requestRender: () => undefined,
-    showOverlay: (_component: unknown, options?: { anchor?: unknown; width?: unknown; margin?: unknown }) => {
+    showOverlay: (
+      _component: unknown,
+      options?: { anchor?: unknown; width?: unknown; margin?: unknown },
+    ) => {
       confirmationOptions = options;
       return {} as never;
     },
@@ -536,16 +533,16 @@ test("close-all-sessions clears the shared open-tab set", async () => {
     const runtime = {
       getTab: () => undefined,
       closeAllTabs: async () => undefined,
-    getPromptHistory: () => [],
-    setExtensionUiHost: () => undefined,
-    getExtensionCommands: () => [],
-    getAllExtensionCommands: () => [],
-    onTabClosed: () => () => undefined,
-    onModelsChanged: () => () => undefined,
-    appendSystemMessage: () => undefined,
-    getSharedModelRuntime: () => undefined,
-    getExtensionTools: () => [],
-    applyExtensionAutocompleteProviders: (_sessionId: string, base: AutocompleteProvider) => base,
+      getPromptHistory: () => [],
+      setExtensionUiHost: () => undefined,
+      getExtensionCommands: () => [],
+      getAllExtensionCommands: () => [],
+      onTabClosed: () => () => undefined,
+      onModelsChanged: () => () => undefined,
+      appendSystemMessage: () => undefined,
+      getSharedModelRuntime: () => undefined,
+      getExtensionTools: () => [],
+      applyExtensionAutocompleteProviders: (_sessionId: string, base: AutocompleteProvider) => base,
     } as unknown as MixCodeRuntime;
     const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
 
@@ -574,16 +571,16 @@ test("delete-all-sessions clears the shared open-tab set", async () => {
     const runtime = {
       getTab: () => undefined,
       deleteAllTabs: async () => undefined,
-    getPromptHistory: () => [],
-    setExtensionUiHost: () => undefined,
-    getExtensionCommands: () => [],
-    getAllExtensionCommands: () => [],
-    onTabClosed: () => () => undefined,
-    onModelsChanged: () => () => undefined,
-    appendSystemMessage: () => undefined,
-    getSharedModelRuntime: () => undefined,
-    getExtensionTools: () => [],
-    applyExtensionAutocompleteProviders: (_sessionId: string, base: AutocompleteProvider) => base,
+      getPromptHistory: () => [],
+      setExtensionUiHost: () => undefined,
+      getExtensionCommands: () => [],
+      getAllExtensionCommands: () => [],
+      onTabClosed: () => () => undefined,
+      onModelsChanged: () => () => undefined,
+      appendSystemMessage: () => undefined,
+      getSharedModelRuntime: () => undefined,
+      getExtensionTools: () => [],
+      applyExtensionAutocompleteProviders: (_sessionId: string, base: AutocompleteProvider) => base,
     } as unknown as MixCodeRuntime;
     const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
 
@@ -901,7 +898,8 @@ test("/new-session rejects --focus and --no-focus together", async () => {
   const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
 
   await assert.rejects(
-    () => handleSubmittedInput(state, commandRuntime(), "/new-session --no-focus --focus Worker", tui),
+    () =>
+      handleSubmittedInput(state, commandRuntime(), "/new-session --no-focus --focus Worker", tui),
     /Error: Usage: \/new-session \[--focus\|--no-focus\] \[title\]/,
   );
   assert.deepEqual(
@@ -1066,7 +1064,16 @@ test("fork from Home inserts after the selected source tab, not at bar head", as
   } as unknown as MixCodeRuntime;
   const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
 
-  await handleSubmittedInput(state, runtime, "/fork", tui, undefined, undefined, undefined, state.tabs[1]);
+  await handleSubmittedInput(
+    state,
+    runtime,
+    "/fork",
+    tui,
+    undefined,
+    undefined,
+    undefined,
+    state.tabs[1],
+  );
 
   assert.deepEqual(
     state.tabs.map((tab) => tab.sessionId),
@@ -1165,10 +1172,19 @@ test("config-scoped submitted input runs without an active agent tab", async () 
     /Quit command requires TUI stop support/,
   );
   assert.equal(state.theme, "mixcode-dark");
-  assert.equal(state.tabs.some((tab) => tab.sessionId === "s1"), false);
-  assert.equal(state.tabs.some((tab) => /^session-\d+$/.test(tab.sessionId)), false);
+  assert.equal(
+    state.tabs.some((tab) => tab.sessionId === "s1"),
+    false,
+  );
+  assert.equal(
+    state.tabs.some((tab) => /^session-\d+$/.test(tab.sessionId)),
+    false,
+  );
   assert.equal(created.length, 2);
-  assert.equal(created.every((sessionId) => UUIDV7_SESSION_ID_PATTERN.test(sessionId)), true);
+  assert.equal(
+    created.every((sessionId) => UUIDV7_SESSION_ID_PATTERN.test(sessionId)),
+    true,
+  );
   assert.deepEqual(
     created,
     state.tabs.filter((tab) => tab.sessionId !== "debug").map((tab) => tab.sessionId),

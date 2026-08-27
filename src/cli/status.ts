@@ -1,9 +1,5 @@
 import * as path from "node:path";
-import {
-  expandTilde,
-  resolveMixcodeAgentDir,
-  resolveMixcodeStateDir,
-} from "../core/paths.js";
+import { expandTilde, resolveMixcodeAgentDir, resolveMixcodeStateDir } from "../core/paths.js";
 import {
   formatInstanceStatusJson,
   formatInstanceStatusTable,
@@ -46,6 +42,8 @@ export interface StatusCliOptions {
 export async function runStatusCommand(options: StatusCliOptions = {}): Promise<void> {
   const rootStateDir = options.stateDir ?? resolveMixcodeStateDir();
   const report = await loadLiveInstanceStatus(rootStateDir, { workdir: options.workdir });
-  const output = options.json ? formatInstanceStatusJson(report) : formatInstanceStatusTable(report);
+  const output = options.json
+    ? formatInstanceStatusJson(report)
+    : formatInstanceStatusTable(report);
   process.stdout.write(`${output}\n`);
 }

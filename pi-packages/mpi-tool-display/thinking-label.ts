@@ -128,12 +128,7 @@ function mapThinkingContentArray(
   let changed = false;
   const nextContent = content.map((block) => {
     if (Array.isArray(block)) {
-      const nested = mapThinkingContentArray(
-        block,
-        mapThinkingText,
-        depth + 1,
-        seen,
-      );
+      const nested = mapThinkingContentArray(block, mapThinkingText, depth + 1, seen);
       if (nested.changed) {
         changed = true;
         return nested.content;
@@ -157,10 +152,7 @@ function mapThinkingContentArray(
   return { content: changed ? nextContent : content, changed };
 }
 
-function withThinkingLabelsForDisplay(
-  content: unknown,
-  theme: ThemeLike | undefined,
-): unknown {
+function withThinkingLabelsForDisplay(content: unknown, theme: ThemeLike | undefined): unknown {
   if (!Array.isArray(content)) {
     return content;
   }
@@ -177,10 +169,7 @@ function sanitizeThinkingBlocksForContext(message: AssistantMessageLike): Assist
     return message;
   }
 
-  const mapped = mapThinkingContentArray(
-    message.content,
-    normalizeThinkingLineForContext,
-  );
+  const mapped = mapThinkingContentArray(message.content, normalizeThinkingLineForContext);
 
   return mapped.changed ? { ...message, content: mapped.content } : message;
 }

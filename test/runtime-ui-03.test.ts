@@ -4,7 +4,14 @@ import * as path from "node:path";
 import * as os from "node:os";
 import { test } from "node:test";
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
-import { CURSOR_MARKER, visibleWidth, type AutocompleteProvider, type Component, type OverlayOptions, type Terminal } from "@earendil-works/pi-tui";
+import {
+  CURSOR_MARKER,
+  visibleWidth,
+  type AutocompleteProvider,
+  type Component,
+  type OverlayOptions,
+  type Terminal,
+} from "@earendil-works/pi-tui";
 import {
   createInitialState,
   createTab,
@@ -139,8 +146,12 @@ test("createMixCodeTui editor submits prompts and surfaces slash errors", async 
 });
 
 test("createMixCodeTui external editor rewrites focused draft and surfaces exit errors", async () => {
-  const externalDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-external-editor-ok-"));
-  const failureDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-external-editor-fail-"));
+  const externalDir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-external-editor-ok-"),
+  );
+  const failureDir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-external-editor-fail-"),
+  );
   try {
     const editorScript = path.join(externalDir, "editor.sh");
     await fsPromises.writeFile(editorScript, `#!/bin/sh\nprintf changed > "$1"\n`, { mode: 0o755 });
@@ -208,8 +219,12 @@ test("createMixCodeTui external editor rewrites focused draft and surfaces exit 
       return originalShowOverlay(component, options);
     }) as typeof failureTui.showOverlay;
     try {
-      (failureTui as unknown as { handleTerminalInput: (data: string) => void }).handleTerminalInput("\x07");
-      await waitFor(() => overlays.some((overlay) => /External editor exited with 7/.test(overlay)));
+      (
+        failureTui as unknown as { handleTerminalInput: (data: string) => void }
+      ).handleTerminalInput("\x07");
+      await waitFor(() =>
+        overlays.some((overlay) => /External editor exited with 7/.test(overlay)),
+      );
     } finally {
       failureTui.stop();
     }
@@ -252,7 +267,10 @@ test("createMixCodeTui editor slot renders the input cursor while focused", () =
       }
     ).children[0]!;
 
-    assert.equal((tui as unknown as { focusedComponent?: unknown }).focusedComponent, layout.editor);
+    assert.equal(
+      (tui as unknown as { focusedComponent?: unknown }).focusedComponent,
+      layout.editor,
+    );
     assert.equal(layout.editor.current.focused, true);
 
     const emptySurface = layout.editor.render(80).join("\n");
@@ -260,10 +278,7 @@ test("createMixCodeTui editor slot renders the input cursor while focused", () =
     assert.match(emptySurface, /\x1b\[7m \x1b\[0m/);
     assert.match(stripAnsi(emptySurface), /Send message to Agent-01/);
     // Context usage sits after the title (e.g. "· ?/200k") when known/unknown.
-    assert.match(
-      stripAnsi(emptySurface).split("\n")[0]!,
-      /^─+ Agent-01(?: · \S+)? ──$/,
-    );
+    assert.match(stripAnsi(emptySurface).split("\n")[0]!, /^─+ Agent-01(?: · \S+)? ──$/);
     assert.equal(visibleWidth(stripAnsi(emptySurface).split("\n")[0]!), 80);
     assert.equal(stripAnsi(emptySurface).split("\n").at(-1), "─".repeat(80));
     assert.doesNotMatch(stripAnsi(emptySurface), /^\s*> /m);
@@ -287,10 +302,7 @@ test("createMixCodeTui editor slot renders the input cursor while focused", () =
       stripAnsi(vimSurface),
       /^ Vim: \/ find · n\/N · → newer · Shift\+→ older · j\/k scroll · q exit/m,
     );
-    assert.match(
-      stripAnsi(vimSurface).split("\n")[0]!,
-      /^── \[VIM\] ─+ Agent-01(?: · \S+)? ──$/,
-    );
+    assert.match(stripAnsi(vimSurface).split("\n")[0]!, /^── \[VIM\] ─+ Agent-01(?: · \S+)? ──$/);
     layout.editor.setText("draft");
     layout.editor.handleInput("x");
     assert.equal(layout.editor.current.getText(), "draft");

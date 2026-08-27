@@ -6,10 +6,7 @@ import * as path from "node:path";
 import * as os from "node:os";
 import { test } from "node:test";
 import { randomUUID } from "node:crypto";
-import {
-  type SimpleStreamOptions,
-  createAssistantMessageEventStream,
-} from "@earendil-works/pi-ai";
+import { type SimpleStreamOptions, createAssistantMessageEventStream } from "@earendil-works/pi-ai";
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import {
   MIXCODE_FAUX_MODEL,
@@ -31,7 +28,11 @@ function pendingStream(release: Promise<void>, options?: SimpleStreamOptions) {
       provider: "retract-test",
       model: "retract-test-model",
       usage: {
-        input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0,
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: 0,
         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
       },
       stopReason: "stop" as const,
@@ -61,7 +62,12 @@ function pendingStream(release: Promise<void>, options?: SimpleStreamOptions) {
 // A custom-provider model so the injected streamFn is used (provider "faux"
 // routes to the built-in echo stream and would bypass pendingStream).
 function retractModel() {
-  return { ...MIXCODE_FAUX_MODEL, provider: "retract-test", api: "retract-test", id: "retract-test-model" };
+  return {
+    ...MIXCODE_FAUX_MODEL,
+    provider: "retract-test",
+    api: "retract-test",
+    id: "retract-test-model",
+  };
 }
 
 async function waitFor(predicate: () => boolean, attempts = 50): Promise<void> {
@@ -135,9 +141,7 @@ test("second instance syncs another instance's appended conversation", async () 
       model: MIXCODE_FAUX_MODEL,
     });
     await runtimeA.prompt("s-shared", "hello from A");
-    await waitFor(
-      () => runtimeA.getTab("s-shared")?.agentSession.isStreaming === false,
-    );
+    await waitFor(() => runtimeA.getTab("s-shared")?.agentSession.isStreaming === false);
     const sessionFile = tabA.session.getSessionFile();
     assert.ok(sessionFile, "A should have a persisted session file");
 
@@ -226,7 +230,10 @@ test("reload status survives the local session writes performed by reload", asyn
     // active model (both persist metadata), then append the transient status.
     await runtime.extensionReload("s1");
     await runtime.updateTabModel("s1", MIXCODE_FAUX_MODEL);
-    runtime.appendSystemMessage("s1", "Reloaded keybindings, extensions, skills, prompts, and themes");
+    runtime.appendSystemMessage(
+      "s1",
+      "Reloaded keybindings, extensions, skills, prompts, and themes",
+    );
 
     await Bun.sleep(500);
     assert.match(chatText(runtime, "s1"), /Reloaded keybindings/);
@@ -359,7 +366,13 @@ test("large-session reload materializes every conversation entry into chat", asy
   await mkdir(sessionsRoot, { recursive: true });
 
   const sessionId = "perf-session";
-  const header = { type: "session", version: 3, id: sessionId, timestamp: new Date().toISOString(), cwd: dir };
+  const header = {
+    type: "session",
+    version: 3,
+    id: sessionId,
+    timestamp: new Date().toISOString(),
+    cwd: dir,
+  };
   const lines: string[] = [JSON.stringify(header)];
   let parentId: string | null = null;
   const ENTRY_COUNT = 4000;
@@ -389,7 +402,10 @@ test("large-session reload materializes every conversation entry into chat", asy
     });
     assert.equal(runtime.syncSessionFromDisk(sessionId), true);
     const chat = runtime.getTab(sessionId)?.chat ?? [];
-    assert.equal(chat.filter((l) => l.role === "user" || l.role === "assistant").length, ENTRY_COUNT);
+    assert.equal(
+      chat.filter((l) => l.role === "user" || l.role === "assistant").length,
+      ENTRY_COUNT,
+    );
   } finally {
     await runtime.closeAllTabs();
     await fsPromises.rm(dir, { recursive: true, force: true });
@@ -404,7 +420,9 @@ test("reload after retract does not resurrect the retracted message", async () =
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-retract-reload-"));
   const sessionsRoot = path.join(dir, "sessions");
   let release!: () => void;
-  const released = new Promise<void>((r) => { release = r; });
+  const released = new Promise<void>((r) => {
+    release = r;
+  });
   const runtime = new MixCodeRuntime({
     sessionsRoot,
     streamFn: (_m, _c, o) => pendingStream(released, o),
@@ -445,7 +463,9 @@ test("reload after retract ignores new entries on the abandoned branch", async (
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-retract-abandoned-"));
   const sessionsRoot = path.join(dir, "sessions");
   let release!: () => void;
-  const released = new Promise<void>((r) => { release = r; });
+  const released = new Promise<void>((r) => {
+    release = r;
+  });
   const runtime = new MixCodeRuntime({
     sessionsRoot,
     streamFn: (_m, _c, o) => pendingStream(released, o),
@@ -471,7 +491,8 @@ test("reload after retract ignores new entries on the abandoned branch", async (
     // File still holds the retracted user message; a peer continuing from that
     // abandoned leaf appends a child. That is a genuine new entry, but not on
     // our active branch.
-    const fileEntries = fs.readFileSync(sessionFile, "utf8")
+    const fileEntries = fs
+      .readFileSync(sessionFile, "utf8")
       .split(/\r?\n/)
       .filter(Boolean)
       .map((line) => JSON.parse(line) as { type?: string; id?: string; parentId?: string | null });
@@ -552,7 +573,9 @@ test("queued-message flush during a streaming turn does not self-conflict on the
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-flush-lock-"));
   const sessionsRoot = path.join(dir, "sessions");
   let release!: () => void;
-  const released = new Promise<void>((r) => { release = r; });
+  const released = new Promise<void>((r) => {
+    release = r;
+  });
   const runtime = new MixCodeRuntime({
     sessionsRoot,
     streamFn: (_m, _c, o) => pendingStream(released, o),
@@ -594,7 +617,9 @@ test("sending a new message after retract keeps only the new message", async () 
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-retract-newmsg-"));
   const sessionsRoot = path.join(dir, "sessions");
   let release!: () => void;
-  let released = new Promise<void>((r) => { release = r; });
+  let released = new Promise<void>((r) => {
+    release = r;
+  });
   const runtime = new MixCodeRuntime({
     sessionsRoot,
     streamFn: (_m, _c, o) => pendingStream(released, o),
@@ -617,7 +642,9 @@ test("sending a new message after retract keeps only the new message", async () 
     assert.equal(chatText(runtime, "s1").includes("MSG-A"), false);
 
     // Turn 2: send a fresh message; let it complete immediately.
-    released = new Promise<void>((r) => { release = r; });
+    released = new Promise<void>((r) => {
+      release = r;
+    });
     release();
     await runtime.prompt("s1", "MSG-B-new");
     await waitFor(() => rt.agentSession.isStreaming === false);

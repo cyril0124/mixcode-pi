@@ -53,10 +53,7 @@ export function renderMarkdown(
     theme: currentExtensionTheme(),
   });
   // Pi InteractiveMode: mermaid first, then extensionRunner.getMarkdownTransformers().
-  const transformers: MarkdownTransformer[] = [
-    mermaidTransformer,
-    ...(options.transformers ?? []),
-  ];
+  const transformers: MarkdownTransformer[] = [mermaidTransformer, ...(options.transformers ?? [])];
   const markdown = new Markdown(
     text,
     1,
@@ -71,11 +68,15 @@ export function renderMarkdown(
       preserveOrderedListMarkers: options.preserveOrderedListMarkers,
       preserveBackslashEscapes: options.preserveBackslashEscapes,
       transform: (source, availableWidth) =>
-        applyMarkdownTransformers(source, {
-          messageType: options.messageType ?? "assistant",
-          isStreaming: options.isStreaming ?? false,
-          availableWidth,
-        }, transformers),
+        applyMarkdownTransformers(
+          source,
+          {
+            messageType: options.messageType ?? "assistant",
+            isStreaming: options.isStreaming ?? false,
+            availableWidth,
+          },
+          transformers,
+        ),
     },
   );
   return markdown.render(width).map((line) => padRenderedMarkdownLine(line, width));

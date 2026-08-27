@@ -193,12 +193,7 @@ function renderChatStream(
     const line = ordered[i]!;
     // blockOptions still sees original chat indices when provided.
     const originalIndex = originalIndices?.get(line) ?? i;
-    const block = renderMessageBlock(
-      line,
-      width,
-      tab,
-      blockOptions?.(line, originalIndex),
-    );
+    const block = renderMessageBlock(line, width, tab, blockOptions?.(line, originalIndex));
     blocks[i] = block;
     totalLength += block.length;
     if (block.length > 0) nonEmptyCount++;
@@ -277,8 +272,7 @@ function renderMessageBlockUncached(
     if (!text.trim()) return [];
     // Collapse thinking content to a static placeholder when hidden (Pi parity).
     if (options.hideThinking) {
-      const label =
-        tab?.extensionUi.hiddenThinkingLabel?.trim() || HIDDEN_THINKING_LABEL;
+      const label = tab?.extensionUi.hiddenThinkingLabel?.trim() || HIDDEN_THINKING_LABEL;
       return renderMarkdown(label, width, {
         color: activeRenderTheme.thinkingText,
         italic: true,
@@ -401,8 +395,7 @@ function chatLineRenderCacheKey(
       // user-bash branch reads almost every bash-related field plus the
       // global toolsExpanded toggle. Esc-hint also depends on whether the
       // agent is busy (Esc aborts agent).
-      const agentBusy =
-        tab?.status === "running" || tab?.status === "thinking" ? 1 : 0;
+      const agentBusy = tab?.status === "running" || tab?.status === "thinking" ? 1 : 0;
       return `ub${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${line.status ?? ""}${KEY_SEP}${line.title ?? ""}${KEY_SEP}${commandFromArgs(line.args)}${KEY_SEP}${line.excludeFromContext === true ? 1 : 0}${KEY_SEP}${line.pendingBash === true ? 1 : 0}${KEY_SEP}${line.bashExitCode ?? ""}${KEY_SEP}${line.bashCancelled === true ? 1 : 0}${KEY_SEP}${line.bashTruncated === true ? 1 : 0}${KEY_SEP}${line.bashFullOutputPath ?? ""}${KEY_SEP}${expanded ? 1 : 0}${KEY_SEP}${agentBusy}${KEY_SEP}${line.text}`;
     }
     // Generic (non-renderer) tool block: depends on status/title/args/text.
@@ -636,11 +629,7 @@ function renderSystemBlock(
   return lines.map((part) => padLine(part, width));
 }
 
-function renderBranchSummaryBlock(
-  text: string,
-  width: number,
-  tab?: MixCodeTabInfo,
-): string[] {
+function renderBranchSummaryBlock(text: string, width: number, tab?: MixCodeTabInfo): string[] {
   const expanded = tab?.extensionUi.toolsExpanded ?? false;
   const title = activeRenderTheme.accent(activeRenderTheme.bold("[branch]"));
   const lines: string[] = ["", ` ${title}`];
@@ -650,9 +639,7 @@ function renderBranchSummaryBlock(
       ...renderMarkdown(text.trim(), Math.max(1, width - 1)).map((line) => ` ${line}`),
     );
   } else {
-    lines.push(
-      ` ${activeRenderTheme.dim("Branch summary (ctrl+o to expand)")}`
-    );
+    lines.push(` ${activeRenderTheme.dim("Branch summary (ctrl+o to expand)")}`);
   }
   lines.push("");
   return lines.map((part) => renderBackgroundLine(part, width, activeRenderTheme.systemBackground));
@@ -679,9 +666,7 @@ function renderCompactionSummaryBlock(
     const tokenInfo = tokensBefore
       ? `Compacted from ${tokensBefore.toLocaleString()} tokens`
       : "Compacted";
-    lines.push(
-      ` ${activeRenderTheme.dim(`${tokenInfo} (ctrl+o to expand)`)}`
-    );
+    lines.push(` ${activeRenderTheme.dim(`${tokenInfo} (ctrl+o to expand)`)}`);
   }
   lines.push("");
   return lines.map((part) => renderBackgroundLine(part, width, activeRenderTheme.systemBackground));
@@ -701,7 +686,9 @@ export function renderStartupBlock(text: string, width: number): string[] {
     const trimmed = line.trim();
     if (/^\[[^\]]+\]$/.test(trimmed)) {
       inSkillConflicts = trimmed === "[Skill conflicts]";
-      const headerColor = inSkillConflicts ? activeRenderTheme.warning : activeRenderTheme.toolTitle;
+      const headerColor = inSkillConflicts
+        ? activeRenderTheme.warning
+        : activeRenderTheme.toolTitle;
       return [padLine(headerColor(trimmed), width)];
     }
     // Wrap long resource lists (e.g. comma-separated skills/extensions) so the
@@ -774,7 +761,9 @@ function normalizeRenderedToolLine(text: string, width: number): string[] {
 function normalizeExternalRendererLines(text: string, width: number): string[] {
   return String(text)
     .split(/\r?\n/)
-    .map((part) => truncateToWidth(sanitizeTerminalText(part).replace(/\t/g, "  "), Math.max(0, width), "..."));
+    .map((part) =>
+      truncateToWidth(sanitizeTerminalText(part).replace(/\t/g, "  "), Math.max(0, width), "..."),
+    );
 }
 
 function toolDisplayTitle(line: ChatLine): string {
@@ -965,7 +954,6 @@ function withRightClock(left: string, clock: string, width: number, dimClock = f
 function prettyJson(value: unknown): string {
   return JSON.stringify(value, null, 2);
 }
-
 
 /** Pi-style plain dump: bold headers, dim labels, normal values. */
 function renderSystemPlainDump(body: string, width: number): string[] {

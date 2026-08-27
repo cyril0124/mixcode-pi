@@ -372,10 +372,7 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
       // Non-error stop that ended mid-work (last block is thinking or a tool call):
       // fire a single visible "continue $simple-plan" on settle.
       midWorkArmed =
-        !retryArmed &&
-        !!last &&
-        last.stopReason !== "aborted" &&
-        endsWithThinkingOrToolCall(last);
+        !retryArmed && !!last && last.stopReason !== "aborted" && endsWithThinkingOrToolCall(last);
       if (!retryArmed) {
         clearPhaseCounters();
         clearPhase(ctx);

@@ -64,7 +64,11 @@ function writeSkill(dir: string, name: string, description: string): string {
 }
 
 const noVision: ModelLike = { id: "deepseek-v4-flash", provider: "deepseek", input: ["text"] };
-const withVision: ModelLike = { id: "claude-sonnet", provider: "anthropic", input: ["text", "image"] };
+const withVision: ModelLike = {
+  id: "claude-sonnet",
+  provider: "anthropic",
+  input: ["text", "image"],
+};
 
 describe("isPathRef / expandEnvPath", () => {
   test("classifies path vs name", () => {
@@ -163,7 +167,8 @@ describe("parseModelSkillsConfig / loadModelSkillsConfig", () => {
     assert.equal(Object.keys(raw)[0], "$schema");
     const loaded = loadModelSkillsConfig(dir);
     assert.equal(loaded.ok, true);
-    if (loaded.ok && loaded.config) assert.equal(loaded.config.schemaRef, "./mpi-model-skills.schema.json");
+    if (loaded.ok && loaded.config)
+      assert.equal(loaded.config.schemaRef, "./mpi-model-skills.schema.json");
   });
 
   test("setModelSkillsEnabled persists and preserves rules", () => {
@@ -237,9 +242,18 @@ describe("applyModelSkillRules", () => {
       base,
       new Map(base.map((s) => [s.name, s])),
     );
-    assert.deepEqual(result.skills.map((s) => s.name), ["a"]);
-    assert.equal(result.warnings.some((w) => w.kind === "remove"), true);
-    assert.equal(result.warnings.some((w) => w.kind === "add"), true);
+    assert.deepEqual(
+      result.skills.map((s) => s.name),
+      ["a"],
+    );
+    assert.equal(
+      result.warnings.some((w) => w.kind === "remove"),
+      true,
+    );
+    assert.equal(
+      result.warnings.some((w) => w.kind === "add"),
+      true,
+    );
   });
 
   test("add path loads skill from disk", () => {
@@ -289,7 +303,10 @@ describe("applyModelSkillRules", () => {
       new Map(),
     );
     assert.deepEqual(result.matchedRuleIndexes, []);
-    assert.deepEqual(result.skills.map((s) => s.name), ["a"]);
+    assert.deepEqual(
+      result.skills.map((s) => s.name),
+      ["a"],
+    );
   });
 });
 

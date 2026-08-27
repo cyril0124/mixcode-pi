@@ -69,7 +69,9 @@ async function createRuntimeWithLocalPiToolDisplay(toolName: string) {
 }
 
 async function createRuntimeWithDeferredBuiltinNameExtension(toolName: string) {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-deferred-builtin-extension-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-deferred-builtin-extension-"),
+  );
   const extensionDir = path.join(dir, "ordinary-extension");
   await fsPromises.mkdir(extensionDir, { recursive: true });
   await fsPromises.writeFile(
@@ -104,7 +106,9 @@ async function createRuntimeWithDeferredBuiltinNameExtension(toolName: string) {
 }
 
 async function createRuntimeWithDeferredLocalPiToolDisplay() {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-pi-tool-display-deferred-owner-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-pi-tool-display-deferred-owner-"),
+  );
   const extensionDir = path.join(dir, "pi-tool-display");
   await fsPromises.mkdir(extensionDir, { recursive: true });
   await fsPromises.writeFile(

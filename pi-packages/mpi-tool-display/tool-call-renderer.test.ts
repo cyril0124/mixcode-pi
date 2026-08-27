@@ -37,13 +37,7 @@ function render(component: Component): string {
 test("raw argument wrapper preserves native output and appends formatted JSON", () => {
   const selected = (() => new Text("native call", 0, 0)) as CallRenderer;
   const renderer = wrapToolCallRenderer("TaskUpdate", selected, true);
-  const output = render(
-    renderer(
-      { taskId: "5", status: "in_progress" },
-      theme,
-      context(),
-    ),
-  );
+  const output = render(renderer({ taskId: "5", status: "in_progress" }, theme, context()));
 
   assert.match(output, /native call/);
   assert.match(output, /\{\n\s+"taskId": "5",\n\s+"status": "in_progress"\n\}/);

@@ -212,7 +212,9 @@ const handleResume: LocalCommandHandler = async ({
           currentMatches.length > 0
             ? currentMatches
             : uniqueSessionsByPath(
-                (await selectorRuntime.listAllSessions()).filter((session) => session.name === name),
+                (await selectorRuntime.listAllSessions()).filter(
+                  (session) => session.name === name,
+                ),
               );
       }
       if (matches.length > 1) {
@@ -299,7 +301,10 @@ function reportResumeFailure(
   tui.requestRender();
 }
 
-function sessionActionSkipsConfirm(args: string, command: "close-session" | "delete-session"): boolean {
+function sessionActionSkipsConfirm(
+  args: string,
+  command: "close-session" | "delete-session",
+): boolean {
   const token = args.trim().toLowerCase();
   if (!token) return false;
   if (token === "yes" || token === "y") return true;

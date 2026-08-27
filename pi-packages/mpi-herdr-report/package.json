@@ -4,6 +4,8 @@
   "type": "module",
   "description": "Report agent working/idle/blocked to Herdr panes (HERDR_ENV=1).",
   "pi": {
-    "extensions": ["./index.ts"]
+    "extensions": [
+      "./index.ts"
+    ]
   }
 }

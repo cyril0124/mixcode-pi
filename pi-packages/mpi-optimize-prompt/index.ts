@@ -28,10 +28,7 @@ import {
   optimizePromptConfigPath,
   writeOptimizePromptConfig,
 } from "./config.js";
-import {
-  createOptimizePromptConfigOverlay,
-  type ConfigOverlayResult,
-} from "./config-overlay.js";
+import { createOptimizePromptConfigOverlay, type ConfigOverlayResult } from "./config-overlay.js";
 import {
   DEFAULT_OPTIMIZE_SYSTEM_PROMPT,
   extractOptimizedText,
@@ -144,9 +141,7 @@ function renderOptimizeProgressLines(
   const elapsed = formatElapsed(Date.now() - state.startedAt);
   const bold = (text: string) => theme.bold?.(text) ?? text;
   // Bright working colors — avoid dim so the user sees the job is live.
-  const title = bold(
-    `${theme.fg("accent", spinner)} ${theme.fg("accent", "Optimizing prompt")}`,
-  );
+  const title = bold(`${theme.fg("accent", spinner)} ${theme.fg("accent", "Optimizing prompt")}`);
   const meta = [
     theme.fg("success", elapsed),
     theme.fg("warning", state.modelLabel),
@@ -241,10 +236,7 @@ function listModelOptions(ctx: ExtensionCommandContext): string[] {
     getAvailable?: () => Array<{ provider: string; id: string }>;
     getAll?: () => Array<{ provider: string; id: string }>;
   };
-  const models =
-    registry.getAvailable?.() ??
-    registry.getAll?.() ??
-    [];
+  const models = registry.getAvailable?.() ?? registry.getAll?.() ?? [];
   const refs = models
     .filter((model) => model.provider && model.id && model.provider !== "faux")
     .map((model) => `${model.provider}/${model.id}`);
@@ -255,10 +247,7 @@ function listModelOptions(ctx: ExtensionCommandContext): string[] {
   return [...new Set(refs)].sort();
 }
 
-function findConfiguredModel(
-  ctx: ExtensionCommandContext,
-  modelRef: string | undefined,
-): unknown {
+function findConfiguredModel(ctx: ExtensionCommandContext, modelRef: string | undefined): unknown {
   if (!modelRef || modelRef === OPTIMIZE_PROMPT_INHERIT) return ctx.model;
   const parsed = parseOptimizeModelRef(modelRef);
   if (!parsed) return ctx.model;
@@ -399,7 +388,9 @@ export async function runOptimizePrompt(options: {
       ctx.ui.notify("No pre-optimize draft to restore", "warning");
       return { ok: false, reason: "no_draft" };
     }
-    const restored = restorePreOptimizeDraft(options.draftSlot, (text) => ctx.ui.setEditorText(text));
+    const restored = restorePreOptimizeDraft(options.draftSlot, (text) =>
+      ctx.ui.setEditorText(text),
+    );
     if (!restored.ok) {
       ctx.ui.notify("No pre-optimize draft to restore", "warning");
       return { ok: false, reason: "no_draft" };
@@ -431,149 +422,148 @@ export async function runOptimizePrompt(options: {
   }
   abortSlot.controller = abort;
   try {
+    const loaded = loadOptimizePromptConfig(agentDir);
+    if (!loaded.ok) {
+      ctx.ui.notify(`Optimize config error (${loaded.path}): ${loaded.error}`, "error");
+      return { ok: false, reason: "bad_config" };
+    }
+    const config = loaded.config;
 
-  const loaded = loadOptimizePromptConfig(agentDir);
-  if (!loaded.ok) {
-    ctx.ui.notify(`Optimize config error (${loaded.path}): ${loaded.error}`, "error");
-    return { ok: false, reason: "bad_config" };
-  }
-  const config = loaded.config;
+    const activeModel = ctx.model;
+    if (!activeModel && !config.model) {
+      ctx.ui.notify("No model selected", "error");
+      return { ok: false, reason: "no_model" };
+    }
 
-  const activeModel = ctx.model;
-  if (!activeModel && !config.model) {
-    ctx.ui.notify("No model selected", "error");
-    return { ok: false, reason: "no_model" };
-  }
-
-  if (abort.signal.aborted) {
-    ctx.ui.notify("Optimize cancelled", "info");
-    return { ok: false, reason: "cancelled" };
-  }
-
-  const target = resolveOptimizeTarget(
-    {
-      provider: activeModel?.provider ?? "",
-      modelId: activeModel?.id ?? "",
-      thinkingLevel: options.getThinkingLevel(),
-    },
-    config,
-  );
-
-  const model =
-    config.model && config.model !== "inherit"
-      ? ctx.modelRegistry.find(target.provider, target.modelId)
-      : activeModel;
-  if (!model) {
-    ctx.ui.notify(`Unknown model: ${target.provider}/${target.modelId}`, "error");
-    return { ok: false, reason: "unknown_model" };
-  }
-
-  let auth: { apiKey?: string; headers?: Record<string, string>; env?: Record<string, string> };
-  try {
-    const resolved = await ctx.modelRegistry.getApiKeyAndHeaders(model);
     if (abort.signal.aborted) {
       ctx.ui.notify("Optimize cancelled", "info");
       return { ok: false, reason: "cancelled" };
     }
-    if (
-      !resolved.ok ||
-      !hasRequestAuth({
-        apiKey: resolved.ok ? resolved.apiKey : undefined,
-        headers: resolved.ok ? compactHeaders(resolved.headers) : undefined,
-        env: resolved.ok ? resolved.env : undefined,
-      })
-    ) {
-      ctx.ui.notify(
-        resolved.ok ? `No credentials for ${model.provider}` : resolved.error,
-        "error",
-      );
+
+    const target = resolveOptimizeTarget(
+      {
+        provider: activeModel?.provider ?? "",
+        modelId: activeModel?.id ?? "",
+        thinkingLevel: options.getThinkingLevel(),
+      },
+      config,
+    );
+
+    const model =
+      config.model && config.model !== "inherit"
+        ? ctx.modelRegistry.find(target.provider, target.modelId)
+        : activeModel;
+    if (!model) {
+      ctx.ui.notify(`Unknown model: ${target.provider}/${target.modelId}`, "error");
+      return { ok: false, reason: "unknown_model" };
+    }
+
+    let auth: { apiKey?: string; headers?: Record<string, string>; env?: Record<string, string> };
+    try {
+      const resolved = await ctx.modelRegistry.getApiKeyAndHeaders(model);
+      if (abort.signal.aborted) {
+        ctx.ui.notify("Optimize cancelled", "info");
+        return { ok: false, reason: "cancelled" };
+      }
+      if (
+        !resolved.ok ||
+        !hasRequestAuth({
+          apiKey: resolved.ok ? resolved.apiKey : undefined,
+          headers: resolved.ok ? compactHeaders(resolved.headers) : undefined,
+          env: resolved.ok ? resolved.env : undefined,
+        })
+      ) {
+        ctx.ui.notify(
+          resolved.ok ? `No credentials for ${model.provider}` : resolved.error,
+          "error",
+        );
+        return { ok: false, reason: "no_auth" };
+      }
+      auth = {
+        apiKey: resolved.apiKey,
+        headers: compactHeaders(resolved.headers),
+        env: resolved.env,
+      };
+    } catch (error: unknown) {
+      if (abort.signal.aborted) {
+        ctx.ui.notify("Optimize cancelled", "info");
+        return { ok: false, reason: "cancelled" };
+      }
+      ctx.ui.notify(formatError(error), "error");
       return { ok: false, reason: "no_auth" };
     }
-    auth = {
-      apiKey: resolved.apiKey,
-      headers: compactHeaders(resolved.headers),
-      env: resolved.env,
-    };
-  } catch (error: unknown) {
-    if (abort.signal.aborted) {
-      ctx.ui.notify("Optimize cancelled", "info");
-      return { ok: false, reason: "cancelled" };
-    }
-    ctx.ui.notify(formatError(error), "error");
-    return { ok: false, reason: "no_auth" };
-  }
 
-  const systemPrompt = resolveOptimizeSystemPrompt(config);
-  const runComplete = options.complete ?? completeSimple;
-  const stopProgress = startOptimizeProgressWidget(ctx, {
-    modelLabel: `${target.provider}/${target.modelId}`,
-    thinkingLabel: target.thinkingLevel,
-    sourceChars: source.length,
-    sourcePreview: collapsePromptPreview(source),
-  });
-  abortSlot.stopProgress = stopProgress;
-  try {
-    const streamOptions: {
-      apiKey?: string;
-      headers?: Record<string, string>;
-      env?: Record<string, string>;
-      signal?: AbortSignal;
-      reasoning?: "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
-    } = {
-      apiKey: auth.apiKey,
-      headers: auth.headers,
-      env: auth.env,
-      signal: abort.signal,
-    };
-    if (target.thinkingLevel !== "off") {
-      streamOptions.reasoning = target.thinkingLevel as
-        | "minimal"
-        | "low"
-        | "medium"
-        | "high"
-        | "xhigh"
-        | "max";
-    }
+    const systemPrompt = resolveOptimizeSystemPrompt(config);
+    const runComplete = options.complete ?? completeSimple;
+    const stopProgress = startOptimizeProgressWidget(ctx, {
+      modelLabel: `${target.provider}/${target.modelId}`,
+      thinkingLabel: target.thinkingLevel,
+      sourceChars: source.length,
+      sourcePreview: collapsePromptPreview(source),
+    });
+    abortSlot.stopProgress = stopProgress;
+    try {
+      const streamOptions: {
+        apiKey?: string;
+        headers?: Record<string, string>;
+        env?: Record<string, string>;
+        signal?: AbortSignal;
+        reasoning?: "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+      } = {
+        apiKey: auth.apiKey,
+        headers: auth.headers,
+        env: auth.env,
+        signal: abort.signal,
+      };
+      if (target.thinkingLevel !== "off") {
+        streamOptions.reasoning = target.thinkingLevel as
+          | "minimal"
+          | "low"
+          | "medium"
+          | "high"
+          | "xhigh"
+          | "max";
+      }
 
-    if (abort.signal.aborted) {
-      ctx.ui.notify("Optimize cancelled", "info");
-      return { ok: false, reason: "cancelled" };
-    }
+      if (abort.signal.aborted) {
+        ctx.ui.notify("Optimize cancelled", "info");
+        return { ok: false, reason: "cancelled" };
+      }
 
-    const response: AssistantMessage = await runComplete(
-      model as Model<string>,
-      {
-        systemPrompt,
-        messages: [
-          {
-            role: "user",
-            content: [{ type: "text", text: formatOptimizeUserMessage(source) }],
-            timestamp: Date.now(),
-          },
-        ],
-      },
-      streamOptions,
-    );
-    if (abort.signal.aborted || response.stopReason === "aborted") {
-      ctx.ui.notify("Optimize cancelled", "info");
-      return { ok: false, reason: "cancelled" };
+      const response: AssistantMessage = await runComplete(
+        model as Model<string>,
+        {
+          systemPrompt,
+          messages: [
+            {
+              role: "user",
+              content: [{ type: "text", text: formatOptimizeUserMessage(source) }],
+              timestamp: Date.now(),
+            },
+          ],
+        },
+        streamOptions,
+      );
+      if (abort.signal.aborted || response.stopReason === "aborted") {
+        ctx.ui.notify("Optimize cancelled", "info");
+        return { ok: false, reason: "cancelled" };
+      }
+      const optimized = extractOptimizedText(response);
+      // Stash original for /opt-prompt undo (cannot push real editor Up-history from an extension).
+      if (options.draftSlot) stashPreOptimizeDraft(options.draftSlot, source);
+      ctx.ui.setEditorText(optimized);
+      return { ok: true, text: optimized };
+    } catch (error: unknown) {
+      if (abort.signal.aborted) {
+        ctx.ui.notify("Optimize cancelled", "info");
+        return { ok: false, reason: "cancelled" };
+      }
+      ctx.ui.notify(`Optimize failed: ${formatError(error)}`, "error");
+      return { ok: false, reason: formatError(error) };
+    } finally {
+      if (abortSlot.stopProgress === stopProgress) abortSlot.stopProgress = undefined;
+      stopProgress();
     }
-    const optimized = extractOptimizedText(response);
-    // Stash original for /opt-prompt undo (cannot push real editor Up-history from an extension).
-    if (options.draftSlot) stashPreOptimizeDraft(options.draftSlot, source);
-    ctx.ui.setEditorText(optimized);
-    return { ok: true, text: optimized };
-  } catch (error: unknown) {
-    if (abort.signal.aborted) {
-      ctx.ui.notify("Optimize cancelled", "info");
-      return { ok: false, reason: "cancelled" };
-    }
-    ctx.ui.notify(`Optimize failed: ${formatError(error)}`, "error");
-    return { ok: false, reason: formatError(error) };
-  } finally {
-    if (abortSlot.stopProgress === stopProgress) abortSlot.stopProgress = undefined;
-    stopProgress();
-  }
   } finally {
     if (abortSlot.controller === abort) abortSlot.controller = undefined;
   }

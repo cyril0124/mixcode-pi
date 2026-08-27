@@ -17,14 +17,7 @@ const WIDTH = 40;
 
 function buildStartupSummary(): string {
   const skills = Array.from({ length: 12 }, (_, i) => `skill-name-${i}`);
-  return [
-    "[Context]",
-    "  ~/AGENTS.md",
-    "",
-    "[Skills]",
-    `  ${skills.join(", ")}`,
-    "",
-  ].join("\n");
+  return ["[Context]", "  ~/AGENTS.md", "", "[Skills]", `  ${skills.join(", ")}`, ""].join("\n");
 }
 
 test("startup block wraps long skill lists instead of truncating", () => {

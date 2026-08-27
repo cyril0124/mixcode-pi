@@ -93,7 +93,8 @@ function createRuntime(
       sessionFiles[sessionId] = sessionPath;
       return { cancelled: false };
     },
-    getPromptHistory: (sessionId: string) => promptHistory[sessionFiles[sessionId] ?? sessionId] ?? [],
+    getPromptHistory: (sessionId: string) =>
+      promptHistory[sessionFiles[sessionId] ?? sessionId] ?? [],
   } as unknown as MixCodeRuntime;
   return { runtime, created, closed, switched };
 }
@@ -196,18 +197,42 @@ test("workspace commands open save input and selector overlays without arguments
     const { runtime } = createRuntime();
     const tui = createOverlayTui();
 
-    await handleSubmittedInput(state, runtime, "/save-workspace", tui, undefined, undefined, workspaceFile);
+    await handleSubmittedInput(
+      state,
+      runtime,
+      "/save-workspace",
+      tui,
+      undefined,
+      undefined,
+      workspaceFile,
+    );
     assert.equal(state.workspaceOverlay.open, true);
     const saveOverlay = renderShownOverlay(tui);
     assert.match(saveOverlay, /Save Workspace/);
     assert.match(saveOverlay, /┌─+┐/);
     assert.match(saveOverlay, /Current layout: 1 tab/);
 
-    await handleSubmittedInput(state, runtime, "/restore-workspace", tui, undefined, undefined, workspaceFile);
+    await handleSubmittedInput(
+      state,
+      runtime,
+      "/restore-workspace",
+      tui,
+      undefined,
+      undefined,
+      workspaceFile,
+    );
     assert.match(renderShownOverlay(tui), /Project Workspaces/);
     assert.match(renderShownOverlay(tui), /Details/);
 
-    await handleSubmittedInput(state, runtime, "/delete-workspace", tui, undefined, undefined, workspaceFile);
+    await handleSubmittedInput(
+      state,
+      runtime,
+      "/delete-workspace",
+      tui,
+      undefined,
+      undefined,
+      workspaceFile,
+    );
     assert.match(renderShownOverlay(tui), /enter: delete/);
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
@@ -227,7 +252,15 @@ test("save workspace input confirms overwrite before saving", async () => {
     const { runtime } = createRuntime({ s1: "/sessions/s1.jsonl" });
     const tui = createOverlayTui();
 
-    await handleSubmittedInput(state, runtime, "/save-workspace", tui, undefined, undefined, workspaceFile);
+    await handleSubmittedInput(
+      state,
+      runtime,
+      "/save-workspace",
+      tui,
+      undefined,
+      undefined,
+      workspaceFile,
+    );
     const overlay = shownWorkspaceOverlay(tui);
     for (const char of "main") overlay.handleInput(char);
     assert.match(renderShownOverlay(tui), /│main/);
@@ -265,8 +298,18 @@ test("restore workspace reopens saved sessions, closes extra tabs, and reports m
         updatedAt: "now",
         activeSessionId: "old-s1",
         tabs: [
-          { sessionId: "old-s1", sessionPath: existingSessionPath, title: "plan", workdir: "/repo" },
-          { sessionId: "old-missing", sessionPath: missingSessionPath, title: "old qa", workdir: "/repo" },
+          {
+            sessionId: "old-s1",
+            sessionPath: existingSessionPath,
+            title: "plan",
+            workdir: "/repo",
+          },
+          {
+            sessionId: "old-missing",
+            sessionPath: missingSessionPath,
+            title: "old qa",
+            workdir: "/repo",
+          },
         ],
       },
     ]);
@@ -276,7 +319,15 @@ test("restore workspace reopens saved sessions, closes extra tabs, and reports m
     );
     const tui = createOverlayTui();
 
-    await handleSubmittedInput(state, runtime, "/restore-workspace main", tui, undefined, undefined, workspaceFile);
+    await handleSubmittedInput(
+      state,
+      runtime,
+      "/restore-workspace main",
+      tui,
+      undefined,
+      undefined,
+      workspaceFile,
+    );
     await Bun.sleep(50);
 
     assert.equal(state.tabs.length, 1);
@@ -316,14 +367,27 @@ test("restore workspace whose sessions are all missing re-presents the Missing S
           // active tab), so the toast falls back to a notice overlay that
           // replaces the mounted component. The missing panel must still be
           // re-presented (parity with the pre-component showWorkspaceOverlay).
-          { sessionId: "old-gone", sessionPath: path.join(dir, "gone.jsonl"), title: "gone qa", workdir: "/repo" },
+          {
+            sessionId: "old-gone",
+            sessionPath: path.join(dir, "gone.jsonl"),
+            title: "gone qa",
+            workdir: "/repo",
+          },
         ],
       },
     ]);
     const { runtime, closed } = createRuntime({ extra: path.join(dir, "extra.jsonl") });
     const tui = createOverlayTui();
 
-    await handleSubmittedInput(state, runtime, "/restore-workspace main", tui, undefined, undefined, workspaceFile);
+    await handleSubmittedInput(
+      state,
+      runtime,
+      "/restore-workspace main",
+      tui,
+      undefined,
+      undefined,
+      workspaceFile,
+    );
     await Bun.sleep(50);
 
     assert.equal(state.tabs.length, 0);
@@ -349,21 +413,16 @@ test("restore workspace order-only path hydrates prompt history", async () => {
   } as unknown as MixCodeRuntime;
   const tui = createOverlayTui();
 
-  await restoreWorkspace(
-    state,
-    runtime,
-    tui,
-    {
-      name: "main",
-      startupWorkdir: "/repo",
-      updatedAt: "now",
-      activeSessionId: "s2",
-      tabs: [
-        { sessionId: "s2", title: "two", workdir: "/repo" },
-        { sessionId: "s1", title: "one", workdir: "/repo" },
-      ],
-    },
-  );
+  await restoreWorkspace(state, runtime, tui, {
+    name: "main",
+    startupWorkdir: "/repo",
+    updatedAt: "now",
+    activeSessionId: "s2",
+    tabs: [
+      { sessionId: "s2", title: "two", workdir: "/repo" },
+      { sessionId: "s1", title: "one", workdir: "/repo" },
+    ],
+  });
 
   assert.deepEqual(
     state.tabs.map((tab) => tab.sessionId),
@@ -391,7 +450,12 @@ test("restore workspace keeps active tab when earlier workspace items are skippe
         activeSessionId: "third",
         tabs: [
           { sessionId: "missing-no-path", title: "missing", workdir: "/repo" },
-          { sessionId: "second", sessionPath: secondSessionPath, title: "second", workdir: "/repo" },
+          {
+            sessionId: "second",
+            sessionPath: secondSessionPath,
+            title: "second",
+            workdir: "/repo",
+          },
           { sessionId: "third", sessionPath: thirdSessionPath, title: "third", workdir: "/repo" },
         ],
       },
@@ -399,7 +463,15 @@ test("restore workspace keeps active tab when earlier workspace items are skippe
     const { runtime } = createRuntime({ extra: path.join(dir, "extra.jsonl") });
     const tui = createOverlayTui();
 
-    await handleSubmittedInput(state, runtime, "/restore-workspace main", tui, undefined, undefined, workspaceFile);
+    await handleSubmittedInput(
+      state,
+      runtime,
+      "/restore-workspace main",
+      tui,
+      undefined,
+      undefined,
+      workspaceFile,
+    );
 
     assert.equal(state.tabs.find((tab) => tab.sessionId === state.activeTabId)?.title, "third");
     assert.match(renderShownOverlay(tui), /- missing \(no session path saved\)/);
@@ -418,7 +490,15 @@ test("delete workspace selector requires confirmation", async () => {
     const { runtime } = createRuntime();
     const tui = createOverlayTui();
 
-    await handleSubmittedInput(state, runtime, "/delete-workspace", tui, undefined, undefined, workspaceFile);
+    await handleSubmittedInput(
+      state,
+      runtime,
+      "/delete-workspace",
+      tui,
+      undefined,
+      undefined,
+      workspaceFile,
+    );
     const overlay = shownWorkspaceOverlay(tui);
     overlay.handleInput("\r");
     assert.match(renderShownOverlay(tui), /Delete Workspace "main"/);

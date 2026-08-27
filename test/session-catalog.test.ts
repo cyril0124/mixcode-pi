@@ -3,10 +3,7 @@ import * as fsPromises from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
-import {
-  ensureSessionCatalogPoll,
-  listSessionsInBackground,
-} from "../src/core/session-catalog.js";
+import { ensureSessionCatalogPoll, listSessionsInBackground } from "../src/core/session-catalog.js";
 
 const POLL_MS = 5;
 const WAIT_MS = 2_000;
@@ -63,15 +60,26 @@ test("catalog poll invalidates the cache when session files appear in the root",
 test("catalog all mode deduplicates paths and sorts newest first", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-catalog-all-"));
   try {
-    await fsPromises.writeFile(path.join(dir, "old.jsonl"), `${sessionHeader(dir, "old")}\n`, "utf8");
+    await fsPromises.writeFile(
+      path.join(dir, "old.jsonl"),
+      `${sessionHeader(dir, "old")}\n`,
+      "utf8",
+    );
     await Bun.sleep(20);
-    await fsPromises.writeFile(path.join(dir, "new.jsonl"), `${sessionHeader(dir, "new")}\n`, "utf8");
+    await fsPromises.writeFile(
+      path.join(dir, "new.jsonl"),
+      `${sessionHeader(dir, "new")}\n`,
+      "utf8",
+    );
 
     const sessions = await listSessionsInBackground({
       mode: "all",
       sessionDirs: [dir, dir],
     });
-    assert.deepEqual(sessions.map((session) => session.id), ["new", "old"]);
+    assert.deepEqual(
+      sessions.map((session) => session.id),
+      ["new", "old"],
+    );
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }
@@ -95,7 +103,11 @@ test("catalog poll invalidates the cache when an existing session file grows", a
         id: "m1",
         parentId: null,
         timestamp: Date.now(),
-        message: { role: "user", content: [{ type: "text", text: "hello from peer" }], timestamp: Date.now() },
+        message: {
+          role: "user",
+          content: [{ type: "text", text: "hello from peer" }],
+          timestamp: Date.now(),
+        },
       })}\n`,
     );
 

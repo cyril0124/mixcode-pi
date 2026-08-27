@@ -8,22 +8,22 @@ export type DiffIndicatorMode = (typeof DIFF_INDICATOR_MODES)[number];
 
 /** Diff-render and output-preview knobs consumed by the renderers. */
 export interface ToolDisplayConfig {
-	diffViewMode: DiffViewMode;
-	diffIndicatorMode: DiffIndicatorMode;
-	diffSplitMinWidth: number;
-	diffCollapsedLines: number;
-	diffWordWrap: boolean;
-	expandedPreviewMaxLines: number;
-	/** Live/expanded preview line budget for bash and read (configured `previewLines`). */
-	previewLines: number;
+  diffViewMode: DiffViewMode;
+  diffIndicatorMode: DiffIndicatorMode;
+  diffSplitMinWidth: number;
+  diffCollapsedLines: number;
+  diffWordWrap: boolean;
+  expandedPreviewMaxLines: number;
+  /** Live/expanded preview line budget for bash and read (configured `previewLines`). */
+  previewLines: number;
 }
 
 export const DEFAULT_TOOL_DISPLAY_CONFIG: ToolDisplayConfig = {
-	diffViewMode: "auto",
-	diffIndicatorMode: "bars",
-	diffSplitMinWidth: 120,
-	diffCollapsedLines: 24,
-	diffWordWrap: true,
-	expandedPreviewMaxLines: 4000,
-	previewLines: 8,
+  diffViewMode: "auto",
+  diffIndicatorMode: "bars",
+  diffSplitMinWidth: 120,
+  diffCollapsedLines: 24,
+  diffWordWrap: true,
+  expandedPreviewMaxLines: 4000,
+  previewLines: 8,
 };

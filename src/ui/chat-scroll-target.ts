@@ -16,11 +16,13 @@ export function scrollChatToUserEntry(
   _width: number,
 ): ScrollTargetResult {
   const exactIndex = chat.findIndex((line) => isUserChatLine(line) && line.entryId === entryId);
-  const targetIndex = exactIndex >= 0 ? exactIndex : userChatIndexByBranchOrdinal(chat, branch, entryId);
+  const targetIndex =
+    exactIndex >= 0 ? exactIndex : userChatIndexByBranchOrdinal(chat, branch, entryId);
   if (targetIndex < 0) return { found: false, offsetChanged: false };
 
   const targetLine = chat[targetIndex];
-  const offsetChanged = tab.chatScrollAnchorEntryId !== entryId || tab.chatScrollAnchorIndex !== targetIndex;
+  const offsetChanged =
+    tab.chatScrollAnchorEntryId !== entryId || tab.chatScrollAnchorIndex !== targetIndex;
   tab.chatScrollAnchorEntryId = entryId;
   tab.chatScrollAnchorIndex = targetIndex;
   tab.chatScrollAnchorText = targetLine?.text;
@@ -34,7 +36,11 @@ export function userMessageEntryIdsInBranch(branch: SessionEntry[]): string[] {
     .map((entry) => entry.id);
 }
 
-function userChatIndexByBranchOrdinal(chat: ChatLine[], branch: SessionEntry[], entryId: string): number {
+function userChatIndexByBranchOrdinal(
+  chat: ChatLine[],
+  branch: SessionEntry[],
+  entryId: string,
+): number {
   const entryIds = userMessageEntryIdsInBranch(branch);
   const targetOrdinal = entryIds.indexOf(entryId);
   if (targetOrdinal < 0) return -1;

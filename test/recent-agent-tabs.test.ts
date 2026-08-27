@@ -8,7 +8,11 @@ const stripAnsi = (text: string): string => text.replace(/\x1b\[[0-9;]*m/g, "");
 
 test("activateTab records agent recency and ignores Home", () => {
   const state = createInitialState("/repo");
-  state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"), createTab(3, "s3", "/repo"));
+  state.tabs.push(
+    createTab(1, "s1", "/repo"),
+    createTab(2, "s2", "/repo"),
+    createTab(3, "s3", "/repo"),
+  );
   activateTab(state, "s1");
   activateTab(state, "s2");
   activateTab(state, "s3");
@@ -20,7 +24,11 @@ test("activateTab records agent recency and ignores Home", () => {
 
 test("closing a recent agent drops it and shifts the queue", () => {
   const state = createInitialState("/repo");
-  state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"), createTab(3, "s3", "/repo"));
+  state.tabs.push(
+    createTab(1, "s1", "/repo"),
+    createTab(2, "s2", "/repo"),
+    createTab(3, "s3", "/repo"),
+  );
   activateTab(state, "s1");
   activateTab(state, "s2");
   activateTab(state, "s3");
@@ -79,7 +87,10 @@ test("waiting tab keeps a colored ? without washing out the title", () => {
   activateTab(state, "s1");
   const line = renderTabBar(state, 80, themeForId("mixcode-dark"))[0] ?? "";
   assert.match(stripAnsi(line), /\? Asker/);
-  assert.ok(stripAnsi(line).includes("? Asker "), "waiting displays the chip text after the focus mark");
+  assert.ok(
+    stripAnsi(line).includes("? Asker "),
+    "waiting displays the chip text after the focus mark",
+  );
 });
 
 test("focused tab chip includes a left focus mark", () => {

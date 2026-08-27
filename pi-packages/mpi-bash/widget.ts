@@ -73,11 +73,7 @@ export interface DetachedExitDetails {
 /** Last lines of output shown under the status row. */
 const COMPLETION_TAIL_LINES = 10;
 
-function completionLogLines(
-  details: DetachedExitDetails,
-  theme: Theme,
-  inner: number,
-): string[] {
+function completionLogLines(details: DetachedExitDetails, theme: Theme, inner: number): string[] {
   if (details.logError) {
     return [theme.fg("error", truncateToWidth(details.logError, inner, "…"))];
   }
@@ -97,10 +93,7 @@ function completionLogLines(
   if (omitted > 0) {
     const label = omitted === 1 ? "1 line omitted" : `${omitted} lines omitted`;
     return [
-      theme.fg(
-        "dim",
-        truncateToWidth(`… ${label} (full log at ${details.logPath})`, inner, "…"),
-      ),
+      theme.fg("dim", truncateToWidth(`… ${label} (full log at ${details.logPath})`, inner, "…")),
       ...body,
     ];
   }
@@ -259,10 +252,7 @@ export class BackgroundStatus {
 
   /** Running runs first (newest last), then finished ones. */
   list(): Array<DetachedStart | FinishedRun> {
-    return [
-      ...[...this.runs.values()].sort((a, b) => a.startedAt - b.startedAt),
-      ...this.history,
-    ];
+    return [...[...this.runs.values()].sort((a, b) => a.startedAt - b.startedAt), ...this.history];
   }
 
   dispose(): void {
@@ -286,11 +276,9 @@ export class BackgroundStatus {
     try {
       // Re-setting the widget is how mpi-loop repaints too: the factory reads
       // the live map, so this call is what advances the clock.
-      ctx.ui.setWidget(
-        BACKGROUND_WIDGET_KEY,
-        this.runs.size === 0 ? undefined : this.widget,
-        { placement: "aboveEditor" },
-      );
+      ctx.ui.setWidget(BACKGROUND_WIDGET_KEY, this.runs.size === 0 ? undefined : this.widget, {
+        placement: "aboveEditor",
+      });
     } catch {
       // The captured context died with its session (replace/reload); stop
       // painting into it and let the next session_start rebind.

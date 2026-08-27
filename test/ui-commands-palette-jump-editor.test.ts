@@ -89,12 +89,23 @@ test("/editor writes the draft back from $EDITOR", async () => {
     state.activeTabId = "s1";
     const { tui } = overlayTui();
     let draft = "hello";
-    await handleSubmittedInput(state, commandRuntime(), "/editor", tui, undefined, undefined, undefined, undefined, undefined, {
-      getText: () => draft,
-      setText: (next) => {
-        draft = next;
+    await handleSubmittedInput(
+      state,
+      commandRuntime(),
+      "/editor",
+      tui,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      {
+        getText: () => draft,
+        setText: (next) => {
+          draft = next;
+        },
       },
-    });
+    );
     assert.equal(draft, "from-editor\n");
   } finally {
     if (previousEditor === undefined) delete process.env.EDITOR;

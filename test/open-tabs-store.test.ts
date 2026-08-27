@@ -108,12 +108,16 @@ test("open_tabs lock wait yields CPU under contention", async () => {
       { eval: true, workerData: { lockPath: `${filePath}.lock`, holdMs: 200 } },
     );
     const workerExited = new Promise<void>((resolve, reject) => {
-      worker!.once("exit", (code) => (code === 0 ? resolve() : reject(new Error(`worker exit ${code}`))));
+      worker!.once("exit", (code) =>
+        code === 0 ? resolve() : reject(new Error(`worker exit ${code}`)),
+      );
       worker!.once("error", reject);
     });
 
     await new Promise<void>((resolve, reject) => {
-      worker!.once("message", (msg) => (msg === "held" ? resolve() : reject(new Error(String(msg)))));
+      worker!.once("message", (msg) =>
+        msg === "held" ? resolve() : reject(new Error(String(msg))),
+      );
       worker!.once("error", reject);
     });
     const released = new Promise<void>((resolve) => {
@@ -186,7 +190,9 @@ test("open_tabs does not drop concurrent updates when a live holder outlives 5s"
     );
 
     await new Promise<void>((resolve, reject) => {
-      worker.once("message", (msg) => (msg === "held" ? resolve() : reject(new Error(String(msg)))));
+      worker.once("message", (msg) =>
+        msg === "held" ? resolve() : reject(new Error(String(msg))),
+      );
       worker.once("error", reject);
     });
 

@@ -39,9 +39,12 @@ describe("mpi-optimize-prompt core", () => {
   it("stash/restore pre-optimize draft without host history API", () => {
     const slot: OptimizeDraftSlot = {};
     let editor = "optimized";
-    assert.equal(restorePreOptimizeDraft(slot, (t) => {
-      editor = t;
-    }).ok, false);
+    assert.equal(
+      restorePreOptimizeDraft(slot, (t) => {
+        editor = t;
+      }).ok,
+      false,
+    );
     stashPreOptimizeDraft(slot, "original draft");
     const restored = restorePreOptimizeDraft(slot, (t) => {
       editor = t;
@@ -53,7 +56,10 @@ describe("mpi-optimize-prompt core", () => {
   it("resolveOptimizeTarget inherits session unless config overrides", () => {
     const active = { provider: "a", modelId: "m1", thinkingLevel: "medium" };
     assert.deepEqual(resolveOptimizeTarget(active), active);
-    assert.deepEqual(resolveOptimizeTarget(active, { model: "inherit", thinking: "inherit" }), active);
+    assert.deepEqual(
+      resolveOptimizeTarget(active, { model: "inherit", thinking: "inherit" }),
+      active,
+    );
     assert.deepEqual(resolveOptimizeTarget(active, { model: "b/m2", thinking: "high" }), {
       provider: "b",
       modelId: "m2",
@@ -126,7 +132,10 @@ describe("mpi-optimize-prompt config", () => {
   it("$schema: accepted and preserved through write/load round-trip", async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-optimize-schema-"));
     try {
-      const parsed = parseOptimizePromptConfig({ $schema: "./mpi-optimize-prompt.schema.json", model: "x/y" });
+      const parsed = parseOptimizePromptConfig({
+        $schema: "./mpi-optimize-prompt.schema.json",
+        model: "x/y",
+      });
       assert.equal(parsed.schemaRef, "./mpi-optimize-prompt.schema.json");
       assert.equal(writeOptimizePromptConfig(dir, parsed).ok, true);
       const raw = JSON.parse(await fs.readFile(path.join(dir, "mpi-optimize-prompt.json"), "utf8"));
@@ -323,8 +332,12 @@ describe("mpi-optimize-prompt command", () => {
         "utf8",
       );
       let editor = "draft";
-      const completeCalls: Array<{ provider: string; modelId: string; reasoning?: string; system?: string }> =
-        [];
+      const completeCalls: Array<{
+        provider: string;
+        modelId: string;
+        reasoning?: string;
+        system?: string;
+      }> = [];
       const ctx = {
         model: { provider: "tab", id: "main" },
         modelRegistry: {
@@ -494,9 +507,7 @@ describe("mpi-optimize-prompt command", () => {
         modelRegistry: {
           getAvailable: () => [{ provider: "ov", id: "cheap", reasoning: true }],
           find: (provider: string, id: string) =>
-            provider === "ov" && id === "cheap"
-              ? { provider, id, reasoning: true }
-              : undefined,
+            provider === "ov" && id === "cheap" ? { provider, id, reasoning: true } : undefined,
         },
         ui: {
           custom: async (factory: never) => driveOverlay(factory, "pick-and-close"),

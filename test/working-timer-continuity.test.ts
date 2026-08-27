@@ -26,7 +26,12 @@ import {
   type Context,
   type ToolCall,
 } from "@earendil-works/pi-ai";
-import { MIXCODE_FAUX_MODEL, MixCodeRuntime, createTab, type MixCodeModel } from "./helpers/mixcode.js";
+import {
+  MIXCODE_FAUX_MODEL,
+  MixCodeRuntime,
+  createTab,
+  type MixCodeModel,
+} from "./helpers/mixcode.js";
 
 function waitForRuntime(predicate: () => boolean, attempts = 200): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -87,7 +92,11 @@ function streamMessage(message: AssistantMessage): AssistantMessageEventStream {
       stream.push({ type: "text_end", contentIndex: 0, content: first.text, partial: message });
     }
     const reason =
-      message.stopReason === "toolUse" ? "toolUse" : message.stopReason === "error" ? "error" : "stop";
+      message.stopReason === "toolUse"
+        ? "toolUse"
+        : message.stopReason === "error"
+          ? "error"
+          : "stop";
     stream.push({ type: "done", reason, message } as never);
     stream.end(message);
   });
@@ -274,17 +283,15 @@ test("overflow compact-and-retry continuation preserves the working timer stamp"
     trace.length = 0;
 
     await runtime.prompt("s1", "start");
-    await waitForRuntime(
-      () => {
-        const branch = runtimeTab.session.getBranch();
-        const compactIdx = branch.findLastIndex((e) => e.type === "compaction");
-        return (
-          tab.status === "idle" &&
-          compactIdx >= 0 &&
-          branch.slice(compactIdx + 1).some((e) => e.type === "message")
-        );
-      },
-    );
+    await waitForRuntime(() => {
+      const branch = runtimeTab.session.getBranch();
+      const compactIdx = branch.findLastIndex((e) => e.type === "compaction");
+      return (
+        tab.status === "idle" &&
+        compactIdx >= 0 &&
+        branch.slice(compactIdx + 1).some((e) => e.type === "message")
+      );
+    });
 
     const starts = trace.filter((t) => t.type === "agent_start");
     const compactionStart = trace.find((t) => t.type === "compaction_start");
@@ -313,7 +320,12 @@ test("multi-turn tool loop keeps one stamp for the whole run", async () => {
         if (!toolIssued) {
           toolIssued = true;
           return streamMessage(
-            assistantToolCall({ type: "toolCall", id: "tc-1", name: "echo_tool", arguments: { text: "x" } }),
+            assistantToolCall({
+              type: "toolCall",
+              id: "tc-1",
+              name: "echo_tool",
+              arguments: { text: "x" },
+            }),
           );
         }
         return streamMessage(assistantText("done"));
@@ -416,7 +428,12 @@ test("!shell during a streaming run does not clobber the agent timer", async () 
           stream.push({ type: "start", partial: { ...message, content: [] } });
           await releaseRunPromise;
           stream.push({ type: "text_start", contentIndex: 0, partial: message });
-          stream.push({ type: "text_end", contentIndex: 0, content: "slow answer", partial: message });
+          stream.push({
+            type: "text_end",
+            contentIndex: 0,
+            content: "slow answer",
+            partial: message,
+          });
           stream.push({ type: "done", reason: "stop", message } as never);
           stream.end(message);
         })();

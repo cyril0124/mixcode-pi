@@ -307,7 +307,16 @@ test("dual-queue Ctrl+U requires an explicit Steer or Follow-up choice", () => {
     const { state, tab, tui, runtime, editorActions, poppedKinds } = fixture;
 
     assert.deepEqual(
-      handleMixCodeKeyInput(state, "\x15", tui, undefined, runtime, undefined, undefined, editorActions),
+      handleMixCodeKeyInput(
+        state,
+        "\x15",
+        tui,
+        undefined,
+        runtime,
+        undefined,
+        undefined,
+        editorActions,
+      ),
       { consume: true },
     );
     assert.deepEqual(poppedKinds, []);
@@ -318,7 +327,16 @@ test("dual-queue Ctrl+U requires an explicit Steer or Follow-up choice", () => {
     assert.match(tab.toast?.message ?? "", /S: Steer.*F: Follow-up/);
 
     assert.deepEqual(
-      handleMixCodeKeyInput(state, choice.key, tui, undefined, runtime, undefined, undefined, editorActions),
+      handleMixCodeKeyInput(
+        state,
+        choice.key,
+        tui,
+        undefined,
+        runtime,
+        undefined,
+        undefined,
+        editorActions,
+      ),
       { consume: true },
     );
     assert.deepEqual(poppedKinds, [choice.kind]);
@@ -328,19 +346,34 @@ test("dual-queue Ctrl+U requires an explicit Steer or Follow-up choice", () => {
       tab.pendingMessages,
       choice.kind === "steering" ? ["draft"] : ["draft", "steer queued"],
     );
-    assert.deepEqual(
-      tab.pendingFollowUps,
-      choice.kind === "steering" ? ["follow-up queued"] : [],
-    );
+    assert.deepEqual(tab.pendingFollowUps, choice.kind === "steering" ? ["follow-up queued"] : []);
   }
 });
 
 test("dual-queue edit choice consumes Escape without changing either queue", () => {
   const { state, tab, tui, runtime, editorActions, poppedKinds } = createDualQueueKeyFixture();
-  handleMixCodeKeyInput(state, "\x15", tui, undefined, runtime, undefined, undefined, editorActions);
+  handleMixCodeKeyInput(
+    state,
+    "\x15",
+    tui,
+    undefined,
+    runtime,
+    undefined,
+    undefined,
+    editorActions,
+  );
 
   assert.deepEqual(
-    handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime, undefined, undefined, editorActions),
+    handleMixCodeKeyInput(
+      state,
+      "\x1b",
+      tui,
+      undefined,
+      runtime,
+      undefined,
+      undefined,
+      editorActions,
+    ),
     { consume: true },
   );
   assert.deepEqual(poppedKinds, []);
@@ -373,7 +406,16 @@ test("queue edit chords do not take over editor autocomplete", () => {
 
 test("dual-queue edit choice expires without changing either queue", () => {
   const { state, tab, tui, runtime, editorActions, poppedKinds } = createDualQueueKeyFixture();
-  handleMixCodeKeyInput(state, "\x15", tui, undefined, runtime, undefined, undefined, editorActions);
+  handleMixCodeKeyInput(
+    state,
+    "\x15",
+    tui,
+    undefined,
+    runtime,
+    undefined,
+    undefined,
+    editorActions,
+  );
   tab.queueEditArmedAt = Date.now() - 1_001;
 
   assert.equal(
@@ -388,7 +430,16 @@ test("dual-queue edit choice expires without changing either queue", () => {
 
 test("dual-queue edit choice clears itself when the arm window expires", async () => {
   const { state, tab, tui, runtime, editorActions } = createDualQueueKeyFixture();
-  handleMixCodeKeyInput(state, "\x15", tui, undefined, runtime, undefined, undefined, editorActions);
+  handleMixCodeKeyInput(
+    state,
+    "\x15",
+    tui,
+    undefined,
+    runtime,
+    undefined,
+    undefined,
+    editorActions,
+  );
 
   const deadline = Date.now() + 2_000;
   while (tab.queueEditArmedAt !== undefined && Date.now() < deadline) {
@@ -403,7 +454,16 @@ test("dual-queue edit choice clears itself when the arm window expires", async (
 
 test("dual-queue edit choice never falls back when the selected queue disappears", () => {
   const { state, tab, tui, runtime, editorActions, poppedKinds } = createDualQueueKeyFixture();
-  handleMixCodeKeyInput(state, "\x15", tui, undefined, runtime, undefined, undefined, editorActions);
+  handleMixCodeKeyInput(
+    state,
+    "\x15",
+    tui,
+    undefined,
+    runtime,
+    undefined,
+    undefined,
+    editorActions,
+  );
   tab.pendingMessages.length = 0;
 
   assert.deepEqual(

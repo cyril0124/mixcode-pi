@@ -58,11 +58,12 @@ function resolvePreviewPath(cwd: string, rawPath: string): string {
     return cwd;
   }
 
-  const expandedHome = trimmed === "~"
-    ? homedir()
-    : trimmed.startsWith("~/") || trimmed.startsWith("~\\")
-      ? `${homedir()}${trimmed.slice(1)}`
-      : trimmed;
+  const expandedHome =
+    trimmed === "~"
+      ? homedir()
+      : trimmed.startsWith("~/") || trimmed.startsWith("~\\")
+        ? `${homedir()}${trimmed.slice(1)}`
+        : trimmed;
 
   return isAbsolute(expandedHome) ? expandedHome : resolve(cwd, expandedHome);
 }
@@ -80,7 +81,10 @@ function safeRealpath(path: string): string {
   }
 }
 
-function resolveWorkspaceReadPath(cwd: string, rawPath: string): { resolvedPath: string; error?: string } {
+function resolveWorkspaceReadPath(
+  cwd: string,
+  rawPath: string,
+): { resolvedPath: string; error?: string } {
   const workspacePath = safeRealpath(cwd);
   const resolvedPath = resolvePreviewPath(cwd, rawPath);
 
@@ -100,7 +104,8 @@ function resolveWorkspaceReadPath(cwd: string, rawPath: string): { resolvedPath:
     if (!isWithinWorkspace(workspacePath, targetPath)) {
       return {
         resolvedPath,
-        error: "Preview unavailable because the target path resolves outside the current workspace.",
+        error:
+          "Preview unavailable because the target path resolves outside the current workspace.",
       };
     }
   } catch (error) {
@@ -205,7 +210,7 @@ function getToolPath(input: unknown, preferFilePath: boolean): string | undefine
   const record = toEditInput(input);
   const filePath = trimPath(record.file_path);
   const path = trimPath(record.path);
-  return preferFilePath ? filePath ?? path : path ?? filePath;
+  return preferFilePath ? (filePath ?? path) : (path ?? filePath);
 }
 
 function getWriteContent(input: unknown): string | undefined {
@@ -236,7 +241,10 @@ function getEditReplacements(input: unknown): EditReplacement[] {
     : [];
 }
 
-function buildProjectedEditContent(originalContent: string, replacements: readonly EditReplacement[]): ProjectedEditResult {
+function buildProjectedEditContent(
+  originalContent: string,
+  replacements: readonly EditReplacement[],
+): ProjectedEditResult {
   if (replacements.length === 0) {
     return {
       ok: false,
@@ -265,9 +273,10 @@ function buildProjectedEditContent(originalContent: string, replacements: readon
     if (matchCount !== 1) {
       return {
         ok: false,
-        reason: matchCount === 0
-          ? `Preview not shown: edit #${index + 1} did not match the current file contents.`
-          : `Preview not shown: edit #${index + 1} matched ${matchCount} regions instead of exactly one.`,
+        reason:
+          matchCount === 0
+            ? `Preview not shown: edit #${index + 1} did not match the current file contents.`
+            : `Preview not shown: edit #${index + 1} matched ${matchCount} regions instead of exactly one.`,
       };
     }
 
@@ -306,7 +315,10 @@ function buildProjectedEditContent(originalContent: string, replacements: readon
   };
 }
 
-export function buildPendingWritePreviewData(input: unknown, cwd: string): PendingDiffPreviewData | undefined {
+export function buildPendingWritePreviewData(
+  input: unknown,
+  cwd: string,
+): PendingDiffPreviewData | undefined {
   const filePath = getToolPath(input, false);
   const nextContent = getWriteContent(input);
   if (!filePath || typeof nextContent !== "string") {
@@ -324,7 +336,10 @@ export function buildPendingWritePreviewData(input: unknown, cwd: string): Pendi
   };
 }
 
-export function buildPendingEditPreviewData(input: unknown, cwd: string): PendingDiffPreviewData | undefined {
+export function buildPendingEditPreviewData(
+  input: unknown,
+  cwd: string,
+): PendingDiffPreviewData | undefined {
   const filePath = getToolPath(input, true);
   if (!filePath) {
     return undefined;

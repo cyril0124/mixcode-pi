@@ -2,11 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { initTreeSelector, type SessionTreeNode } from "../src/core/tree-selector.js";
 import { renderTreeSelector } from "../src/ui/components/tree-selector-render.js";
-import {
-  MixCodeFooterRoot,
-  MixCodeLayoutRoot,
-  MixCodeRoot,
-} from "../src/ui/app-layout.js";
+import { MixCodeFooterRoot, MixCodeLayoutRoot, MixCodeRoot } from "../src/ui/app-layout.js";
 import type { EditorSlot } from "../src/ui/app-editor.js";
 import { renderExtensionFooter } from "../src/ui/rendering.js";
 import { createInitialState, createTab } from "../src/core/defaults.js";
@@ -95,11 +91,8 @@ function buildRealLayoutWithEditor(editorLines: string[], viewportRows: number, 
     state,
     runtime,
     () => viewportRows,
-    () =>
-      editorRows +
-      metaRows +
-      renderExtensionFooter(getActiveTab(state), width).length
-    );
+    () => editorRows + metaRows + renderExtensionFooter(getActiveTab(state), width).length,
+  );
   const editor = fakeEditor(editorLines);
   const layout = new MixCodeLayoutRoot(
     state,
@@ -127,11 +120,7 @@ function buildRealLayout(editorLineCount: number, viewportRows: number, width = 
   );
 }
 
-function buildRealLayoutWithDynamicEditor(
-  editor: EditorSlot,
-  viewportRows: number,
-  width = 80,
-) {
+function buildRealLayoutWithDynamicEditor(editor: EditorSlot, viewportRows: number, width = 80) {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo");
   state.tabs = [tab];
@@ -144,11 +133,8 @@ function buildRealLayoutWithDynamicEditor(
     state,
     runtime,
     () => viewportRows,
-    () =>
-      editorRows +
-      metaRows +
-      renderExtensionFooter(getActiveTab(state), width).length
-    );
+    () => editorRows + metaRows + renderExtensionFooter(getActiveTab(state), width).length,
+  );
   const layout = new MixCodeLayoutRoot(
     state,
     main,
@@ -212,10 +198,7 @@ test("oversized extension editor never overflows the viewport or evicts the tab 
   const lines = layout.render(80);
   const text = stripAnsi(lines.join("\n"));
 
-  assert.ok(
-    lines.length <= viewportRows,
-    `expected <= ${viewportRows} lines, got ${lines.length}`,
-  );
+  assert.ok(lines.length <= viewportRows, `expected <= ${viewportRows} lines, got ${lines.length}`);
   // The tab bar must survive (it is the first line main emits for an agent tab).
   assert.ok((state.tabBarHitRow ?? 0) >= 1, "tab bar must occupy at least one row");
   assert.match(text, /Agent-01/);
@@ -386,7 +369,10 @@ function buildRealLayoutWithComposerEditor(viewportRows: number) {
     setEditorMaxRows: () => false,
     getEmbeddedTerminalRows: () => embeddedTerminalRows,
   } as unknown as EditorSlot;
-  return { ...buildRealLayoutWithDynamicEditor(editor, viewportRows), getEmbedded: () => embeddedTerminalRows };
+  return {
+    ...buildRealLayoutWithDynamicEditor(editor, viewportRows),
+    getEmbedded: () => embeddedTerminalRows,
+  };
 }
 
 test("tall custom editor keeps the tab-bar separator above the editor", () => {

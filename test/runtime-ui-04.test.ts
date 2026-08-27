@@ -312,7 +312,10 @@ test("submitted clear fires session replacement without blocking the caller", as
     },
     showOverlay: () => ({}) as never,
   });
-  assert.ok(renderCalled.length >= 1, "/clear must request at least one render before replacement settles");
+  assert.ok(
+    renderCalled.length >= 1,
+    "/clear must request at least one render before replacement settles",
+  );
   assert.equal(tab.status, "idle");
   assert.equal(clearStarted, false);
   await Bun.sleep(50);
@@ -376,10 +379,12 @@ test("runtime enables Pi builtin tools", async () => {
     // agent.state.tools is the *active* set — pi default is read/bash/edit/write only.
     const activeNames = runtimeTab.agentSession.getActiveToolNames().slice().sort();
     assert.deepEqual(activeNames, ["bash", "edit", "read", "write"]);
-    assert.deepEqual(
-      runtimeTab.agentSession.agent.state.tools.map((tool) => tool.name).sort(),
-      ["bash", "edit", "read", "write"],
-    );
+    assert.deepEqual(runtimeTab.agentSession.agent.state.tools.map((tool) => tool.name).sort(), [
+      "bash",
+      "edit",
+      "read",
+      "write",
+    ]);
     const tools = runtimeTab.agentSession.agent.state.tools;
     const read = tools.find((tool) => tool.name === "read");
     const bash = tools.find((tool) => tool.name === "bash");
@@ -392,7 +397,11 @@ test("runtime enables Pi builtin tools", async () => {
     assert.ok(allNames.includes("find"));
     assert.ok(allNames.includes("ls"));
     for (const inactive of ["grep", "find", "ls"]) {
-      assert.equal(activeNames.includes(inactive), false, `${inactive} must not be active by default`);
+      assert.equal(
+        activeNames.includes(inactive),
+        false,
+        `${inactive} must not be active by default`,
+      );
     }
     assert.equal(
       tools.some((tool) => tool.name === "shell"),
@@ -431,7 +440,8 @@ test("submitted bang command streams Pi bash locally instead of prompting the mo
       snapshots.push(renderConversation(changedTab.chat, 80).map(stripAnsi).join("\n"));
     });
     const tui = {
-      requestRender: () => snapshots.push(renderConversation(runtimeTab.chat, 80).map(stripAnsi).join("\n")),
+      requestRender: () =>
+        snapshots.push(renderConversation(runtimeTab.chat, 80).map(stripAnsi).join("\n")),
       showOverlay: () => ({}) as never,
     };
 
@@ -459,19 +469,20 @@ test("submitted bang command streams Pi bash locally instead of prompting the mo
     );
     await handleSubmittedInput(state, runtime, "!!printf hidden-ok", tui);
     assert.ok(
-      runtimeTab.session.getEntries().some(
-        (entry) =>
-          entry.type === "message" &&
-          entry.message.role === "bashExecution" &&
-          entry.message.command === "printf hidden-ok" &&
-          entry.message.excludeFromContext === true,
-      ),
+      runtimeTab.session
+        .getEntries()
+        .some(
+          (entry) =>
+            entry.type === "message" &&
+            entry.message.role === "bashExecution" &&
+            entry.message.command === "printf hidden-ok" &&
+            entry.message.excludeFromContext === true,
+        ),
     );
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
-
 
 test("submitted clear refuses while streaming without wiping chat", async () => {
   const state = createInitialState("/repo");
@@ -538,9 +549,7 @@ test("submitted clear restores chat when replacement fails after prepare", async
       },
       rebuildChatFromSession: () => {
         // Mirror host rebuild: project surviving branch back into chat.
-        runtimeTab.chat = [
-          { role: "user", text: "restored" },
-        ];
+        runtimeTab.chat = [{ role: "user", text: "restored" }];
       },
       getTab: () => runtimeTab,
       appendSystemMessage: (_sessionId: string, text: string) => {

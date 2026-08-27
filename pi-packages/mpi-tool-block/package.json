@@ -4,6 +4,8 @@
   "type": "module",
   "description": "Hide selected tools from the model via /tool-block overlay",
   "pi": {
-    "extensions": ["./index.ts"]
+    "extensions": [
+      "./index.ts"
+    ]
   }
 }

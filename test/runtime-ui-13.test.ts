@@ -4,10 +4,13 @@ import * as fsPromises from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import { test } from "node:test";
-import type {
-  ExtensionFactory,
-} from "@earendil-works/pi-coding-agent";
-import { TuiMainScreen, type Component, type OverlayOptions, type Terminal } from "@earendil-works/pi-tui";
+import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
+import {
+  TuiMainScreen,
+  type Component,
+  type OverlayOptions,
+  type Terminal,
+} from "@earendil-works/pi-tui";
 import {
   activateTab,
   MixCodeRuntime,
@@ -55,7 +58,9 @@ function silentTerminal(): Terminal {
 }
 
 test("runtime custom non-overlay editor exposes missing host and teardown paths", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-custom-editor-edges-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-extension-custom-editor-edges-"),
+  );
   const events: string[] = [];
   let releaseFactory: (() => void) | undefined;
   const extension: ExtensionFactory = (pi) => {
@@ -138,7 +143,9 @@ test("runtime custom non-overlay editor exposes missing host and teardown paths"
 });
 
 test("runtime custom overlay exposes host and delayed-close paths", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-custom-overlay-edges-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-extension-custom-overlay-edges-"),
+  );
   const events: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("custom-no-host", {
@@ -297,7 +304,9 @@ test("runtime maps pi extension editor text primitives into the active MixCode e
 });
 
 test("runtime maps pi extension editor component into the active MixCode editor slot", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-editor-component-"));
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-extension-editor-component-"),
+  );
   const events: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("editor-component", {
