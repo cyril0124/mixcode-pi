@@ -14,6 +14,43 @@ function estimateTokens(text: string): number {
 
 const NAME_WIDTH = 48;
 
+/** One named chunk of text in a token breakdown table. */
+export interface TokenBreakdownRow {
+  name: string;
+  text: string;
+}
+
+/**
+ * Render a fenced token breakdown table.
+ *
+ * Contract: pure formatting. `totalText` supplies the denominator for the
+ * percentage column and the Total row, so callers pass the full text the rows
+ * decompose. Empty rows are omitted. `notes` lines are printed under the
+ * heading.
+ */
+export function renderTokenBreakdown(
+  heading: string,
+  rows: readonly TokenBreakdownRow[],
+  totalText: string,
+  notes: readonly string[] = [],
+): string {
+  const totalTokens = estimateTokens(totalText);
+  const line = (name: string, text: string) => {
+    const tokens = estimateTokens(text);
+    const pct = totalTokens > 0 ? ((tokens / totalTokens) * 100).toFixed(1) : "0.0";
+    const label =
+      name.length > NAME_WIDTH ? `…${name.slice(-(NAME_WIDTH - 1))}` : name.padEnd(NAME_WIDTH);
+    return `${label} ${String(text.length).padStart(7)} chars ${`~${tokens}`.padStart(9)} tok ${pct.padStart(5)}%`;
+  };
+  const lines = ["---", heading, ...notes];
+  for (const row of rows) {
+    if (row.text.length === 0) continue;
+    lines.push(line(row.name, row.text));
+  }
+  lines.push(line("Total", totalText));
+  return `\n\`\`\`\n${lines.join("\n")}\n\`\`\`\n`;
+}
+
 /**
  * Render the /system-prompt stats footer for a section breakdown.
  *
@@ -47,24 +84,10 @@ export function renderSystemPromptSectionStats(
     }
   }
 
-  const totalTokens = estimateTokens(covered);
-  const row = (name: string, text: string) => {
-    const tokens = estimateTokens(text);
-    const pct = totalTokens > 0 ? ((tokens / totalTokens) * 100).toFixed(1) : "0.0";
-    const label =
-      name.length > NAME_WIDTH ? `…${name.slice(-(NAME_WIDTH - 1))}` : name.padEnd(NAME_WIDTH);
-    return `${label} ${String(text.length).padStart(7)} chars ${`~${tokens}`.padStart(9)} tok ${pct.padStart(5)}%`;
-  };
-
-  const lines = [
-    "---",
+  return renderTokenBreakdown(
     "System prompt section breakdown (token estimates are heuristic: ~4 chars/token, ~1/CJK char):",
-  ];
-  if (mismatchNote) lines.push(mismatchNote);
-  for (const section of rows) {
-    if (section.text.length === 0) continue;
-    lines.push(row(section.name, section.text));
-  }
-  lines.push(row("Total", covered));
-  return `\n\`\`\`\n${lines.join("\n")}\n\`\`\`\n`;
+    rows,
+    covered,
+    mismatchNote ? [mismatchNote] : [],
+  );
 }

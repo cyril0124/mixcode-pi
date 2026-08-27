@@ -50,6 +50,6 @@ Commands operate across three distinct persistence tiers:
 | `/extension-manager` | - | Workdir | Interactive manager to enable or disable discovered Pi extensions. |
 | `/reload` | - | Session | Reloads model configurations, project skills, and rebinds extensions. |
 | `/system-prompt` | - | Session | Inspects or edits the assembled system prompt in an external editor; a footer lists each section's size and estimated token share. |
-| `/system-tools` | - | Session | Inspects active tool schemas and tool owners. |
+| `/system-tools` | - | Session | Inspects active tool schemas and tool owners; a footer lists each tool's size and estimated token share, counting only what is sent to the model (name + description + parameter schema). |
 | `/hotkeys` | - | - | Displays full keyboard shortcut reference. |
 | `/quit` / `/exit` | - | - | Safely persists state and exits MixCode. |

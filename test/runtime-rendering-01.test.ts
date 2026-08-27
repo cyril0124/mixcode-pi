@@ -82,6 +82,9 @@ test("system tools text includes name, description, and source metadata", () => 
   assert.match(text, /## == read ==/);
   assert.match(text, /~~~\nRead a file\n~~~/);
   assert.match(text, /source: pi-builtin \| project \| top-level \| <pi-builtin:read>/);
+  // Per-tool token breakdown: the only row plus Total must both be 100%.
+  assert.match(text, /^read\s+\d+ chars\s+~\d+ tok\s+100\.0%$/m);
+  assert.match(text, /^Total\s+\d+ chars\s+~\d+ tok\s+100\.0%$/m);
   assert.match(renderSystemToolsText([]), /No tools available/);
 });
 

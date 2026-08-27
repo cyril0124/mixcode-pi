@@ -1,15 +1,41 @@
 import type { RuntimeToolInfo } from "./app-types.js";
+import { renderTokenBreakdown } from "./components/system-prompt-stats.js";
 
 export function renderSystemToolsText(tools: RuntimeToolInfo[]): string {
   if (tools.length === 0) return ["System Tools", "", "No tools available."].join("\n");
-  return [
-    "System Tools",
-    "",
-    ...tools
-      .map((tool) => formatSystemTool(tool))
-      .join("\n\n")
-      .split("\n"),
-  ].join("\n");
+  return (
+    [
+      "System Tools",
+      "",
+      ...tools
+        .map((tool) => formatSystemTool(tool))
+        .join("\n\n")
+        .split("\n"),
+    ].join("\n") + renderSystemToolsStats(tools)
+  );
+}
+
+// Only the bytes actually sent to the model count: name, description and the
+// parameter schema. Display-only decoration (source, headings) is excluded.
+function toolPayload(tool: RuntimeToolInfo): string {
+  const parts = [
+    String(tool.name ?? ""),
+    typeof tool.description === "string" ? tool.description : "",
+  ];
+  if (tool.parameters !== undefined) parts.push(JSON.stringify(tool.parameters));
+  return parts.join("\n");
+}
+
+function renderSystemToolsStats(tools: RuntimeToolInfo[]): string {
+  const rows = tools.map((tool) => ({
+    name: String(tool.name ?? "(unnamed)"),
+    text: toolPayload(tool),
+  }));
+  return renderTokenBreakdown(
+    "Tool definition breakdown (name + description + parameter schema; token estimates are heuristic: ~4 chars/token, ~1/CJK char):",
+    rows,
+    rows.map((r) => r.text).join("\n"),
+  );
 }
 
 function formatSystemTool(tool: RuntimeToolInfo): string {

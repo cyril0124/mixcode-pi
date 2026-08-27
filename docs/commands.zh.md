@@ -50,6 +50,6 @@ MixCode 在 `src/core/commands.ts` 中注册了内置本地 Slash 命令。这�
 | `/extension-manager` | - | Workdir | 交互式启用 / 禁用已发现的 Pi 扩展。 |
 | `/reload` | - | Session | 重新加载模型配置、项目 Skill 并重新绑定扩展资源。 |
 | `/system-prompt` | - | Session | 在外部编辑器中检视或编辑当前组装的 System Prompt；末尾附带各分段大小与估算 token 占比的统计表。 |
-| `/system-tools` | - | Session | 检视当前激活的工具 Schema 与所有者信息。 |
+| `/system-tools` | - | Session | 检视当前激活的工具 Schema 与所有者信息；末尾附带每个工具的大小与估算 token 占比统计表，只计入真正发给模型的部分（name + description + parameter schema）。 |
 | `/hotkeys` | - | - | 查看完整的全局与局部快捷键清单。 |
 | `/quit` / `/exit` | - | - | 安全保存当前状态并退出 MixCode。 |
