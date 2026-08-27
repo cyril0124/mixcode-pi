@@ -16,17 +16,17 @@
 </p>
 
 > **为什么选择 MixCode Pi？**
-> 传统终端 AI 编程助手通常受限于单会话模型——在模型生成代码、执行长任务或跑测试期间，终端会被完全占用，开发者无法同时开展探索、审查或多模块并行工作。MixCode 为终端带来了**原生多 Tab 并发**、**Agent Tab 协作**与**完整的 Pi 扩展生态兼容**：在单个终端中并行多个独立 Agent 会话，Tab 之间互相派活，跨重启持久化工作区，零成本复用 Pi 官方及社区的海量扩展（`npm:…`、自定义工具、挂件与 Slash 指令）。
+> 传统终端 AI 编程助手通常受限于单会话模型——在模型生成代码、执行长任务或跑测试期间，终端会被完全占用，开发者无法同时开展探索、审查或多模块并行工作。MixCode 为终端带来原生多 Tab 并发、Agent Tab 协作与完整的 Pi 扩展生态兼容：并行多个独立 Agent 会话，Tab 之间互相派活，跨重启持久化工作区，并直接使用完整的 Pi 包生态（`npm:…`、自定义工具、挂件与 Slash 指令）。
 
 ## 核心亮点
 
-- 🗂️ **原生多 Tab 并发会话** — 多个 Agent 会话并行运行，实时状态指示一目了然。
-- 🤝 **Agent Tab 协作** — Tab 之间互发 Prompt、等待完成并收集回复（`mpi ctl`）。
-- 🧩 **100% 兼容 Pi 扩展生态** — 完整 Pi 包生态 + 第一方 `mpi-*` 扩展，开箱即用。
-- 🧘 **Zen 专注与内联挂件** — 隐藏界面元素获得沉浸画布，或将挂件移入对话流。
-- 📱 **窄屏与移动触控优化** — 深度适配窄终端、分屏与移动 SSH 客户端（Termux、iOS Blink）。
-- ⌨️ **终端优先交互流** — Vim 式对话导航、命令面板、`$skill` / `@file` / `@tab` 自动补全。
-- 📜 **声明式 Batch 自动化** — 用 Lua 或 TypeScript 脚本批量派发多 Agent 任务，支持 Dry-run 预览。
+- **原生多 Tab 并发。** 多个 Agent 会话并行运行，实时显示状态指示。
+- **Agent Tab 协作。** Tab 之间互发 Prompt、等待完成并收集回复（`mpi ctl`）。
+- **Pi 扩展生态兼容。** 运行完整 Pi 包生态与第一方 `mpi-*` 扩展。
+- **Zen 专注与内联挂件。** 隐藏界面元素获得专注视图，或将挂件移入对话流。
+- **窄屏与移动触控优化。** 适配窄终端、分屏与移动 SSH 客户端（Termux、iOS Blink）。
+- **终端优先交互流。** Vim 式对话导航、命令面板、`$skill` / `@file` / `@tab` 自动补全。
+- **声明式 Batch 自动化。** 用 Lua 或 TypeScript 脚本批量派发多 Agent 任务，支持 Dry-run 预览。
 
 ---
 
@@ -50,7 +50,7 @@ mpi
 ## 核心特性
 
 ### 1. 多 Tab 工作区与跨实例协同
-用 `Tab` / `Shift+Tab` 快速切换，或按 `Ctrl+T` 全屏模糊跳转；后台 Tab 实时展示状态指示符（`●` 运行中、`!` 完成未读、`x` 错误）。各 Tab 维护独立的会话分支树、工具运行时与工作目录。工作区自动持久化 Tab 布局与焦点状态，跨进程原子文件锁（`open_tabs.json.lock`）支持在多个终端窗口或 tmux 窗格间安全协同。
+用 `Tab` / `Shift+Tab` 切换，或按 `Ctrl+T` 全屏模糊跳转；后台 Tab 实时展示状态指示符（`●` 运行中、`!` 完成未读、`x` 错误）。各 Tab 维护独立的会话分支树、工具运行时与工作目录。工作区自动持久化 Tab 布局与焦点状态，跨进程原子文件锁（`open_tabs.json.lock`）支持在多个终端窗口或 tmux 窗格间安全协同。
 
 ### 2. Agent Tab 协作
 Tab 之间可以直接对话——同一 TUI，或其他 `mpi` 进程——无需抢键盘。一个 Tab 把审查或验证委派给同伴，等待完成后读取回复。内置 `mpi-ctl` 技能把 `mpi status` / `mpi ctl` 交给 agent 的 bash 工具。命令循环见 [Agent Tab 协作](#agent-tab-协作)。
@@ -64,7 +64,7 @@ Tab 之间可以直接对话——同一 TUI，或其他 `mpi` 进程——无�
 - **`mpi-auto-rename`**：基于上下文自动生成会话标题（`/auto-rename`）。
 - **`mpi-ctl`**：Agent Tab 跨 Tab / 多实例协作命令行工具与技能（`mpi status` / `mpi ctl`）。
 - **`mpi-permission`**：细粒度工具调用权限管控（`/permission`）。
-- **`mpi-transcript`**：在 `$EDITOR` 或内置编辑器中查看会话转录切片——LLM 实际上下文、完整对话、Thinking、最新回复（`/transcript`）。
+- **`mpi-transcript`**：在 `$EDITOR` 或内置编辑器中查看 LLM 实际上下文、完整对话、Thinking 与最新回复（`/transcript`）。
 - **`mpi-prompt-history`**：Prompt 历史召回与交互式浏览面板（`/prompt-history`）。
 - **`mpi-tool-block`**：动态对模型屏蔽指定工具（`/tool-block`）。
 - **`mpi-tool-display`**：终端紧凑型工具调用与 Thinking 消息渲染优化。
@@ -95,7 +95,7 @@ Tab 之间可以直接对话——同一 TUI，或其他 `mpi` 进程——无�
 </p>
 
 ### 6. Zen 专注模式与后台感知
-隐藏顶部 Tab 栏（`/toggle-zen-mode`），获得极致沉浸的编码画布。有状态变更的后台 Agent（运行中、等待输入、报错、完成）会在顶部边框紧凑显示为状态圆点（`●`）。圆点仅展示状态，不可点击。
+隐藏顶部 Tab 栏（`/toggle-zen-mode`），获得专注视图。有状态变更的后台 Agent（运行中、等待输入、报错、完成）会在顶部边框紧凑显示为状态圆点（`●`）。圆点仅展示状态，不可点击。
 
 <p align="center">
   <img src="assets/readme-zen.gif" alt="Zen 模式" width="900">
@@ -109,7 +109,7 @@ Tab 之间可以直接对话——同一 TUI，或其他 `mpi` 进程——无�
 </p>
 
 ### 8. 命令面板 (Command Palette)
-按 `Ctrl+P` 快速模糊检索并执行当前 Tab 语境下的 Slash 命令、模型切换与扩展指令。
+按 `Ctrl+P` 模糊检索并执行当前 Tab 语境下的 Slash 命令、模型切换与扩展指令。
 
 <p align="center">
   <img src="assets/readme-command-palette.gif" alt="Command Palette" width="900">
@@ -156,8 +156,8 @@ cd mixcode-pi
 bun run install:global       # 从当前源码全局软链 `mpi`
 ```
 
-- `./install.sh` — 编译为单个独立二进制文件（`bun build --compile`），运行时无需 `node_modules`。
-- `bun run install:global` — 从当前本地仓库软链，基于 Bun 运行时执行 TypeScript 入口。
+- `./install.sh` 编译为单个独立二进制文件（`bun build --compile`），运行时无需 `node_modules`。
+- `bun run install:global` 从当前本地仓库软链，基于 Bun 运行时执行 TypeScript 入口。
 
 ---
 
@@ -188,7 +188,7 @@ mpi ctl --workdir ~/other-proj --tab Reviewer send-prompt 'review the diff'
 mpi ctl --tab Agent-01 wait && mpi ctl --tab Agent-01 last-message
 ```
 
-`mpi` 开发 `mpi` 正是如此：一个 Tab 把审查或验证任务委派给其他实例的 Tab，再收集它们的回复。完整命令参考：[pi-packages/mpi-ctl/skills/mpi-ctl/SKILL.md](pi-packages/mpi-ctl/skills/mpi-ctl/SKILL.md)——运行时该技能安装于 `<agentDir>/extensions/mpi-ctl/skills/mpi-ctl/SKILL.md`（默认 `~/.pi/agent/…`）。
+`mpi` 开发 `mpi` 正是如此：一个 Tab 把审查或验证任务委派给其他实例的 Tab，再收集它们的回复。完整命令参考：[pi-packages/mpi-ctl/skills/mpi-ctl/SKILL.md](pi-packages/mpi-ctl/skills/mpi-ctl/SKILL.md)。运行时该技能安装于 `<agentDir>/extensions/mpi-ctl/skills/mpi-ctl/SKILL.md`，默认 `~/.pi/agent/…`。
 
 灵感来自 [Herdr](https://herdr.dev)——一个面向编程 Agent 的终端复用器，它把会话控制能力暴露给运行其中的 Agent。
 
@@ -217,7 +217,7 @@ mpi ctl --tab Agent-01 wait && mpi ctl --tab Agent-01 last-message
 
 ## 关于本项目
 
-这是一个 AI 开发的项目。我现在的日常开发已完全使用 `mpi`——包括开发 `mpi` 本身。代码质量可能很差，但请亲自感受 `mpi`。
+这是一个 AI 开发的项目。我现在的日常开发已完全使用 `mpi`，包括开发 `mpi` 本身。代码质量可能很差，但请亲自感受 `mpi`。
 
 如果你对当前项目不感兴趣，也可以看看 [`pi-packages/`](pi-packages/)，里面都是高质量的 Pi 扩展插件，在原生 [Pi](https://pi.dev) 上也能正常使用。
 
@@ -225,4 +225,4 @@ mpi ctl --tab Agent-01 wait && mpi ctl --tab Agent-01 last-message
 
 ## 致谢
 
-- [Pi](https://pi.dev)（Mario Zechner，[earendil-works/pi](https://github.com/earendil-works/pi)）—— MixCode 构建在 Pi 的 Agent 内核、扩展系统与 TUI 工具链之上（`pi-coding-agent`、`pi-tui`、`pi-ai`、`pi-agent-core`）。正是它干净的 SDK 与开放的扩展生态让这个项目成为可能。
+- [Pi](https://pi.dev)（Mario Zechner，[earendil-works/pi](https://github.com/earendil-works/pi)）。MixCode 构建在 Pi 的 Agent 内核、扩展系统与 TUI 工具链之上（`pi-coding-agent`、`pi-tui`、`pi-ai`、`pi-agent-core`）。正是它干净的 SDK 与开放的扩展生态让这个项目成为可能。

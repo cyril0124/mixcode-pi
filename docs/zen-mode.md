@@ -29,9 +29,8 @@ In multi-tab workflows, the top tab bar occupies a vertical row and visual atten
 
 When the tab bar is hidden, other background agents that require attention or have notable state transitions render as compact status dots on the top separator:
 
-- **Status Indicators**: Working agents show an animated Braille spinner (falling back to static dot in ASCII mode); waiting (`?`), done (`!`), and error (`x`) display colored status dots.
+- **Status Indicators**: Working agents show an animated Braille spinner (falling back to static dot in ASCII mode); waiting (`?`), done (`!`), and error (`x`) display colored status dots. The dots are visual only; see [Mouse Support](mouse-support.md) for what is clickable.
 - **Overflow Counter (`[+N]`)**: Groups excess background indicators when terminal width is constrained.
-- **Mouse Click**: Clicking a background marker switches focus to that agent tab.
 
 ### 2. Mode Migration
 
