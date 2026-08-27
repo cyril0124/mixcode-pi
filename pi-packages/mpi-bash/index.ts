@@ -2,10 +2,9 @@
  * mpi-bash - bash execution policy for MixCode.
  *
  * Assembles the pieces: `exec.ts` runs commands, `widget.ts` shows the ones
- * still running, `log-view.ts` reads their logs back.
+ * still running, `bash-logs.ts` reads their logs back.
  */
 
-import * as fs from "node:fs";
 import {
   createBashToolDefinition,
   type ExtensionContext,
@@ -13,27 +12,26 @@ import {
   SettingsManager,
   type ToolCallEvent,
 } from "@earendil-works/pi-coding-agent";
+import { BashLogs } from "./bash-logs.js";
 import {
   appendBashTimeoutNote,
   BASH_DEFAULT_TIMEOUT_SECONDS,
   createDetachingBashOperations,
-  type DetachedStart,
   formatCompletionNotice,
   killTree,
   pruneOldLogs,
   resolveForegroundSeconds,
 } from "./exec.js";
 import { resolveStallSeconds, StallMonitor, stallCheckIntervalMs } from "./heartbeat.js";
-import { LogView, openInExternalEditor, type SuspendableTui } from "./log-view.js";
+import { openInExternalEditor, type SuspendableTui } from "./log-view.js";
 import {
   BackgroundStatus,
   type DetachedExitDetails,
-  type FinishedRun,
-  formatRunChoice,
+  hasEnded,
   readLogForView,
   renderCompletionMessage,
-  type StallDetails,
   renderStallMessage,
+  type StallDetails,
 } from "./widget.js";
 
 export * from "./exec.js";
@@ -45,24 +43,6 @@ export const BASH_DETACHED_EXIT_CUSTOM_TYPE = "bash-detached-exit";
 
 /** Custom message type warning that a background command has gone silent. */
 export const BASH_STALL_CUSTOM_TYPE = "bash-detached-stall";
-
-/** How often the pager re-reads a still-running command's log. */
-const FOLLOW_REFRESH_MS = 1000;
-
-/**
- * Re-read `logPath` only when it changed since `stamp` (size and mtime).
- * Returns the new text with its stamp, or undefined when nothing moved - a
- * quiet command would otherwise cost a full read and rewrap every second.
- */
-async function reloadLogIfChanged(
-  logPath: string,
-  stamp: string,
-): Promise<{ text: string; stamp: string } | undefined> {
-  const stats = await fs.promises.stat(logPath);
-  const current = `${stats.size}:${stats.mtimeMs}`;
-  if (current === stamp) return undefined;
-  return { text: await readLogForView(logPath), stamp: current };
-}
 
 const bashExtension: ExtensionFactory = (pi) => {
   const backgroundStatus = new BackgroundStatus();
@@ -141,103 +121,48 @@ const bashExtension: ExtensionFactory = (pi) => {
     systemPrompt: appendBashTimeoutNote(event.systemPrompt),
   }));
 
-  pi.registerCommand("bash-jobs", {
-    description: "List background bash jobs and open a job's full log",
+  pi.registerCommand("bash-logs", {
+    description: "Inspect background bash jobs and their logs",
     handler: async (_args, ctx) => {
       const runs = backgroundStatus.list();
       if (runs.length === 0) {
         ctx.ui.notify("No command has been sent to the background in this session.", "info");
         return;
       }
-      // Choices must stay unique: two identical commands would otherwise map to
-      // the same picker row.
-      const byChoice = new Map<string, DetachedStart | FinishedRun>(
-        runs.map((run) => [formatRunChoice(run), run]),
-      );
-      const choice = await ctx.ui.select("Background jobs", [...byChoice.keys()]);
-      const run = choice === undefined ? undefined : byChoice.get(choice);
-      if (!run) return;
-      let text: string;
+      let initialText = "";
       try {
-        text = await readLogForView(run.logPath);
+        initialText = await readLogForView(runs[0]!.logPath);
       } catch (error) {
-        ctx.ui.notify(`Cannot read ${run.logPath}: ${(error as Error).message}`, "error");
-        return;
+        initialText = `Cannot read ${runs[0]!.logPath}: ${(error as Error).message}`;
       }
-      // A read-only pager, not ctx.ui.editor: the log is a file, so the overlay
-      // must not offer typing or submitting.
-      let follow: ReturnType<typeof setInterval> | undefined;
       await ctx.ui.custom<void>(
-        (tui, theme, _keybindings, done) => {
-          const closeView = () => {
-            if (follow) clearInterval(follow);
-            follow = undefined;
-            done(undefined);
-          };
-          const view = new LogView(
+        (tui, theme, _keybindings, done) =>
+          new BashLogs({
             theme,
-            run.logPath,
-            text,
-            () => tui.requestRender(),
-            closeView,
-            () => Math.floor(tui.terminal.rows * 0.8) - 4,
-            () => {
-              // The editor takes over the tty, so the pager closes first and the
-              // user lands back in the session when the editor exits.
-              closeView();
-              void openInExternalEditor(tui as unknown as SuspendableTui, run.logPath).then(
-                (error) => {
-                  if (error) ctx.ui.notify(error, "error");
-                },
-              );
+            list: () => backgroundStatus.list(),
+            requestRender: () => tui.requestRender(),
+            done: () => done(undefined),
+            terminalRows: () => tui.terminal.rows,
+            initialText,
+            openExternal: (logPath) => {
+              void openInExternalEditor(tui as unknown as SuspendableTui, logPath).then((error) => {
+                if (error) ctx.ui.notify(error, "error");
+              });
             },
-            // A finished run has nothing left to kill, and its pid may already
-            // belong to an unrelated process.
-            "endedAt" in run
-              ? undefined
-              : {
-                  pid: run.id,
-                  run: () => {
-                    // Checked again here, not only when the pager opened: the
-                    // pager follows a running job, so it is normally still open
-                    // when that job exits and its pid stops being ours.
-                    if (!backgroundStatus.running().some((live) => live.id === run.id)) {
-                      ctx.ui.notify(`Job #${run.id} has already finished.`, "info");
-                      return;
-                    }
-                    killTree(run.id);
-                    // The outcome arrives as the usual completion notice, once
-                    // the killed process group exits.
-                    ctx.ui.notify(`Killed job #${run.id} and its children.`, "info");
-                  },
-                },
-          );
-          // A finished run's log never changes; only a live one is re-read.
-          if (!("endedAt" in run)) {
-            let seen = "";
-            follow = setInterval(() => {
-              void reloadLogIfChanged(run.logPath, seen).then(
-                (result) => {
-                  if (!result) return;
-                  seen = result.stamp;
-                  view.setText(result.text);
-                },
-                () => {
-                  // The log went away mid-run (user deleted it): keep showing
-                  // what was already read instead of tearing the overlay down.
-                },
-              );
-            }, FOLLOW_REFRESH_MS);
-            follow.unref?.();
-          }
-          return view;
-        },
+            kill: (run) => {
+              if (hasEnded(run) || !backgroundStatus.running().some((live) => live.id === run.id)) {
+                ctx.ui.notify(`Job #${run.id} has already finished.`, "info");
+                return;
+              }
+              killTree(run.id);
+              ctx.ui.notify(`Killed job #${run.id} and its children.`, "info");
+            },
+          }),
         {
           overlay: true,
-          overlayOptions: { anchor: "center", width: "86%", maxHeight: "80%", margin: 1 },
+          overlayOptions: { anchor: "center", width: "78%", maxHeight: "80%", margin: 1 },
         },
       );
-      if (follow) clearInterval(follow);
     },
   });
 

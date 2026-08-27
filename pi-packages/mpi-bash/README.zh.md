@@ -2,9 +2,9 @@
 
 [English](README.md)
 
-Bash 执行策略：默认超时、前台窗口、到期自动转后台、结束自动回报，以及用 `/bash-jobs` 读后台命令的完整日志。
+Bash 执行策略：默认超时、前台窗口、到期自动转后台、结束自动回报，以及用 `/bash-logs` 读后台命令的完整日志。
 
-扩展用 Pi 的 `createBashToolDefinition` 配合自定义 `BashOperations` 注册自己的 `bash` 工具定义。工具参数、渲染、输出截断、`commandPrefix`、`shellPath` 以及 MixCode 的每次 spawn 注入的 tab 环境变量均保持不变，只替换命令的执行方式。
+扩展用 Pi 的 `createBashToolDefinition` 配合自定义 `BashOperations` 注册自己的 `bash` 工具定义。工具参数、渲染、输出截断、`commandPrefix`、`shellPath` 以及 MixCode 每次 spawn 注入的 tab 环境变量跟 Pi 原来的一样。只改执行方式。
 
 ## 行为
 
@@ -33,12 +33,12 @@ Bash 执行策略：默认超时、前台窗口、到期自动转后台、结束
 只要还有命令在后台运行，编辑器上方就会出现一棵树，按开始先后列出全部后台命令：
 
 ```text
- ○ Jobs · 2 running · /bash-jobs to inspect
+ ○ Jobs · 2 running · /bash-logs to inspect
  ├ ⠋ 1m12s bun run check · #111
  └ ⠹ 5s printf "FOREGROUND-OUTPUT"; sleep 12; printf 'done' · #222
 ```
 
-标题行给出正在运行的条数，并标明 `/bash-jobs` 可打开日志。每一条是 `warning` 色 spinner、`accent` 加粗的时长、`dim` 的命令，以及 pid。超出终端宽度的命令会省略，每条恰好一行。最后一条结束后组件消失。
+标题行给出正在运行的条数，并标明 `/bash-logs` 可打开日志。每一条是 `warning` 色 spinner、`accent` 加粗的时长、`dim` 的命令，以及 pid。超出终端宽度的命令会省略，每条恰好一行。最后一条结束后组件消失。
 
 后台命令结束后，聊天里先是一行 `Background job finished` 标题，再是运行时长和命令本身；有输出时中间一条分隔线，下面是带行号的最后 10 行。上面还有输出时写 `… N lines omitted (full log at <路径>)`。
 
@@ -107,62 +107,53 @@ If this command is expected to be silent for this long, ignore this notice and c
 | `<tmpdir>/mpi-bash-<pid>-<n>.log` | **全部输出**，包含前台那一段。要读全就读它。 |
 | 完成回报 | 最后 2000 字节，附日志路径。 |
 
-转后台命令的日志在命令结束后仍然保留，`/bash-jobs` 才能继续打开它；超过七天的日志会在会话启动时清理。若日志写不进去，完成回报会写明失败原因，命令本身继续运行。
+转后台命令的日志在命令结束后仍然保留，`/bash-logs` 才能继续打开它；超过七天的日志会在会话启动时清理。若日志写不进去，完成回报会写明失败原因，命令本身继续运行。
 
 前台那一段由内存回放写入，缓冲上限 4 MB。命令在转后台前打印超过这个量时，最早的输出会丢失，日志首行为 `[mpi-bash] earlier output dropped`。
 
-## `/bash-jobs`
+## `/bash-logs`
 
-列出本会话所有转入后台的命令：先运行中，再是最近 50 条已结束的。
-
-```text
-Background jobs
-→ ● running     10s  printf "FOREGROUND-OUTPUT"; sleep 12; printf 'd…   #1258366
-  ✓ exit 0      22s  bun run build                                     #1260309
-  ✗ exit 1       3s  cargo test                                        #1260501
-  ⏱ timeout   5m00s  pytest -k slow                                    #1260702
-```
-
-pid 同时充当行的身份，所以同一条命令跑两次也是两行。
-
-选中一行即在分页器里打开它的日志。分页器不修改日志，它能改变的只有任务还在不在跑，入口是 `x`：
+`/bash-logs` 列出本会话转入后台的命令。运行中的在前，然后是最近 50 条已结束的。overlay 上段是列表，下段是选中任务的实时日志，大约占终端高度的 60%。行按 pid 区分，同一条命令跑两次就是两行。
 
 ```text
-┌ mpi-bash-473568.log · following 6 lines ───────────────────┐
-│                                                            │
-│ 1  # Command: printf "FOREGROUND-OUTPUT"; sleep 12; pri... │
-│ 2  # ---                                                   │
-│ 3  tick 04/24 at 21:16:43                                  │
-│ 4  npm warn deprecated inflight@1.0.6: This module is not  │
-│    supported, and leaks memory.                            │
-│ 5  tick 06/24 at 21:16:44                                  │
-│                                                            │
-├────────────────────────────────────────────────────────────┤
-│  ↑↓/jk scroll  g/G top/bottom  ^e/v editor  x kill  q/esc  │
-└────────────────────────────────────────────────────────────┘
+╭ 2/4 running ── Bash logs ─────────────────────────────────────────╮
+│> ● running     10s  #111  printf "FOREGROUND-OUTPUT"; sleep 12    │
+│  ✓ exit 0      22s  #109  bun run build                           │
+│  ✗ exit 1       3s  #108  cargo test                              │
+│  ⏱ timeout   5m00s  #107  pytest -k slow                          │
+│───────────────────────────────────────────────────────────────────│
+│  24  tick 23/24 at 21:16:43                                       │
+│  25  tick 24/24 at 21:16:44                                       │
+│  26  Compiling serde v1.0.219                                     │
+│  following  24-31/40  (J/K scroll)                                │
+├───────────────────────────────────────────────────────────────────┤
+│  j/k move  J/K scroll  g/G top/bot  ^e editor  x kill  q close    │
+╰───────────────────────────────────────────────────────────────────╯
 ```
 
-行号是日志自身的行号。一行放不下时，续行的行号位留空，因此换行不会被误认为新输出。
+overlay 只读，例外是 `x`：杀掉还在跑的任务。行号来自日志。一行太长就折到下一行，行号位留空。
 
 | 按键 | 作用 |
 | --- | --- |
-| `↓` `j` / `↑` `k` | 上下一行 |
-| `Ctrl+D` / `Ctrl+U` | 半页 |
-| `Ctrl+F` `PgDn` `Space` / `Ctrl+B` `PgUp` | 整页 |
-| `g` `Home` / `G` `End` | 首部 / 尾部 |
-| `Ctrl+E` `v` | 关闭分页器，用 `$VISUAL`/`$EDITOR` 打开该日志 |
-| `x` | 确认后杀掉运行中的任务 |
+| `j` / `k` | 下一条 / 上一条任务 |
+| `J` / `K` | 预览下 / 上一行 |
+| `↓` / `↑` | 预览下 / 上一行 |
+| `Ctrl+D` / `Ctrl+U` | 预览半页 |
+| `Ctrl+F` `PgDn` `Space` / `Ctrl+B` `PgUp` | 预览整页 |
+| `g` `Home` / `G` `End` | 预览首部 / 尾部 |
+| `Ctrl+E` `v` | 关闭 overlay，用 `$VISUAL`/`$EDITOR` 打开当前日志 |
+| `x` | 确认后杀掉选中的运行中任务 |
 | `q` `Esc` | 关闭 |
 
-分页器打开即定位到最新输出。命令还在跑时，每秒重读日志并持续跟到尾部，标题栏标记 `following`；往上滚即停止跟随，后续输出不会把视野拽走，按 `G` 回到尾部并恢复跟随。已结束的命令只读一次。
+预览从最新输出开始。任务还在跑时每秒重读日志，钉在尾部，标 `following`。往上滚就停住。`G` 回到尾部再跟。已结束的任务只读一次。
 
-标题栏显示日志文件名与当前可见行范围（`1-21/3574`）。宽度优先给文件名：面板过窄时先把 `following` 缩成 `▼`，再丢掉行号范围，最后才截断文件名。提示行同样会从中间丢起，保留滚动与关闭两项。
+预览下方是可见范围，例如 `1-21/3574`。overlay 太窄时从中间丢掉快捷键提示。
 
-`x` 在提示行里弹出确认：`kill job #<pid> and its children? y confirms, any other key cancels`。只有 `y` 会真的杀。包括 `q` 和 `Esc` 在内的其他按键一律取消，并且保留分页器。`y` 向整个进程组发 `SIGKILL`，与超时用的信号相同，结果由任务平常的完成回报给出。已结束的命令不提供 `x`，因为它的 pid 可能已经属于另一个无关进程。
+按 `x`，提示变成 `kill job #<pid> and its children? y confirms, any other key cancels`。只有 `y` 会向进程组发 `SIGKILL`，和超时同一信号。结果走平常的完成回报。`q`、`Esc`、`j`、`k` 和其他键都取消，overlay 还在。已结束的任务没有 `x`，pid 可能已经给了别人。
 
-分页器最多读入最后 200000 字节，有截断时首行会写明。`Ctrl+E` 把日志文件本身交给 `$VISUAL`/`$EDITOR`，因此编辑器里始终是全量；编辑器占用终端期间 TUI 挂起，退出后恢复，编辑器启动失败同样恢复并以通知报错。
+预览最多读最后 200000 字节。跳过了前面的输出时，首行会写明。`Ctrl+E` 或 `v` 关掉 overlay，用 `$VISUAL`/`$EDITOR` 打开日志文件。编辑器占用终端时 TUI 停下，退出后再起来。编辑器起不来就发通知，把失败原因写出来。
 
-这种方式读日志不消耗模型上下文，不向会话发送任何内容。记录按 Tab 隔离，随会话存续。
+`/bash-logs` 不把日志发给模型。记录按 Tab 隔离，跟会话一起走。
 
 ## 边界
 

@@ -2,9 +2,9 @@
 
 [中文文档](README.zh.md)
 
-Bash execution policy: a default timeout, a foreground window, automatic detach to the background, an automatic completion notice, and `/bash-jobs` for reading a background command's full log.
+Bash execution policy: a default timeout, a foreground window, automatic detach to the background, an automatic completion notice, and `/bash-logs` for reading a background command's full log.
 
-The extension registers its own `bash` tool definition, built from Pi's `createBashToolDefinition` with custom `BashOperations`. Tool arguments, rendering, output truncation, `commandPrefix`, `shellPath`, and MixCode's per-spawn tab environment are unchanged — only command execution is replaced.
+The extension registers its own `bash` tool definition, built from Pi's `createBashToolDefinition` with custom `BashOperations`. Tool arguments, rendering, output truncation, `commandPrefix`, `shellPath`, and MixCode's per-spawn tab environment stay as Pi left them. Only command execution changes.
 
 ## Behavior
 
@@ -33,12 +33,12 @@ The injected default `timeout` is `300` seconds and applies only when the model 
 While at least one command runs in the background, a widget above the editor lists them as a tree, oldest first:
 
 ```text
- ○ Jobs · 2 running · /bash-jobs to inspect
+ ○ Jobs · 2 running · /bash-logs to inspect
  ├ ⠋ 1m12s bun run check · #111
  └ ⠹ 5s printf "FOREGROUND-OUTPUT"; sleep 12; printf 'done' · #222
 ```
 
-The header shows how many jobs are running and that `/bash-jobs` opens their logs. Each run is a `warning` spinner, bold `accent` elapsed time, a `dim` command, and its pid. A command too wide for the terminal is elided so every run costs exactly one line. The widget disappears when the last run finishes.
+The header shows how many jobs are running and that `/bash-logs` opens their logs. Each run is a `warning` spinner, bold `accent` elapsed time, a `dim` command, and its pid. A command too wide for the terminal is elided so every run costs exactly one line. The widget disappears when the last run finishes.
 
 When a background command ends, the chat shows a `Background job finished` heading, how long it ran, the command, and, if there is output, a rule then the last 10 lines with their log line numbers. Earlier output is marked `… N lines omitted (full log at <path>)`.
 
@@ -107,62 +107,53 @@ A command that finishes in the foreground never touches the disk: its whole outp
 | `<tmpdir>/mpi-bash-<pid>-<n>.log` | **Everything**, foreground part included. Read it to see the full output. |
 | Completion notice | The last 2000 bytes, plus the log path. |
 
-A detached command's log outlives it, so `/bash-jobs` can still open it; logs older than seven days are removed when a session starts. If the log cannot be written, the failure is named in the completion notice and the command keeps running.
+A detached command's log outlives it, so `/bash-logs` can still open it; logs older than seven days are removed when a session starts. If the log cannot be written, the failure is named in the completion notice and the command keeps running.
 
 The foreground part is replayed from memory, which is capped at 4 MB. A command that prints more than that before detaching loses its earliest output, and the log opens with `[mpi-bash] earlier output dropped`.
 
-## `/bash-jobs`
+## `/bash-logs`
 
-Opens a picker of every command this session sent to the background: running ones first, then the last 50 finished ones.
-
-```text
-Background jobs
-→ ● running     10s  printf "FOREGROUND-OUTPUT"; sleep 12; printf 'd…   #1258366
-  ✓ exit 0      22s  bun run build                                     #1260309
-  ✗ exit 1       3s  cargo test                                        #1260501
-  ⏱ timeout   5m00s  pytest -k slow                                    #1260702
-```
-
-The pid doubles as the row's identity, so running the same command twice still yields two rows.
-
-Selecting a row opens the log in a pager. It never edits the log. The only thing it can change is whether the job is still running, with `x`:
+`/bash-logs` lists this session's background commands. Running jobs come first, then the last 50 that finished. The top of the overlay is the list. The bottom is a live tail of the selected log, about 60% of the terminal height. Rows are keyed by pid, so running the same command twice gives two rows.
 
 ```text
-┌ mpi-bash-473568.log · following 6 lines ───────────────────┐
-│                                                            │
-│ 1  # Command: printf "FOREGROUND-OUTPUT"; sleep 12; pri... │
-│ 2  # ---                                                   │
-│ 3  tick 04/24 at 21:16:43                                  │
-│ 4  npm warn deprecated inflight@1.0.6: This module is not  │
-│    supported, and leaks memory.                            │
-│ 5  tick 06/24 at 21:16:44                                  │
-│                                                            │
-├────────────────────────────────────────────────────────────┤
-│  ↑↓/jk scroll  g/G top/bottom  ^e/v editor  x kill  q/esc  │
-└────────────────────────────────────────────────────────────┘
+╭ 2/4 running ── Bash logs ─────────────────────────────────────────╮
+│> ● running     10s  #111  printf "FOREGROUND-OUTPUT"; sleep 12    │
+│  ✓ exit 0      22s  #109  bun run build                           │
+│  ✗ exit 1       3s  #108  cargo test                              │
+│  ⏱ timeout   5m00s  #107  pytest -k slow                          │
+│───────────────────────────────────────────────────────────────────│
+│  24  tick 23/24 at 21:16:43                                       │
+│  25  tick 24/24 at 21:16:44                                       │
+│  26  Compiling serde v1.0.219                                     │
+│  following  24-31/40  (J/K scroll)                                │
+├───────────────────────────────────────────────────────────────────┤
+│  j/k move  J/K scroll  g/G top/bot  ^e editor  x kill  q close    │
+╰───────────────────────────────────────────────────────────────────╯
 ```
 
-Line numbers are the log's own. A line too wide for the panel continues on the next row with an empty gutter, so wrapping is never mistaken for new output.
+The overlay is read-only except `x`, which kills a still-running job. Line numbers come from the log. A long line wraps onto the next row with an empty gutter.
 
 | Keys | Action |
 | --- | --- |
-| `↓` `j` / `↑` `k` | One line |
-| `Ctrl+D` / `Ctrl+U` | Half page |
-| `Ctrl+F` `PgDn` `Space` / `Ctrl+B` `PgUp` | Full page |
-| `g` `Home` / `G` `End` | Top / bottom |
-| `Ctrl+E` `v` | Close the pager and open the log in `$VISUAL`/`$EDITOR` |
-| `x` | Kill the running job, after a confirmation |
+| `j` / `k` | Next / previous job |
+| `J` / `K` | Preview down / up one line |
+| `↓` / `↑` | Preview down / up one line |
+| `Ctrl+D` / `Ctrl+U` | Preview half page |
+| `Ctrl+F` `PgDn` `Space` / `Ctrl+B` `PgUp` | Preview full page |
+| `g` `Home` / `G` `End` | Preview top / bottom |
+| `Ctrl+E` `v` | Close the overlay and open the selected log in `$VISUAL`/`$EDITOR` |
+| `x` | Kill the selected running job, after a confirmation |
 | `q` `Esc` | Close |
 
-The pager opens on the newest output. While the command is still running it re-reads the log every second and stays pinned to the end, marked `following` in the header; scrolling up parks the view so later output cannot pull it away, and `G` returns to the end and resumes following. A finished run's log is read once.
+The preview starts at the newest output. A live job is re-read every second and stays pinned to the end (`following`). Scroll up to park. `G` jumps to the end and follows again. A finished job is read once.
 
-The header carries the log's file name and the visible range (`1-21/3574`). Space goes to the name first: a narrow panel shortens `following` to `▼`, then drops the range, and truncates the name only as a last resort. A narrow panel likewise drops the middle key hints and keeps the scroll and close ones.
+The hint under the preview is the visible range, like `1-21/3574`. If the overlay is too narrow, it drops hints from the middle.
 
-`x` arms a confirmation in the hint line, `kill job #<pid> and its children? y confirms, any other key cancels`. Only `y` kills. Every other key, including `q` and `Esc`, cancels and leaves the pager open. `y` sends `SIGKILL` to the whole process group, the same signal a timeout sends, and the job's usual completion notice reports the result. A finished run offers no `x`, because its pid may already belong to an unrelated process.
+Press `x` and the hint becomes `kill job #<pid> and its children? y confirms, any other key cancels`. Only `y` sends `SIGKILL` to the process group, the same signal a timeout uses. The usual completion notice reports the result. `q`, `Esc`, `j`, `k`, and every other key cancel and leave the overlay open. Finished jobs have no `x`. Their pid may already belong to something else.
 
-At most the last 200000 bytes are read into the pager, which says so in its first line when it skipped anything. `Ctrl+E` hands the log file itself to `$VISUAL`/`$EDITOR`, so the editor always sees the whole log. The TUI is suspended while the editor owns the terminal and resumes when it exits; if the editor cannot be launched, the failure is reported as a notification.
+The preview loads at most the last 200000 bytes. If it skipped earlier output, the first line says so. `Ctrl+E` or `v` closes the overlay and opens the log file in `$VISUAL`/`$EDITOR`. The TUI stops while the editor runs and starts again when it exits. If the editor cannot start, a notification names the failure.
 
-Reading a log this way costs no model context: nothing is sent to the session. The history is per tab and lives as long as the session.
+`/bash-logs` does not send log text to the model. History is per tab and lasts for the session.
 
 ## Limits
 

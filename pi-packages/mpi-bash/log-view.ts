@@ -9,7 +9,7 @@ import {
 } from "@earendil-works/pi-tui";
 
 /** Theme surface used by the log viewer overlay. */
-type LogViewTheme = Pick<Theme, "fg">;
+export type LogViewTheme = Pick<Theme, "fg">;
 
 /** One rendered row: a log line, or a continuation of the one above it. */
 interface LogRow {
@@ -168,11 +168,30 @@ export class LogView implements Component {
     this.requestRender();
   }
 
-  render(width: number): string[] {
-    const innerWidth = Math.max(8, width - 2);
+  /** True while `x` has armed a kill and the next key decides it. */
+  isConfirmingKill(): boolean {
+    return this.confirmingKill;
+  }
+
+  /** Scroll the log pane; `keepFollowing` is for down/page, not up. */
+  scrollBy(delta: number, keepFollowing = true): void {
+    if (!keepFollowing) this.following = false;
+    this.scrollTo(this.scroll + delta);
+  }
+
+  /**
+   * Chrome-free pane: headline, padded body, footer. `width` is the inner
+   * content width. Body height is `getRows()`.
+   */
+  pane(width: number): {
+    headline: string;
+    body: string[];
+    footer: string;
+    range: string;
+    following: boolean;
+  } {
     const gutter = String(this.lines.length).length;
-    // Padding on both sides, the gutter, and two spaces after it.
-    const textWidth = Math.max(4, innerWidth - gutter - 4);
+    const textWidth = Math.max(4, width - gutter - 4);
     const rows = this.wrap(textWidth);
     const height = this.rows();
     // Clamp here too: the viewport height follows the terminal, so a resize can
@@ -184,20 +203,36 @@ export class LogView implements Component {
     const last = Math.min(rows.length, this.scroll + height);
     const range =
       rows.length > height ? `${this.scroll + 1}-${last}/${rows.length}` : `${rows.length} lines`;
+    const body = [
+      ...visible.map(
+        ({ number, text }) =>
+          ` ${this.theme.fg("dim", String(number ?? "").padStart(gutter))}  ${text}`,
+      ),
+      ...Array.from({ length: Math.max(0, height - visible.length) }, () => ""),
+    ];
+    return {
+      headline: this.headline(width, range),
+      body,
+      footer: this.footer(width),
+      range,
+      following: this.following,
+    };
+  }
+
+  render(width: number): string[] {
+    const innerWidth = Math.max(8, width - 2);
+    const { headline, body, footer } = this.pane(innerWidth);
 
     const border = (text: string) => this.theme.fg("border", text);
     const blank = `${border("│")}${" ".repeat(innerWidth)}${border("│")}`;
     const row = (line: string) => `${border("│")}${this.pad(line, innerWidth)}${border("│")}`;
 
     return [
-      `${border("┌")}${border(this.pad(this.headline(innerWidth, range), innerWidth))}${border("┐")}`,
+      `${border("┌")}${border(this.pad(headline, innerWidth))}${border("┐")}`,
       blank,
-      ...visible.map(({ number, text }) =>
-        row(` ${this.theme.fg("dim", String(number ?? "").padStart(gutter))}  ${text}`),
-      ),
-      ...Array.from({ length: Math.max(0, height - visible.length) }, () => blank),
+      ...body.map((line) => row(line)),
       `${border("├")}${border("─".repeat(innerWidth))}${border("┤")}`,
-      row(this.footer(innerWidth)),
+      row(footer),
       `${border("└")}${border("─".repeat(innerWidth))}${border("┘")}`,
     ];
   }
@@ -251,11 +286,6 @@ export class LogView implements Component {
 
   private rows(): number {
     return Math.max(3, this.getRows());
-  }
-
-  private scrollBy(delta: number, keepFollowing = true): void {
-    if (!keepFollowing) this.following = false;
-    this.scrollTo(this.scroll + delta);
   }
 
   private scrollTo(target: number): void {

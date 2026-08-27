@@ -55,13 +55,12 @@ function detachNotice(text: string): string {
   return text.slice(text.indexOf("[mpi-bash]"));
 }
 
-test("/bash-jobs lists this session's runs and opens the full log", async () => {
+test("/bash-logs lists this session's runs and opens the selected log", async () => {
   const handlers: Record<string, Array<(event: unknown, ctx: unknown) => unknown>> = {};
   const commands: Record<string, (args: string, ctx: unknown) => Promise<void>> = {};
   const notices: string[] = [];
   /** Completion notices the extension appends when a background run ends. */
   const exits: string[] = [];
-  const selected: Array<{ title: string; options: string[] }> = [];
   const opened: Array<{ overlay: boolean; lines: string[] }> = [];
   const plainTheme = { fg: (_color: string, text: string) => text, bold: (text: string) => text };
   let bash: BashTool | undefined;
@@ -70,10 +69,6 @@ test("/bash-jobs lists this session's runs and opens the full log", async () => 
   const ui = {
     setWidget: () => {},
     notify: (message: string) => notices.push(message),
-    select: async (title: string, options: string[]) => {
-      selected.push({ title, options });
-      return options[0];
-    },
     // Mirrors pi's ExtensionUIContext.custom: build the component, render it,
     // then let it close itself the way a user would.
     custom: async (
@@ -83,14 +78,14 @@ test("/bash-jobs lists this session's runs and opens the full log", async () => 
         keybindings: unknown,
         done: (value: unknown) => void,
       ) => Overlay,
-      options: { overlay?: boolean },
+      options?: { overlay?: boolean },
     ) => {
       const tui = { requestRender: () => {}, terminal: { rows: 30, columns: 100 } };
       let closed = false;
       const component = factory(tui, plainTheme, {}, () => {
         closed = true;
       });
-      opened.push({ overlay: options.overlay === true, lines: component.render(80) });
+      opened.push({ overlay: options?.overlay === true, lines: component.render(80) });
       component.handleInput?.("q");
       assert.equal(closed, true, "the log overlay must close on q");
       return undefined;
@@ -118,12 +113,12 @@ test("/bash-jobs lists this session's runs and opens the full log", async () => 
       sendMessage: (message: { content: string }) => exits.push(message.content),
     } as never);
 
-    const bashJobs = commands["bash-jobs"];
-    assert.ok(bashJobs, "the extension must register /bash-jobs");
+    const bashLogs = commands["bash-logs"];
+    assert.ok(bashLogs, "the extension must register /bash-logs");
 
-    // Nothing has run yet: the command must say so instead of opening a picker.
-    await bashJobs("", { ui });
-    assert.equal(selected.length, 0, "an empty history must not open a picker");
+    // Nothing has run yet: the command must say so instead of opening an overlay.
+    await bashLogs("", { ui });
+    assert.equal(opened.length, 0, "an empty history must not open the overlay");
     assert.match(notices[0] ?? "", /No command has been sent to the background/);
 
     await handlers.session_start?.[0]?.({}, { cwd: process.cwd(), ui });
@@ -136,33 +131,24 @@ test("/bash-jobs lists this session's runs and opens the full log", async () => 
     const logPath = /(\/\S*mpi-bash-[\w-]+\.log)/.exec(started?.content[0]?.text ?? "")?.[1];
     assert.ok(logPath, `the detach notice must name the log: ${started?.content[0]?.text}`);
 
-    // While it runs, the picker offers it as running.
-    await bashJobs("", { ui });
-    assert.match(selected[0]?.options[0] ?? "", /^● running +\d+s {2}printf "early/);
-
-    // The log opens in a read-only pager: it carries the log's name and its own
-    // scroll hints, and never pi's "enter submit" editor chrome.
+    // While it runs, the overlay lists it and shows a log preview.
+    await bashLogs("", { ui });
     assert.equal(opened[0]?.overlay, true);
     const running = (opened[0]?.lines ?? []).join("\n");
-    assert.match(running, /mpi-bash-[\w-]+\.log/);
+    assert.match(running, /> ● running.+printf "early/);
     assert.match(running, /early/);
-    assert.match(running, /q\/esc close/);
+    assert.match(running, /j\/k move/);
+    assert.match(running, /q close/);
 
     await waitFor(() => exits[0]);
 
     // A finished run stays reachable, labelled with its exit code.
-    await bashJobs("", { ui });
-    assert.match(selected[1]?.options[0] ?? "", /^✓ exit 0 +\d+s {2}printf "early/);
-    // The log carries both halves; the transcript stopped at the detach point.
+    await bashLogs("", { ui });
     const finished = (opened[1]?.lines ?? []).join("\n");
+    assert.match(finished, /> ✓ exit 0.+printf "early/);
+    // The log carries both halves; the transcript stopped at the detach point.
     assert.match(finished, /early/);
     assert.match(finished, /late/);
-
-    assert.match(
-      finished,
-      new RegExp(logPath.split("/").pop() ?? ""),
-      "the pager must name the log",
-    );
     assert.equal(
       fs.readFileSync(logPath, "utf8"),
       '# Command: printf "early\\n"; sleep 1; printf "late\\n"\n# ---\nearly\nlate\n',
@@ -248,7 +234,7 @@ test("the pager follows a live log and leaves a finished one alone", async () =>
     const logPath = /(\/\S*mpi-bash-[\w-]+\.log)/.exec(started?.content[0]?.text ?? "")?.[1];
     assert.ok(logPath, `the detach notice must name the log: ${started?.content[0]?.text}`);
 
-    void commands["bash-jobs"]?.("", { ui });
+    void commands["bash-logs"]?.("", { ui });
     await waitFor(() =>
       screen().includes("alpha\n") || screen().includes("3  alpha") ? true : undefined,
     );
@@ -260,7 +246,7 @@ test("the pager follows a live log and leaves a finished one alone", async () =>
     // Wait until the command finishes and reports exit before opening the finished log.
     pager = undefined;
     await waitFor(() => (exits.length > 0 ? true : undefined));
-    void commands["bash-jobs"]?.("", { ui });
+    void commands["bash-logs"]?.("", { ui });
     await waitFor(() => (screen().includes("beta") ? true : undefined));
     fs.appendFileSync(logPath, "appended after the run ended\n");
     // Twice the pager's one-second refresh: long enough for a re-read to land.
@@ -341,7 +327,7 @@ test("foreground window rejects a malformed value instead of defaulting", () => 
   );
 });
 
-test("/bash-jobs rows line up in columns and stay unique per run", () => {
+test("/bash-logs rows line up in columns and stay unique per run", () => {
   const now = 100_000;
   const rows = [
     formatRunChoice(
@@ -373,7 +359,7 @@ test("/bash-jobs rows line up in columns and stay unique per run", () => {
     `✓ exit 0      11s  bun run check${" ".repeat(35)}  #222`,
     `⏱ timeout     30s  pytest -k slow${" ".repeat(34)}  #333`,
   ]);
-  // Same command twice must not collapse into one picker entry.
+  // Same command twice must not collapse into one list row.
   assert.equal(new Set(rows).size, rows.length);
 });
 
@@ -408,7 +394,7 @@ test("the widget spends one line per run at any width", () => {
 
   const [header] = renderBackgroundWidget(runs, theme, 80, now);
   const [, first, second] = renderBackgroundWidget(runs, theme, 40, now);
-  assert.match(header ?? "", /○ Jobs · 2 running · \/bash-jobs to inspect/);
+  assert.match(header ?? "", /○ Jobs · 2 running · \/bash-logs to inspect/);
   assert.match(first ?? "", /├ ⠋ 1m12s bun run check/);
   assert.match(first ?? "", /#2/);
   assert.match(second ?? "", /└ ⠹ 5s printf "x+/);
@@ -599,7 +585,7 @@ test("two detached runs never share a log file", async () => {
   await waitFor(() => (runs.length === 2 ? runs : undefined));
 
   // Pids are reused, so the pid alone would let a new command truncate a
-  // finished run's log while `/bash-jobs` still points at it.
+  // finished run's log while `/bash-logs` still points at it.
   assert.notEqual(runs[0]?.logPath, runs[1]?.logPath);
   assert.match(runs[0]?.tail ?? "", /first/);
   assert.match(runs[1]?.tail ?? "", /second/);

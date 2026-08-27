@@ -5,10 +5,10 @@ import { type DetachedRun, type DetachedStart, formatElapsed } from "./exec.js";
 
 /**
  * Surfaces for background commands: the widget above the editor, the rows of
- * the `/bash-jobs` picker, and the session's record of what has been detached.
+ * the `/bash-logs` overlay, and the session's record of what has been detached.
  */
 
-/** Marks a still-running command in the `/bash-jobs` picker. */
+/** Marks a still-running command in the `/bash-logs` list. */
 const RUNNING_DOT = "●";
 
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const;
@@ -47,7 +47,7 @@ export function renderBackgroundWidget(
   });
   const count = sorted.length === 1 ? "1 running" : `${sorted.length} running`;
   const header = truncateToWidth(
-    `${theme.fg("dim", "○")} ${theme.fg("muted", "Jobs")} ${theme.fg("dim", `· ${count} · /bash-jobs to inspect`)}`,
+    `${theme.fg("dim", "○")} ${theme.fg("muted", "Jobs")} ${theme.fg("dim", `· ${count} · /bash-logs to inspect`)}`,
     inner,
     "…",
   );
@@ -209,27 +209,27 @@ export function renderStallMessage(jobs: StallDetails[], theme: Theme, width: nu
   ]);
 }
 
-/** A detached run that has ended; kept so `/bash-jobs` can still reach its log. */
+/** A detached run that has ended; kept so `/bash-logs` can still reach its log. */
 export interface FinishedRun extends DetachedStart {
   exitCode: number | null;
   timedOut: boolean;
   endedAt: number;
 }
 
-function hasEnded(run: DetachedStart | FinishedRun): run is FinishedRun {
+export function hasEnded(run: DetachedStart | FinishedRun): run is FinishedRun {
   return "endedAt" in run;
 }
 
-/** Detached runs remembered per session for `/bash-jobs`. */
+/** Detached runs remembered per session for `/bash-logs`. */
 const HISTORY_LIMIT = 50;
-/** Log bytes shown by `/bash-jobs`; the file itself keeps everything. */
+/** Log bytes shown by `/bash-logs`; the file itself keeps everything. */
 const LOG_VIEW_BYTES = 200_000;
 
-/** Command column of a `/bash-jobs` row; the rest is fixed-width. */
+/** Command column of a `/bash-logs` row; the rest is fixed-width. */
 const CHOICE_COMMAND_WIDTH = 48;
 
 /**
- * One `/bash-jobs` picker row, laid out in fixed columns so the list reads as a
+ * One `/bash-logs` list row, laid out in fixed columns so the list reads as a
  * table: `<icon> <state> <time>  <command>  #<pid>`.
  *
  * The pid also keeps rows unique when the same command is run twice.
@@ -282,6 +282,20 @@ export async function readLogForView(logPath: string, limit = LOG_VIEW_BYTES): P
   return `[mpi-bash] Showing the last ${bytes} of ${size} bytes. Full log: ${logPath}\n\n${text}`;
 }
 
+/**
+ * Re-read `logPath` only when it changed since `stamp` (size and mtime).
+ * Returns the new text with its stamp, or undefined when nothing moved.
+ */
+export async function reloadLogIfChanged(
+  logPath: string,
+  stamp: string,
+): Promise<{ text: string; stamp: string } | undefined> {
+  const stats = await fs.promises.stat(logPath);
+  const current = `${stats.size}:${stats.mtimeMs}`;
+  if (current === stamp) return undefined;
+  return { text: await readLogForView(logPath), stamp: current };
+}
+
 /** Status key for the background-command footer entry. */
 const BACKGROUND_WIDGET_KEY = "mpi-bash-background";
 /** Widget refresh cadence; matches the spinner interval so the glyph moves. */
@@ -295,7 +309,7 @@ const STATUS_REFRESH_MS = SPINNER_INTERVAL_MS;
  */
 export class BackgroundStatus {
   private readonly runs = new Map<number, DetachedStart>();
-  /** Detached runs of this session, newest last, for `/bash-jobs`. */
+  /** Detached runs of this session, newest last, for `/bash-logs`. */
   private readonly history: FinishedRun[] = [];
   private ticker: ReturnType<typeof setInterval> | undefined;
   private ctx: ExtensionContext | undefined;
