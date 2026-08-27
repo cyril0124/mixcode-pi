@@ -234,7 +234,7 @@ test("the pager follows a live log and leaves a finished one alone", async () =>
 
     void commands["bash-jobs"]?.("", { ui });
     await waitFor(() => (screen().includes("alpha\n") || screen().includes("3  alpha") ? true : undefined));
-    assert.doesNotMatch(screen(), /\b4  beta|\b3  beta/, "the command has not printed it yet");
+    assert.doesNotMatch(screen(), /\b[34] {2}beta/, "the command has not printed it yet");
 
     // The command keeps writing; the pager must pick it up on its own.
     await waitFor(() => (screen().includes("beta") ? true : undefined));
