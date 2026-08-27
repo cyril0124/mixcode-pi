@@ -19,9 +19,11 @@ import {
   createDetachingBashOperations,
   type DetachedStart,
   formatCompletionNotice,
+  killTree,
   pruneOldLogs,
   resolveForegroundSeconds,
 } from "./exec.js";
+import { resolveStallSeconds, StallMonitor, stallCheckIntervalMs } from "./heartbeat.js";
 import { LogView, openInExternalEditor, type SuspendableTui } from "./log-view.js";
 import {
   BackgroundStatus,
@@ -30,13 +32,19 @@ import {
   formatRunChoice,
   readLogForView,
   renderCompletionMessage,
+  type StallDetails,
+  renderStallMessage,
 } from "./widget.js";
 
 export * from "./exec.js";
+export * from "./heartbeat.js";
 export * from "./widget.js";
 
 /** Custom message type carrying a detached command's exit code. */
 export const BASH_DETACHED_EXIT_CUSTOM_TYPE = "bash-detached-exit";
+
+/** Custom message type warning that a background command has gone silent. */
+export const BASH_STALL_CUSTOM_TYPE = "bash-detached-stall";
 
 /** How often the pager re-reads a still-running command's log. */
 const FOLLOW_REFRESH_MS = 1000;
@@ -59,6 +67,50 @@ async function reloadLogIfChanged(
 const bashExtension: ExtensionFactory = (pi) => {
   const backgroundStatus = new BackgroundStatus();
 
+  const stallMs = resolveStallSeconds() * 1000;
+  // One timer per live session, paired with backgroundStatus.bind/dispose. The
+  // factory runs again on every services build (/reload, /workdir, each tab
+  // restored at boot), so a factory-scoped timer would accumulate.
+  let stallTimer: ReturnType<typeof setInterval> | undefined;
+  const stopStallTimer = () => {
+    if (stallTimer) clearInterval(stallTimer);
+    stallTimer = undefined;
+  };
+  const startStallTimer = () => {
+    if (stallMs <= 0 || stallTimer) return;
+    const stalls = new StallMonitor(stallMs);
+    stallTimer = setInterval(() => {
+      void stalls.check(backgroundStatus.running()).then(
+        (report) => {
+          if (!report) return;
+          try {
+            // followUp, not steer: a silent job is not urgent enough to cut
+            // into a running turn, but it must wake an idle session so the
+            // model can decide to wait or kill instead of blocking until the
+            // timeout.
+            pi.sendMessage<StallDetails[]>(
+              {
+                customType: BASH_STALL_CUSTOM_TYPE,
+                content: report.content,
+                display: true,
+                details: report.jobs,
+              },
+              { triggerTurn: true, deliverAs: "followUp" },
+            );
+          } catch {
+            // The session was replaced or closed; the widget still shows the job.
+          }
+        },
+        () => {
+          // A check that failed on the filesystem skips this tick and the next
+          // one retries. An unhandled rejection would take down the process.
+        },
+      );
+    }, stallCheckIntervalMs(stallMs));
+    // Unref so a session waiting on nothing else can still exit.
+    stallTimer.unref?.();
+  };
+
   pi.registerMessageRenderer<DetachedExitDetails>(
     BASH_DETACHED_EXIT_CUSTOM_TYPE,
     (message, _options, theme) => {
@@ -70,6 +122,15 @@ const bashExtension: ExtensionFactory = (pi) => {
       };
     },
   );
+
+  pi.registerMessageRenderer<StallDetails[]>(BASH_STALL_CUSTOM_TYPE, (message, _options, theme) => {
+    const jobs = message.details;
+    if (!jobs) return undefined;
+    return {
+      render: (width: number) => renderStallMessage(jobs, theme, width),
+      invalidate: () => {},
+    };
+  });
 
   pi.on("tool_call", (event: ToolCallEvent) => {
     if (event.toolName !== "bash") return;
@@ -130,6 +191,26 @@ const bashExtension: ExtensionFactory = (pi) => {
                 },
               );
             },
+            // A finished run has nothing left to kill, and its pid may already
+            // belong to an unrelated process.
+            "endedAt" in run
+              ? undefined
+              : {
+                  pid: run.id,
+                  run: () => {
+                    // Checked again here, not only when the pager opened: the
+                    // pager follows a running job, so it is normally still open
+                    // when that job exits and its pid stops being ours.
+                    if (!backgroundStatus.running().some((live) => live.id === run.id)) {
+                      ctx.ui.notify(`Job #${run.id} has already finished.`, "info");
+                      return;
+                    }
+                    killTree(run.id);
+                    // The outcome arrives as the usual completion notice, once
+                    // the killed process group exits.
+                    ctx.ui.notify(`Killed job #${run.id} and its children.`, "info");
+                  },
+                },
           );
           // A finished run's log never changes; only a live one is re-read.
           if (!("endedAt" in run)) {
@@ -162,10 +243,14 @@ const bashExtension: ExtensionFactory = (pi) => {
 
   // The bash tool must be rebuilt per session: cwd and shell settings are
   // session-scoped, and pi lets a registered tool override the builtin by name.
-  pi.on("session_shutdown", () => backgroundStatus.dispose());
+  pi.on("session_shutdown", () => {
+    backgroundStatus.dispose();
+    stopStallTimer();
+  });
 
   pi.on("session_start", (_event, ctx: ExtensionContext) => {
     backgroundStatus.bind(ctx);
+    startStallTimer();
     void pruneOldLogs();
     const settings = SettingsManager.create(ctx.cwd);
     pi.registerTool(

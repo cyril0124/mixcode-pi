@@ -62,12 +62,17 @@ export async function openInExternalEditor(
  * Read-only pager for a background command's log.
  *
  * Contract: renders a bordered panel of `rows` content lines, scrolls with the
- * arrow/page keys, and calls `done` on escape or `q`. It never mutates or
- * submits anything - the log is a file on disk, not editable text.
+ * arrow/page keys, and calls `done` on escape or `q`. It never edits the log.
+ * The only state it can change is whether the job is still running, via `x`.
  */
 export class LogView implements Component {
   private scroll = 0;
   private lines: string[];
+  /**
+   * Armed by `x`, disarmed by the next keypress. Killing a job cannot be undone,
+   * so it never happens on a single keystroke.
+   */
+  private confirmingKill = false;
   /**
    * Pinned to the end, like `less +F`: the pager opens on the newest output and
    * keeps following it until the reader scrolls away from the bottom.
@@ -87,6 +92,8 @@ export class LogView implements Component {
     private readonly getRows: () => number,
     /** Hands the log to `$EDITOR`; omitted only in tests that ignore that path. */
     private readonly openExternal: () => void = () => {},
+    /** Kills the job, after confirmation. Absent when the run already ended. */
+    private kill?: { pid: number; run: () => void },
   ) {
     this.lines = text.replace(/\n$/, "").split("\n");
   }
@@ -112,6 +119,23 @@ export class LogView implements Component {
   handleInput(data: string): void {
     const rows = this.rows();
     const half = Math.max(1, Math.floor(rows / 2));
+    if (this.confirmingKill) {
+      // Anything other than `y` cancels, including the keys that would
+      // otherwise scroll or close, so a mistyped `x` costs one keystroke.
+      this.confirmingKill = false;
+      if (matchesKey(data, "y")) {
+        this.kill?.run();
+        // One kill per view. The pid is spent, so the offer goes with it.
+        this.kill = undefined;
+      }
+      this.requestRender();
+      return;
+    }
+    if (this.kill && matchesKey(data, "x")) {
+      this.confirmingKill = true;
+      this.requestRender();
+      return;
+    }
     if (matchesKey(data, "escape") || matchesKey(data, "q")) {
       this.done();
       return;
@@ -173,7 +197,7 @@ export class LogView implements Component {
       ),
       ...Array.from({ length: Math.max(0, height - visible.length) }, () => blank),
       `${border("├")}${border("─".repeat(innerWidth))}${border("┤")}`,
-      row(this.theme.fg("dim", hintLine(innerWidth))),
+      row(this.footer(innerWidth)),
       `${border("└")}${border("─".repeat(innerWidth))}${border("┘")}`,
     ];
   }
@@ -205,6 +229,24 @@ export class LogView implements Component {
       head = compose(truncateToWidth(name, Math.max(4, innerWidth - 2), "…"), "");
     }
     return `${head}${this.theme.fg("border", "─".repeat(Math.max(0, innerWidth - visibleWidth(head))))}`;
+  }
+
+  /** Key hints, or the kill confirmation while it is armed. */
+  private footer(innerWidth: number): string {
+    if (!this.confirmingKill) {
+      return this.theme.fg("dim", hintLine(innerWidth, this.kill !== undefined));
+    }
+    // Richest phrasing that fits, like the headline. Even the shortest form
+    // names the key that confirms.
+    const pid = this.kill?.pid;
+    const prompts = [
+      `  kill job #${pid} and its children? y confirms, any other key cancels`,
+      `  kill job #${pid}? y confirms, any other key cancels`,
+      `  kill #${pid}? y/n`,
+    ];
+    // The last resort still names the key; a truncated prompt would hide it.
+    const prompt = prompts.find((text) => visibleWidth(text) <= innerWidth) ?? " y/n";
+    return this.theme.fg("error", truncateToWidth(prompt ?? "", innerWidth, "…"));
   }
 
   private rows(): number {
@@ -256,13 +298,14 @@ function clamp(value: number, min: number, max: number): number {
  * Key hints trimmed to `width`. Narrow panels drop the middle hints first: the
  * scroll keys and the way out are the two a user cannot guess.
  */
-function hintLine(width: number): string {
+function hintLine(width: number, killable: boolean): string {
   const parts = [
     "↑↓/jk scroll",
     "^d/^u half",
     "^f/^b page",
     "g/G top/bottom",
     "^e/v editor",
+    ...(killable ? ["x kill"] : []),
     "q/esc close",
   ];
   const line = () => `  ${parts.join("  ")}`;

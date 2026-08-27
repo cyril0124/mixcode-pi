@@ -40,6 +40,65 @@ function view(lineCount = 100) {
   };
 }
 
+test("x kills the job only after a confirmation", () => {
+  const killed: number[] = [];
+  const log = new LogView(
+    { fg: (_color: string, value: string) => value } as never,
+    "/tmp/mpi-bash-1.log",
+    "waiting\n",
+    () => {},
+    () => {
+      closedByEscape = true;
+    },
+    () => ROWS,
+    () => {},
+    { pid: 4242, run: () => killed.push(4242) },
+  );
+  let closedByEscape = false;
+  const footer = () => log.render(WIDTH).at(-2) ?? "";
+
+  assert.match(footer(), /x kill/);
+
+  // Armed, but nothing has died yet.
+  log.handleInput("x");
+  assert.match(footer(), /kill #4242\? y\/n/, "a narrow panel still names the confirming key");
+  assert.match(log.render(100).at(-2) ?? "", /kill job #4242 and its children\? y confirms/);
+  assert.deepEqual(killed, []);
+
+  // A stray key cancels instead of scrolling or closing.
+  log.handleInput("j");
+  assert.deepEqual(killed, []);
+  assert.equal(closedByEscape, false);
+  assert.match(footer(), /x kill/);
+
+  // `q` and `Esc` cancel too, without closing. That holds only while the
+  // confirmation is handled ahead of the close keys.
+  for (const key of ["\u001b", "q"]) {
+    log.handleInput("x");
+    log.handleInput(key);
+    assert.equal(closedByEscape, false, `${key} must cancel, not close`);
+    assert.deepEqual(killed, []);
+  }
+
+  log.handleInput("x");
+  log.handleInput("y");
+  assert.deepEqual(killed, [4242]);
+  // The pid is spent. No second kill, and the hint stops offering one.
+  assert.doesNotMatch(footer(), /x kill/);
+  log.handleInput("x");
+  log.handleInput("y");
+  assert.deepEqual(killed, [4242]);
+});
+
+test("a finished run offers no kill", () => {
+  const { log } = view();
+  const footer = () => log.render(WIDTH).at(-2) ?? "";
+  assert.doesNotMatch(footer(), /x kill/);
+  // Without a job to kill, `x` is just an unbound key.
+  log.handleInput("x");
+  assert.doesNotMatch(footer(), /y confirms|kill #/);
+});
+
 test("the viewer opens on the newest output", () => {
   const { log, body } = view();
   // A log is read for its tail: the pager must land there, like `less +F`.

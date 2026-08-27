@@ -1,5 +1,5 @@
 import * as fs from "node:fs";
-import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
+import type { ExtensionContext, Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
 import { Container, Text, truncateToWidth, type TUI, visibleWidth } from "@earendil-works/pi-tui";
 import { type DetachedRun, type DetachedStart, formatElapsed } from "./exec.js";
 
@@ -100,34 +100,113 @@ function completionLogLines(details: DetachedExitDetails, theme: Theme, inner: n
   return body;
 }
 
+/**
+ * Chat panel shared by every background-job message: a title, a status row
+ * (icon, elapsed, command, right-aligned marker), then an optional body under
+ * a rule. `body` receives the usable inner width.
+ */
+function renderJobPanel(
+  theme: Theme,
+  width: number,
+  panel: {
+    title: string;
+    icon: string;
+    color: ThemeColor;
+    elapsedMs: number;
+    command: string;
+    right: string;
+    body: (inner: number) => string[];
+  },
+): string[] {
+  const container = new Container();
+  const inner = Math.max(24, width - 3);
+  const command = panel.command.replace(/\s+/g, " ").trim();
+  const time = formatElapsed(panel.elapsedMs);
+  // `⏳` is East-Asian Wide while `✓`/`✗`/`⏱` are not, so the icon costs one
+  // column in some panels and two in others, and the right column has to land
+  // in the same place in all of them.
+  const iconWidth = visibleWidth(panel.icon);
+  const text = truncateToWidth(
+    command,
+    Math.max(4, inner - 4 - iconWidth - time.length - panel.right.length),
+    "…",
+  );
+  const gap = panel.right
+    ? Math.max(2, inner - 2 - iconWidth - time.length - visibleWidth(text) - panel.right.length)
+    : 0;
+  const status =
+    `${theme.fg(panel.color, panel.icon)} ${theme.bold(theme.fg("accent", time))} ${theme.fg("text", text)}` +
+    (panel.right ? `${" ".repeat(gap)}${theme.fg(panel.color, panel.right)}` : "");
+
+  const body = panel.body(inner);
+  const rule = body.length > 0 ? [theme.fg("dim", "─".repeat(inner))] : [];
+  const title = theme.bold(theme.fg("accent", panel.title));
+
+  container.addChild(new Text([title, status, ...rule, ...body].join("\n"), 1, 0));
+  return container.render(width).map((line) => truncateToWidth(line, Math.max(1, width)));
+}
+
 /** Chat render of a finished background command. */
 export function renderCompletionMessage(
   details: DetachedExitDetails,
   theme: Theme,
   width: number,
 ): string[] {
-  const command = details.command.replace(/\s+/g, " ").trim();
   const [icon, color, right] = details.timedOut
     ? (["⏱", "warning", "timeout"] as const)
     : details.exitCode === 0
       ? (["✓", "success", ""] as const)
       : (["✗", "error", String(details.exitCode ?? "?")] as const);
 
-  const container = new Container();
-  const inner = Math.max(24, width - 3);
-  const time = formatElapsed(details.elapsedMs);
-  const text = truncateToWidth(command, Math.max(4, inner - 5 - time.length - right.length), "…");
-  const gap = right ? Math.max(2, inner - 3 - time.length - visibleWidth(text) - right.length) : 0;
-  const title = theme.bold(theme.fg("accent", "Background job finished"));
-  const status =
-    `${theme.fg(color, icon)} ${theme.bold(theme.fg("accent", time))} ${theme.fg("text", text)}` +
-    (right ? `${" ".repeat(gap)}${theme.fg(color, right)}` : "");
+  return renderJobPanel(theme, width, {
+    title: "Background job finished",
+    icon,
+    color,
+    elapsedMs: details.elapsedMs,
+    command: details.command,
+    right,
+    body: (inner) => completionLogLines(details, theme, inner),
+  });
+}
 
-  const tail = completionLogLines(details, theme, inner);
-  const rule = tail.length > 0 ? [theme.fg("dim", "─".repeat(inner))] : [];
+/** Structured fields on the `bash-detached-stall` message, one per job. */
+export interface StallDetails {
+  id: number;
+  command: string;
+  /** How long the log has not grown. */
+  silenceMs: number;
+  elapsedMs: number;
+  /** Last bytes of the log, header already stripped. */
+  tail: string;
+}
 
-  container.addChild(new Text([title, status, ...rule, ...tail].join("\n"), 1, 0));
-  return container.render(width).map((line) => truncateToWidth(line, Math.max(1, width)));
+/** Lines of output quoted under a stalled job's status row. */
+const STALL_TAIL_LINES = 3;
+
+/**
+ * Chat render of jobs that stopped writing. Reuses the completion panel's
+ * layout, putting the silence where a finished job shows its exit code.
+ */
+export function renderStallMessage(jobs: StallDetails[], theme: Theme, width: number): string[] {
+  return jobs.flatMap((job, index) => [
+    // One check can report several jobs in one message; without this the next
+    // title sits directly under the previous panel's output.
+    ...(index > 0 ? [""] : []),
+    ...renderJobPanel(theme, width, {
+      title: "Background job stalled",
+      icon: "⏳",
+      color: "warning",
+      elapsedMs: job.elapsedMs,
+      command: job.command,
+      right: `silent ${formatElapsed(job.silenceMs)}`,
+      body: (inner) => {
+        const lines = job.tail.split(/\r?\n/).filter((line) => line.trim() !== "");
+        const shown = lines.slice(-STALL_TAIL_LINES);
+        if (shown.length === 0) return [theme.fg("dim", "no output yet")];
+        return shown.map((line) => theme.fg("dim", truncateToWidth(line, inner, "…")));
+      },
+    }),
+  ]);
 }
 
 /** A detached run that has ended; kept so `/bash-jobs` can still reach its log. */
@@ -170,24 +249,37 @@ export function formatRunChoice(run: DetachedStart | FinishedRun, now = Date.now
 }
 
 /**
- * Log text for the viewer. Reads at most the last `LOG_VIEW_BYTES` and says so,
- * so a huge log cannot stall the TUI.
+ * Last `limit` bytes of a log, with nothing added.
  *
  * Throws the underlying fs error (e.g. ENOENT for a log the user deleted).
  */
-export async function readLogForView(logPath: string, limit = LOG_VIEW_BYTES): Promise<string> {
+export async function readLogTail(
+  logPath: string,
+  limit: number,
+): Promise<{ text: string; bytes: number; size: number }> {
   const handle = await fs.promises.open(logPath, "r");
   try {
     const { size } = await handle.stat();
     const length = Math.min(size, limit);
     const buffer = Buffer.alloc(length);
     await handle.read(buffer, 0, length, size - length);
-    const body = buffer.toString("utf8");
-    if (length === size) return body;
-    return `[mpi-bash] Showing the last ${length} of ${size} bytes. Full log: ${logPath}\n\n${body}`;
+    return { text: buffer.toString("utf8"), bytes: length, size };
   } finally {
     await handle.close();
   }
+}
+
+/**
+ * Log text for the viewer. Reads at most the last `LOG_VIEW_BYTES` and says so,
+ * so a huge log cannot stall the TUI. That banner is a reader affordance; code
+ * that quotes a log back to the model wants `readLogTail`.
+ *
+ * Throws the underlying fs error (e.g. ENOENT for a log the user deleted).
+ */
+export async function readLogForView(logPath: string, limit = LOG_VIEW_BYTES): Promise<string> {
+  const { text, bytes, size } = await readLogTail(logPath, limit);
+  if (bytes === size) return text;
+  return `[mpi-bash] Showing the last ${bytes} of ${size} bytes. Full log: ${logPath}\n\n${text}`;
 }
 
 /** Status key for the background-command footer entry. */
@@ -250,9 +342,14 @@ export class BackgroundStatus {
     this.render();
   }
 
+  /** Runs still executing, oldest first. */
+  running(): DetachedStart[] {
+    return [...this.runs.values()].sort((a, b) => a.startedAt - b.startedAt);
+  }
+
   /** Running runs first (newest last), then finished ones. */
   list(): Array<DetachedStart | FinishedRun> {
-    return [...[...this.runs.values()].sort((a, b) => a.startedAt - b.startedAt), ...this.history];
+    return [...this.running(), ...this.history];
   }
 
   dispose(): void {

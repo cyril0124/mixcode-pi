@@ -31,6 +31,25 @@ const REPLAY_BUFFER_BYTES = 4 * 1024 * 1024;
 /** Written into the log in place of output dropped by the replay cap. */
 const REPLAY_DROPPED_MARKER = "[mpi-bash] earlier output dropped\n";
 
+/** Every detached log opens with the command it runs, then this separator. */
+const LOG_HEADER_PREFIX = "# Command: ";
+const LOG_HEADER_END = "\n# ---\n";
+
+function formatLogHeader(command: string): string {
+  return `${LOG_HEADER_PREFIX}${command}${LOG_HEADER_END}`;
+}
+
+/**
+ * Inverse of the log header, for text read from a log's first bytes. Quoting
+ * those bytes back to the model must not pass the header off as output the
+ * command produced. Text that does not begin with a header is returned as is.
+ */
+export function stripLogHeader(text: string): string {
+  if (!text.startsWith(LOG_HEADER_PREFIX)) return text;
+  const end = text.indexOf(LOG_HEADER_END);
+  return end === -1 ? text : text.slice(end + LOG_HEADER_END.length);
+}
+
 /** Idle window after `exit` before stdio is considered drained (pi's grace). */
 const EXIT_STDIO_GRACE_MS = 100;
 
@@ -117,8 +136,13 @@ function resolveTimeoutMs(timeout: number | undefined): number | undefined {
   return timeoutMs;
 }
 
-/** SIGKILL the child's process group, falling back to the child alone. */
-function killTree(pid: number): void {
+/**
+ * SIGKILL the child's process group, falling back to the child alone.
+ *
+ * Safe to call on a pid that is already gone. ESRCH is expected there and
+ * swallowed.
+ */
+export function killTree(pid: number): void {
   try {
     process.kill(-pid, "SIGKILL");
   } catch {
@@ -405,7 +429,7 @@ export function createDetachingBashOperations(options: {
       try {
         // Written synchronously: the detach notice hands out this path, and a
         // reader opening it immediately must not race the stream's async open.
-        const header = Buffer.from(`# Command: ${command}\n# ---\n`);
+        const header = Buffer.from(formatLogHeader(command));
         const replay = Buffer.concat(buffered ?? []);
         const body = bufferedDropped
           ? Buffer.concat([Buffer.from(REPLAY_DROPPED_MARKER), replay])

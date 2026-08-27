@@ -89,6 +89,7 @@ import transcriptPackageJson from "../../pi-packages/mpi-transcript/package.json
   type: "text",
 };
 import bashExec from "../../pi-packages/mpi-bash/exec.ts" with { type: "text" };
+import bashHeartbeat from "../../pi-packages/mpi-bash/heartbeat.ts" with { type: "text" };
 import bashIndex from "../../pi-packages/mpi-bash/index.ts" with { type: "text" };
 import bashLogView from "../../pi-packages/mpi-bash/log-view.ts" with { type: "text" };
 import bashPackageJson from "../../pi-packages/mpi-bash/package.json" with { type: "text" };
@@ -537,6 +538,7 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
       "exec.ts": bashExec,
       "widget.ts": bashWidget,
       "log-view.ts": bashLogView,
+      "heartbeat.ts": bashHeartbeat,
       "package.json": bashPackageJson,
     },
     "mpi-tool-display": {

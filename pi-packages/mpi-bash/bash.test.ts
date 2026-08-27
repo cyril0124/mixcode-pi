@@ -751,7 +751,7 @@ test("the registered bash tool detaches, shows the widget, and reports by starti
   ) => { render(width: number): string[] } | undefined;
   const widgets: Array<WidgetFactory | undefined> = [];
   const plainTheme = { fg: (_c: string, t: string) => t, bold: (t: string) => t };
-  let renderer: MessageRenderer | undefined;
+  const renderers = new Map<string, MessageRenderer>();
   let bash: BashTool | undefined;
 
   const previousWindow = process.env.MPI_BASH_FOREGROUND_SECONDS;
@@ -766,8 +766,8 @@ test("the registered bash tool detaches, shows the widget, and reports by starti
       registerTool: (tool: BashTool) => {
         bash = tool;
       },
-      registerMessageRenderer: (_type: string, registered: MessageRenderer) => {
-        renderer = registered;
+      registerMessageRenderer: (type: string, registered: MessageRenderer) => {
+        renderers.set(type, registered);
       },
       sendMessage: (
         message: { customType: string; content: string; details?: unknown },
@@ -805,7 +805,8 @@ test("the registered bash tool detaches, shows the widget, and reports by starti
     assert.equal(notice.customType, "bash-detached-exit");
     assert.equal(notice.triggerTurn, true);
     assert.match(notice.content, /exited with code 0/);
-    const shown = renderer?.(notice, {}, plainTheme)?.render(80).join("\n") ?? "";
+    const shown =
+      renderers.get(notice.customType)?.(notice, {}, plainTheme)?.render(80).join("\n") ?? "";
     assert.match(shown, /Background job finished/);
     assert.match(shown, /✓/);
     assert.match(shown, /late/);
