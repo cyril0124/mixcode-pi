@@ -16,7 +16,7 @@ MixCode 随附位于 `pi-packages/mpi-*` 的第一方内置 Pi 包。启动时�
 | `mpi-auto-rename` | 可选首条消息自动触发, `/auto-rename` | 生成短横线风格会话标题；在 `<agentDir>/mpi-auto-rename.json` 将 `onFirstMessage` 设为 `true` 以启用。 |
 | `mpi-skill-refs` | `$` 补全触发符 | 项目和全局 Skill 自动补全及 Prompt 内联展开。 |
 | `mpi-prompt-history` | `/prompt-history` | 交互式 Prompt 历史记录搜索、过滤及直接插入编辑器。 |
-| `mpi-transcript` | `/transcript [context\|chatlog\|thinking\|latest-agent\|latest-user] [N] [full]` | 在外部编辑器（`$VISUAL` / `$EDITOR`）或内置查看器中检视会话转录切片（LLM 实际上下文、完整对话、Thinking、最近消息；`N` 限制为最后 N 轮；`full` 在 chatlog/context 下输出完整工具结果，位置不限）。nvim 额外提供 User/Assistant 标题 winbar（`[t`/`]t` 跳轮次）、按角色分色、当前轮次左侧竖线、折叠工具 in/out 输出、signcolumn 标记、淡化 meta/thinking、wrap/linebreak 与 `conceallevel=2`。 |
+| `mpi-transcript` | `/transcript [context\|chatlog\|thinking\|latest-agent\|latest-user] [N] [full]` | 在外部编辑器（`$VISUAL` / `$EDITOR`）或内置查看器中检视会话转录切片（LLM 实际上下文、完整对话、Thinking、最近消息；`N` 限制为最后 N 轮；`full` 在 chatlog/context 下输出完整工具结果，位置不限）。`context` 视图顶部给出 chars/4 的体积估算——`系统提示 + 工具 schema + 全部消息`，模型上下文窗口已知时附带占比；该数字始终按完整上下文计算，`N` 只截断展示、不改变估算。nvim 额外提供 User/Assistant 标题 winbar（`[t`/`]t` 跳轮次）、按角色分色、当前轮次左侧竖线、折叠工具 in/out 输出、signcolumn 标记、淡化 meta/thinking、wrap/linebreak 与 `conceallevel=2`。 |
 | `mpi-diff-viewer` | `/diff [ref]` | 终端内交互式 Diff 查看器，支持 hunk 导航与行级评审注释。 |
 | `mpi-model-skills` | `/model-skills`，`<agentDir>/mpi-model-skills.json` | 按当前模型匹配规则动态挂载或卸载 Skill。 |
 | `mpi-model-extensions` | `/model-extensions`，`<agentDir>/mpi-model-extensions.json` | 按当前模型动态加载 Pi 扩展。 |

@@ -5,7 +5,14 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
-import { buildViewText, editorExtraArgs, formatViewText, NVIM_TRANSCRIPT_LUA } from "./index.js";
+import {
+  buildViewText,
+  editorExtraArgs,
+  estimateContextSize,
+  formatViewText,
+  NVIM_TRANSCRIPT_LUA,
+  type ContextPrefix,
+} from "./index.js";
 
 // ─── editorExtraArgs: vim/nvim flags ─────────────────────────────────────────
 
@@ -728,5 +735,94 @@ test("buildViewText chatlog: marks a failed tool result as error", () => {
     assistantEntry([{ type: "toolCall", id: "call-2", name: "bash", arguments: {} }]),
     toolResultEntry("call-2", "command not found", true),
   ];
-  assert.match(buildViewText("chatlog", entries), /🔧 Tool: `bash`[\s\S]*❌ error[\s\S]*command not found/);
+  assert.match(
+    buildViewText("chatlog", entries),
+    /🔧 Tool: `bash`[\s\S]*❌ error[\s\S]*command not found/,
+  );
+});
+
+// ─── Context size estimate ───────────────────────────────────────────────────
+
+const NO_TOOLS: ContextPrefix = { systemPrompt: "", tools: [] };
+
+test("estimateContextSize counts the compaction summary, not just surviving messages", () => {
+  const summary = "s".repeat(4000); // 1000 tokens at chars/4
+  const entries: SessionEntry[] = [
+    {
+      type: "compaction",
+      id: "comp-size",
+      parentId: null,
+      timestamp: new Date().toISOString(),
+      summary,
+      firstKeptEntryId: "u-kept",
+      tokensBefore: 152_000,
+    } as unknown as SessionEntry,
+    userEntry("kept"),
+  ];
+
+  const estimate = estimateContextSize(entries, NO_TOOLS);
+  // A compaction entry is not a message entry; counting entries directly would
+  // drop the summary — the single largest item in a freshly compacted context.
+  assert.ok(estimate.messages >= 1000, `summary not counted: ${estimate.messages}`);
+  assert.equal(estimate.messageCount, 2);
+});
+
+test("estimateContextSize ignores stale pre-compaction usage on kept messages", () => {
+  const entries: SessionEntry[] = [
+    {
+      type: "compaction",
+      id: "comp-stale",
+      parentId: null,
+      timestamp: new Date().toISOString(),
+      summary: "short summary",
+      firstKeptEntryId: "u-kept",
+      tokensBefore: 152_000,
+    } as unknown as SessionEntry,
+    // Survived the cut, so it still reports the pre-compaction context size.
+    assistantEntry([{ type: "text", text: "brief reply" }], { totalTokens: 152_000 }),
+  ];
+
+  // Seeding from that usage would report ~152k for a context that is now tiny.
+  assert.ok(estimateContextSize(entries, NO_TOOLS).total < 1000);
+});
+
+test("estimateContextSize adds the system prompt and tool schemas to the message total", () => {
+  const entries: SessionEntry[] = [userEntry("hi")];
+  const tools = [
+    { name: "read", description: "Read a file", parameters: { type: "object", properties: {} } },
+  ] as unknown as ContextPrefix["tools"];
+
+  const bare = estimateContextSize(entries, NO_TOOLS);
+  const withPrefix = estimateContextSize(entries, { systemPrompt: "p".repeat(4000), tools });
+
+  assert.equal(bare.systemPrompt, 0);
+  assert.equal(bare.tools, 0);
+  assert.equal(withPrefix.systemPrompt, 1000);
+  assert.ok(withPrefix.tools > 0);
+  assert.equal(withPrefix.messages, bare.messages);
+  assert.equal(withPrefix.total, 1000 + withPrefix.tools + bare.messages);
+});
+
+test("context view reports full context size even when the display is cut to N turns", () => {
+  const entries: SessionEntry[] = [
+    userEntry("one"),
+    assistantEntry([{ type: "text", text: "first" }]),
+    userEntry("two"),
+    assistantEntry([{ type: "text", text: "second" }]),
+  ];
+  const prefix: ContextPrefix = { systemPrompt: "sys", tools: [] };
+
+  const full = buildViewText("context", entries, { contextPrefix: prefix });
+  const cut = buildViewText("context", entries, { contextPrefix: prefix, lastTurns: 1 });
+  const sizeLine = /_~\d[\d.k]*(?:\/[\d.k]+ \([\d.]+%\))? estimated — .* across (\d+) messages_/;
+
+  const fullMatch = full.match(sizeLine);
+  const cutMatch = cut.match(sizeLine);
+  assert.ok(fullMatch, "context view is missing the size line");
+  // The cut hides rounds from the reader; the model still receives all of them.
+  assert.equal(cutMatch?.[1], fullMatch[1]);
+  assert.match(cut, /earlier 1 turn omitted/);
+
+  // Other targets keep their existing header.
+  assert.doesNotMatch(buildViewText("chatlog", entries, { contextPrefix: prefix }), sizeLine);
 });

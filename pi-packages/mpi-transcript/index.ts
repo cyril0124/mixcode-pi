@@ -30,12 +30,20 @@ import { spawn } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { CACHE_TTL_MS, collectCacheMisses } from "@earendil-works/pi-coding-agent";
+import {
+  CACHE_TTL_MS,
+  buildSystemPrompt,
+  collectCacheMisses,
+  estimateTokens,
+  sessionEntryToContextMessages,
+} from "@earendil-works/pi-coding-agent";
 import type {
+  BuildSystemPromptOptions,
   CacheMiss,
   ExtensionFactory,
   ModelPriceSource,
   SessionEntry,
+  ToolInfo,
 } from "@earendil-works/pi-coding-agent";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { Component, TUI } from "@earendil-works/pi-tui";
@@ -221,6 +229,92 @@ function fmtTokens(n: number): string {
 
 /** Resolves a model's context window in tokens; undefined when unknown. */
 type ContextWindowLookup = (provider: string, modelId: string) => number | undefined;
+
+/**
+ * Upstream `estimateTextTokens` (chars/4). Reimplemented because pi-ai keeps it
+ * behind `./utils/estimate`, which its package `exports` map does not expose.
+ */
+function estimateTextTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
+/** Prompt-side context that precedes the messages on every request. */
+export interface ContextPrefix {
+  /** Fully assembled system prompt, as sent to the model. */
+  systemPrompt: string;
+  /** Tool definitions serialized into the request, already filtered to active tools. */
+  tools: ToolInfo[];
+}
+
+export interface ContextSizeEstimate {
+  total: number;
+  systemPrompt: number;
+  tools: number;
+  messages: number;
+  messageCount: number;
+}
+
+/**
+ * Estimated size of the effective LLM context: system prompt + tool schemas +
+ * every message the entries expand to.
+ *
+ * Deliberately never seeded from assistant `usage`. Messages kept across a
+ * compaction boundary still carry their pre-compaction usage, which reports the
+ * old (larger) context and would inflate the total — the same trap upstream
+ * guards against in `AgentSession.getContextUsage`. Pure chars/4 throughout, so
+ * the result is an estimate and must be labeled as one.
+ */
+export function estimateContextSize(
+  entries: SessionEntry[],
+  prefix: ContextPrefix,
+): ContextSizeEstimate {
+  // Upstream expansion: compaction and branch_summary entries become summary
+  // messages here, so their text is counted instead of silently dropped.
+  const messages = entries.flatMap(sessionEntryToContextMessages);
+  let messageTokens = 0;
+  for (const message of messages) messageTokens += estimateTokens(message);
+  const systemPromptTokens = estimateTextTokens(prefix.systemPrompt);
+  const toolTokens = prefix.tools.length ? estimateTextTokens(JSON.stringify(prefix.tools)) : 0;
+  return {
+    total: systemPromptTokens + toolTokens + messageTokens,
+    systemPrompt: systemPromptTokens,
+    tools: toolTokens,
+    messages: messageTokens,
+    messageCount: messages.length,
+  };
+}
+
+/**
+ * Summary line for the context view. Always reflects the whole effective
+ * context, never the `lastTurns` display slice — the model sees all of it.
+ */
+function contextSizeLine(estimate: ContextSizeEstimate, contextWindow: number | undefined): string {
+  const share = contextWindow
+    ? `~${fmtTokens(estimate.total)}/${fmtTokens(contextWindow)} (${((estimate.total / contextWindow) * 100).toFixed(1)}%)`
+    : `~${fmtTokens(estimate.total)}`;
+  const parts = [
+    `${fmtTokens(estimate.systemPrompt)} system`,
+    `${fmtTokens(estimate.tools)} tools`,
+    `${fmtTokens(estimate.messages)} across ${estimate.messageCount} message${estimate.messageCount === 1 ? "" : "s"}`,
+  ];
+  return `_${share} estimated — ${parts.join(" + ")}_`;
+}
+
+/** Context window of the model that produced the latest assistant reply. */
+function currentContextWindow(
+  entries: SessionEntry[],
+  contextWindowFor: ContextWindowLookup | undefined,
+): number | undefined {
+  if (!contextWindowFor) return undefined;
+  for (let i = entries.length - 1; i >= 0; i -= 1) {
+    const entry = entries[i];
+    if (entry?.type !== "message") continue;
+    const message = entry.message as AssistantMessage;
+    if (message.role !== "assistant" || !message.provider || !message.model) continue;
+    return contextWindowFor(message.provider, message.model);
+  }
+  return undefined;
+}
 
 /**
  * One-line warning for a counted cache miss, or undefined when it is noise:
@@ -478,6 +572,12 @@ export interface BuildViewOptions {
   priceSource?: ModelPriceSource;
   /** Render complete tool results instead of the 20-line cap. */
   fullToolOutput?: boolean;
+  /**
+   * Prompt-side context for the `context` view's size estimate. Omitted for
+   * other targets and when the caller cannot resolve it; the summary line is
+   * then left out rather than estimated from messages alone.
+   */
+  contextPrefix?: ContextPrefix;
 }
 
 /** Build the final editor text for a target from the session branch. */
@@ -486,22 +586,39 @@ export function buildViewText(
   entries: SessionEntry[],
   options: BuildViewOptions = {},
 ): string {
-  const { lastTurns, contextWindowFor, priceSource, fullToolOutput } = options;
+  const { lastTurns, contextWindowFor, priceSource, fullToolOutput, contextPrefix } = options;
   const meta = TARGETS.find((t) => t.id === target)!;
   if (target === "thinking" || target === "chatlog" || target === "context") {
     const { sliced, turnOffset } = cutForLastTurns(entries, lastTurns);
     const note =
-      turnOffset > 0 ? [`_… earlier ${turnOffset} turn${turnOffset === 1 ? "" : "s"} omitted_`] : [];
+      turnOffset > 0
+        ? [`_… earlier ${turnOffset} turn${turnOffset === 1 ? "" : "s"} omitted_`]
+        : [];
     if (target === "thinking") {
       const thinking = collectThinking(sliced, turnOffset);
-      return formatViewText(meta.title, [...note, ...(thinking.length ? thinking : ["No thinking entries."])]);
+      return formatViewText(meta.title, [
+        ...note,
+        ...(thinking.length ? thinking : ["No thinking entries."]),
+      ]);
     }
     // chatlog and context share the section renderer; they differ only in
     // which entry set the caller feeds in (full branch vs effective context).
     // Misses are computed on the unsliced entries so the first assistant
     // message in a lastTurns cut still sees its previous request.
     const cacheMisses = priceSource ? collectCacheMisses(entries, priceSource) : undefined;
+    // Sized from the unsliced entries: a lastTurns cut hides rounds from the
+    // reader, not from the model.
+    const sizeLine =
+      target === "context" && contextPrefix
+        ? [
+            contextSizeLine(
+              estimateContextSize(entries, contextPrefix),
+              currentContextWindow(entries, contextWindowFor),
+            ),
+          ]
+        : [];
     return formatViewText(meta.title, [
+      ...sizeLine,
       ...note,
       ...collectChatlog(sliced, { turnOffset, contextWindowFor, cacheMisses, fullToolOutput }),
     ]);
@@ -807,6 +924,18 @@ function openInExternalEditor(
 // ─── Extension entry point ────────────────────────────────────────────────────
 
 const extension: ExtensionFactory = (pi) => {
+  // Read live rather than snapshotted at startup, so the estimate reflects the
+  // tools currently enabled and the system prompt as it stands now.
+  const resolveContextPrefix = (ctx: {
+    getSystemPromptOptions(): BuildSystemPromptOptions;
+  }): ContextPrefix => {
+    const active = new Set(pi.getActiveTools());
+    return {
+      systemPrompt: buildSystemPrompt(ctx.getSystemPromptOptions()),
+      tools: pi.getAllTools().filter((tool) => active.has(tool.name)),
+    };
+  };
+
   type UiCtx = {
     ui: {
       select(title: string, options: string[]): Promise<string | undefined>;
@@ -879,19 +1008,31 @@ const extension: ExtensionFactory = (pi) => {
       };
       ui: {
         editor(title: string, prefill?: string): Promise<string | undefined>;
-        custom<T>(factory: (tui: TUI, theme: unknown, keybindings: unknown, done: (result: T) => void) => Component): Promise<T>;
+        custom<T>(
+          factory: (
+            tui: TUI,
+            theme: unknown,
+            keybindings: unknown,
+            done: (result: T) => void,
+          ) => Component,
+        ): Promise<T>;
       };
+      getSystemPromptOptions(): BuildSystemPromptOptions;
     },
   ): Promise<void> => {
     // context = the effective LLM context (branch resolution, compaction,
     // summaries applied); other targets read the full branch.
     const entries =
-      target === "context" ? ctx.sessionManager.buildContextEntries() : ctx.sessionManager.getBranch();
+      target === "context"
+        ? ctx.sessionManager.buildContextEntries()
+        : ctx.sessionManager.getBranch();
     const meta = TARGETS.find((t) => t.id === target)!;
     const content = buildViewText(target, entries, {
       lastTurns,
       fullToolOutput,
-      contextWindowFor: (provider, modelId) => ctx.modelRegistry.find(provider, modelId)?.contextWindow,
+      contextPrefix: target === "context" ? resolveContextPrefix(ctx) : undefined,
+      contextWindowFor: (provider, modelId) =>
+        ctx.modelRegistry.find(provider, modelId)?.contextWindow,
       priceSource: { getModel: (provider, modelId) => ctx.modelRegistry.find(provider, modelId) },
     });
     const editorCmd = externalEditorCommand();
