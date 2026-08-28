@@ -18,6 +18,7 @@
 // ║    g/G       first / last item                                               ║
 // ║    /         open search                                                     ║
 // ║    Enter     insert selected prompt                                          ║
+// ║    c         copy selected prompt to clipboard                               ║
 // ║    Ctrl+G    toggle Session / Global                                         ║
 // ║    Esc       cancel search, or close                                         ║
 // ║    q         close                                                           ║
@@ -128,6 +129,7 @@ function hintText(searching: boolean, width: number): string {
     : [
         "j/k move",
         "Enter select",
+        "c copy",
         "Ctrl+D/U page",
         "g/G top/bot",
         "/ search",
@@ -225,6 +227,8 @@ export interface PromptHistoryBrowserConfig {
   theme: Theme;
   items: Array<{ text: string; timestamp?: string }>;
   done: (result: string | null) => void;
+  /** Copies the selected prompt when `c` is pressed; the browser then closes. */
+  copy?: (text: string) => void;
   /**
    * Supplies every recorded prompt for the Global scope. Omit to disable the
    * scope toggle entirely (Ctrl+G then does nothing).
@@ -237,7 +241,7 @@ export function createPromptHistoryBrowserComponent(config: PromptHistoryBrowser
   invalidate(): void;
   handleInput(data: string): void;
 } {
-  const { tui, theme, done, loadGlobalItems } = config;
+  const { tui, theme, done, copy, loadGlobalItems } = config;
   const sessionItems = buildItems(config.items);
   const state: BrowserState = { selectedIndex: 0, query: "", scope: "session", searching: false };
   let globalLoad: GlobalLoad = { kind: "idle" };
@@ -350,6 +354,14 @@ export function createPromptHistoryBrowserComponent(config: PromptHistoryBrowser
     }
 
     if (browsing && matchesKey(data, "q")) {
+      finish(null);
+      return;
+    }
+
+    if (browsing && copy && matchesKey(data, "c")) {
+      const prompt = selectedPrompt();
+      if (prompt === undefined) return;
+      copy(prompt);
       finish(null);
       return;
     }

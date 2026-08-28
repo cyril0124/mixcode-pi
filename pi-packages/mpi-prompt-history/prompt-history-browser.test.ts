@@ -86,6 +86,7 @@ function makeBrowser(options: {
   loadGlobalItems?: () => Promise<Array<{ text: string; timestamp?: string }>>;
   results?: Array<string | null>;
   renders?: { count: number };
+  copy?: (text: string) => void;
 }) {
   return createPromptHistoryBrowserComponent({
     tui: {
@@ -98,8 +99,36 @@ function makeBrowser(options: {
     items: options.items ?? [{ text: "SESSION-ONLY-ITEM" }],
     done: (result) => options.results?.push(result),
     ...(options.loadGlobalItems ? { loadGlobalItems: options.loadGlobalItems } : {}),
+    ...(options.copy ? { copy: options.copy } : {}),
   });
 }
+
+test("c copies the selected prompt and closes without inserting", () => {
+  const results: Array<string | null> = [];
+  const copied: string[] = [];
+  const browser = makeBrowser({
+    items: [{ text: "HISTORY-ITEM-ALPHA" }, { text: "HISTORY-ITEM-BETA" }],
+    results,
+    copy: (text) => copied.push(text),
+  });
+
+  browser.handleInput("c");
+  assert.deepEqual(copied, ["HISTORY-ITEM-BETA"]);
+  assert.deepEqual(results, [null]);
+});
+
+test("c during search types into the query instead of copying", () => {
+  const copied: string[] = [];
+  const browser = makeBrowser({
+    items: [{ text: "HISTORY-ITEM-ALPHA" }],
+    copy: (text) => copied.push(text),
+  });
+
+  browser.handleInput("/");
+  browser.handleInput("c");
+  assert.deepEqual(copied, []);
+  assert.match(browser.render(80).join("\n"), /Search: c/);
+});
 
 test("Ctrl+G swaps the list to global items and back, keeping the query", async () => {
   let resolveLoad: (items: Array<{ text: string; timestamp?: string }>) => void = () => undefined;

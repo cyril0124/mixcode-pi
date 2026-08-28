@@ -4,6 +4,7 @@
 // |  production (record, backfill, index, system-prompt pointer).        |
 // +----------------------------------------------------------------------+
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { copyToClipboard } from "@earendil-works/pi-coding-agent";
 import { runPromptHistoryConfig } from "./config-ui.js";
 import {
   appendHistoryEntry,
@@ -94,6 +95,12 @@ export default function (pi: ExtensionAPI) {
             theme,
             items: userMessages,
             done,
+            copy: (text) => {
+              void copyToClipboard(text).then(
+                () => ctx.ui.notify("Copied to clipboard", "info"),
+                (error: unknown) => ctx.ui.notify(`Copy failed: ${errorMessage(error)}`, "warning"),
+              );
+            },
             loadGlobalItems: () => loadGlobalPromptItems(historyFile),
           }),
         {
