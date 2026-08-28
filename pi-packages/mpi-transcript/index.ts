@@ -672,7 +672,7 @@ export const NVIM_TRANSCRIPT_LUA = `
 vim.opt_local.conceallevel = 2
 vim.opt_local.wrap = true
 vim.opt_local.linebreak = true
-vim.opt_local.signcolumn = "auto"
+vim.opt_local.signcolumn = "no"
 vim.opt_local.foldmethod = "manual"
 vim.opt_local.foldenable = true
 vim.opt_local.fillchars:append({ fold = " " })
@@ -726,32 +726,27 @@ function _G.MpiTranscriptFoldtext()
 end
 vim.opt_local.foldtext = "v:lua.MpiTranscriptFoldtext()"
 
-vim.fn.sign_define("MpiTranscriptU", { text = "U ", texthl = "Title" })
-vim.fn.sign_define("MpiTranscriptA", { text = "A ", texthl = "Identifier" })
-vim.fn.sign_define("MpiTranscriptT", { text = "T ", texthl = "Statement" })
-vim.fn.sign_define("MpiTranscriptE", { text = "E ", texthl = "ErrorMsg" })
-vim.fn.sign_define("MpiTranscriptI", { text = "I ", texthl = "Special" })
-vim.fn.sign_define("MpiTranscriptC", { text = "C ", texthl = "WarningMsg" })
-vim.fn.sign_define("MpiTranscriptB", { text = "B ", texthl = "Type" })
-
+-- Role marks are rendered by MpiTranscriptStc below instead of legacy signs:
+-- the native sign column ('%s') renders with a different width/highlight on
+-- wrapped continuation rows and is resized by unrelated user plugins, which
+-- shifts the turn bar. signcolumn=no keeps plugin signs out of this view.
+local stc_marks = {}
 for i, line in ipairs(lines) do
-  local name
+  local mark
   if line:match([[^## 👤 User]]) then
-    name = "MpiTranscriptU"
+    mark = { text = "U ", hl = "Title" }
   elseif line:match([[^## 🤖 Assistant]]) then
-    name = "MpiTranscriptA"
+    mark = { text = "A ", hl = "Identifier" }
   elseif line:match([[^### 🔧 Tool]]) then
-    name = line:match("❌") and "MpiTranscriptE" or "MpiTranscriptT"
+    mark = line:match("❌") and { text = "E ", hl = "ErrorMsg" } or { text = "T ", hl = "Statement" }
   elseif line:match([[^## 📥 Injected]]) then
-    name = "MpiTranscriptI"
+    mark = { text = "I ", hl = "Special" }
   elseif line:match([[^## 📦 Compaction]]) then
-    name = "MpiTranscriptC"
+    mark = { text = "C ", hl = "WarningMsg" }
   elseif line:match([[^## 🌿 Branch Summary]]) then
-    name = "MpiTranscriptB"
+    mark = { text = "B ", hl = "Type" }
   end
-  if name then
-    vim.fn.sign_place(0, "MpiTranscript", name, buf, { lnum = i })
-  end
+  if mark then stc_marks[i] = mark end
 end
 
 local dim_ns = vim.api.nvim_create_namespace("mpi_transcript_dim")
@@ -836,13 +831,21 @@ local function heading_label(info)
 end
 
 _G.MpiTranscriptTurn = { s = 1, e = 1 }
-function _G.MpiTranscriptTurnBar()
+-- Wrapped continuation rows (v:virtnum > 0) re-evaluate 'statuscolumn'; the
+-- native %s and %l items render with different widths there, which shifts the
+-- turn bar. Build the whole column (role mark, bar, number) in one function
+-- that emits identical-width content for every screen row of a line.
+function _G.MpiTranscriptStc()
   local t = _G.MpiTranscriptTurn
   local l = vim.v.lnum
-  if t and l > t.s and l <= t.e then return "│" end
-  return " "
+  local bar = (t and l > t.s and l <= t.e) and "│" or " "
+  local virt = vim.v.virtnum > 0
+  local m = not virt and stc_marks[l] or nil
+  local mark = m and ("%#" .. m.hl .. "#" .. m.text) or "  "
+  local num = virt and string.rep(" ", #tostring(l)) or tostring(l)
+  return mark .. "%#MpiTranscriptTurn#" .. bar .. "%#LineNr#" .. num .. " "
 end
-vim.opt_local.statuscolumn = "%s%#MpiTranscriptTurn#%{v:lua.MpiTranscriptTurnBar()}%#LineNr#%l "
+vim.opt_local.statuscolumn = "%!v:lua.MpiTranscriptStc()"
 
 local function refresh()
   local s, e, info = turn_at(vim.api.nvim_win_get_cursor(0)[1])

@@ -126,10 +126,10 @@ test("nvim transcript lua sets wrap/conceal, heading winbar, and heading matches
         "local jumped = vim.api.nvim_win_get_cursor(0)[1]",
         "vim.api.nvim_win_set_cursor(0, { fake, 0 })",
         'vim.api.nvim_exec_autocmds("CursorMoved", { buffer = 0 })',
-        "local nsigns = 0",
-        "local buf = vim.api.nvim_get_current_buf()",
-        'local sp = vim.fn.sign_getplaced(buf, { group = "MpiTranscript" })',
-        "if sp[1] then nsigns = vim.tbl_count(sp[1].signs) end",
+        "local stc = vim.wo.statuscolumn",
+        "local function col(l) return vim.api.nvim_eval_statusline(stc, { use_statuscol_lnum = l }).str end",
+        'local stc_h = col(line_of("## 🤖 Assistant · #1"))',
+        'local stc_b = col(line_of("hello"))',
         "local span = _G.MpiTranscriptTurn",
         "io.stdout:write(table.concat({",
         "  tostring(vim.wo.conceallevel), tostring(vim.wo.wrap), tostring(vim.wo.linebreak),",
@@ -137,9 +137,10 @@ test("nvim transcript lua sets wrap/conceal, heading winbar, and heading matches
         '  tostring(vim.fn.foldclosed(line_of("world"))),',
         '  tostring(vim.fn.foldclosed(line_of("decoy"))),',
         '  tostring(vim.fn.foldclosed(line_of("nope"))),',
-        '  tostring(nsigns), tostring(span.s), tostring(line_of("## 🤖 Assistant · #1")),',
+        '  stc_h, tostring(span.s), tostring(line_of("## 🤖 Assistant · #1")),',
         '  tostring(span.e), tostring(line_of("## Fake heading from the model")),',
-        '  ft, ftin, tostring(jumped), tostring(line_of("## 🤖 Assistant · #1")), tostring(nconceal)',
+        '  ft, ftin, tostring(jumped), tostring(line_of("## 🤖 Assistant · #1")), tostring(nconceal),',
+        "  stc_b",
         "}, string.char(10)))",
       ].join("\n"),
     );
@@ -175,7 +176,11 @@ test("nvim transcript lua sets wrap/conceal, heading winbar, and heading matches
     assert.notEqual(out[6], "-1");
     assert.equal(out[7], "-1");
     assert.equal(out[8], "-1");
-    assert.ok(Number(out[9]) >= 3);
+    // Statuscolumn renders the role mark itself (no native signs): heading
+    // rows carry the two-cell mark, body rows a two-space placeholder.
+    assert.match(out[9] ?? "", /^A [│ ]\d+ $/);
+    // stdout.trim() strips the final line's trailing pad space.
+    assert.match(out[19] ?? "", /^ {2}[│ ]\d+ ?$/);
     assert.equal(out[10], out[11]);
     assert.ok(Number(out[12]) >= Number(out[13]));
     assert.match(out[14] ?? "", /bash/);
