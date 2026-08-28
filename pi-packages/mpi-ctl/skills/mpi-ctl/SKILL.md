@@ -5,9 +5,99 @@ description: Agent Tab collaboration — control a live MixCode (mpi) TUI from t
 
 # mpi status / ctl
 
-Agent Tab collaboration: drive a **live** MixCode TUI. Do not start a new TUI for this. The target process must already be running and listening on `<agentDir>/mixcode-pi/instances/<hostname>/<pid>.sock`.
+Agent Tab collaboration: drive a **live** MixCode TUI. Never start a new TUI for this. The target process must already be running and listening on `<agentDir>/mixcode-pi/instances/<hostname>/<pid>.sock`.
 
-## agentDir
+Two roles, two flows. Flow A covers driving another tab. Flow B covers answering a prompt that arrived via ctl. The reference sections after the flows carry the full command, flag, and schema details.
+
+## Flow A: drive another tab (sender)
+
+**1. Locate.** Read your env, then list live instances:
+
+```text
+echo "$MIXCODE" "$MIXCODE_TAB_TITLE" "$MIXCODE_FOCUSED_TAB_TITLE"
+mpi status --json
+```
+
+Use `MIXCODE_TAB_TITLE` as "me"; never default a target to your own title. Pick the target instance's `pid` and the target `tabs[].tabTitle` / `sessionId` from the status output. Target with `--tab` (or `--session`), which never changes UI focus; `--focus-tab` is only for deliberately leaving the UI on that tab or injecting live keys when no overlay is waiting. Full rules: [Targeting and focus](#targeting-and-focus).
+
+**2. Send.** `send-prompt` (not `send-keys`) for every text or `/slash`. It is the same path as typing in the editor and pressing Enter. Multi-line via heredoc:
+
+```text
+mpi ctl --pid <n> --tab <title> send-prompt 'Review the current diff for risks only.'
+mpi ctl --tab <title> send-prompt <<'EOF'
+line1
+line2
+EOF
+```
+
+Plain prompts are auto-wrapped so the receiver sees they came from another tab via ctl. Do not write "I am <title>" yourself. Wrapping rules: [send-prompt](#send-prompt).
+
+**3. Close the loop in exactly one mode per prompt.** ACK from `send-prompt` means accepted, not done. Fire-and-forget is a bug.
+
+**Poll** (default, when you did not request a reply):
+
+```text
+mpi ctl --tab <title> wait --timeout 90
+# finished            -> last-message (or last-tool)
+# wait-for-input      -> dump-screen, read from the tail. The question lives on the
+#                        screen, not in the chat JSON, so answer from the tail.
+#                        an open overlay is answered with keys, never with send-prompt:
+#                        Y/N confirm  -> --tab send-keys y  (🔴 read the question first) or n
+#                        picker       -> --tab send-keys Escape to leave it unchanged
+#                        question / settings -> --tab send-keys, then wait again
+# error | Not Ready   -> the command failed; read last-message / dump-screen for the cause
+# running | thinking  -> it timed out (stderr: `Timed out after <n>s`); the turn is still live
+```
+
+**Callback** (`--expect-response`, or your prompt asks for a reply): the peer pushes the result back to your tab. After the ACK, at most one short check (`wait --timeout 5`; on `wait-for-input`, unblock the peer first), then **end your turn** and say you are waiting for that tab's reply. Never sit in a long `wait` for it. The reply is a queued message injected only after your current tool call returns, so a long wait delays your own wake-up. If the peer also `wait`s on you, both tabs stall until timeout (mutual wait).
+
+**Slash commands.** Send with `send-prompt`, and prefer argument forms so no overlay opens: `/models <id>`, `/thinking <level>`, `/resume <session-id>` (no overlay, but it does take UI focus), `/close-session yes`. The `yes` argument only skips the dialog when *you* invoke the command; it cannot answer a dialog that is already open. Slash execution is asynchronous and failures surface on the tab's chat surface / toast (`Error: …`), not via ACK. After `wait`, run `dump-screen` on that tab and check the tail for `Error:`. Before `/models` or `/thinking`, read valid ids with `mpi --list-models`. Bare `/models`, bare `/resume`, `/close-all-sessions`, `/delete-all-sessions`, `/settings` and other overlays open on the target tab. Drive them with `--tab send-keys` (`down` / `up` + `Enter`; `y`/`n` for the always-confirm ones). New tab: `send-prompt '/new-session --no-focus Title'`. Full catalog: [Slash commands](#slash-commands).
+
+**🔴 STOP. Confirm with the user before sending these.** They hit a live tab a human may be watching, and ctl cannot undo them: `/delete-session yes`, `/delete-all-sessions`, `/close-all-sessions`, and `send-keys C-q` + `y` (quits the whole TUI, every tab). Re-read the target from `mpi status --json` and get an explicit OK in the same turn. Everything else needs no confirmation: plain prompts, `/models`, `/thinking`, `wait`, all reads. Do not gate those.
+
+## Flow B: you received a prompt via ctl (receiver)
+
+Your prompt starts with `This prompt came from another MixCode tab (<title>, pid <n>) via \`mpi ctl\`, not from the human user.`
+
+- **Without reply instructions.** Treat it as a normal request from a peer agent. No reply obligation unless the prompt asks for one. Do not add "I am <tab>" prefaces. ctl adds them automatically to whatever you send.
+- **With `--expect-response` instructions.** The block names the skill path and gives a reply command. Finish the request, then send the result exactly as that block says:
+
+  ```text
+  mpi ctl --pid <n> --tab '<sender title>' send-prompt <<'EOF'
+  <your result>
+  EOF
+  ```
+
+  - Use the exact `--pid` / `--tab` shown in the block. The sender may live in another mpi instance.
+  - Do **not** pass `--expect-response` on that reply (only if explicitly asked).
+  - After the reply is ACKed, **end your turn**. Your reply is already queued for the requester, so a `wait` on it only buys a mutual wait (Flow A step 3).
+
+---
+
+## Red lines
+
+Check this table before every send.
+
+| Never | Why | Instead |
+|---|---|---|
+| Start a new TUI to get a target | ctl only drives an already-running instance | Ask the user to open the tab |
+| `send-keys` to submit a prompt | Text lands in the draft unwrapped and unattributed, and multi-line text breaks | `send-prompt` |
+| Stop at the ACK | ACK means accepted, not done | Poll or callback, exactly one per prompt |
+| Long `wait` for an `--expect-response` reply | Mutual wait: both tabs stall to timeout | Short check, then end your turn |
+| Answer a `wait-for-input` from `last-message` | The question is on the screen tail, not in the chat JSON | `dump-screen`, read the last ~30 lines |
+| Target your own `MIXCODE_TAB_TITLE`, or default to it | You prompt yourself | Pick the target from `mpi status --json` |
+| `--focus-tab` / `--focus-session` as the default | Steals UI focus from the human | `--tab` / `--session` |
+| Write "I am \<title\>" into the prompt | ctl already wraps plain prompts | Send bare text |
+| Treat a slash ACK as success | Failures surface as `Error:` on the tab, not in the ACK | `wait`, then `dump-screen` tail |
+| Send a 🔴 command without the user's OK | `/delete-*` cannot be undone, and the `*-all-sessions` pair hits every tab in that instance | The 🔴 STOP gate in Flow A |
+
+---
+
+# Reference
+
+Run `mpi ctl --help` for the command list, every flag, and its default. That output is the source of truth for the flag surface; this file covers only what `--help` leaves out.
+
+## agentDir and instance files
 
 Same contract as Pi `getAgentDir()` / `mpi status` / `mpi ctl`:
 
@@ -16,87 +106,129 @@ agentDir = $PI_CODING_AGENT_DIR   # if set, non-empty; leading ~ is expanded
          | ~/.pi/agent            # default
 ```
 
-Read it from the bash tool (inherited from the TUI):
-
-```text
-echo "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
-```
-
-Then:
+Read it from the bash tool (inherited from the TUI): `echo "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"`. Then:
 
 ```text
 <agentDir>/mixcode-pi/instances/<hostname>/<pid>.sock    # ctl socket (mode 0600)
 <agentDir>/mixcode-pi/instances/<hostname>/<pid>.json    # status snapshot
 ```
 
-`mpi status` and `mpi ctl` resolve this themselves. Only look at the files when you need to confirm a sock exists or debug a missing instance. If `PI_CODING_AGENT_DIR` differs between your bash and the target TUI, you will see the wrong instances.
+`mpi status` and `mpi ctl` resolve this themselves; only inspect the files to confirm a sock exists or debug a missing instance. If `PI_CODING_AGENT_DIR` differs between your bash and the target TUI, you will see the wrong instances.
 
-## Locate yourself
+## Environment variables
 
-`MIXCODE` and `MIXCODE_PID` live on the host process env, so every child sees them (bash tool, user `!` / `!!` shells, extension spawns). The tab titles are injected **per bash tool spawn only** and are unset in `!` / `!!` shells. Read them with `echo`.
+`MIXCODE` and `MIXCODE_PID` are host-process env; every child sees them (bash tool, `!` / `!!` shells, extension spawns). Tab titles are injected **per bash tool spawn only** and are unset in `!` / `!!` shells.
 
 | Variable | Meaning |
 |---|---|
 | `MIXCODE` | Set (`1`) when this process is MixCode, not bare `pi`. Off if unset / `0` / `false` / `off`. |
-| `MIXCODE_PID` | PID of the **mpi host process** owning this agent (host env, inherited everywhere). `mpi ctl` uses it as an implicit `--pid` when you pass neither `--pid` nor `--workdir`; a stale value errors with `No live mpi instance matches MIXCODE_PID=<n>`. More durable than `$PPID` after nohup/setsid. |
+| `MIXCODE_PID` | PID of the **mpi host process** owning this agent. Implicit `--pid` when you pass neither `--pid` nor `--workdir`; a stale value errors with `No live mpi instance matches MIXCODE_PID=<n>`. More durable than `$PPID` after nohup/setsid. |
 | `MIXCODE_TAB_TITLE` | Title of **this** agent tab (follows rename on the next bash spawn). Survives display extensions that re-register the bash tool. |
 | `MIXCODE_FOCUSED_TAB_TITLE` | Title of the **UI-focused** agent tab. Unset when focus is Home or unknown. Differs from `MIXCODE_TAB_TITLE` when a background tab runs bash. |
 
-Use `MIXCODE_TAB_TITLE` as "me". To talk to another tab, do **not** default `--focus-tab` to yourself. Use `mpi status` titles, or `MIXCODE_FOCUSED_TAB_TITLE` only when you intend the current UI focus.
+Use `MIXCODE_FOCUSED_TAB_TITLE` as a target only when you intend the current UI focus.
 
-## List TUI slash commands (`mpi commands`)
+## Targeting and focus
 
-This is **not** a catalog of `mpi` CLI subcommands (`status`, `ctl`, `commands`). Those are argv to the `mpi` binary.
+- `--tab` / `--session` is the default for reads and prompts; reach for `--focus-*` only when you mean to move the human's UI, or to inject live keys with no overlay waiting (`C-q`).
+- The >1-instance error lists each candidate as `  <pid>  tabs: <n>  active: <title>` plus a `--pid` tip. Copy one and retry.
+- Title match is exact; duplicates (possible after resume) need `--session` or `--focus-session`.
+- Omit all four: live UI focus; the header includes `reason: no --tab/--session/--focus-tab/--focus-session; using live UI focus`.
+- If the target tab is `Not Ready`, that ctl command fails: `Tab is still loading extensions. Please wait a moment.` Other tabs (and Home) stay usable.
+- No `.sock`: that TUI predates the ctl socket or its ctl server failed to start (it showed `mpi ctl server unavailable: …`; `<agentDir>/mixcode-pi/crash.log` may hold the trace). Restart it; compiled `mpi` must include the server.
 
-`mpi commands` lists **in-TUI slash commands** — the `/compact`, `/rename`, `/loop` you type in a tab editor (or send with `send-prompt /…`).
+`mpi status` is not a ctl command and shares none of the rules above. It accepts `--json` and `--workdir <path>` only; every other flag, `--pid` included, fails with `Unknown status argument: <flag>`. Without `--workdir` it does not filter by cwd, it lists every live instance on this host, and it never fails on 0 or many matches (it prints `No live mpi instances.` or the full table). Pass `--workdir <path>` when you want the cwd-scoped list, and read `pid` from the output to target ctl.
+
+## ctl commands
+
+Output shapes `--help` does not show: `last-message` prefixes every line with `role:`; `last-tool` prints `tool:` / `status:` / an optional `command:`. `wait` also returns when the tab is waiting for input, not only when it goes idle. `send-keys` is for real keypresses; prompts go through `send-prompt`.
+
+**Home** (`--session home`) has no agent run: `wait` / `send-prompt` fail with `Home has no agent run`, `last-message` / `last-tool` print the header on stdout then fail, and `--tab` `send-keys` is not available.
+
+### Ranges (`last-*` / `last-tool`)
+
+The range counts within one role set: user+assistant for `last-message`, tools for `last-tool`. Print is oldest-first. Too few lines: print what exists and add `messages: N (requested A-B)`.
+
+### `wait`
+
+The client socket stays open for `--timeout` plus 5s (a 10s idle timeout used to kill long `wait`); `ctl socket timed out` before that is a bug.
+
+`wait` watches the **target** tab only; it does not return early when your own tab receives a prompt. Do not use it to wait for a `send-prompt` reply; that is callback mode (Flow A step 3).
+
+Stdout:
 
 ```text
-mpi commands
-mpi commands --json
+status: finished | wait-for-input | error | Not Ready   # settled
+status: running | thinking                              # timed out
+timeout: <sec>
 ```
 
-Prints `/name [hint]` and the description for slashes this workdir would register (local MixCode, extension `registerCommand`, prompt templates). Does not list `/skill:*`. `--json` adds `path` on extension/prompt entries (extension file or package directory). Does not start the TUI.
+`finished` covers idle and done. A timeout prints both lines too, so the status value alone does not tell you it timed out; the tell is the stderr line `Timed out after <sec>s (status: <status>)` plus a non-zero exit. Only `running` and `thinking` can time out, because every other status counts as settled. `wait-for-input` means a question/dialog is open; do not keep waiting. A leftover Notice/Error line is **not** `wait-for-input`. If stdout is truncated, `read` the `/tmp/mpi-ctl-…` file from the end; do not guess from `last-message`.
 
-## Run a slash command
+### `dump-screen`
 
-Use **`send-prompt`**, not `send-keys`. Same path as typing `/…` in the editor and pressing Enter.
+Trailing spaces are stripped in both modes, `--ansi` included.
+
+`--tab` / `--session` dumps that tab's chat plus its extension overlay, any picker/confirm/resume selector that tab owns, and the current MixCode app overlay (Y/N confirms, notices), not the live workspace chrome. Implied / `--focus-*` dumps the live frame, then those overlays. `--width <n>` sets the frame and the overlay together.
+
+This is for overlays/drafts/streaming, not history. **Start from the tail** (last ~30 lines); if truncated, open the `/tmp` file and seek the end.
+
+### `send-keys`
+
+With live focus or `--focus-*`: tokens inject into the keyboard path (`Enter`, `Escape`, `Tab`, `BSpace`, arrows, `C-a`…`C-z`, `M-x`, literals). Each token is one inject; `--literal` / `-l` disables named-key mapping. Answer a question overlay: `down` / `up` then `Enter`. Leave a picker unchanged: `Escape` (`app-key-handlers.ts` clears `state.picker` without selecting). In a picker's custom-input mode the first `Escape` only returns to the list, so send `Escape` twice. `Enter` on a picker selects whatever row is highlighted, so never use it to dismiss one. 🔴 Quit TUI: `C-q` then `y`. This kills every tab in that instance, so confirm with the user first.
+
+With `--tab` / `--session`: UI focus is **not** switched. A waiting overlay on that tab, or any open instance overlay (close-all, settings, quit confirm, palette), receives UI keys. Otherwise only text and `Enter` are allowed: `Enter` submits (Home-send); text without `Enter` appends to the draft. Other UI keys fail unless `--focus-tab` is used.
+
+### `send-prompt`
+
+Submit one prompt to the target tab (Home-send, no focus steal with `--tab`). Prefer over `send-keys` for multi-line text. No argv text (or a lone `-`) reads stdin, so a shell heredoc works; remaining args are joined with spaces. TTY + no text errors (does not hang). Home fails. ACK after accept; never truncated.
+
+Plain prompts (not `/…` or `!`/`!!`) are wrapped so the receiving tab sees they came from another MixCode tab:
 
 ```text
-mpi ctl --tab Agent-01 send-prompt /compact
-mpi ctl --tab Agent-01 send-prompt '/rename New Title'
-mpi ctl --tab Agent-01 send-prompt '/new-session --no-focus Worker'
+This prompt came from another MixCode tab (Agent-01, pid 4242) via `mpi ctl`, not from the human user.
 ```
 
-`--tab` does not change UI focus. **Default to `--tab` / `--session`.** For a new tab, send `/new-session --no-focus [Title]`; `--focus` leaves the UI on the new tab. Open overlays (bare `/models`, `/thinking`, `/resume`, close-all, settings, extension questions) with `send-prompt`, then drive them with `--tab send-keys` after `dump-screen`. Prefer arguments on the slash so no overlay opens (`send-prompt '/models gpt-4.1'`, `'/thinking high'`, `'/close-session yes'`, `'/resume <session-id>'`). Use `--focus-tab` / `--focus-session` to leave the UI on that tab, or to inject keys when no overlay is waiting (`C-q`). **Always close the loop:** ACK from `send-prompt` only means accept, not done. Poll with `wait` then `last-message` (or `last-tool` / `dump-screen`) — unless you requested a reply (callback mode, see `send-prompt`).
+The tab name is the sender's `MIXCODE_TAB_TITLE`; `pid` is the sender's `MIXCODE_PID` (omitted when unset; plain terminal → prompt submitted unchanged). Slash and shell lines are never wrapped.
+
+`--expect-response` (requires `MIXCODE_TAB_TITLE`; fails on `/` or `!`) appends the mpi-ctl skill path and the exact reply command (the block shown in Flow B).
+
+## Slash commands
+
+`mpi commands` lists **in-TUI slash commands**, the `/compact`, `/rename`, `/loop` you type in a tab editor (or send with `send-prompt /…`). It is **not** a catalog of `mpi` CLI subcommands (`status`, `ctl`, `commands`).
+
+```text
+mpi commands [--json]
+```
+
+Prints `/name [hint]` and the description for slashes this workdir would register (local MixCode, extension `registerCommand`, prompt templates). No `/skill:*`. `--json` adds `path` on extension/prompt entries. Does not start the TUI.
 
 Common MixCode session/tab commands:
 
 | Command | Effect |
 |---|---|
-| `/new-session [--focus\|--no-focus] [title]` | Create a new agent tab. Use `--no-focus` so UI stays put; `--focus` switches to the new tab. Optional Title names it. |
+| `/new-session [--focus\|--no-focus] [title]` | Create a new agent tab. `--no-focus` keeps the UI where it is; `--focus` switches to the new tab. Optional Title names it. |
 | `/rename Title` | Rename the **target** tab (the one `--tab` / `--focus-tab` selected). |
 | `/close-session [yes]` | Close that tab; session file stays on disk. `yes` skips the Y/N overlay. |
-| `/delete-session [yes]` | Delete that tab's session file and close the tab. `yes` skips the Y/N overlay. |
-| `/close-all-sessions` | Close every agent tab; keep session files. Always Y/N — `--tab send-keys` `y`/`n`. |
-| `/delete-all-sessions` | Delete every open agent session and close those tabs. Always Y/N — `--tab send-keys` `y`/`n`. |
-| `/models [model]` | Set model directly (e.g. `/models openai/gpt-4.1`, `/models gpt-4.1`). Run `mpi --list-models` first for the valid ids. Bare `/models` opens a picker on the target tab (`--tab send-keys`). |
-| `/thinking [level]` | Set thinking tier directly (e.g. `/thinking high`, `/thinking off`). Tiers differ per model — run `mpi --list-models` first. Bare `/thinking` opens a picker on the target tab (`--tab send-keys`). |
+| 🔴 `/delete-session [yes]` | Delete that tab's session file and close the tab. `yes` skips the Y/N overlay. Irreversible. |
+| 🔴 `/close-all-sessions` | Close every agent tab; keep session files. Always Y/N. Answer with `--tab send-keys` `y`/`n`. |
+| 🔴 `/delete-all-sessions` | Delete every open agent session and close those tabs. Always Y/N. Answer with `--tab send-keys` `y`/`n`. Irreversible. |
+| `/models [model]` | Set model directly (e.g. `/models openai/gpt-4.1`). Bare opens a picker on the target tab. |
+| `/thinking [level]` | Set thinking tier directly (e.g. `/thinking high`). Bare opens a picker. |
 | `/context-limit [value]` | Set context limit directly (e.g. `/context-limit 32k`, `/context-limit reset`). Bare opens picker. |
-| `/workdir [path]` | Change workdir directly (e.g. `/workdir /path/to/dir`). Bare opens picker. |
-| `/resume` | Bare: opens the session picker on the target tab (`--tab send-keys`). `/resume <session-id>` (id or prefix) and `/resume N:<tab-name>` (exact open tab title first, then exact full session name, current folder first) resume directly via plain `send-prompt`, no focus. Duplicate names report candidate ids. |
+| `/workdir [path]` | Change workdir directly. Bare opens picker. |
+| `/resume` | Bare: opens the session picker. `/resume <session-id>` (id or prefix) and `/resume N:<tab-name>` (exact open tab title first, then exact full session name, current folder first) resume without opening the picker. Duplicate names report candidate ids. **Unlike every other row, direct resume switches UI focus**, and it opens a **new** tab instead of rebinding the one you targeted. The new tab inherits workdir, model, context limit and thinking level from whichever tab held UI focus, not from your `--tab`. Set them explicitly afterwards if they matter. |
 | `/clear` | Replace the tab's session with a fresh child (title resets). |
 | `/reset` | Reset the branch to session root; keep title and tab slot. |
 | `/compact` | Compact that tab's context. |
 | `/mark-done` | Mark that tab done. |
 
-### Which model / thinking level is valid (`mpi --list-models`)
+### Valid models / thinking levels (`mpi --list-models`)
 
-Read the options with `mpi --list-models`, not by opening the `/models` or `/thinking` picker. It takes no `--pid` / `--tab` and touches no TUI instance: it reads `models.json`, whatever auth resolves (`auth.json`, `models.json` `apiKey`, or provider env vars), and the `mixcode_settings` disable lists. No network, no extensions.
+Read options with `mpi --list-models`, never by opening the `/models` or `/thinking` picker. It takes no `--pid` / `--tab` and touches no TUI instance: it reads `models.json`, whatever auth resolves (`auth.json`, `models.json` `apiKey`, or provider env vars), and the `mixcode_settings` disable lists. No network, no extensions.
 
 ```text
-mpi --list-models
-mpi --list-models deepseek       # case-insensitive filter on provider/modelId
-mpi --list-models --json         # [{ id, provider, modelId, displayName, contextWindow, reasoning, disabled, thinking }]
+mpi --list-models [filter] [--json]   # case-insensitive filter on provider/modelId
 ```
 
 ```text
@@ -105,151 +237,11 @@ deepseek  deepseek-v4-flash  1M       off,low,high,max
 deepseek  deepseek-v4-pro    1M       off,high,max                 (disabled)
 ```
 
-Run this before every `send-prompt '/models <id>'` or `send-prompt '/thinking <level>'`: the `model` column is what `/models` accepts, and the `thinking` column is that model's accepted `/thinking` values, which differ per model. Rows marked `(disabled)` are refused by `/models`. Providers a third-party extension registers at runtime are not listed. Then set it on the target tab:
+Run this before every `send-prompt '/models <id>'` or `'/thinking <level>'`: the `model` column is what `/models` accepts, the `thinking` column is that model's accepted `/thinking` values (they differ per model). Rows marked `(disabled)` are refused by `/models`. `--json` yields `[{ id, provider, modelId, displayName, contextWindow, reasoning, disabled, thinking }]`. Runtime-registered third-party providers are not listed.
 
-```text
-mpi ctl --tab Agent-01 send-prompt '/models deepseek/deepseek-v4-flash'
-mpi ctl --tab Agent-01 send-prompt '/thinking high'
-mpi ctl --tab Agent-01 dump-screen        # confirm no `Error:` at the tail
-```
+## Output truncation
 
-Send these with `send-prompt` and `--tab`. **Prefer direct arguments** (e.g. `/models <model>`, `/thinking <level>`, `/resume <session-id>`, `/close-session yes`) so no picker opens. Bare `/resume`, bare `/models`, close-all / delete-all, `/settings`, and other overlays: `--tab send-keys` after `wait` / `dump-screen`.
-
-**Inspect slash command outcomes via `dump-screen`**: Slash commands execute asynchronously and report parameter or execution failures on the tab's chat surface / toast (prefixed with `Error:`). After `send-prompt /...` and `wait`, run `dump-screen` on the target tab and check the tail for any `Error: ...` lines (e.g. `Error: Unknown model: <name>`, `Error: Unknown thinking level: ...`, `Error: Unknown slash command: /...`). Do not assume a slash command succeeded merely because `send-prompt` returned an ACK.
-
-Direct `/resume` commands return an ACK before asynchronous command handling finishes. Close the loop with `wait`, then use `dump-screen` on the target tab to read name-not-found or duplicate-name errors. Duplicate-name output includes candidate session ids; retry with `/resume <session-id>`.
-
-## Discover instances
-
-```text
-mpi status
-mpi status --json
-mpi status --workdir <path>
-```
-
-`status` takes only `--json` and `--workdir` (default: cwd). The `--pid` / `--workdir`
-mutual-exclusion and unique-match rules apply to `mpi ctl` below.
-
-## Target and focus
-
-```text
-mpi ctl [--pid <n> | --workdir <path>] [--tab <title> | --session <id> | --focus-tab <title> | --focus-session <id>] <command>
-```
-
-- `--tab` / `--session`: operate this tab **without** changing UI focus. **Default.** Use these to read or prompt any tab.
-- `--focus-tab` / `--focus-session`: operate and **leave** UI focus on that tab. Also used for live keys when no overlay is waiting (`C-q`).
-- Targeting default (no `--pid` / `--workdir`): `MIXCODE_PID` env when set (host env, inherited by all children), else the unique live instance in `<cwd>`. With 0 or >1 matches it fails; >1 lists each candidate as `  <pid>  tabs: <n>  active: <title>` plus a `--pid` tip — copy one and retry.
-- The four flags are mutually exclusive. Title match is exact; duplicates (possible after resume) need `--session` or `--focus-session`.
-- `home` is Home (`--session home` or `--focus-session home`).
-- Omit all four: live UI focus; header includes `reason: no --tab/--session/--focus-tab/--focus-session; using live UI focus`.
-
-If the **target** agent tab is `Not Ready`, that ctl command fails: `Tab is still loading extensions. Please wait a moment.` Other tabs (and Home) stay usable. Restart a TUI that predates the ctl socket or whose ctl server failed to start (it showed a `mpi ctl server unavailable: …` notice; `<agentDir>/mixcode-pi/crash.log` may hold the trace); compiled `mpi` must include the server.
-
-## Commands
-
-| Command | Role |
-|---|---|
-| `last-message` | Last user **and** assistant lines (`role:` on each). |
-| `last-assistant-message` | Last assistant only. |
-| `last-user-message` | Last user only. |
-| `last-tool` | Last tool / `!bash` (`tool:` / `status:` / optional `command:`). |
-| `wait` | Block until not `running`/`thinking`, or until waiting for input. |
-| `dump-screen` | Live TUI frame, or `--tab`/`--session` chat surface, plus extension overlay. |
-| `send-prompt <text>` | **Default for text.** Submit a user message or `/slash` (newlines/heredoc OK). |
-| `send-keys [key...]` | **Keys only** (`down`, `Enter` on a question, `C-q`). Not for prompts. |
-
-### Ranges (`last-*` / `last-tool`)
-
-`--from <n> --to <m>` must be a pair. 1-based from the end (`1` = newest), same role (or user+assistant for `last-message`; tools for `last-tool`). Print oldest-first. Too few lines: print what exists and add `messages: N (requested A-B)`. Home last-message / last-tool: header on stdout, then fail.
-
-### `wait`
-
-Always timed. `--timeout <sec>` defaults to 60; `0` checks once. The client socket stays open for `--timeout` plus 5s (a 10s idle timeout used to kill long `wait`).
-
-`wait` watches the **target** tab only; it does not return early when your own tab receives a prompt. Do not use it to wait for a `send-prompt` reply — that is callback mode, see `send-prompt`.
-
-Stdout:
-
-```text
-status: finished | wait-for-input | error
-timeout: <sec>
-```
-
-Timeout (still `running`/`thinking`) prints `status:` + `timeout:` then fails. Home: `Home has no agent run`.
-
-On `wait-for-input`, run `dump-screen` on that tab and **start from the tail**. Questions and Y/N confirms are at the end, not the chat JSON above. A leftover Notice/Error is not `wait-for-input`. If stdout is truncated, `read` the `/tmp/mpi-ctl-…` file from the end. Do not guess from `last-message`.
-
-### `dump-screen`
-
-Default: strip ANSI and trailing spaces. `--ansi` keeps color (still strips trailing spaces).
-
-`--tab` / `--session` dump that tab's chat plus its extension overlay, any picker/confirm/resume selector that tab owns, and the current MixCode app overlay (Y/N confirms, notices) — not the live workspace chrome. Implied / `--focus-*` dumps the live frame, then those overlays. Overlay width is `max(live TUI columns, 100)`. `--width <n>` sets both. **Start from the tail** (last ~30 lines). If truncated, open the `/tmp` file and seek the end.
-
-### `send-keys`
-
-With live focus or `--focus-*`: tokens inject into the keyboard path (`Enter`, `Escape`, `Tab`, `BSpace`, arrows, `C-a`…`C-z`, `M-x`, literals). Each token is one inject. `--literal` / `-l` disables named-key mapping. Answer a question overlay: `down` / `up` then `Enter`. Quit TUI: `C-q` then `y`.
-
-With `--tab` / `--session`: **do not** switch UI focus. A waiting overlay on that tab, or any open instance overlay (close-all, settings, quit confirm, palette), receives UI keys. Otherwise only text and `Enter` are allowed: `Enter` submits (Home-send); text without `Enter` appends draft. Other UI keys fail unless `--focus-tab` is used (`C-q`).
-
-### `send-prompt`
-
-Submit one prompt to the target tab (Home-send, no focus steal with `--tab`). Prefer this over `send-keys` for multi-line text. No argv text (or a lone `-`) reads stdin, so a shell heredoc works:
-
-```text
-mpi ctl --tab Agent-01 send-prompt hello world
-mpi ctl --tab Agent-01 send-prompt <<'EOF'
-line1
-line2
-EOF
-```
-
-Joins remaining args with spaces. TTY + no text errors (does not hang). Home fails. ACK after accept; not truncated.
-
-Plain prompts (not `/…` or `!`/`!!`) are wrapped so the receiving tab can see they came from another MixCode tab via ctl, not the human:
-
-```text
-This prompt came from another MixCode tab (Agent-01, pid 4242) via `mpi ctl`, not from the human user.
-
-Review the current diff for risks only.
-```
-
-The tab name is `MIXCODE_TAB_TITLE`; `pid` is the sender instance's `MIXCODE_PID` (omitted when unset). If that env is unset (plain terminal), the prompt is submitted unchanged. Do **not** write “I am &lt;title&gt;” yourself. Slash and shell lines are never wrapped.
-
-`--expect-response` (requires `MIXCODE_TAB_TITLE`; fails on `/` or `!`) adds the installed mpi-ctl skill path and the reply command:
-
-```text
-This prompt came from another MixCode tab (Agent-01, pid 4242) via `mpi ctl`, not from the human user.
-When finished, follow the mpi-ctl skill at:
-<agentDir>/extensions/mpi-ctl/skills/mpi-ctl/SKILL.md
-Send your result back with `mpi ctl`:
-mpi ctl --pid 4242 --tab 'Agent-01' send-prompt <<'EOF'
-<your result>
-EOF
-Do not pass --expect-response on that reply.
-
-Review the current diff for risks only.
-```
-
-If you receive that block: read the skill at the given path, finish the request, then send the result with that `send-prompt` (do **not** add `--expect-response` unless asked). Reply with the exact `--pid`/`--tab` shown in the block — the sender may live in another mpi instance. After that reply is ACKed, **end your turn** — do not `wait` on the requester; it may still be mid-turn, and your reply is already queued for it.
-
-**Close the loop — pick exactly one mode per prompt; never stop at ACK:**
-
-**Poll** (default; you did not request a reply) — pull the result yourself:
-
-```text
-mpi ctl --tab <title> wait --timeout 90
-# finished        -> mpi ctl --tab <title> last-message
-# wait-for-input  -> mpi ctl --tab <title> dump-screen  (start from the tail)
-#                   single-tab Y/N -> send-prompt /close-session yes or /delete-session yes
-#                   picker / question / close-all / settings -> --tab send-keys; wait again
-# error / timeout -> last-message / dump-screen; do not assume success
-```
-
-**Callback** (`--expect-response`, or your prompt asks for a reply) — the peer pushes the result back to your tab. After ACK, at most one short check (`wait --timeout 5`; on `wait-for-input`, unblock the peer first), then **end your turn** and say you are waiting for that tab's reply. Never sit in a long `wait` for the reply: it arrives as a queued message that is injected only after your current tool call returns, so a long `wait` delays your own wake-up — and if the peer also `wait`s on you, both tabs stall until timeout (mutual wait).
-
-## Output / truncation
-
-`last-message`, `last-*-message`, `last-tool`, `dump-screen`: over 8192 bytes, stdout keeps the last 4096 bytes (tail); full text at `/tmp/mpi-ctl-<pid>-<command>-<ms>.txt` (mode `0600`). Notice: `[Full output: <path>. Truncated: showing last N lines (4.0KB tail limit)]`. `send-keys`, `send-prompt`, and `wait` are never truncated.
+`mpi ctl --help` gives the byte limits, the `/tmp` path pattern, and the Notice string. What it leaves out: `send-keys`, `send-prompt`, and `wait` are never truncated, so no `/tmp` file is written for them.
 
 ## JSON schemas
 
@@ -282,9 +274,7 @@ Empty live set: `{ "instances": [] }`. `state` is derived (`waiting-for-input` i
 
 ### `mpi commands --json`
 
-TUI slash catalog only — not `mpi status` / `mpi ctl` / `mpi commands` itself.
-
-A JSON **array** (not wrapped):
+TUI slash catalog only. A JSON **array** (not wrapped):
 
 ```text
 [
@@ -305,34 +295,3 @@ A JSON **array** (not wrapped):
 ```
 
 No `/skill:*`. Same `name` as a local command: local wins, no `path`. `path` is Pi `sourceInfo.path` (extension file or package directory).
-
-## Typical loop
-
-```text
-echo "$MIXCODE" "$MIXCODE_TAB_TITLE" "$MIXCODE_FOCUSED_TAB_TITLE"
-mpi status --json
-mpi ctl --pid <n> --tab <other> send-prompt '…'
-mpi ctl --pid <n> --tab <other> wait --timeout 90
-# status: wait-for-input  -> dump-screen (start from the tail); --tab send-keys
-# status: finished        -> last-message / last-tool
-```
-
-Callback variant (`--expect-response` / reply requested): stop after the `send-prompt` ACK (plus at most a short `wait`), end your turn, and let the reply wake this tab.
-
-## Pitfalls (common agent mistakes)
-
-- **Do not start another `mpi` TUI** to inspect a tab. Use `status`/`ctl` against the live process.
-- **Never default to `--focus-tab`.** Use `--tab`. `--focus-tab` leaves the UI on that tab, and is required for live keys when no overlay is waiting. `--session` is not an alias of `--focus-session`.
-- **After `send-prompt`, close the loop in exactly one mode.** ACK ≠ finished. Poll: `wait` then `last-message` (for prompts) or `dump-screen` (for slash commands to verify no `Error:` appeared). Callback (`--expect-response` / reply requested): end your turn after ACK. Fire-and-forget is a bug; so is a long `wait` for a reply — the reply injects only after your current tool call returns, so poll+callback stalls both tabs until timeout.
-- **Check `dump-screen` for `Error:` on slash commands.** Slash commands do not generate assistant chat turns, so `last-message` will not reflect slash errors. Always run `dump-screen` on the target tab after running a slash command to verify it took effect and check for `Error:` notices at the tail.
-- **On `wait-for-input`, `dump-screen` first and start from the tail.** The confirm or question is at the end. If truncated, read `/tmp/mpi-ctl-…` from the end. Single-tab close/delete: `send-prompt /close-session yes` (or `/delete-session yes`). Pickers, extension questions, close-all / delete-all, settings: `--tab` + `send-keys`. Do not answer from `last-message` alone.
-- **Do not preface prompts with “I am &lt;tab&gt;”.** ctl already wraps plain text with the MixCode-tab preface. Slash/`!` are not wrapped. If the preface includes `--expect-response` instructions, follow the skill path and reply with the given `send-prompt`; do not add `--expect-response` on that reply. After replying, end your turn — do not `wait` on the requester.
-- **Read model / thinking options with `mpi --list-models`** (add `--json` for parsing). It needs no focus, no running instance, and no network.
-- **`mpi commands` is TUI slashes (`/compact`), not CLI subcommands (`mpi ctl`).** Slash commands: `send-prompt /compact`, not `send-keys '/compact' Enter`. `send-keys` is for real keypresses (pickers, `down`/`Enter` on a question, `C-q`). `--tab` send-keys drives that tab's overlay when one is waiting; otherwise text+Enter only. Multi-line body uses `send-prompt <<'EOF'`. `--literal` makes `Enter` the letters E-n-t-e-r.
-- **`--from` and `--to` must both be present.** One alone errors. `1` is newest, print is oldest-first. `last-message` is user+assistant only; tools are `last-tool`.
-- **`wait` always has a timeout** (default 60s). Client waits `--timeout`+5s; `ctl socket timed out` before that is a bug. `wait-for-input` means a question/dialog — do not keep waiting. `finished` is idle/done. Home: `Home has no agent run`.
-- **Not Ready / no sock:** only the target tab still loading fails that ctl command. No `.sock` means that TUI predates ctl or its ctl server failed to start (the TUI showed a `mpi ctl server unavailable` notice) — restart it. `status` 0 or >1 instance without `--pid` fails; same workdir with two TUIs needs `--pid` or `MIXCODE_PID` (the >1 error lists candidate pids with active tab titles — pick from there or `mpi status`).
-- **Env:** the tab titles exist only in the **bash tool**, not `!` shells; `MIXCODE` / `MIXCODE_PID` are host env and show up everywhere. Do not `--tab`/`--focus-tab` yourself (`MIXCODE_TAB_TITLE`) when the user asked about another tab. `MIXCODE_FOCUSED_TAB_TITLE` is empty on Home. Wrong `PI_CODING_AGENT_DIR` lists the wrong instances.
-- **`/close-session` keeps the file; `/delete-session` removes it.** Pass `yes` to skip the single-tab Y/N overlay. **Do not** pass `yes` to `/close-all-sessions` or `/delete-all-sessions` — those always confirm; `--tab send-keys` `y`/`n`. `/clear` makes a new child session; `/reset` stays on the same file. `/new-session --no-focus Title` creates a **new** tab and keeps UI focus. `--focus` switches to the new tab. `/rename Title` renames the target tab.
-- **`dump-screen` is for overlays/drafts/streaming**, not history. **Start from the tail.** Default is no ANSI; `--ansi` keeps color. Huge output is truncated to `/tmp/mpi-ctl-…` — read that file from the end.
-- **Home** has no last-message / last-tool / wait / `--tab` send-keys. `--session home` is Home, not `config`.
