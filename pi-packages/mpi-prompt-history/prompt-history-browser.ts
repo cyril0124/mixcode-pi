@@ -1,32 +1,31 @@
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                Prompt History Browser: Search + Select UI                    ║
+// ║                Prompt history overlay                                        ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
-// ║  Overlay Layout:                                                             ║
+// ║  Layout                                                                      ║
 // ║                                                                              ║
-// ║  ────────────────────────────────────────  <- Border                         ║
-// ║   Prompt History (12)                      <- Title with count               ║
-// ║                                                                              ║
-// ║   Search: query_                           <- Search input with cursor       ║
-// ║                                                                              ║
-// ║   #12  This is the most recent prompt      <- Newest first                   ║
-// ║   #11  Another prompt from earlier                                           ║
-// ║   #10  Some older prompt text                                                ║
-// ║                                                                              ║
-// ║  ────────────────────────────────────────  <- Border                         ║
-// ║   Enter select · ↑/↓ navigate · Esc close  <- Hint                           ║
+// ║  ┌ Prompt History — Session (12) ─────────┐                                  ║
+// ║  │                                        │                                  ║
+// ║  │ ❯ #12  This is the most recent prompt  │                                  ║
+// ║  │   #11  Another prompt from earlier     │                                  ║
+// ║  │                                        │                                  ║
+// ║  ├────────────────────────────────────────┤                                  ║
+// ║  │ j/k move · / search · q close          │                                  ║
+// ║  └────────────────────────────────────────┘                                  ║
 // ║                                                                              ║
 // ║  Keyboard:                                                                   ║
-// ║    up/dn      Navigate items                                                 ║
-// ║    Enter      Select -> return prompt text                                   ║
-// ║    printable  Append to query (live filter)                                  ║
-// ║    Backspace  Delete last query char                                         ║
-// ║    Ctrl+G     Toggle Session <-> Global scope (keeps the query)              ║
-// ║    Esc        Clear query, or close                                          ║
+// ║    j/k ↑/↓   next / previous item                                            ║
+// ║    Ctrl+D/U  half page down / up                                             ║
+// ║    g/G       first / last item                                               ║
+// ║    /         open search                                                     ║
+// ║    Enter     insert selected prompt                                          ║
+// ║    Ctrl+G    toggle Session / Global                                         ║
+// ║    Esc       cancel search, or close                                         ║
+// ║    q         close                                                           ║
 // ║                                                                              ║
 // ╚══════════════════════════════════════════════════════════════════════════════╝
 
-import { DynamicBorder, type Theme } from "@earendil-works/pi-coding-agent";
-import { Key, matchesKey, truncateToWidth } from "@earendil-works/pi-tui";
+import type { Theme } from "@earendil-works/pi-coding-agent";
+import { Key, matchesKey, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -43,6 +42,7 @@ interface BrowserState {
   selectedIndex: number;
   query: string;
   scope: Scope;
+  searching: boolean;
 }
 
 /**
@@ -117,21 +117,64 @@ function filterItems(items: PromptItem[], rawQuery: string): PromptItem[] {
 
 // ─── Rendering ───────────────────────────────────────────────────────────────
 
-const HINT_TEXT = "Enter select · ↑/↓ navigate · Ctrl+G scope · Esc close";
 const POINTER_ACTIVE = "❯ ";
 const POINTER_INACTIVE = "  ";
+/** Top border, inner pads, footer rule, hint, bottom border. */
+const CHROME_BASE = 6;
 
-function renderTitle(scope: Scope, count: string, theme: Theme, width: number): string[] {
-  const label = scope === "session" ? "Session" : "Global";
-  const title = ` Prompt History — ${label} (${count})`;
-  return [truncateToWidth(theme.bold(title), width), ""];
+function hintText(searching: boolean, width: number): string {
+  const parts = searching
+    ? ["Enter select", "↑/↓ navigate", "Esc cancel"]
+    : [
+        "j/k move",
+        "Enter select",
+        "Ctrl+D/U page",
+        "g/G top/bot",
+        "/ search",
+        "Ctrl+G scope",
+        "q close",
+      ];
+  const line = () => parts.join(" · ");
+  while (parts.length > 2 && visibleWidth(line()) > width) parts.splice(1, 1);
+  return line();
 }
 
-function renderSearchLine(query: string, theme: Theme, width: number): string {
+function panelTitle(scope: Scope, count: string): string {
+  const label = scope === "session" ? "Session" : "Global";
+  return `Prompt History — ${label} (${count})`;
+}
+
+function renderSearchLine(query: string, searching: boolean, theme: Theme, width: number): string {
   const label = theme.fg("muted", " Search: ");
-  const cursor = "\x1b[7m \x1b[27m"; // reverse-video space as cursor
-  const body = query.length > 0 ? query : "";
-  return truncateToWidth(`${label}${body}${cursor}`, width + 16);
+  const cursor = searching ? "\x1b[7m \x1b[27m" : "";
+  return truncateToWidth(`${label}${query}${cursor}`, width);
+}
+
+function padVisible(text: string, width: number): string {
+  const clipped = visibleWidth(text) <= width ? text : truncateToWidth(text, width);
+  return clipped + " ".repeat(Math.max(0, width - visibleWidth(clipped)));
+}
+
+function renderPanel(
+  title: string,
+  body: string[],
+  footer: string,
+  theme: Theme,
+  width: number,
+): string[] {
+  const inner = Math.max(0, width - 2);
+  const edge = (text: string) => theme.fg("accent", text);
+  const heading = ` ${title} `;
+  const clipped = visibleWidth(heading) > inner ? truncateToWidth(heading, inner) : heading;
+  const fill = "─".repeat(Math.max(0, inner - visibleWidth(clipped)));
+  const row = (text: string) => `${edge("│")}${padVisible(text, inner)}${edge("│")}`;
+  return [
+    `${edge("┌")}${edge(clipped + fill)}${edge("┐")}`,
+    ...body.map(row),
+    `${edge("├")}${edge("─".repeat(inner))}${edge("┤")}`,
+    row(` ${footer}`),
+    `${edge("└")}${edge("─".repeat(inner))}${edge("┘")}`,
+  ];
 }
 
 function renderList(
@@ -196,7 +239,7 @@ export function createPromptHistoryBrowserComponent(config: PromptHistoryBrowser
 } {
   const { tui, theme, done, loadGlobalItems } = config;
   const sessionItems = buildItems(config.items);
-  const state: BrowserState = { selectedIndex: 0, query: "", scope: "session" };
+  const state: BrowserState = { selectedIndex: 0, query: "", scope: "session", searching: false };
   let globalLoad: GlobalLoad = { kind: "idle" };
   let closed = false;
 
@@ -245,15 +288,34 @@ export function createPromptHistoryBrowserComponent(config: PromptHistoryBrowser
     return data;
   }
 
+  function maxVisibleRows(): number {
+    const searchRow = state.searching || state.query.length > 0 ? 1 : 0;
+    const byTerminal = Math.max(3, tui.terminal.rows - CHROME_BASE - searchRow);
+    const byRatio = Math.max(3, Math.floor(tui.terminal.rows * 0.6));
+    return Math.min(byTerminal, byRatio);
+  }
+
+  function moveSelection(delta: number, wrap: boolean): void {
+    const count = visibleItems().length;
+    if (count === 0) return;
+    if (wrap) {
+      state.selectedIndex = (state.selectedIndex + delta + count) % count;
+    } else {
+      state.selectedIndex = Math.max(0, Math.min(count - 1, state.selectedIndex + delta));
+    }
+    tui.requestRender();
+  }
+
   function handleInput(data: string): void {
     if (matchesKey(data, Key.escape) || matchesKey(data, Key.ctrl("c"))) {
-      if (state.query.length > 0) {
+      if (state.searching) {
+        state.searching = false;
         state.query = "";
         state.selectedIndex = 0;
         tui.requestRender();
-      } else {
-        finish(null);
+        return;
       }
+      finish(null);
       return;
     }
 
@@ -262,16 +324,6 @@ export function createPromptHistoryBrowserComponent(config: PromptHistoryBrowser
       // Empty filter: stay open so the user can refine the query (Esc still closes).
       if (prompt === undefined) return;
       finish(prompt);
-      return;
-    }
-
-    if (matchesKey(data, Key.up) || matchesKey(data, Key.down)) {
-      const count = visibleItems().length;
-      if (count > 0) {
-        const delta = matchesKey(data, Key.up) ? -1 : 1;
-        state.selectedIndex = (state.selectedIndex + delta + count) % count;
-        tui.requestRender();
-      }
       return;
     }
 
@@ -288,6 +340,51 @@ export function createPromptHistoryBrowserComponent(config: PromptHistoryBrowser
       tui.requestRender();
       return;
     }
+
+    const browsing = !state.searching;
+
+    if (browsing && matchesKey(data, "/")) {
+      state.searching = true;
+      tui.requestRender();
+      return;
+    }
+
+    if (browsing && matchesKey(data, "q")) {
+      finish(null);
+      return;
+    }
+
+    if (matchesKey(data, Key.up) || (browsing && matchesKey(data, "k"))) {
+      moveSelection(-1, true);
+      return;
+    }
+    if (matchesKey(data, Key.down) || (browsing && matchesKey(data, "j"))) {
+      moveSelection(1, true);
+      return;
+    }
+
+    if (matchesKey(data, "ctrl+d")) {
+      moveSelection(Math.max(1, Math.floor(maxVisibleRows() / 2)), false);
+      return;
+    }
+    if (matchesKey(data, "ctrl+u")) {
+      moveSelection(-Math.max(1, Math.floor(maxVisibleRows() / 2)), false);
+      return;
+    }
+
+    if (browsing && matchesKey(data, "g")) {
+      state.selectedIndex = 0;
+      tui.requestRender();
+      return;
+    }
+    if (browsing && matchesKey(data, "shift+g")) {
+      const count = visibleItems().length;
+      if (count > 0) state.selectedIndex = count - 1;
+      tui.requestRender();
+      return;
+    }
+
+    if (browsing) return;
 
     if (matchesKey(data, Key.backspace)) {
       if (state.query.length > 0) {
@@ -308,35 +405,30 @@ export function createPromptHistoryBrowserComponent(config: PromptHistoryBrowser
 
   return {
     render(width: number): string[] {
-      const border = new DynamicBorder((s: string) => theme.fg("accent", s));
-      const lines: string[] = [];
-
+      const inner = Math.max(0, width - 2);
       const pending = state.scope === "global" && globalLoad.kind !== "ready";
-      lines.push(...border.render(width));
-      lines.push(
-        ...renderTitle(state.scope, pending ? "…" : String(scopeItems().length), theme, width),
-      );
-      lines.push(renderSearchLine(state.query, theme, width));
-      lines.push("");
-
-      // Body height: cap at 60% of terminal
-      const chromeRows = lines.length + 3;
-      const byTerminal = Math.max(3, tui.terminal.rows - chromeRows);
-      const byRatio = Math.max(3, Math.floor(tui.terminal.rows * 0.6));
-      const maxVisible = Math.min(byTerminal, byRatio);
-
-      if (state.scope === "global" && globalLoad.kind === "loading") {
-        lines.push(truncateToWidth(` ${theme.fg("dim", "Loading global history…")}`, width));
-      } else if (state.scope === "global" && globalLoad.kind === "error") {
-        lines.push(truncateToWidth(` ${theme.fg("error", globalLoad.message)}`, width));
-      } else {
-        lines.push(...renderList(visibleItems(), state.selectedIndex, theme, width, maxVisible));
+      const body: string[] = [""];
+      if (state.searching || state.query.length > 0) {
+        body.push(renderSearchLine(state.query, state.searching, theme, inner));
       }
-      lines.push("");
-      lines.push(...border.render(width));
-      lines.push(` ${theme.fg("dim", truncateToWidth(HINT_TEXT, width - 2))}`);
 
-      return lines;
+      const maxVisible = maxVisibleRows();
+      if (state.scope === "global" && globalLoad.kind === "loading") {
+        body.push(truncateToWidth(` ${theme.fg("dim", "Loading global history…")}`, inner));
+      } else if (state.scope === "global" && globalLoad.kind === "error") {
+        body.push(truncateToWidth(` ${theme.fg("error", globalLoad.message)}`, inner));
+      } else {
+        body.push(...renderList(visibleItems(), state.selectedIndex, theme, inner, maxVisible));
+      }
+      body.push("");
+
+      return renderPanel(
+        panelTitle(state.scope, pending ? "…" : String(scopeItems().length)),
+        body,
+        hintText(state.searching, inner - 1),
+        theme,
+        width,
+      );
     },
     invalidate(): void {},
     handleInput,

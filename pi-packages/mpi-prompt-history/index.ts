@@ -87,14 +87,19 @@ export default function (pi: ExtensionAPI) {
 
       // An empty session still opens: Ctrl+G reaches the global history from here.
       const { historyFile } = promptHistoryPaths(resolveAgentDir());
-      const selected = await ctx.ui.custom<string | null>((tui, theme, _keybindings, done) =>
-        createPromptHistoryBrowserComponent({
-          tui,
-          theme,
-          items: userMessages,
-          done,
-          loadGlobalItems: () => loadGlobalPromptItems(historyFile),
-        }),
+      const selected = await ctx.ui.custom<string | null>(
+        (tui, theme, _keybindings, done) =>
+          createPromptHistoryBrowserComponent({
+            tui,
+            theme,
+            items: userMessages,
+            done,
+            loadGlobalItems: () => loadGlobalPromptItems(historyFile),
+          }),
+        {
+          overlay: true,
+          overlayOptions: { anchor: "center", width: "78%", maxHeight: "80%", margin: 1 },
+        },
       );
       if (selected) {
         ctx.ui.setEditorText(selected);

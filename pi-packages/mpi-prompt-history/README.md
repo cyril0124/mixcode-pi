@@ -31,7 +31,18 @@ The pointer block contains paths only, never history content.
 | `/prompt-history` | Open the browser in **Session** scope. |
 | `/prompt-history config` | Edit the config below: pick `maxBytes` to enter a new size, or reset it to the default. |
 
-Inside the browser, `Ctrl+G` toggles the scope and carries the current query across:
+Press `/` to search. Arrow keys still move. `j`, `k`, and `q` type into the query. `Ctrl+G` switches Session and Global and keeps the query.
+
+| Key | Action |
+| --- | --- |
+| `j` / `k` or ↑ / ↓ | Next / previous item |
+| `Ctrl+D` / `Ctrl+U` | Half page down / up |
+| `g` / `G` | First / last item |
+| `/` | Open search |
+| Enter | Insert the selected prompt |
+| `Ctrl+G` | Toggle Session / Global |
+| Esc | Cancel search, or close |
+| `q` | Close |
 
 | Scope | Source | Notes |
 | --- | --- | --- |
