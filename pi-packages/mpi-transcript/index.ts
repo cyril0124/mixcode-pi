@@ -30,13 +30,7 @@ import { spawn } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import {
-  CACHE_TTL_MS,
-  buildSystemPrompt,
-  collectCacheMisses,
-  estimateTokens,
-  sessionEntryToContextMessages,
-} from "@earendil-works/pi-coding-agent";
+import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type {
   BuildSystemPromptOptions,
   CacheMiss,
@@ -45,7 +39,13 @@ import type {
   SessionEntry,
   ToolInfo,
 } from "@earendil-works/pi-coding-agent";
-import type { AssistantMessage } from "@earendil-works/pi-ai";
+import {
+  buildSystemPrompt,
+  CACHE_TTL_MS,
+  collectCacheMisses,
+  estimateTokens,
+  sessionEntryToContextMessages,
+} from "@earendil-works/pi-coding-agent";
 import type { Component, TUI } from "@earendil-works/pi-tui";
 
 // ─── Session content types (subset of SDK AgentMessage we consume) ────────────
@@ -215,6 +215,96 @@ const TOOL_RESULT_MAX_LINES = 20;
 function fenceFor(text: string): string {
   const runs = text.match(/`{3,}/g);
   return "`".repeat(runs ? Math.max(3, ...runs.map((r) => r.length)) + 1 : 3);
+}
+
+// ─── Skill reads: a successful read of SKILL.md renders as a skill card ─────
+
+interface SkillReadInfo {
+  name: string;
+  description: string;
+  /** Content after the closing frontmatter fence, trimmed. */
+  body: string;
+  /** Path argument exactly as passed to the read tool. */
+  path: string;
+}
+
+/** Strip one pair of matching surrounding quotes, if present. */
+function unquote(value: string): string {
+  const q = value[0];
+  return (q === '"' || q === "'") && value.endsWith(q) && value.length >= 2
+    ? value.slice(1, -1)
+    : value;
+}
+
+/**
+ * Recognize a successful `read` of a `SKILL.md` whose result opens with a
+ * `---` frontmatter block, and parse it into card fields. For anything else,
+ * including other tools, other paths, error or missing results, and
+ * unterminated frontmatter, returns undefined so the caller keeps the
+ * generic tool rendering.
+ */
+function skillReadInfo(
+  call: ToolCallBlock,
+  result: { status: string; text: string } | undefined,
+): SkillReadInfo | undefined {
+  if (call.name !== "read" || !result || result.status === "error") return undefined;
+  const rawPath = call.arguments?.file_path ?? call.arguments?.path;
+  if (typeof rawPath !== "string" || path.basename(rawPath) !== "SKILL.md") return undefined;
+  const lines = result.text.split("\n");
+  if (lines[0]?.trim() !== "---") return undefined;
+  // Line-oriented frontmatter parse: `name:`/`description:` values, with
+  // indented continuation lines folded into one space-joined value.
+  let name = "";
+  let description = "";
+  let key: "name" | "description" | undefined;
+  let close = -1;
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i]!;
+    if (line.trim() === "---") {
+      close = i;
+      break;
+    }
+    const m = line.match(/^([\w-]+):\s*(.*)$/);
+    if (m) {
+      key = m[1] === "name" || m[1] === "description" ? m[1] : undefined;
+      const value = m[2]!.trim();
+      if (key === "name") name = value;
+      else if (key === "description") description = value;
+    } else if (key && /^\s+\S/.test(line)) {
+      const value = ` ${line.trim()}`;
+      if (key === "name") name += value;
+      else description += value;
+    }
+  }
+  if (close < 0) return undefined;
+  const dir = path.basename(path.dirname(rawPath));
+  return {
+    name: unquote(name) || (dir && dir !== "." ? dir : "SKILL.md"),
+    description: unquote(description),
+    body: lines
+      .slice(close + 1)
+      .join("\n")
+      .trim(),
+    path: rawPath,
+  };
+}
+
+/**
+ * Skill card section: name heading, path line, description paragraph, and
+ * the frontmatter-stripped body rendered as markdown. The body keeps the
+ * generic head-side tool-output cap; `fullToolOutput` uncaps it.
+ */
+function renderSkillCard(skill: SkillReadInfo, fullToolOutput: boolean | undefined): string {
+  const description = skill.description ? `${skill.description}\n\n` : "";
+  let body = "";
+  if (skill.body) {
+    const lines = skill.body.split("\n");
+    const cap = fullToolOutput ? Infinity : TOOL_RESULT_MAX_LINES;
+    const kept = lines.slice(0, cap).join("\n");
+    const more = lines.length - cap;
+    body = more > 0 ? `${kept}\n\n_… +${more} more lines_` : kept;
+  }
+  return `### 📘 Skill: ${skill.name} — ✅ success\n\n_${skill.path}_\n\n${description}${body}`;
 }
 
 // Full transcript as markdown sections: numbered user/assistant rounds,
@@ -444,43 +534,50 @@ function collectChatlog(entries: SessionEntry[], options: ChatlogOptions = {}): 
         } else if (block.type === "toolCall") {
           const call = block as ToolCallBlock;
           const result = call.id ? resultById.get(call.id) : undefined;
-          const name = call.name ?? "(unknown)";
-          // No paired result means the call never completed (e.g. aborted).
-          const status = result
-            ? result.status === "error"
-              ? "❌ error"
-              : "✅ success"
-            : "⏳ no result";
-          // Tool call arguments as a fenced JSON block; empty/missing args render nothing.
-          const args =
-            call.arguments && Object.keys(call.arguments).length ? call.arguments : undefined;
-          let argsBlock = "";
-          if (args) {
-            const json = JSON.stringify(args, null, 2);
-            const f = fenceFor(json);
-            argsBlock = `\n\n${f}json\n${json}\n${f}`;
+          // A successful SKILL.md read renders as a skill card instead of the
+          // generic raw-file block; everything else falls through unchanged.
+          const skill = skillReadInfo(call, result);
+          if (skill) {
+            parts.push(renderSkillCard(skill, fullToolOutput));
+          } else {
+            const name = call.name ?? "(unknown)";
+            // No paired result means the call never completed (e.g. aborted).
+            const status = result
+              ? result.status === "error"
+                ? "❌ error"
+                : "✅ success"
+              : "⏳ no result";
+            // Tool call arguments as a fenced JSON block; empty/missing args render nothing.
+            const args =
+              call.arguments && Object.keys(call.arguments).length ? call.arguments : undefined;
+            let argsBlock = "";
+            if (args) {
+              const json = JSON.stringify(args, null, 2);
+              const f = fenceFor(json);
+              argsBlock = `\n\n${f}json\n${json}\n${f}`;
+            }
+            // Tool output in a fence sized past any fence inside it, truncated so
+            // one big read/bash result cannot drown the transcript. Successful
+            // output keeps the head; failed output keeps the tail, where stack
+            // traces and error summaries usually live.
+            const resultText = result?.text.trim() ?? "";
+            let body = "";
+            if (resultText) {
+              const lines = resultText.split("\n");
+              const isError = result?.status === "error";
+              // Infinity cap keeps every line and yields a negative `more`,
+              // which the notice branches below treat as "nothing hidden".
+              const cap = fullToolOutput ? Infinity : TOOL_RESULT_MAX_LINES;
+              const kept = (isError ? lines.slice(-cap) : lines.slice(0, cap)).join("\n");
+              const f = fenceFor(kept);
+              const more = lines.length - cap;
+              const block = `${f}\n${kept}\n${f}`;
+              if (more <= 0) body = `\n\n${block}`;
+              else if (isError) body = `\n\n_… +${more} earlier lines_\n\n${block}`;
+              else body = `\n\n${block}\n\n_… +${more} more lines_`;
+            }
+            parts.push(`### 🔧 Tool: ${name} — ${status}${argsBlock}${body}`);
           }
-          // Tool output in a fence sized past any fence inside it, truncated so
-          // one big read/bash result cannot drown the transcript. Successful
-          // output keeps the head; failed output keeps the tail, where stack
-          // traces and error summaries usually live.
-          const resultText = result?.text.trim() ?? "";
-          let body = "";
-          if (resultText) {
-            const lines = resultText.split("\n");
-            const isError = result?.status === "error";
-            // Infinity cap keeps every line and yields a negative `more`,
-            // which the notice branches below treat as "nothing hidden".
-            const cap = fullToolOutput ? Infinity : TOOL_RESULT_MAX_LINES;
-            const kept = (isError ? lines.slice(-cap) : lines.slice(0, cap)).join("\n");
-            const f = fenceFor(kept);
-            const more = lines.length - cap;
-            const block = `${f}\n${kept}\n${f}`;
-            if (more <= 0) body = `\n\n${block}`;
-            else if (isError) body = `\n\n_… +${more} earlier lines_\n\n${block}`;
-            else body = `\n\n${block}\n\n_… +${more} more lines_`;
-          }
-          parts.push(`### 🔧 Tool: \`${name}\` — ${status}${argsBlock}${body}`);
         }
       }
       // Surface failed/interrupted turns; without this an errored turn with no
@@ -682,6 +779,7 @@ vim.api.nvim_set_hl(0, "MpiTranscriptTurn", { default = true, link = "Identifier
 vim.fn.matchadd("Title", [[^## 👤 User.*]])
 vim.fn.matchadd("Identifier", [[^## 🤖 Assistant.*]])
 vim.fn.matchadd("Statement", [[^### 🔧 Tool.*]])
+vim.fn.matchadd("Question", [[^### 📘 Skill.*]])
 vim.fn.matchadd("Special", [[^## 📥 Injected.*]])
 vim.fn.matchadd("WarningMsg", [[^## 📦 Compaction.*]])
 vim.fn.matchadd("Type", [[^## 🌿 Branch Summary.*]])
@@ -714,7 +812,8 @@ function _G.MpiTranscriptFoldtext()
     local line = vim.fn.getline(k)
     if tool_heading(line) then
       local raw = line:match("Tool:%s*(.-)%s*—") or line:match("Tool:%s*(.+)$") or ""
-      name = raw:gsub(tick3:sub(1, 1), ""):gsub("^%s+", ""):gsub("%s+$", "")
+      -- Headings carry bare tool names, so only trim spaces.
+      name = raw:gsub("^%s+", ""):gsub("%s+$", "")
       if name == "" then name = "tool" end
       break
     end
@@ -739,6 +838,8 @@ for i, line in ipairs(lines) do
     mark = { text = "A ", hl = "Identifier" }
   elseif line:match([[^### 🔧 Tool]]) then
     mark = line:match("❌") and { text = "E ", hl = "ErrorMsg" } or { text = "T ", hl = "Statement" }
+  elseif line:match([[^### 📘 Skill]]) then
+    mark = { text = "S ", hl = "Question" }
   elseif line:match([[^## 📥 Injected]]) then
     mark = { text = "I ", hl = "Special" }
   elseif line:match([[^## 📦 Compaction]]) then

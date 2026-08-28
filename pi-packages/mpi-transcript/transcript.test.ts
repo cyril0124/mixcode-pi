@@ -7,11 +7,11 @@ import { test } from "node:test";
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 import {
   buildViewText,
+  type ContextPrefix,
   editorExtraArgs,
   estimateContextSize,
   formatViewText,
   NVIM_TRANSCRIPT_LUA,
-  type ContextPrefix,
 } from "./index.js";
 
 // ─── editorExtraArgs: vim/nvim flags ─────────────────────────────────────────
@@ -82,7 +82,7 @@ test("nvim transcript lua sets wrap/conceal, heading winbar, and heading matches
         "still",
         "```",
         "",
-        "### 🔧 Tool: `bash` — ✅ success",
+        "### 🔧 Tool: bash — ✅ success",
         "",
         "```json",
         "{",
@@ -94,6 +94,14 @@ test("nvim transcript lua sets wrap/conceal, heading winbar, and heading matches
         "world",
         "more",
         "```",
+        "",
+        "### 📘 Skill: sample — ✅ success",
+        "",
+        "_/tmp/skills/sample/SKILL.md_",
+        "",
+        "Does things.",
+        "",
+        "# Sample Body",
         "",
         "after tool prose",
         "",
@@ -129,6 +137,7 @@ test("nvim transcript lua sets wrap/conceal, heading winbar, and heading matches
         "local stc = vim.wo.statuscolumn",
         "local function col(l) return vim.api.nvim_eval_statusline(stc, { use_statuscol_lnum = l }).str end",
         'local stc_h = col(line_of("## 🤖 Assistant · #1"))',
+        'local stc_s = col(line_of("### 📘 Skill: sample — ✅ success"))',
         'local stc_b = col(line_of("hello"))',
         "local span = _G.MpiTranscriptTurn",
         "io.stdout:write(table.concat({",
@@ -140,7 +149,7 @@ test("nvim transcript lua sets wrap/conceal, heading winbar, and heading matches
         '  stc_h, tostring(span.s), tostring(line_of("## 🤖 Assistant · #1")),',
         '  tostring(span.e), tostring(line_of("## Fake heading from the model")),',
         '  ft, ftin, tostring(jumped), tostring(line_of("## 🤖 Assistant · #1")), tostring(nconceal),',
-        "  stc_b",
+        "  stc_b, stc_s",
         "}, string.char(10)))",
       ].join("\n"),
     );
@@ -171,7 +180,7 @@ test("nvim transcript lua sets wrap/conceal, heading winbar, and heading matches
     assert.match(out[3] ?? "", /12s/);
     assert.match(out[3] ?? "", /\[t/);
     assert.doesNotMatch(out[3] ?? "", /Fake/);
-    assert.equal(out[4], "6");
+    assert.equal(out[4], "7");
     assert.equal(out[5], "manual");
     assert.notEqual(out[6], "-1");
     assert.equal(out[7], "-1");
@@ -181,6 +190,8 @@ test("nvim transcript lua sets wrap/conceal, heading winbar, and heading matches
     assert.match(out[9] ?? "", /^A [│ ]\d+ $/);
     // stdout.trim() strips the final line's trailing pad space.
     assert.match(out[19] ?? "", /^ {2}[│ ]\d+ ?$/);
+    // Skill headings carry their own S gutter mark (Question highlight).
+    assert.match(out[20] ?? "", /^S [│ ]\d+ ?$/);
     assert.equal(out[10], out[11]);
     assert.ok(Number(out[12]) >= Number(out[13]));
     assert.match(out[14] ?? "", /bash/);
@@ -356,7 +367,7 @@ test("buildViewText chatlog: renders user/assistant/thinking/tool lines with pai
   const text = buildViewText("chatlog", entries);
   assert.match(text, /## 👤 User[\s\S]*run the tests/);
   assert.match(text, /💭 Thinking[\s\S]*let me run it/);
-  assert.match(text, /🔧 Tool: `bash`[\s\S]*✅ success[\s\S]*all tests passed/);
+  assert.match(text, /🔧 Tool: bash[\s\S]*✅ success[\s\S]*all tests passed/);
   assert.match(text, /## 🤖 Assistant[\s\S]*Tests passed\./);
 });
 
@@ -511,7 +522,7 @@ test("buildViewText chatlog: renders tool calls as h3 headings", () => {
     assistantEntry([{ type: "toolCall", id: "call-6", name: "bash", arguments: {} }]),
     toolResultEntry("call-6", "done"),
   ];
-  assert.match(buildViewText("chatlog", entries), /### 🔧 Tool: `bash` — ✅ success\n/);
+  assert.match(buildViewText("chatlog", entries), /### 🔧 Tool: bash — ✅ success\n/);
 });
 
 test("buildViewText chatlog: tool call without a paired result shows no result", () => {
@@ -519,7 +530,7 @@ test("buildViewText chatlog: tool call without a paired result shows no result",
     assistantEntry([{ type: "toolCall", id: "call-5", name: "bash", arguments: {} }]),
   ];
   const text = buildViewText("chatlog", entries);
-  assert.match(text, /🔧 Tool: `bash`[\s\S]*⏳ no result/);
+  assert.match(text, /🔧 Tool: bash[\s\S]*⏳ no result/);
   assert.doesNotMatch(text, /✅ success/);
 });
 
@@ -780,8 +791,95 @@ test("buildViewText chatlog: marks a failed tool result as error", () => {
   ];
   assert.match(
     buildViewText("chatlog", entries),
-    /🔧 Tool: `bash`[\s\S]*❌ error[\s\S]*command not found/,
+    /🔧 Tool: bash[\s\S]*❌ error[\s\S]*command not found/,
   );
+});
+
+// ─── Skill reads: read of SKILL.md renders a skill card ────────────────────
+
+function skillFile(frontmatter: string, body: string): string {
+  return `---\n${frontmatter}\n---\n\n${body}`;
+}
+
+function readCall(id: string, filePath: string): Parameters<typeof assistantEntry>[0][number] {
+  return { type: "toolCall", id, name: "read", arguments: { file_path: filePath } };
+}
+
+test("buildViewText chatlog: successful SKILL.md read renders a skill card, not a generic tool block", () => {
+  const entries: SessionEntry[] = [
+    assistantEntry([readCall("call-sk1", "/home/u/.agents/skills/simple-plan/SKILL.md")]),
+    toolResultEntry(
+      "call-sk1",
+      skillFile(
+        "name: simple-plan\ndescription: Write complete plans",
+        "# Simple Plan\n\nbody line",
+      ),
+    ),
+  ];
+  const text = buildViewText("chatlog", entries);
+  assert.match(text, /### 📘 Skill: simple-plan — ✅ success/);
+  assert.match(text, /_\/home\/u\/\.agents\/skills\/simple-plan\/SKILL\.md_/);
+  assert.match(text, /Write complete plans/);
+  assert.match(text, /# Simple Plan\n\nbody line/);
+  // Args JSON is redundant with the path line; the raw file dump is replaced.
+  assert.doesNotMatch(text, /```json/);
+  assert.doesNotMatch(text, /🔧 Tool: read/);
+});
+
+test("buildViewText chatlog: skill body keeps the 20-line cap with a notice; full uncaps", () => {
+  const body = Array.from({ length: 25 }, (_, i) => `body${i + 1}`).join("\n");
+  const entries: SessionEntry[] = [
+    assistantEntry([readCall("call-sk2", "/skills/big/SKILL.md")]),
+    toolResultEntry("call-sk2", skillFile("name: big", body)),
+  ];
+  const cut = buildViewText("chatlog", entries);
+  assert.match(cut, /body20/);
+  assert.doesNotMatch(cut, /body21/);
+  assert.match(cut, /_… \+5 more lines_/);
+  const full = buildViewText("chatlog", entries, { fullToolOutput: true });
+  assert.match(full, /body25/);
+  assert.doesNotMatch(full, /more lines/);
+});
+
+test("buildViewText chatlog: failed SKILL.md read keeps the generic tool rendering", () => {
+  const entries: SessionEntry[] = [
+    assistantEntry([readCall("call-sk3", "/skills/lost/SKILL.md")]),
+    toolResultEntry("call-sk3", "Error: ENOENT", true),
+  ];
+  const text = buildViewText("chatlog", entries);
+  assert.match(text, /### 🔧 Tool: read — ❌ error/);
+  assert.match(text, /```json/);
+  assert.doesNotMatch(text, /📘/);
+});
+
+test("buildViewText chatlog: SKILL.md read without frontmatter keeps the generic tool rendering", () => {
+  const entries: SessionEntry[] = [
+    assistantEntry([readCall("call-sk4", "/skills/raw/SKILL.md")]),
+    toolResultEntry("call-sk4", "# just markdown"),
+  ];
+  const text = buildViewText("chatlog", entries);
+  assert.match(text, /🔧 Tool: read/);
+  assert.match(text, /```json/);
+});
+
+test("buildViewText chatlog: ordinary read of a non-SKILL file keeps the generic rendering", () => {
+  const entries: SessionEntry[] = [
+    assistantEntry([readCall("call-r1", "/src/index.ts")]),
+    toolResultEntry("call-r1", "const x = 1;"),
+  ];
+  const text = buildViewText("chatlog", entries);
+  assert.match(text, /### 🔧 Tool: read — ✅ success/);
+  assert.match(text, /```json/);
+});
+
+test("buildViewText chatlog: folded multiline description joins into one paragraph; name falls back to the directory", () => {
+  const entries: SessionEntry[] = [
+    assistantEntry([readCall("call-sk5", "/skills/my-skill/SKILL.md")]),
+    toolResultEntry("call-sk5", skillFile("description: first\n  second continued", "body")),
+  ];
+  const text = buildViewText("chatlog", entries);
+  assert.match(text, /### 📘 Skill: my-skill — ✅ success/);
+  assert.match(text, /first second continued/);
 });
 
 // ─── Context size estimate ───────────────────────────────────────────────────
