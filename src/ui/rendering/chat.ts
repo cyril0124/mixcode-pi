@@ -84,6 +84,16 @@ interface RenderConversationOptions {
 
 const chatLineRenderCache = new WeakMap<ChatLine, { key: string; lines: string[] }>();
 
+// Global render-input generation folded into every cache key. Bumped when an
+// out-of-band render input changes (e.g. lazy highlight.js language
+// registration completes), so cached blocks rendered before the change miss
+// and re-render instead of pinning stale output.
+let chatLineRenderGeneration = 0;
+
+export function invalidateChatLineRenderCache(): void {
+  chatLineRenderGeneration++;
+}
+
 export function renderConversation(
   chat: ChatLine[],
   width: number,
@@ -220,7 +230,8 @@ function renderMessageBlock(
   tab?: MixCodeTabInfo,
   options: RenderChatBlockOptions = {},
 ): string[] {
-  const cacheKey = chatLineRenderCacheKey(line, width, tab, options);
+  const rawKey = chatLineRenderCacheKey(line, width, tab, options);
+  const cacheKey = rawKey && `${chatLineRenderGeneration}${KEY_SEP}${rawKey}`;
   const truncatesStreamingText = shouldTruncateStreamingMarkdown(line, options);
   if (cacheKey && !truncatesStreamingText) {
     const cached = chatLineRenderCache.get(line);

@@ -32,6 +32,8 @@ import {
 } from "../core/state-store.js";
 import type { MixCodeState } from "../core/types.js";
 import { createMixCodeTui } from "../ui/app.js";
+import { loadAllHighlightLanguages } from "../ui/pi-theme-api.js";
+import { invalidateChatLineRenderCache } from "../ui/rendering/chat.js";
 import { dispatchOwnedOverlayKey } from "../ui/app-key-handlers.js";
 import { hasCapturingAppOverlay, renderAppOverlay } from "../ui/app-overlays.js";
 import { handleSubmittedInput } from "../ui/app-submit.js";
@@ -339,6 +341,14 @@ export async function runInteractiveApp(args: MainArgs, selfRoot: string): Promi
     ctlServer?.dispose();
   };
   tui.start();
+  // Pi parity (InteractiveMode.init): only ~20 languages are registered
+  // eagerly for syntax highlighting; load the rest (diff, json, yaml, ...)
+  // in the background after the first paint, then drop cached chat blocks so
+  // restored sessions re-highlight with the full grammar set.
+  void loadAllHighlightLanguages().then(() => {
+    invalidateChatLineRenderCache();
+    tui.requestRender();
+  });
   // From here a fault that escapes the event loop is the only exit path with no
   // teardown: it must leave a crash log behind and drop this instance's ctl
   // socket and registry entry, like a signal exit does.

@@ -1,3 +1,6 @@
+diff --git a/node_modules/@earendil-works/pi-coding-agent/.bun-tag-4e5ce3fcaeab760 b/.bun-tag-4e5ce3fcaeab760
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
 diff --git a/dist/core/agent-session.d.ts b/dist/core/agent-session.d.ts
 index 528a246ee77895d72dfb51c2946444e1760bc049..b35c14ada7fa911b15991441bd1fa0961eb5889b 100644
 --- a/dist/core/agent-session.d.ts
@@ -429,10 +432,10 @@ index 1c68da843842e6c73d02d913b3392cfb6d37dda0..72d9ac9dbc0c37da1814b11bfc575ed5
      const resolvedAgentDir = resolvePath(agentDir);
      const safePath = `--${resolvedCwd.replace(/^[/\\]/, "").replace(/[/\\:]/g, "-")}--`;
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index cd12d9e885c21ea14c3a1e681e9ca1544087600a..c96176ef0f6165ce9e3b31e3502291fec1fef8b2 100644
+index cd12d9e885c21ea14c3a1e681e9ca1544087600a..28de1a2cec68f39c0359d728855ef2319b2b6c1a 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
-@@ -26,10 +26,42 @@ export { hasTrustRequiringProjectResources, type ProjectTrustDecision, ProjectTr
+@@ -26,10 +26,43 @@ export { hasTrustRequiringProjectResources, type ProjectTrustDecision, ProjectTr
  export { type MainOptions, main } from "./main.ts";
  export { InteractiveMode, type InteractiveModeOptions, type JsonAgentSessionEvent, type ModelInfo, type PrintModeOptions, RpcClient, type RpcClientOptions, type RpcCommand, type RpcEventListener, type RpcExtensionUIRequest, type RpcExtensionUIResponse, type RpcResponse, type RpcSessionState, runPrintMode, runRpcMode, } from "./modes/index.ts";
  export { ArminComponent, AssistantMessageComponent, BashExecutionComponent, BorderedLoader, BranchSummaryMessageComponent, CompactionSummaryMessageComponent, CustomEditor, CustomMessageComponent, DynamicBorder, ExtensionEditorComponent, ExtensionInputComponent, ExtensionSelectorComponent, FooterComponent, keyHint, keyText, LoginDialogComponent, ModelSelectorComponent, OAuthSelectorComponent, type RenderDiffOptions, rawKeyHint, renderDiff, SessionSelectorComponent, type SettingsCallbacks, type SettingsConfig, SettingsSelectorComponent, ShowImagesSelectorComponent, SkillInvocationMessageComponent, ThemeSelectorComponent, ThinkingSelectorComponent, ToolExecutionComponent, type ToolExecutionOptions, TreeSelectorComponent, truncateToVisualLines, UserMessageComponent, UserMessageSelectorComponent, type VisualTruncateResult, } from "./modes/interactive/components/index.ts";
@@ -451,6 +454,7 @@ index cd12d9e885c21ea14c3a1e681e9ca1544087600a..c96176ef0f6165ce9e3b31e3502291fe
 +    setThemeInstance,
 +    type ThemeColor,
 +} from "./modes/interactive/theme/theme.ts";
++export { loadAllHighlightLanguages } from "./utils/syntax-highlight.ts";
  export { copyToClipboard } from "./utils/clipboard.ts";
  export { parseFrontmatter, stripFrontmatter } from "./utils/frontmatter.ts";
  export { convertToPng } from "./utils/image-convert.ts";
@@ -478,10 +482,10 @@ index cd12d9e885c21ea14c3a1e681e9ca1544087600a..c96176ef0f6165ce9e3b31e3502291fe
  //# sourceMappingURL=index.d.ts.map
 \ No newline at end of file
 diff --git a/dist/index.js b/dist/index.js
-index 7bc4467f5af64aba74ab6cafd136e468b6aab803..8689ab131427834220e3dec7bebd27bff8782c00 100644
+index 7bc4467f5af64aba74ab6cafd136e468b6aab803..8c6e8dd451b07256e3e08d15af6de2bf4b880d2f 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -36,7 +36,19 @@ export { InteractiveMode, RpcClient, runPrintMode, runRpcMode, } from "./modes/i
+@@ -36,7 +36,21 @@ export { InteractiveMode, RpcClient, runPrintMode, runRpcMode, } from "./modes/i
  // UI components for extensions
  export { ArminComponent, AssistantMessageComponent, BashExecutionComponent, BorderedLoader, BranchSummaryMessageComponent, CompactionSummaryMessageComponent, CustomEditor, CustomMessageComponent, DynamicBorder, ExtensionEditorComponent, ExtensionInputComponent, ExtensionSelectorComponent, FooterComponent, keyHint, keyText, LoginDialogComponent, ModelSelectorComponent, OAuthSelectorComponent, rawKeyHint, renderDiff, SessionSelectorComponent, SettingsSelectorComponent, ShowImagesSelectorComponent, SkillInvocationMessageComponent, ThemeSelectorComponent, ThinkingSelectorComponent, ToolExecutionComponent, TreeSelectorComponent, truncateToVisualLines, UserMessageComponent, UserMessageSelectorComponent, } from "./modes/interactive/components/index.js";
  // Theme utilities for custom tools and extensions
@@ -499,10 +503,12 @@ index 7bc4467f5af64aba74ab6cafd136e468b6aab803..8689ab131427834220e3dec7bebd27bf
 +    setRegisteredThemes,
 +    setThemeInstance,
 +} from "./modes/interactive/theme/theme.js";
++// Syntax highlighting: lazy full-language registration for markdown code fences
++export { loadAllHighlightLanguages } from "./utils/syntax-highlight.js";
  // Clipboard utilities
  export { copyToClipboard } from "./utils/clipboard.js";
  export { parseFrontmatter, stripFrontmatter } from "./utils/frontmatter.js";
-@@ -44,4 +56,37 @@ export { convertToPng } from "./utils/image-convert.js";
+@@ -44,4 +58,37 @@ export { convertToPng } from "./utils/image-convert.js";
  export { formatDimensionNote, resizeImage } from "./utils/image-resize.js";
  // Shell utilities
  export { getPowerShellConfig, getShellConfig } from "./utils/shell.js";

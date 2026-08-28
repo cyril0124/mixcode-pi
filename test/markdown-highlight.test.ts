@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { loadAllHighlightLanguages } from "../src/ui/pi-theme-api.js";
 import { renderMarkdown, setMarkdownCodeBlockIndent } from "../src/ui/rendering/markdown.js";
 
 function syntaxColors(text: string): Set<string> {
@@ -32,6 +33,17 @@ test("renderMarkdown highlights code blocks inside a thinking-styled block", () 
   const body = lines.join("\n");
 
   assert.ok(syntaxColors(body).size > 1, "thinking code blocks must be highlighted too");
+});
+
+test("renderMarkdown highlights diff fences once full languages are loaded", async () => {
+  // diff is not in pi's eager highlight.js language set; it only registers
+  // via loadAllHighlightLanguages (kicked off after first paint in
+  // interactive-app). Without it, diff fences render in one uniform
+  // mdCodeBlock color.
+  await loadAllHighlightLanguages();
+  const md = ["```diff", "-local a = 1", "+local a = 2", "```"].join("\n");
+  const body = renderMarkdown(md, 80).join("\n");
+  assert.ok(syntaxColors(body).size > 1, "diff deletion/addition lines must get distinct colors");
 });
 
 function leadingSpaces(line: string): number {

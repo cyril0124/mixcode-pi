@@ -12,6 +12,7 @@ export {
   getThemeByName,
   highlightCode,
   initTheme,
+  loadAllHighlightLanguages,
   setRegisteredThemes,
   setThemeInstance as applyPiThemeInstance,
 } from "@earendil-works/pi-coding-agent";
