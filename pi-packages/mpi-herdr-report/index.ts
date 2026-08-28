@@ -7,9 +7,12 @@
  * Multi-tab: process-level busy set so any running session keeps the pane working.
  *
  * MixCode extras: `mpi:waiting-for-input` → blocked, `mpi:mark-done` notify.
+ * On process exit a detached `herdr pane release-agent` child clears the
+ * pane's agent entry so no stale state outlives the process.
  * Pure Node — must also run under upstream pi (Node + jiti).
  */
 
+import { spawn } from "node:child_process";
 import * as net from "node:net";
 import type {
   ExtensionContext,
@@ -209,6 +212,55 @@ type QueuedState = {
   seq: number;
 };
 
+/**
+ * The final report must survive every exit path: the quit exit watchdog,
+ * SIGINT/SIGTERM handlers that call process.exit immediately, and crash-guard
+ * exits. An 'exit' listener cannot await socket I/O, so delivery is delegated
+ * to a detached `herdr pane release-agent` child that outlives this process.
+ * Release removes the pane's agent entry from the herdr sidebar and hands the
+ * pane back to herdr's own screen detection; an idle report would instead
+ * leave the dead process listed as an idle agent. Seq continues the
+ * in-process domain, so this is the highest seq the process ever reports and
+ * wins over any straggling in-process delivery.
+ */
+export function buildExitReleaseArgv(paneId: string, seq: number): string[] {
+  return [
+    "pane",
+    "release-agent",
+    paneId,
+    "--source",
+    HERDR_REPORT_SOURCE,
+    "--agent",
+    HERDR_REPORT_AGENT,
+    "--seq",
+    String(seq),
+  ];
+}
+
+// One hook per process even across module re-imports (session replacement
+// re-imports this module; a module-local boolean would fork and double-spawn).
+const EXIT_HOOK_KEY = Symbol.for("mpi-herdr-report:exit-hook-installed");
+
+function installExitReleaseHook(env: NodeJS.ProcessEnv = process.env): void {
+  const registry = globalThis as unknown as Record<symbol, boolean | undefined>;
+  if (registry[EXIT_HOOK_KEY]) return;
+  registry[EXIT_HOOK_KEY] = true;
+  process.on("exit", () => {
+    const paneId = resolveHerdrPaneId(env);
+    if (!paneId) return;
+    const cli = env.HERDR_BIN_PATH?.trim() || "herdr";
+    const child = spawn(cli, buildExitReleaseArgv(paneId, nextReportSeq()), {
+      detached: true,
+      stdio: "ignore",
+    });
+    child.on("error", () => {
+      // Swallowed: spawn ENOENT when the herdr CLI is not installed. Without
+      // the CLI there is no herdr server to report to.
+    });
+    child.unref();
+  });
+}
+
 let reportSeq = Date.now() * 1000;
 let sendInFlight = false;
 let queuedState: QueuedState | undefined;
@@ -322,6 +374,7 @@ function queueState(
 
 const herdrReportExtension: ExtensionFactory = (pi) => {
   if (!herdrBridgeEnabled()) return;
+  installExitReleaseHook();
 
   let lastState: HerdrReportState | undefined;
   let lastMessage: string | undefined;

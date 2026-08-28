@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as net from "node:net";
 import * as os from "node:os";
@@ -288,6 +289,51 @@ test("session_start does not read isIdle after the session ctx is replaced", asy
     restoreEnv("HERDR_ENV", prev.HERDR_ENV);
     restoreEnv("HERDR_SOCKET_PATH", prev.HERDR_SOCKET_PATH);
     restoreEnv("HERDR_PANE_ID", prev.HERDR_PANE_ID);
+  }
+});
+
+test("process exit spawns a detached herdr CLI agent release", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-herdr-exit-hook-"));
+  const log = path.join(dir, "cli.log");
+  const fakeCli = path.join(dir, "herdr");
+  await fs.writeFile(fakeCli, `#!/bin/sh\nprintf '%s\\n' "$*" >> "${log}"\n`, { mode: 0o755 });
+  const childScript = path.join(dir, "child.ts");
+  const indexPath = path.join(import.meta.dirname!, "index.ts");
+  await fs.writeFile(
+    childScript,
+    [
+      `const { default: factory } = await import(${JSON.stringify(indexPath)});`,
+      "factory({ on() {}, events: { on() {} } });",
+      "process.exit(0);",
+    ].join("\n"),
+  );
+
+  try {
+    const child = spawn(process.execPath, [childScript], {
+      stdio: "ignore",
+      env: {
+        ...process.env,
+        MIXCODE: "1",
+        HERDR_ENV: "1",
+        HERDR_SOCKET_PATH: path.join(dir, "unused.sock"),
+        HERDR_PANE_ID: "w1:p1",
+        HERDR_BIN_PATH: fakeCli,
+      },
+    });
+    const exitCode = await new Promise<number | null>((resolve) =>
+      child.on("close", (code) => resolve(code)),
+    );
+    assert.equal(exitCode, 0);
+
+    // The detached CLI child outlives the exiting process; poll for its write.
+    let logged = "";
+    for (let i = 0; i < 40 && !logged; i++) {
+      logged = await fs.readFile(log, "utf8").catch(() => "");
+      if (!logged) await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    assert.match(logged, /^pane release-agent w1:p1 --source mpi --agent mpi --seq \d+\n$/);
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
   }
 });
 
