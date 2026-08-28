@@ -67,6 +67,19 @@ function renderShownOverlay(tui: ReturnType<typeof createOverlayTui>): string {
   return stripAnsi(shownWorkspaceOverlay(tui).render(100).join("\n"));
 }
 
+/**
+ * Overlay save/restore/delete actions run fire-and-forget after their key
+ * handler returns; poll the terminal observable instead of a fixed sleep,
+ * which loses the race on a loaded CI runner. Fails loudly on timeout.
+ */
+async function until(predicate: () => boolean, timeoutMs = 5000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!predicate()) {
+    if (Date.now() >= deadline) assert.fail(`condition not met within ${timeoutMs}ms`);
+    await Bun.sleep(10);
+  }
+}
+
 function createRuntime(
   sessionFiles: Record<string, string | undefined> = {},
   promptHistory: Record<string, string[]> = {},
@@ -268,7 +281,8 @@ test("save workspace input confirms overwrite before saving", async () => {
     assert.match(renderShownOverlay(tui), /Confirm Update Workspace/);
 
     overlay.handleInput("\r");
-    await Bun.sleep(20);
+    // The toast is pushed only after the workspace file write completed.
+    await until(() => state.tabs[0]?.toast?.message === "Workspace updated: main");
 
     const saved = await loadWorkspaces(workspaceFile);
     assert.deepEqual(
@@ -328,7 +342,9 @@ test("restore workspace reopens saved sessions, closes extra tabs, and reports m
       undefined,
       workspaceFile,
     );
-    await Bun.sleep(50);
+    // state.tabs is rebuilt only in finishWorkspaceRestore, after switch and
+    // closes settle, so this implies every assertion input below is final.
+    await until(() => state.tabs.length === 1 && switched.length === 1);
 
     assert.equal(state.tabs.length, 1);
     assert.equal(state.tabs[0]?.title, "plan");
@@ -388,7 +404,13 @@ test("restore workspace whose sessions are all missing re-presents the Missing S
       undefined,
       workspaceFile,
     );
-    await Bun.sleep(50);
+    // mode="missing" is the terminal state the Missing Sessions panel renders
+    // from; the transient notice overlay is skipped by checking the component
+    // type first.
+    await until(() => {
+      const last = tui.components.at(-1);
+      return last instanceof WorkspaceOverlay && last.mode === "missing";
+    });
 
     assert.equal(state.tabs.length, 0);
     assert.deepEqual(closed, ["extra"]);
@@ -504,7 +526,8 @@ test("delete workspace selector requires confirmation", async () => {
     assert.match(renderShownOverlay(tui), /Delete Workspace "main"/);
 
     overlay.handleInput("\r");
-    await Bun.sleep(20);
+    // The toast is pushed only after the workspace file deletion completed.
+    await until(() => state.tabs[0]?.toast?.message === "Workspace deleted: main");
     await assert.rejects(loadWorkspaces(workspaceFile), /ENOENT/);
     assert.equal(state.tabs[0]?.toast?.message, "Workspace deleted: main");
   } finally {
