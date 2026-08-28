@@ -78,8 +78,18 @@ export class InjectingTerminal implements Terminal {
   }
 }
 
+/**
+ * External programs sharing the tty (vim, less, `reset`, embedded shells) can
+ * clear mouse reporting on exit, leaving the mouse dead while keyboard input
+ * still works. DECSET is idempotent, so re-sending the enable sequence every
+ * interval recovers automatically. This runs on a timer because an idle app
+ * writes nothing else that could carry the sequence.
+ */
+const MOUSE_REPORTING_REASSERT_INTERVAL_MS = 1000;
+
 export class MouseReportingTerminal implements Terminal {
   private started = false;
+  private reassertTimer?: ReturnType<typeof setInterval>;
 
   constructor(private readonly inner: Terminal) {}
 
@@ -88,15 +98,30 @@ export class MouseReportingTerminal implements Terminal {
     this.inner.clearScreen();
     this.inner.write(`${AUTOWRAP_DISABLE}${MOUSE_REPORTING_ENABLE}`);
     this.started = true;
+    this.stopReassert();
+    this.reassertTimer = setInterval(
+      () => this.inner.write(MOUSE_REPORTING_ENABLE),
+      MOUSE_REPORTING_REASSERT_INTERVAL_MS,
+    );
+    this.reassertTimer.unref?.();
+  }
+
+  private stopReassert(): void {
+    if (this.reassertTimer) clearInterval(this.reassertTimer);
+    this.reassertTimer = undefined;
   }
 
   stop(): void {
+    this.stopReassert();
     if (this.started) this.inner.write(`${MOUSE_REPORTING_DISABLE}${AUTOWRAP_ENABLE}`);
     this.started = false;
     this.inner.stop();
   }
 
   async drainInput(maxMs?: number, idleMs?: number): Promise<void> {
+    // Shutdown path: the timer must not re-enable mouse reporting while input
+    // drains, or late mouse events would leak to the parent shell.
+    this.stopReassert();
     if (this.started) this.inner.write(`${MOUSE_REPORTING_DISABLE}${AUTOWRAP_ENABLE}`);
     await this.inner.drainInput(maxMs, idleMs);
   }

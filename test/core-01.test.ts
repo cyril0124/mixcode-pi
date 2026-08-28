@@ -128,6 +128,53 @@ test("mouse reporting terminal enables and disables SGR mouse events", async () 
   assert.equal(writes.at(-1), `${MOUSE_REPORTING_DISABLE}${AUTOWRAP_ENABLE}`);
 });
 
+test("mouse reporting terminal re-asserts enable so external clobber recovers", async () => {
+  const writes: string[] = [];
+  const terminal: Terminal = {
+    start: () => undefined,
+    stop: () => undefined,
+    drainInput: async () => undefined,
+    write: (data: string) => {
+      writes.push(data);
+    },
+    get columns() {
+      return 80;
+    },
+    get rows() {
+      return 24;
+    },
+    get kittyProtocolActive() {
+      return true;
+    },
+    moveBy: () => undefined,
+    hideCursor: () => undefined,
+    showCursor: () => undefined,
+    clearLine: () => undefined,
+    clearFromCursor: () => undefined,
+    clearScreen: () => undefined,
+    setTitle: () => undefined,
+    setProgress: () => undefined,
+  };
+
+  const mouseTerminal = withMouseReporting(terminal);
+  mouseTerminal.start(
+    () => undefined,
+    () => undefined,
+  );
+  const writesAfterStart = writes.length;
+  // The wrapper cannot observe an external program clearing mouse modes, so
+  // the enable sequence must be re-sent unconditionally every interval.
+  await new Promise((resolve) => setTimeout(resolve, 1200));
+  assert.ok(
+    writes.slice(writesAfterStart).includes(MOUSE_REPORTING_ENABLE),
+    "expected periodic MOUSE_REPORTING_ENABLE re-assert after start",
+  );
+  mouseTerminal.stop();
+  const writesAfterStop = writes.length;
+  await new Promise((resolve) => setTimeout(resolve, 1200));
+  assert.equal(writes.length, writesAfterStop, "re-assert timer must stop with the terminal");
+});
+
 test("fuzzyMatch adapts Pi TUI score (lower better; undefined = no match)", () => {
   assert.equal(fuzzyMatch("", "abc"), 0);
   assert.equal(fuzzyMatch("a", ""), undefined);
