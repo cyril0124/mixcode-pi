@@ -327,10 +327,8 @@ import optimizePromptPackageJson from "../../pi-packages/mpi-optimize-prompt/pac
 import optimizePromptSchemaJson from "../../pi-packages/mpi-optimize-prompt/mpi-optimize-prompt.schema.json" with {
   type: "text",
 };
-import midTurnCompactIndex from "../../pi-packages/mpi-mid-turn-compact/index.ts" with {
-  type: "text",
-};
-import midTurnCompactPackageJson from "../../pi-packages/mpi-mid-turn-compact/package.json" with {
+import lengthResumeIndex from "../../pi-packages/mpi-length-resume/index.ts" with { type: "text" };
+import lengthResumePackageJson from "../../pi-packages/mpi-length-resume/package.json" with {
   type: "text",
 };
 import modelSkillsIndex from "../../pi-packages/mpi-model-skills/index.ts" with { type: "text" };
@@ -664,9 +662,9 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
       "package.json": optimizePromptPackageJson,
       "mpi-optimize-prompt.schema.json": optimizePromptSchemaJson,
     },
-    "mpi-mid-turn-compact": {
-      "index.ts": midTurnCompactIndex,
-      "package.json": midTurnCompactPackageJson,
+    "mpi-length-resume": {
+      "index.ts": lengthResumeIndex,
+      "package.json": lengthResumePackageJson,
     },
     "mpi-model-skills": {
       "index.ts": modelSkillsIndex,

@@ -1,5 +1,5 @@
 /**
- * mpi-mid-turn-compact — auto-continue after length-truncated answers.
+ * mpi-length-resume — auto-continue after length-truncated answers.
  *
  * Pi core compacts on threshold between tool execution and the next
  * assistant response (mid-run auto-compaction) but never restarts a turn
@@ -35,7 +35,7 @@ export const TIGHT_RESUME_PROMPT =
   "Context is still near the limit after compaction. Using only the compaction summary and recent messages, produce the best final answer now. Do not read large files or run broad searches; prefer synthesizing what you already have.";
 
 /** Custom message type: participates in LLM context, hidden in TUI (display: false). */
-export const RESUME_CUSTOM_TYPE = "mpi-mid-turn-resume";
+export const RESUME_CUSTOM_TYPE = "mpi-length-resume";
 
 const DEFAULT_RESERVE_TOKENS = DEFAULT_COMPACTION_SETTINGS.reserveTokens;
 
@@ -155,13 +155,13 @@ function queueResume(
   }
 }
 
-export function createMidTurnCompactExtension(options?: {
+export function createLengthResumeExtension(options?: {
   agentDir?: string;
   enabled?: boolean;
 }): ExtensionFactory {
   const enabled =
     options?.enabled ??
-    (process.env.MPI_MID_TURN_COMPACT === undefined || process.env.MPI_MID_TURN_COMPACT !== "0");
+    (process.env.MPI_LENGTH_RESUME === undefined || process.env.MPI_LENGTH_RESUME !== "0");
 
   return (pi: ExtensionAPI) => {
     let lastAssistantStopReason: string | undefined;
@@ -278,6 +278,6 @@ export function createMidTurnCompactExtension(options?: {
   };
 }
 
-const midTurnCompactExtension: ExtensionFactory = createMidTurnCompactExtension();
+const lengthResumeExtension: ExtensionFactory = createLengthResumeExtension();
 
-export default midTurnCompactExtension;
+export default lengthResumeExtension;

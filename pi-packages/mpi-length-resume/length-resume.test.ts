@@ -5,7 +5,7 @@ import * as path from "node:path";
 import { describe, it } from "node:test";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
-  createMidTurnCompactExtension,
+  createLengthResumeExtension,
   fitReserveToWindow,
   isTinyLengthStall,
   resolveReserveTokens,
@@ -21,7 +21,7 @@ describe("fitReserveToWindow", () => {
 
 describe("resolveReserveTokens", () => {
   it("merges absolute Pi settings: project over global, default 16384", async () => {
-    const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mpi-mid-turn-budgets-"));
+    const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mpi-length-resume-budgets-"));
     const agentDir = path.join(root, "agent");
     const cwd = path.join(root, "cwd");
     await fsPromises.mkdir(path.join(agentDir), { recursive: true });
@@ -116,7 +116,7 @@ describe("resume after native compact", () => {
       compact() {},
     } as unknown as ExtensionContext;
 
-    createMidTurnCompactExtension({ enabled: true })(pi);
+    createLengthResumeExtension({ enabled: true })(pi);
 
     handlers.get("message_end")?.(
       {
@@ -139,7 +139,7 @@ describe("resume after native compact", () => {
     assert.ok(resumeEmptyBeforeFlush); // scheduled, not yet flushed
     await new Promise<void>((resolve) => setImmediate(resolve));
     await new Promise<void>((resolve) => setImmediate(resolve));
-    assert.equal(resumeSent?.customType, "mpi-mid-turn-resume");
+    assert.equal(resumeSent?.customType, "mpi-length-resume");
     assert.equal(resumeSent?.display, false);
   });
 
@@ -167,7 +167,7 @@ describe("resume after native compact", () => {
       getContextUsage: () => ({ contextWindow: 40_000, tokens: 36_000 }),
     } as unknown as ExtensionContext;
 
-    createMidTurnCompactExtension({ enabled: true })(pi);
+    createLengthResumeExtension({ enabled: true })(pi);
 
     handlers.get("message_end")?.(
       { message: { role: "assistant", stopReason: "stop", usage: { totalTokens: 36_000 } } },
@@ -203,7 +203,7 @@ describe("resume after settled length stop", () => {
     } as unknown as ExtensionAPI;
 
     // agentDir points at an empty tmpdir so disk settings fall back to defaults.
-    const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mpi-mid-turn-settled-"));
+    const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mpi-length-resume-settled-"));
     const ctx = {
       cwd: root,
       hasUI: false,
@@ -211,7 +211,7 @@ describe("resume after settled length stop", () => {
       getContextUsage: () => ({ contextWindow: 40_000, tokens: 37_000 }),
     } as unknown as ExtensionContext;
 
-    createMidTurnCompactExtension({ enabled: true, agentDir: root })(pi);
+    createLengthResumeExtension({ enabled: true, agentDir: root })(pi);
 
     handlers.get("message_end")?.(
       {
@@ -227,7 +227,7 @@ describe("resume after settled length stop", () => {
 
     await new Promise<void>((resolve) => setImmediate(resolve));
     await new Promise<void>((resolve) => setImmediate(resolve));
-    assert.equal(resumeSent?.customType, "mpi-mid-turn-resume");
+    assert.equal(resumeSent?.customType, "mpi-length-resume");
     assert.equal(resumeSent?.display, false);
     await fsPromises.rm(root, { recursive: true, force: true });
   });
@@ -249,7 +249,7 @@ describe("resume after settled length stop", () => {
       },
     } as unknown as ExtensionAPI;
 
-    const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mpi-mid-turn-settled-low-"));
+    const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mpi-length-resume-settled-low-"));
     const ctx = {
       cwd: root,
       hasUI: false,
@@ -257,7 +257,7 @@ describe("resume after settled length stop", () => {
       getContextUsage: () => ({ contextWindow: 200_000, tokens: 30_000 }),
     } as unknown as ExtensionContext;
 
-    createMidTurnCompactExtension({ enabled: true, agentDir: root })(pi);
+    createLengthResumeExtension({ enabled: true, agentDir: root })(pi);
 
     handlers.get("message_end")?.(
       {
