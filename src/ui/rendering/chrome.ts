@@ -1212,17 +1212,22 @@ function sanitizeWidgetLine(text: string): string {
 }
 
 const TAB_FOCUS_MARK = "▌";
-export const TAB_ACTIVE_SHIMMER_PERIOD_MS = 2400;
-export const TAB_ACTIVE_SHIMMER_SWEEP_MS = 1400;
+export const TAB_ACTIVE_SHIMMER_PERIOD_MS = 3000;
+export const TAB_ACTIVE_SHIMMER_SWEEP_MS = 2000;
 
 function withFocusMark(paint: (text: string) => string, body: string): string {
   return paintTabChip(paint, `${activeRenderTheme.vimBorder(TAB_FOCUS_MARK)}${body}`);
 }
 
 /**
- * Apply a continuous left-to-right sweep/shimmer effect across text for active tab.
- * Highlight wave sweeps across characters over TAB_ACTIVE_SHIMMER_SWEEP_MS (1400ms),
- * followed by a brief rest (1000ms) within TAB_ACTIVE_SHIMMER_PERIOD_MS (2400ms).
+ * Apply a bouncing highlight to the active tab label. A brightness wave travels
+ * to the right edge and back within TAB_ACTIVE_SHIMMER_SWEEP_MS (2000ms), then
+ * the label renders unstyled for the remaining 1000ms of
+ * TAB_ACTIVE_SHIMMER_PERIOD_MS.
+ *
+ * Two details carry the bounce. Each leg is eased so the wave decelerates into
+ * the turnaround, and the brightness falls off over three steps so the lit
+ * region reads as a moving peak rather than a block.
  */
 export function applyActiveTabShimmer(
   text: string,
@@ -1239,19 +1244,25 @@ export function applyActiveTabShimmer(
   if (total === 0) return text;
 
   const progress = elapsed / TAB_ACTIVE_SHIMMER_SWEEP_MS;
-  // Center of shimmer wave: sweeps smoothly from before first char (-2) to past last char (total + 2)
-  const waveCenter = progress * (total + 4) - 2;
-  const waveWidth = 3;
+  // Triangle wave: travel right over the first half, return over the second.
+  const leg = progress < 0.5 ? progress * 2 : (1 - progress) * 2;
+  // Ease-out slows each leg as it approaches its turnaround.
+  const eased = 1 - (1 - leg) * (1 - leg);
+  // Turnarounds sit one cell outside the label so the wave still grazes the
+  // first and last character; a wider overshoot leaves the label dark there.
+  const waveCenter = eased * (total + 1) - 1;
 
   return chars
     .map((char, index) => {
       const dist = Math.abs(index - waveCenter);
-      if (dist < 1.0) {
-        // Core of the wave: bright bold text highlight
+      // Brightness falls off with distance from the wave center: peak, shoulder, tail.
+      if (dist < 0.6) {
         return activeRenderTheme.bold(activeRenderTheme.text(char));
       }
-      if (dist < waveWidth) {
-        // Leading/trailing edge of the wave
+      if (dist < 1.6) {
+        return activeRenderTheme.bold(activeRenderTheme.accent(char));
+      }
+      if (dist < 2.8) {
         return activeRenderTheme.accent(char);
       }
       return char;
