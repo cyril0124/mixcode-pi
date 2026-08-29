@@ -1,3 +1,6 @@
+diff --git a/node_modules/@earendil-works/pi-tui/.bun-tag-b1e05ac773a25d98 b/.bun-tag-b1e05ac773a25d98
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
 diff --git a/dist/alt-screen-search.js b/dist/alt-screen-search.js
 index 3437d5aec954a672bc678c79e38cf6a78a8b52b7..2865acec4b1a03c59ebd6533fa47cdcff89d8bf0 100644
 --- a/dist/alt-screen-search.js
@@ -134,10 +137,24 @@ index 5b9b224586c313d8e3d42c9a2f0f05b7a1107f40..91d84eb0cdf6317a7c1b9c7ab8ff84a8
  //# sourceMappingURL=tui.d.ts.map
 \ No newline at end of file
 diff --git a/dist/tui.js b/dist/tui.js
-index 94adbdcffd98b770d34ee55771f57ec8004df2eb..f6b19319539de3747f756455930cfd43edeaa5e4 100644
+index 94adbdcffd98b770d34ee55771f57ec8004df2eb..a76b2ff13a684137939eb29e103da404c4b3b4ff 100644
 --- a/dist/tui.js
 +++ b/dist/tui.js
-@@ -938,4 +938,10 @@ export class TuiBase extends Container {
+@@ -434,6 +434,13 @@ export class TuiBase extends Container {
+     }
+     start() {
+         this.stopped = false;
++        // MIXCODE_RENDER_RESUME: a requestRender() that was pending at stop()
++        // time leaves renderRequested dangling (scheduleRender bails on
++        // `stopped`), so every later non-force requestRender() no-ops and
++        // interval-driven redraws (tab shimmer, loading spinner) freeze until
++        // a keypress heals the flag via requestImmediateRender(). Clear it
++        // before the requestRender() below so the handoff resumes rendering.
++        this.renderRequested = false;
+         this.beforeTerminalStart();
+         this.terminal.start((data) => this.handleTerminalInput(data), () => this.requestRender());
+         this.afterTerminalStart();
+@@ -938,4 +945,10 @@ export class TuiBase extends Container {
          });
      }
  }
