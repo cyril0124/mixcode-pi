@@ -428,7 +428,7 @@ test("core does not terminate a tool loop for mid-turn compaction pressure", asy
       workdir: process.cwd(),
       model,
     });
-    // Same pressure settings that used to trigger MixCode mid-turn terminate.
+    // Pressure settings that put the tool boundary over the compaction threshold.
     runtimeTab.agentSession.settingsManager.applyOverrides({
       compaction: { reserveTokens: 20, keepRecentTokens: 50 },
     });
@@ -441,11 +441,12 @@ test("core does not terminate a tool loop for mid-turn compaction pressure", asy
     await waitForRuntime(() => tab.status === "idle" && postToolAssistantCalls >= 1);
 
     // Tool loop completed in-process (assistant saw toolResult) without MixCode
-    // private continue. This fixture's final response stays below the threshold.
+    // private continue. Pi-native mid-run compaction fires at the tool boundary
+    // (usage 990 > window 1000 - reserve 20) and writes a compaction entry.
     assert.ok(postToolAssistantCalls >= 1);
     assert.equal(
       runtimeTab.session.getBranch().some((entry) => entry.type === "compaction"),
-      false,
+      true,
     );
     assert.ok(
       seenContexts.some((context) =>

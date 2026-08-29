@@ -513,9 +513,12 @@ test("core leaves long tool turns to Pi / packages (no mid-turn private continue
       postToolAssistantCalls >= 1,
       "tool loop must finish without MixCode mid-turn terminate",
     );
+    // Pi-native mid-run compaction fires at the tool boundary under this
+    // pressure (usage 990 > window 1000 - reserve 20) and writes a compaction
+    // entry; the loop still completes without any MixCode private continue.
     assert.equal(
       runtimeTab.session.getBranch().some((entry) => entry.type === "compaction"),
-      false,
+      true,
     );
     assert.equal(
       runtimeTab.chat.some((line) => /Compaction failed/i.test(line.text)),

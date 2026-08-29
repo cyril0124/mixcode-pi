@@ -71,7 +71,7 @@ Tab 之间可以直接对话——同一 TUI，或其他 `mpi` 进程——无�
 - **`mpi-model-skills` / `mpi-model-extensions`**：按模型动态切换 Skill 与扩展。
 - **`mpi-skill-refs`**：`$` 触发 Skill 自动补全与内嵌展开。
 - **`mpi-search-guard`**：高危/大范围目录搜索防护，避免无边界递归检索。
-- **`mpi-mid-turn-compact`**：多轮长推理过程中的会话上下文自动压缩。
+- **`mpi-mid-turn-compact`**：回答因输出长度截断时自动续跑（原生压缩后与 run 结束时两类恢复）。
 - **`mpi-herdr-report`**：向 Herdr 窗格上报 Agent 运行与就绪状态（`HERDR_ENV=1`）。
 - **`mpi-image-hoist`**：自动提升输入中的图片路径为原生多模态消息。
 - **`mpi-bash`**：为 Bash 工具调用注入默认超时，并在前台窗口到期后把长命令转入后台，结束时自动回报退出码；`/bash-logs` 可查看任意后台命令的完整日志。

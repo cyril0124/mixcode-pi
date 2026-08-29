@@ -20,7 +20,7 @@ MixCode 随附位于 `pi-packages/mpi-*` 的第一方内置 Pi 包。启动时�
 | `mpi-diff-viewer` | `/diff [ref]` | 终端内交互式 Diff 查看器，支持 hunk 导航与行级评审注释。 |
 | `mpi-model-skills` | `/model-skills`，`<agentDir>/mpi-model-skills.json` | 按当前模型匹配规则动态挂载或卸载 Skill。 |
 | `mpi-model-extensions` | `/model-extensions`，`<agentDir>/mpi-model-extensions.json` | 按当前模型动态加载 Pi 扩展。 |
-| `mpi-mid-turn-compact` | Token 达到阈值时自动触发 | 轮次中上下文自动压缩策略，防止多工具连续调用耗尽上下文窗口。 |
+| `mpi-mid-turn-compact` | 回答被长度截断时自动触发 | 回答因输出长度截断后自动续跑：原生自动压缩完成后、或 run 在接近上下文上限处以 length 结束时，通过隐藏 follow-up 恢复。轮内阈值压缩由 Pi 核心负责。 |
 | `mpi-search-guard` | 触发大范围目录遍历时拦截 | 拦截对根目录、`~` 等高基数目录的盲目递归搜索，引导 Agent 缩小搜索范围。 |
 | `mpi-tool-block` | `/tool-block`，`<agentDir>/mpi-tool-block.json` 或当前 session 内存 | 弹出 overlay 勾选要隐藏的 tool，从 active 集合拿掉，模型看不见。 |
 | `mpi-permission` | `/permission`，`<agentDir>/mpi-permission.json`，`<cwd>/.pi/mpi-permission.json` | 用 allow / ask / deny 通配符规则把关工具调用，并扫描常见 Bash 文件命令的静态路径；含外部目录与重复调用（doom loop）防护；ask 审批支持 once / always / reject（doom_loop 的 ask 仅 once / reject）。详见 [pi-packages/mpi-permission/README.zh.md](../pi-packages/mpi-permission/README.zh.md)。 |

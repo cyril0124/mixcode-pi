@@ -1,11 +1,8 @@
-diff --git a/node_modules/@earendil-works/pi-coding-agent/.bun-tag-4e5ce3fcaeab760 b/.bun-tag-4e5ce3fcaeab760
-new file mode 100644
-index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
 diff --git a/dist/core/agent-session.d.ts b/dist/core/agent-session.d.ts
-index 528a246ee77895d72dfb51c2946444e1760bc049..b35c14ada7fa911b15991441bd1fa0961eb5889b 100644
+index 8c7cfec6fc0ec004f17c08c52a58c354b28b3978..5925247624895c9fb0db8141ad71f83fe38a9611 100644
 --- a/dist/core/agent-session.d.ts
 +++ b/dist/core/agent-session.d.ts
-@@ -426,6 +426,29 @@ export declare class AgentSession {
+@@ -436,6 +436,29 @@ export declare class AgentSession {
          steering: string[];
          followUp: string[];
      };
@@ -36,10 +33,10 @@ index 528a246ee77895d72dfb51c2946444e1760bc049..b35c14ada7fa911b15991441bd1fa096
      get pendingMessageCount(): number;
      /** Get pending steering messages (read-only) */
 diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js
-index f4fd9f37d9826a3e791f25c9ec748645a33d5616..12722b3b74deb0f9d06fdb8e54682f6c85da5aef 100644
+index fd82b71cf332715f185d07459429f04ed7491ce9..b84b5293f3c4b52408c54869105d871790ae66af 100644
 --- a/dist/core/agent-session.js
 +++ b/dist/core/agent-session.js
-@@ -739,8 +739,24 @@ export class AgentSession {
+@@ -764,8 +764,24 @@ export class AgentSession {
              toolSnippets,
              promptGuidelines,
          };
@@ -64,7 +61,7 @@ index f4fd9f37d9826a3e791f25c9ec748645a33d5616..12722b3b74deb0f9d06fdb8e54682f6c
      // =========================================================================
      // Prompting
      // =========================================================================
-@@ -1150,6 +1166,43 @@ export class AgentSession {
+@@ -1201,6 +1217,43 @@ export class AgentSession {
          this._emitQueueUpdate();
          return { steering, followUp };
      }
@@ -108,7 +105,7 @@ index f4fd9f37d9826a3e791f25c9ec748645a33d5616..12722b3b74deb0f9d06fdb8e54682f6c
      /** Number of pending messages (includes both steering and follow-up) */
      get pendingMessageCount() {
          return this._steeringMessages.length + this._followUpMessages.length;
-@@ -2034,13 +2087,29 @@ export class AgentSession {
+@@ -2102,13 +2155,29 @@ export class AgentSession {
          const excludedToolNames = this._excludedToolNames;
          const isAllowedTool = (name) => (!allowedToolNames || allowedToolNames.has(name)) && !excludedToolNames?.has(name);
          const registeredTools = this._extensionRunner.getAllRegisteredTools();
@@ -139,7 +136,7 @@ index f4fd9f37d9826a3e791f25c9ec748645a33d5616..12722b3b74deb0f9d06fdb8e54682f6c
          const definitionRegistry = new Map(Array.from(this._baseToolDefinitions.entries())
              .filter(([name]) => isAllowedTool(name))
              .map(([name, definition]) => [
-@@ -2050,7 +2119,7 @@ export class AgentSession {
+@@ -2118,7 +2187,7 @@ export class AgentSession {
                  sourceInfo: createSyntheticSourceInfo(`<builtin:${name}>`, { source: "builtin" }),
              },
          ]));
@@ -148,7 +145,7 @@ index f4fd9f37d9826a3e791f25c9ec748645a33d5616..12722b3b74deb0f9d06fdb8e54682f6c
              definitionRegistry.set(tool.definition.name, {
                  definition: tool.definition,
                  sourceInfo: tool.sourceInfo,
-@@ -2070,7 +2139,7 @@ export class AgentSession {
+@@ -2138,7 +2207,7 @@ export class AgentSession {
          })
              .filter((entry) => entry !== undefined));
          const runner = this._extensionRunner;
@@ -157,7 +154,7 @@ index f4fd9f37d9826a3e791f25c9ec748645a33d5616..12722b3b74deb0f9d06fdb8e54682f6c
          const wrappedBuiltInTools = wrapRegisteredTools(Array.from(this._baseToolDefinitions.values())
              .filter((definition) => isAllowedTool(definition.name))
              .map((definition) => ({
-@@ -2752,4 +2821,53 @@ export class AgentSession {
+@@ -2820,4 +2889,53 @@ export class AgentSession {
          return this._extensionRunner;
      }
  }
@@ -419,7 +416,7 @@ index 8cdfbdec42f696b8cd6b762a92180a81ec142433..e28fb07e339f41d5d99e7b8c2e172cc3
  export declare function loadEntriesFromFile(filePath: string): FileEntry[];
  /** Exported for testing */
 diff --git a/dist/core/session-manager.js b/dist/core/session-manager.js
-index 1c68da843842e6c73d02d913b3392cfb6d37dda0..72d9ac9dbc0c37da1814b11bfc575ed5affdd899 100644
+index f887c04976596f8956bc04c16ca59c4030e09f92..3b81023f1f79c6faeec7445cec85951693bd9d05 100644
 --- a/dist/core/session-manager.js
 +++ b/dist/core/session-manager.js
 @@ -239,7 +239,7 @@ export function buildSessionContext(entries, leafId, byId) {
@@ -432,10 +429,10 @@ index 1c68da843842e6c73d02d913b3392cfb6d37dda0..72d9ac9dbc0c37da1814b11bfc575ed5
      const resolvedAgentDir = resolvePath(agentDir);
      const safePath = `--${resolvedCwd.replace(/^[/\\]/, "").replace(/[/\\:]/g, "-")}--`;
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index cd12d9e885c21ea14c3a1e681e9ca1544087600a..28de1a2cec68f39c0359d728855ef2319b2b6c1a 100644
+index 3e9241dc237322f9ba64aac399f4eda31ac4715c..dfbef8a44f99d4f485541d54573ac4f6faf3b174 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
-@@ -26,10 +26,43 @@ export { hasTrustRequiringProjectResources, type ProjectTrustDecision, ProjectTr
+@@ -26,11 +26,44 @@ export { hasTrustRequiringProjectResources, type ProjectTrustDecision, ProjectTr
  export { type MainOptions, main } from "./main.ts";
  export { InteractiveMode, type InteractiveModeOptions, type JsonAgentSessionEvent, type ModelInfo, type PrintModeOptions, RpcClient, type RpcClientOptions, type RpcCommand, type RpcEventListener, type RpcExtensionUIRequest, type RpcExtensionUIResponse, type RpcResponse, type RpcSessionState, runPrintMode, runRpcMode, } from "./modes/index.ts";
  export { ArminComponent, AssistantMessageComponent, BashExecutionComponent, BorderedLoader, BranchSummaryMessageComponent, CompactionSummaryMessageComponent, CustomEditor, CustomMessageComponent, DynamicBorder, ExtensionEditorComponent, ExtensionInputComponent, ExtensionSelectorComponent, FooterComponent, keyHint, keyText, LoginDialogComponent, ModelSelectorComponent, OAuthSelectorComponent, type RenderDiffOptions, rawKeyHint, renderDiff, SessionSelectorComponent, type SettingsCallbacks, type SettingsConfig, SettingsSelectorComponent, ShowImagesSelectorComponent, SkillInvocationMessageComponent, ThemeSelectorComponent, ThinkingSelectorComponent, ToolExecutionComponent, type ToolExecutionOptions, TreeSelectorComponent, truncateToVisualLines, UserMessageComponent, UserMessageSelectorComponent, type VisualTruncateResult, } from "./modes/interactive/components/index.ts";
@@ -459,6 +456,7 @@ index cd12d9e885c21ea14c3a1e681e9ca1544087600a..28de1a2cec68f39c0359d728855ef231
  export { parseFrontmatter, stripFrontmatter } from "./utils/frontmatter.ts";
  export { convertToPng } from "./utils/image-convert.ts";
  export { formatDimensionNote, type ResizedImage, resizeImage } from "./utils/image-resize.ts";
+ export { detectSupportedImageMimeTypeFromFile } from "./utils/mime.ts";
  export { getPowerShellConfig, getShellConfig } from "./utils/shell.ts";
 +export { ensureTool } from "./utils/tools-manager.ts";
 +export {
@@ -482,7 +480,7 @@ index cd12d9e885c21ea14c3a1e681e9ca1544087600a..28de1a2cec68f39c0359d728855ef231
  //# sourceMappingURL=index.d.ts.map
 \ No newline at end of file
 diff --git a/dist/index.js b/dist/index.js
-index 7bc4467f5af64aba74ab6cafd136e468b6aab803..8c6e8dd451b07256e3e08d15af6de2bf4b880d2f 100644
+index 01017cdbf6a26b3d36e236c7f9e835fbf0fa5c3a..ee586dd259a62096695cf74cbf902a05f02ed490 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -36,7 +36,21 @@ export { InteractiveMode, RpcClient, runPrintMode, runRpcMode, } from "./modes/i
@@ -508,8 +506,8 @@ index 7bc4467f5af64aba74ab6cafd136e468b6aab803..8c6e8dd451b07256e3e08d15af6de2bf
  // Clipboard utilities
  export { copyToClipboard } from "./utils/clipboard.js";
  export { parseFrontmatter, stripFrontmatter } from "./utils/frontmatter.js";
-@@ -44,4 +58,37 @@ export { convertToPng } from "./utils/image-convert.js";
- export { formatDimensionNote, resizeImage } from "./utils/image-resize.js";
+@@ -45,4 +59,37 @@ export { formatDimensionNote, resizeImage } from "./utils/image-resize.js";
+ export { detectSupportedImageMimeTypeFromFile } from "./utils/mime.js";
  // Shell utilities
  export { getPowerShellConfig, getShellConfig } from "./utils/shell.js";
 +// Managed CLI tools

@@ -15,7 +15,7 @@ index 3437d5aec954a672bc678c79e38cf6a78a8b52b7..2865acec4b1a03c59ebd6533fa47cdcf
      for (const match of corpus.text.matchAll(expression)) {
          const start = match.index;
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index 50b5aeb61f12011642978bc2c31d8a2eb36d17d3..3b7374e46e23f4c4cfb3c97cb5278554a7577980 100644
+index cc05e9679cec9dd6a748f73595004dc7203d2716..d0eb4187f91546aae4359775a3145ef63ebbe6db 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
 @@ -27,5 +27,7 @@ export { allocateImageId, type CellDimensions, calculateImageRows, deleteAllKitt
@@ -29,7 +29,7 @@ index 50b5aeb61f12011642978bc2c31d8a2eb36d17d3..3b7374e46e23f4c4cfb3c97cb5278554
  //# sourceMappingURL=index.d.ts.map
 \ No newline at end of file
 diff --git a/dist/index.js b/dist/index.js
-index 97acf774699dded9c5e490f2441a93ec05b73be5..f6b086bdd55aad63d798004f0501862b0cbff745 100644
+index ecc0bd54a55b2c9e0213cfd5553e61262b54c57c..60041ff89e659ce2840edadaed8e030290996d3b 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -38,5 +38,8 @@ export { Container, CURSOR_MARKER, compositeTuiLine, isFocusable, isViewportTUI,
