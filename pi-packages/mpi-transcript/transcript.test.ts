@@ -47,7 +47,7 @@ test("editorExtraArgs sources transcript lua only for nvim", () => {
 
 const nvimAvailable = spawnSync("nvim", ["--version"], { encoding: "utf8" }).status === 0;
 
-test("nvim transcript lua sets wrap/conceal, heading winbar, and heading matches", {
+test("nvim transcript lua sets wrap/conceal, heading winbar, and heading badges", {
   skip: nvimAvailable ? false : "nvim not on PATH",
 }, async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "transcript-nvim-"));
@@ -92,8 +92,17 @@ test("nvim transcript lua sets wrap/conceal, heading winbar, and heading matches
         "",
         "```text",
         "world",
+        // Verbatim tool output shaped like transcript chrome. It must survive
+        // to the screen as written.
+        "---",
+        "## 👤 User · #9",
         "more",
         "```",
+        "",
+        // Assistant turns before any user message carry no ' · #N' joiner.
+        "## 🤖 Assistant",
+        "",
+        "orphan",
         "",
         "### 📘 Skill: sample — ✅ success",
         "",
@@ -105,10 +114,17 @@ test("nvim transcript lua sets wrap/conceal, heading winbar, and heading matches
         "",
         "after tool prose",
         "",
+        // Model prose that opens a fence and never closes it, as a truncated
+        // reply does. Everything after it must still be decorated.
         "```js",
         "nope",
         "stillnope",
-        "```",
+        "",
+        "---",
+        "",
+        "## 👤 User · #2",
+        "",
+        "second ask",
         "",
       ].join("\n"),
     );
@@ -129,9 +145,38 @@ test("nvim transcript lua sets wrap/conceal, heading winbar, and heading matches
         "local dmarks = dimns and vim.api.nvim_buf_get_extmarks(0, dimns, 0, -1, { details = true }) or {}",
         "local nconceal = 0",
         'for _, m in ipairs(dmarks) do if m[4] and m[4].conceal == "" then nconceal = nconceal + 1 end end',
+        // The deco namespace holds one overlay extmark per separator and per
+        // role heading.
+        'local decons = vim.api.nvim_get_namespaces()["mpi_transcript_deco"]',
+        "local function deco_at(l)",
+        "  local m = vim.api.nvim_buf_get_extmarks(0, decons, { l - 1, 0 }, { l - 1, -1 }, { details = true })",
+        "  return m[1] and m[1][4] or {}",
+        "end",
+        'local ah = deco_at(line_of("## 🤖 Assistant · #1"))',
+        'local th = deco_at(line_of("### 🔧 Tool: bash — ✅ success"))',
+        'local rl = deco_at(line_of("---"))',
+        "local nrules = 0",
+        "for _, m in ipairs(vim.api.nvim_buf_get_extmarks(0, decons, 0, -1, { details = true })) do",
+        '  if m[4].virt_text and m[4].virt_text[1][2] == "MpiTranscriptRule" then nrules = nrules + 1 end',
+        "end",
+        'local caged = deco_at(line_of("## 👤 User · #9"))',
+        'local orphan = deco_at(line_of("## 🤖 Assistant"))',
+        'local reopened = deco_at(line_of("## 👤 User · #2"))',
+        'local hlns = vim.api.nvim_get_namespaces()["mpi_transcript_hl"]',
+        "local nsgroups = vim.api.nvim_get_hl(hlns, {})",
+        'local quoted = nsgroups["@markup.quote.markdown"]',
         'vim.api.nvim_win_set_cursor(0, { line_of("hello"), 0 })',
         'vim.cmd("normal [t")',
         "local jumped = vim.api.nvim_win_get_cursor(0)[1]",
+        // ]u and [u from inside a reply body. Both must land on real user
+        // headings, skipping the two assistant headings and the one captured
+        // inside the fenced tool output.
+        'vim.api.nvim_win_set_cursor(0, { line_of("orphan"), 0 })',
+        'vim.cmd("normal [u")',
+        "local uback = vim.api.nvim_win_get_cursor(0)[1]",
+        'vim.api.nvim_win_set_cursor(0, { line_of("orphan"), 0 })',
+        'vim.cmd("normal ]u")',
+        "local ufwd = vim.api.nvim_win_get_cursor(0)[1]",
         "vim.api.nvim_win_set_cursor(0, { fake, 0 })",
         'vim.api.nvim_exec_autocmds("CursorMoved", { buffer = 0 })',
         "local stc = vim.wo.statuscolumn",
@@ -142,14 +187,22 @@ test("nvim transcript lua sets wrap/conceal, heading winbar, and heading matches
         "local span = _G.MpiTranscriptTurn",
         "io.stdout:write(table.concat({",
         "  tostring(vim.wo.conceallevel), tostring(vim.wo.wrap), tostring(vim.wo.linebreak),",
-        "  vim.wo.winbar, tostring(vim.tbl_count(vim.fn.getmatches())), vim.wo.foldmethod,",
+        "  vim.wo.winbar, ah.virt_text[1][1], vim.wo.foldmethod,",
         '  tostring(vim.fn.foldclosed(line_of("world"))),',
         '  tostring(vim.fn.foldclosed(line_of("decoy"))),',
         '  tostring(vim.fn.foldclosed(line_of("nope"))),',
         '  stc_h, tostring(span.s), tostring(line_of("## 🤖 Assistant · #1")),',
         '  tostring(span.e), tostring(line_of("## Fake heading from the model")),',
         '  ft, ftin, tostring(jumped), tostring(line_of("## 🤖 Assistant · #1")), tostring(nconceal),',
-        "  stc_b, stc_s",
+        "  stc_b, stc_s,",
+        "  ah.virt_text[1][2], tostring(ah.conceal), th.virt_text[1][1],",
+        "  rl.virt_text[1][2], tostring(vim.fn.strcharlen(rl.virt_text[1][1])),",
+        "  tostring(vim.api.nvim_get_hl_ns({ winid = 0 }) == hlns),",
+        "  tostring(quoted ~= nil and vim.tbl_isempty(quoted)),",
+        "  tostring(nrules), tostring(next(caged) == nil), orphan.virt_text[1][1],",
+        "  tostring(#orphan.virt_text), reopened.virt_text[1][1],",
+        '  tostring(uback), tostring(line_of("## 👤 User · #1")),',
+        '  tostring(ufwd), tostring(line_of("## 👤 User · #2")),',
         "}, string.char(10)))",
       ].join("\n"),
     );
@@ -173,25 +226,28 @@ test("nvim transcript lua sets wrap/conceal, heading winbar, and heading matches
     );
     assert.equal(r.status, 0, r.error?.message ?? r.stderr);
     const out = r.stdout.trim().split("\n");
+    // Pin the emit count. The assertions below index positionally, and a
+    // dropped value would turn later comparisons into undefined === undefined.
+    assert.equal(out.length, 37);
     assert.equal(out[0], "2");
     assert.equal(out[1], "true");
     assert.equal(out[2], "true");
     assert.match(out[3] ?? "", /Assistant · #1/);
     assert.match(out[3] ?? "", /12s/);
     assert.match(out[3] ?? "", /\[t/);
+    assert.match(out[3] ?? "", /\[u/);
     assert.doesNotMatch(out[3] ?? "", /Fake/);
-    assert.equal(out[4], "7");
+    // An overlay badge chip stands in for the raw markup on role headings.
+    assert.equal(out[4], " 🤖 AGENT ");
     assert.equal(out[5], "manual");
     assert.notEqual(out[6], "-1");
     assert.equal(out[7], "-1");
     assert.equal(out[8], "-1");
-    // Statuscolumn renders the role mark itself (no native signs): heading
-    // rows carry the two-cell mark, body rows a two-space placeholder.
-    assert.match(out[9] ?? "", /^A [│ ]\d+ $/);
-    // stdout.trim() strips the final line's trailing pad space.
-    assert.match(out[19] ?? "", /^ {2}[│ ]\d+ ?$/);
-    // Skill headings carry their own S gutter mark (Question highlight).
-    assert.match(out[20] ?? "", /^S [│ ]\d+ ?$/);
+    // Statuscolumn is turn bar + line number only; every row is the same width
+    // so the bar cannot drift on wrapped continuation rows.
+    assert.match(out[9] ?? "", /^[│ ]\d+ $/);
+    assert.match(out[19] ?? "", /^[│ ]\d+ ?$/);
+    assert.match(out[20] ?? "", /^[│ ]\d+ ?$/);
     assert.equal(out[10], out[11]);
     assert.ok(Number(out[12]) >= Number(out[13]));
     assert.match(out[14] ?? "", /bash/);
@@ -200,6 +256,33 @@ test("nvim transcript lua sets wrap/conceal, heading winbar, and heading matches
     assert.match(out[15] ?? "", /in/);
     assert.equal(out[16], out[17]);
     assert.ok(Number(out[18]) >= 2);
+    // The badge carries the role color and hides the markup underneath it.
+    assert.equal(out[21], "MpiTranscriptAssistantBadge");
+    assert.equal(out[22], "");
+    // Tool badges name the tool, so the chip alone identifies the call.
+    assert.equal(out[23], " 🔧 bash ");
+    // A `---` separator becomes a rule spanning the whole window.
+    assert.equal(out[24], "MpiTranscriptRule");
+    assert.equal(out[25], String(80));
+    // Window-local namespace blanks the treesitter markdown captures that
+    // would otherwise repaint the dimmed metadata and thinking quotes.
+    assert.equal(out[26], "true");
+    assert.equal(out[27], "true");
+    // Only the three real separators become rules; the '---' inside the fenced
+    // tool output stays literal, as does a role heading captured in output.
+    assert.equal(out[28], "3");
+    assert.equal(out[29], "true");
+    // A joiner-less '## 🤖 Assistant' still gets its badge, with no empty suffix
+    // chunk trailing it.
+    assert.equal(out[30], " 🤖 AGENT ");
+    assert.equal(out[31], "1");
+    // A fence the model opened and never closed must not swallow the rest of
+    // the document. The heading after it still gets its badge.
+    assert.equal(out[32], " 👤 USER ");
+    // [u and ]u stop only at user headings, never at one that is just bytes
+    // inside a fenced tool result.
+    assert.equal(out[33], out[34]);
+    assert.equal(out[35], out[36]);
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
   }

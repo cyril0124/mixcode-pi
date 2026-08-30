@@ -780,6 +780,10 @@ export function editorExtraArgs(cmd: string, luafile?: string): string[] {
 /** Sourced into nvim after the transcript buffer loads (`-c luafile`). */
 export const NVIM_TRANSCRIPT_LUA = `
 vim.opt_local.conceallevel = 2
+-- Overlay virt_text replaces headings and metadata. Without this the raw
+-- markup pops back in whenever the cursor lands on such a line, and the whole
+-- view jitters while scrolling.
+vim.opt_local.concealcursor = "nvic"
 vim.opt_local.wrap = true
 vim.opt_local.linebreak = true
 vim.opt_local.signcolumn = "no"
@@ -787,17 +791,42 @@ vim.opt_local.foldmethod = "manual"
 vim.opt_local.foldenable = true
 vim.opt_local.fillchars:append({ fold = " " })
 
-vim.api.nvim_set_hl(0, "MpiTranscriptTurn", { default = true, link = "Identifier" })
+-- Every color the view uses is a named group linked to a group that always
+-- exists (no treesitter dependency), declared with default = true so a user
+-- colorscheme defining MpiTranscript* wins.
+local ROLES = {
+  MpiTranscriptUser = "Title",
+  MpiTranscriptAssistant = "Identifier",
+  MpiTranscriptTool = "Statement",
+  MpiTranscriptSkill = "Question",
+  MpiTranscriptInjected = "Special",
+  MpiTranscriptCompaction = "WarningMsg",
+  MpiTranscriptBranch = "Type",
+  MpiTranscriptError = "ErrorMsg",
+}
+local CHROME = { MpiTranscriptTurn = "Identifier", MpiTranscriptRule = "NonText" }
+for _, group in ipairs({ ROLES, CHROME }) do
+  for name, link in pairs(group) do
+    vim.api.nvim_set_hl(0, name, { default = true, link = link })
+  end
+end
 
-vim.fn.matchadd("Title", [[^## 👤 User.*]])
-vim.fn.matchadd("Identifier", [[^## 🤖 Assistant.*]])
-vim.fn.matchadd("Statement", [[^### 🔧 Tool.*]])
-vim.fn.matchadd("Question", [[^### 📘 Skill.*]])
-vim.fn.matchadd("Special", [[^## 📥 Injected.*]])
-vim.fn.matchadd("WarningMsg", [[^## 📦 Compaction.*]])
-vim.fn.matchadd("Type", [[^## 🌿 Branch Summary.*]])
+-- Badge chips reuse the role color as a background. reverse swaps fg/bg at
+-- render time, so this stays correct on a transparent Normal background where
+-- reading Normal.bg would yield nil.
+for name in pairs(ROLES) do
+  local resolved = vim.api.nvim_get_hl(0, { name = name, link = false })
+  vim.api.nvim_set_hl(0, name .. "Badge", { fg = resolved.fg, reverse = true, bold = true })
+end
 
-local buf = vim.api.nvim_get_current_buf()
+-- The markdown treesitter parser paints blockquotes and _italic_ metadata,
+-- which fights the Comment dimming applied below. Blanking those two captures
+-- in a window-local namespace lets the dim win.
+local hl_ns = vim.api.nvim_create_namespace("mpi_transcript_hl")
+vim.api.nvim_set_hl(hl_ns, "@markup.quote.markdown", {})
+vim.api.nvim_set_hl(hl_ns, "@markup.italic.markdown_inline", {})
+vim.api.nvim_win_set_hl_ns(0, hl_ns)
+
 local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
 local tick3 = string.rep(string.char(96), 3)
 
@@ -838,29 +867,105 @@ function _G.MpiTranscriptFoldtext()
 end
 vim.opt_local.foldtext = "v:lua.MpiTranscriptFoldtext()"
 
--- Role marks are rendered by MpiTranscriptStc below instead of legacy signs:
--- the native sign column ('%s') renders with a different width/highlight on
--- wrapped continuation rows and is resized by unrelated user plugins, which
--- shifts the turn bar. signcolumn=no keeps plugin signs out of this view.
-local stc_marks = {}
-for i, line in ipairs(lines) do
-  local mark
-  if line:match([[^## 👤 User]]) then
-    mark = { text = "U ", hl = "Title" }
-  elseif line:match([[^## 🤖 Assistant]]) then
-    mark = { text = "A ", hl = "Identifier" }
-  elseif line:match([[^### 🔧 Tool]]) then
-    mark = line:match("❌") and { text = "E ", hl = "ErrorMsg" } or { text = "T ", hl = "Statement" }
-  elseif line:match([[^### 📘 Skill]]) then
-    mark = { text = "S ", hl = "Question" }
-  elseif line:match([[^## 📥 Injected]]) then
-    mark = { text = "I ", hl = "Special" }
-  elseif line:match([[^## 📦 Compaction]]) then
-    mark = { text = "C ", hl = "WarningMsg" }
-  elseif line:match([[^## 🌿 Branch Summary]]) then
-    mark = { text = "B ", hl = "Type" }
+-- A '---' separator becomes a full-width rule, and every role heading becomes
+-- a colored badge chip followed by its remainder. Both draw as overlay
+-- virt_text over concealed markup, so no '##' or em-dash reaches the screen
+-- while the document itself stays valid markdown.
+
+-- The heading suffix after a fixed prefix, with the ' · ' joiner dropped. The
+-- joiner cannot be an optional pattern item. '·' is two bytes, and a Lua '?'
+-- would make only its second byte optional, which fails on a turn-0
+-- '## 🤖 Assistant' that carries no joiner.
+local function suffix_after(line, prefix)
+  local rest = line:match("^" .. prefix .. "(.*)$")
+  if not rest then return nil end
+  return (rest:gsub("^%s*·%s*", ""))
+end
+
+local function heading_badge(line)
+  local rest = suffix_after(line, "## 👤 User")
+  if rest then return " 👤 USER ", rest, "MpiTranscriptUser" end
+  rest = suffix_after(line, "## 🤖 Assistant")
+  if rest then return " 🤖 AGENT ", rest, "MpiTranscriptAssistant" end
+  local name, status = line:match("^### 🔧 Tool:%s*(.-)%s*—%s*(.+)$")
+  if name then
+    -- A failed call takes the error color so the chip reads as red at a
+    -- glance. Its status text stays in the suffix for readers who cannot
+    -- rely on color.
+    local role = line:match("❌") and "MpiTranscriptError" or "MpiTranscriptTool"
+    return " 🔧 " .. name .. " ", status, role
   end
-  if mark then stc_marks[i] = mark end
+  name, status = line:match("^### 📘 Skill:%s*(.-)%s*—%s*(.+)$")
+  if name then return " 📘 " .. name .. " ", status, "MpiTranscriptSkill" end
+  rest = suffix_after(line, "## 📥 Injected")
+  if rest then return " 📥 INJECTED ", rest, "MpiTranscriptInjected" end
+  rest = suffix_after(line, "## 📦 Compaction")
+  if rest then return " 📦 COMPACTION ", rest, "MpiTranscriptCompaction" end
+  rest = suffix_after(line, "## 🌿 Branch Summary")
+  if rest then return " 🌿 BRANCH ", rest, "MpiTranscriptBranch" end
+  return nil
+end
+
+local deco_ns = vim.api.nvim_create_namespace("mpi_transcript_deco")
+local rule = string.rep("─", vim.o.columns)
+-- Verbatim tool output must reach the screen exactly as captured, so nothing
+-- inside a tool fence is decorated or counted as a turn. The scan covers only
+-- the fences directly under a Tool heading. This extension emits those itself
+-- with a delimiter longer than any run inside them, so they always close.
+-- Model prose carries no such guarantee, and one unclosed fence in a truncated
+-- reply would leave every later heading and separator undecorated. Stop at the
+-- first non-blank, non-fence line so prose following a tool call is untouched.
+local tool_fences = {}
+local in_fence = {}
+local scan = 1
+while scan <= #lines do
+  if not tool_heading(lines[scan]) then
+    scan = scan + 1
+  else
+    scan = scan + 1
+    while scan <= #lines do
+      if lines[scan]:match("^%s*$") then
+        scan = scan + 1
+      else
+        local ticks = fence_open(lines[scan])
+        if not ticks then break end
+        local close = scan + 1
+        while close <= #lines and not lines[close]:match("^" .. ticks) do
+          close = close + 1
+        end
+        for k = scan, math.min(close, #lines) do in_fence[k] = true end
+        tool_fences[#tool_fences + 1] = { open = scan, close = close }
+        scan = math.min(close, #lines) + 1
+      end
+    end
+  end
+end
+
+for i, line in ipairs(lines) do
+  if not in_fence[i] then
+    if line == "---" then
+      vim.api.nvim_buf_set_extmark(0, deco_ns, i - 1, 0, {
+        virt_text = { { rule, "MpiTranscriptRule" } },
+        virt_text_pos = "overlay",
+        virt_text_win_col = 0,
+        priority = 200,
+      })
+    else
+      local badge, rest, role = heading_badge(line)
+      if badge then
+        local chunks = { { badge, role .. "Badge" } }
+        if rest ~= "" then chunks[#chunks + 1] = { "  " .. rest, role } end
+        vim.api.nvim_buf_set_extmark(0, deco_ns, i - 1, 0, {
+          end_col = #line,
+          conceal = "",
+          virt_text = chunks,
+          virt_text_pos = "overlay",
+          virt_text_win_col = 0,
+          priority = 200,
+        })
+      end
+    end
+  end
 end
 
 local dim_ns = vim.api.nvim_create_namespace("mpi_transcript_dim")
@@ -885,38 +990,24 @@ while t <= #lines do
   end
 end
 
--- Only the fences that sit directly under a Tool heading (args + result).
--- Stop at the first non-blank, non-fence line so model-written markdown is left alone.
-local i = 1
-while i <= #lines do
-  if not tool_heading(lines[i]) then
-    i = i + 1
-  else
-    i = i + 1
-    while i <= #lines do
-      if lines[i]:match("^%s*$") then
-        i = i + 1
-      else
-        local ticks = fence_open(lines[i])
-        if not ticks then break end
-        local j = i + 1
-        while j <= #lines and not lines[j]:match("^" .. ticks) do
-          j = j + 1
-        end
-        if j <= #lines and j - i > 1 then
-          vim.cmd(("silent %d,%dfold"):format(i + 1, j - 1))
-        end
-        i = math.max(j, i) + 1
-      end
-    end
+-- Fold each tool fence's body, reusing the spans found above. An unterminated
+-- fence (close past the last line) has no body to collapse.
+for _, f in ipairs(tool_fences) do
+  if f.close <= #lines and f.close - f.open > 1 then
+    vim.cmd(("silent %d,%dfold"):format(f.open + 1, f.close - 1))
   end
 end
 
+-- turns drives ]t/[t and the winbar label. users is the ]u/[u subset, holding
+-- only the reader's own messages.
 local turns = {}
+local users = {}
 for n, line in ipairs(lines) do
-  local kind = role_heading(line)
+  local kind = not in_fence[n] and role_heading(line) or nil
   if kind == "user" or kind == "assistant" then
-    turns[#turns + 1] = { lnum = n, text = line }
+    local turn = { lnum = n, text = line }
+    turns[#turns + 1] = turn
+    if kind == "user" then users[#users + 1] = turn end
   end
 end
 
@@ -947,17 +1038,15 @@ end
 _G.MpiTranscriptTurn = { s = 1, e = 1 }
 -- Wrapped continuation rows (v:virtnum > 0) re-evaluate 'statuscolumn'; the
 -- native %s and %l items render with different widths there, which shifts the
--- turn bar. Build the whole column (role mark, bar, number) in one function
--- that emits identical-width content for every screen row of a line.
+-- turn bar. Build the whole column (bar, number) in one function that emits
+-- identical-width content for every screen row of a line.
 function _G.MpiTranscriptStc()
   local t = _G.MpiTranscriptTurn
   local l = vim.v.lnum
   local bar = (t and l > t.s and l <= t.e) and "│" or " "
   local virt = vim.v.virtnum > 0
-  local m = not virt and stc_marks[l] or nil
-  local mark = m and ("%#" .. m.hl .. "#" .. m.text) or "  "
   local num = virt and string.rep(" ", #tostring(l)) or tostring(l)
-  return mark .. "%#MpiTranscriptTurn#" .. bar .. "%#LineNr#" .. num .. " "
+  return "%#MpiTranscriptTurn#" .. bar .. "%#LineNr#" .. num .. " "
 end
 vim.opt_local.statuscolumn = "%!v:lua.MpiTranscriptStc()"
 
@@ -966,30 +1055,37 @@ local function refresh()
   _G.MpiTranscriptTurn.s = s
   _G.MpiTranscriptTurn.e = e
   local h = heading_label(info)
-  local keys = "%=[t prev  ]t next"
+  local keys = "%=[t/]t turn  [u/]u user"
   vim.wo.winbar = h == "" and keys or (" " .. h:gsub("%%", "%%%%") .. keys)
 end
 
-local function jump_role(dir)
+-- Cursor stays put when there is no heading left in that direction, matching
+-- how ]] and [[ behave at the ends of a buffer.
+local function jump_to(list, dir)
   local lnum = vim.api.nvim_win_get_cursor(0)[1]
   if dir > 0 then
-    for _, t in ipairs(turns) do
+    for _, t in ipairs(list) do
       if t.lnum > lnum then
         vim.api.nvim_win_set_cursor(0, { t.lnum, 0 })
         return
       end
     end
   else
-    for i = #turns, 1, -1 do
-      if turns[i].lnum < lnum then
-        vim.api.nvim_win_set_cursor(0, { turns[i].lnum, 0 })
+    for i = #list, 1, -1 do
+      if list[i].lnum < lnum then
+        vim.api.nvim_win_set_cursor(0, { list[i].lnum, 0 })
         return
       end
     end
   end
 end
-vim.keymap.set("n", "]t", function() jump_role(1) end, { buffer = true, silent = true })
-vim.keymap.set("n", "[t", function() jump_role(-1) end, { buffer = true, silent = true })
+local function map_jump(lhs, list, dir)
+  vim.keymap.set("n", lhs, function() jump_to(list, dir) end, { buffer = true, silent = true })
+end
+map_jump("]t", turns, 1)
+map_jump("[t", turns, -1)
+map_jump("]u", users, 1)
+map_jump("[u", users, -1)
 
 vim.api.nvim_create_autocmd("CursorMoved", {
   buffer = 0,
