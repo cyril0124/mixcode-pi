@@ -168,6 +168,6 @@ export const WORKSPACE_COMMAND_HANDLERS = {
 function parseImportRequest(args: string): { path: string; cwdOverride?: string } {
   const parts = args.trim().split(/\s+/).filter(Boolean);
   const path = parts[0];
-  if (!path) throw new Error("Missing import JSONL path");
+  if (!path) throw new Error("Error: Usage: /import <path> [cwd]");
   return { path, cwdOverride: parts[1] };
 }
