@@ -1114,11 +1114,13 @@ export class DiffViewer {
       return;
     }
     if (data === "j" || matchesKey(data, Key.down)) {
-      this.moveNavigator(1);
+      if (this.navigatorVisible) this.moveNavigator(1);
+      else this.scrollDiff(1);
       return;
     }
     if (data === "k" || matchesKey(data, Key.up)) {
-      this.moveNavigator(-1);
+      if (this.navigatorVisible) this.moveNavigator(-1);
+      else this.scrollDiff(-1);
       return;
     }
     if (data === "n") {
@@ -1663,7 +1665,7 @@ export class DiffViewer {
 
   private renderHelpContent(width: number, height: number): string[] {
     const help = [
-      "j/k or ↑/↓       next / previous tree node",
+      "j/k or ↑/↓       navigate tree / scroll diff",
       "n / p            next / previous file",
       "Enter             collapse / expand folder",
       "Ctrl+D/U          diff down / up",
@@ -1811,7 +1813,7 @@ export class DiffViewer {
             ? `Comment mode • ${selected?.side === "old" ? "deleted" : "added"} ${selected?.line ?? "-"} • j/k lines • Ctrl+D/U page • ←/→ side • V range • Enter comment • Esc files`
             : this.searchMode
               ? "Type to filter • Enter apply • Esc clear"
-              : "j/k tree • n/p files • c line • l file • a all • r review • v view • w wrap • s submit • ? help • q close";
+              : `${this.navigatorVisible ? "j/k tree" : "j/k scroll"} • n/p files • c line • l file • a all • r review • v view • w wrap • s submit • ? help • q close`;
     let rendered = [header, ...body, fit(theme.fg("dim", footerText), width)];
     if (this.reviewMode && !this.editTarget) {
       const modalWidth = Math.max(24, Math.min(width - 4, Math.floor(width * 0.72)));

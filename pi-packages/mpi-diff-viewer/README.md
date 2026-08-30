@@ -28,7 +28,7 @@ Invalid Git refs are reported as `Error: ...` notifications.
 | Key | Action |
 |---|---|
 | `Tab` / `Shift+Tab` | Switch between file list and diff hunk view. |
-| `j` / `k` or `Down` / `Up` | Scroll lines within the active diff pane. |
+| `j` / `k` or `Down` / `Up` | Navigate the file tree, or scroll the diff when the navigator is hidden (`e`). |
 | `n` / `p` | Jump to next / previous diff hunk. |
 | `w` | Wrap or truncate long lines. |
 | `c` | Add / edit inline review comment on current line (`fix` / `discuss`). |

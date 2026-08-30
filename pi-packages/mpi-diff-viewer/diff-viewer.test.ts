@@ -794,6 +794,37 @@ test("e hides the navigator and gives the diff the full width", () => {
   assert.match(stripTerminalSequences(output), /src\/alpha\.ts/);
 });
 
+test("e then j/k scrolls the diff instead of navigating files", () => {
+  const rows = Array.from(
+    { length: 40 },
+    (_, index): DiffRow => ({
+      kind: "insert",
+      newLineNumber: index + 1,
+      oldText: "",
+      newText: `added-line-${index + 1}`,
+    }),
+  );
+  const large = file("large.ts", rows, "added");
+  const { component } = createViewer(
+    { files: [large], additions: 40, deletions: 0, trackedFiles: 1 },
+    100,
+    20,
+  );
+
+  component.handleInput("e");
+  const hidden = component.render(100).join("\n");
+  assert.match(hidden, /j\/k scroll/);
+  assert.doesNotMatch(hidden, /j\/k tree/);
+  assert.match(hidden, /added-line-1\b/);
+
+  for (let index = 0; index < 5; index++) component.handleInput("j");
+  const after = component.render(100).join("\n");
+  assert.doesNotMatch(after, /added-line-1\b/);
+
+  for (let index = 0; index < 5; index++) component.handleInput("k");
+  assert.match(component.render(100).join("\n"), /added-line-1\b/);
+});
+
 test("file filtering accepts s characters while review comments exist", () => {
   const { component, closed, submissions } = createViewer();
 
