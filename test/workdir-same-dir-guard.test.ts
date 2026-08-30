@@ -95,11 +95,13 @@ test("applyWorkdirSelection rejects missing paths without calling runtime", asyn
       },
     };
 
-    applyWorkdirSelection(tab, path.join(root, "does-not-exist"), runtime);
-
+    assert.throws(
+      () => applyWorkdirSelection(tab, path.join(root, "does-not-exist"), runtime),
+      /Error: workdir not found or not a directory/,
+    );
     assert.equal(called, false);
     assert.equal(tab.workdir, root);
-    assert.match(tab.toast?.message ?? "", /workdir not found or not a directory/);
+    assert.equal(tab.toast, undefined);
   } finally {
     await fsPromises.rm(root, { recursive: true, force: true });
   }
@@ -121,10 +123,13 @@ test("applyWorkdirSelection rejects files and resolves relative paths", async ()
       },
     };
 
-    applyWorkdirSelection(tab, "not-a-dir.txt", runtime);
+    assert.throws(
+      () => applyWorkdirSelection(tab, "not-a-dir.txt", runtime),
+      /Error: workdir not found or not a directory/,
+    );
     assert.equal(calledWith, undefined);
     assert.equal(tab.workdir, root);
-    assert.match(tab.toast?.message ?? "", /workdir not found or not a directory/);
+    assert.equal(tab.toast, undefined);
 
     applyWorkdirSelection(tab, "child", runtime);
     assert.equal(calledWith, child);

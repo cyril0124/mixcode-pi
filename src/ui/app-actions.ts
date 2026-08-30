@@ -229,11 +229,7 @@ export function applyWorkdirSelection(
     isDir = false;
   }
   if (!isDir) {
-    pushToast(active, {
-      type: "error",
-      message: `workdir not found or not a directory: ${resolved}`,
-    });
-    return;
+    throw new Error(`Error: workdir not found or not a directory: ${resolved}`);
   }
   if (runtime) return runtime.updateTabWorkdir(active.sessionId, resolved, MIXCODE_SYSTEM_PROMPT);
   active.workdir = resolved;
