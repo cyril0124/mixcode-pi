@@ -688,7 +688,7 @@ test("buildViewText chatlog: shows used/window in k units with percentage when a
     contextWindowFor: (provider, modelId) =>
       provider === "anthropic" && modelId === "test" ? 200000 : undefined,
   });
-  assert.match(text, /8\.4k\/200k \(4\.2%\)/);
+  assert.match(text, /8\.4k\/200k ░{10} \(4\.2%\)/);
 });
 
 test("buildViewText chatlog: meta line shows cache hit rate when caching was used", () => {
@@ -728,8 +728,19 @@ test("buildViewText chatlog: context delta joins the percentage when a window is
     assistantEntry([{ type: "text", text: "a2" }], { totalTokens: 12000 }),
   ];
   const text = buildViewText("chatlog", entries, { contextWindowFor: () => 200000 });
-  assert.match(text, /10k\/200k \(5\.0%\)/);
-  assert.match(text, /12k\/200k \(6\.0%, \+2,000\)/);
+  assert.match(text, /10k\/200k █░{9} \(5\.0%\)/);
+  assert.match(text, /12k\/200k █░{9} \(6\.0%, \+2,000\)/);
+});
+
+test("buildViewText chatlog: context bar fills without overflowing past the window", () => {
+  const entries: SessionEntry[] = [
+    userEntry("q"),
+    // A turn kept across a compaction boundary can report more tokens than the
+    // window holds; the bar must stay ten cells wide.
+    assistantEntry([{ type: "text", text: "a" }], { totalTokens: 260000 }),
+  ];
+  const text = buildViewText("chatlog", entries, { contextWindowFor: () => 200000 });
+  assert.match(text, /260k\/200k █{10} \(130\.0%\)/);
 });
 
 test("buildViewText chatlog: meta line omits cache rate when no cache tokens", () => {
@@ -955,7 +966,8 @@ test("context view reports full context size even when the display is cut to N t
 
   const full = buildViewText("context", entries, { contextPrefix: prefix });
   const cut = buildViewText("context", entries, { contextPrefix: prefix, lastTurns: 1 });
-  const sizeLine = /_~\d[\d.k]*(?:\/[\d.k]+ \([\d.]+%\))? estimated — .* across (\d+) messages_/;
+  const sizeLine =
+    /_~\d[\d.k]*(?:\/[\d.k]+ [█░]{10} \([\d.]+%\))? estimated — .* across (\d+) messages_/;
 
   const fullMatch = full.match(sizeLine);
   const cutMatch = cut.match(sizeLine);

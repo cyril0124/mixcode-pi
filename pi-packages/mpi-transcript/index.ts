@@ -317,6 +317,17 @@ function fmtTokens(n: number): string {
   return `${k >= 100 ? Math.round(k) : Math.round(k * 10) / 10}k`;
 }
 
+/**
+ * Ten-cell bar for a context share, readable without parsing the percentage
+ * beside it. Clamped at both ends. A turn kept across a compaction boundary
+ * can report more tokens than the window holds.
+ */
+function contextBar(share: number): string {
+  const cells = 10;
+  const filled = Math.max(0, Math.min(cells, Math.round(share * cells)));
+  return "█".repeat(filled) + "░".repeat(cells - filled);
+}
+
 /** Resolves a model's context window in tokens; undefined when unknown. */
 type ContextWindowLookup = (provider: string, modelId: string) => number | undefined;
 
@@ -380,7 +391,7 @@ export function estimateContextSize(
  */
 function contextSizeLine(estimate: ContextSizeEstimate, contextWindow: number | undefined): string {
   const share = contextWindow
-    ? `~${fmtTokens(estimate.total)}/${fmtTokens(contextWindow)} (${((estimate.total / contextWindow) * 100).toFixed(1)}%)`
+    ? `~${fmtTokens(estimate.total)}/${fmtTokens(contextWindow)} ${contextBar(estimate.total / contextWindow)} (${((estimate.total / contextWindow) * 100).toFixed(1)}%)`
     : `~${fmtTokens(estimate.total)}`;
   const parts = [
     `${fmtTokens(estimate.systemPrompt)} system`,
@@ -618,7 +629,9 @@ function collectChatlog(entries: SessionEntry[], options: ChatlogOptions = {}): 
               const inner = [`${((ctxTokens / cw) * 100).toFixed(1)}%`, deltaPart]
                 .filter(Boolean)
                 .join(", ");
-              meta.push(`${fmtTokens(ctxTokens)}/${fmtTokens(cw)} (${inner})`);
+              meta.push(
+                `${fmtTokens(ctxTokens)}/${fmtTokens(cw)} ${contextBar(ctxTokens / cw)} (${inner})`,
+              );
             } else {
               meta.push(`${num(ctxTokens)} tok${deltaPart ? ` (${deltaPart})` : ""}`);
             }
