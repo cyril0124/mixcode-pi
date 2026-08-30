@@ -149,9 +149,11 @@ export function bindRuntimeRendering(
     previousInteractionCount.set(sessionId, currentCount);
     if (
       state &&
-      (event.type === "agent_end" || event.type === "compaction_end") &&
       runtimeTab.tab.sessionId === state.activeTabId &&
-      runtimeTab.tab.unreadDone
+      runtimeTab.tab.unreadDone &&
+      (event.type === "agent_end" ||
+        event.type === "compaction_end" ||
+        (isWorkingStatus(before) && !isWorkingStatus(runtimeTab.tab.status)))
     ) {
       runtimeTab.tab.unreadDone = false;
       void onStateChanged?.(state);
