@@ -44,9 +44,11 @@ test("resetTabToRoot keeps session file and id, clears leaf and chat", async () 
     assert.notEqual(runtimeTab.session.getLeafId(), null);
     runtime.rebuildChatFromSession("s1");
     assert.ok(runtimeTab.chat.length > 0);
+    runtimeTab.tab.currentContextTokens = 15_500;
 
     const first = runtime.resetTabToRoot("s1");
     assert.equal(first.noop, false);
+    assert.equal(runtimeTab.tab.currentContextTokens, undefined);
     assert.equal(runtimeTab.session.getSessionId(), "s1");
     assert.equal(runtimeTab.session.getSessionFile(), sessionFile);
     assert.equal(runtimeTab.tab.title, "Keep-My-Title");

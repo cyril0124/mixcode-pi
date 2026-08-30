@@ -64,6 +64,7 @@ const handleReset: LocalCommandHandler = ({ state, active, runtime, tui }) => {
     active!.chatScrollAnchorEntryId = undefined;
     active!.chatScrollAnchorIndex = undefined;
     active!.chatScrollAnchorText = undefined;
+    active!.currentContextTokens = undefined;
     if (result.noop) {
       appendActiveSystemMessage(state, runtime, "Already at session root (nothing to reset).");
     }

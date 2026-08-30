@@ -422,6 +422,7 @@ export class MixCodeRuntime {
     runtimeTab.agentSession.agent.state.messages =
       runtimeTab.session.buildSessionContext().messages;
     this.rebuildChatFromSession(sessionId);
+    runtimeTab.tab.currentContextTokens = undefined;
     return { noop: false };
   }
 
