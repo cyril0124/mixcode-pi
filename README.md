@@ -87,8 +87,8 @@ Switch dynamically between docked editor widgets and inline chat-stream widgets 
   <img src="assets/readme-inline-widget.gif" alt="Inline widgets mode" width="900">
 </p>
 
-### 5. Vim navigation & transcript search
-Treat the conversation transcript as a Vim buffer: scroll line-by-line (`j`/`k`), jump between milestone user turns (`Right` / `Shift+Right`), and search with WeakMap-cached live regex (`/`). Enter via `/vim` or empty-queue `Ctrl+U` then `u`.
+### 5. Vim navigation
+Treat the conversation transcript as a Vim buffer: scroll line-by-line (`j`/`k`), page with `Ctrl+U` / `Ctrl+D`, and jump between milestone user turns (`Right` / `Shift+Right`). Enter via `/vim` or empty-queue `Ctrl+U` then `u`.
 
 <p align="center">
   <img src="assets/readme-vim.gif" alt="Vim mode" width="900">

@@ -96,9 +96,8 @@
 │  FROM pi-tui (reuse, do not reimplement)     MIXCODE-LOCAL (owned here)                          │
 │  ---------------------------------------     ---------------------------                         │
 │  TUI / Container / OverlayHandle             MixCodeLayoutRoot stack                             │
-│  Editor / Input / SelectList                 CompactPromptEditor + Vim Search row                │
+│  Editor / Input / SelectList                 CompactPromptEditor                                 │
 │  Markdown / Image / Loader                   Agent Surface + chat blocks                         │
-│  alt-screen search matcher (patch export)    Vim search state machine + viewport highlight      │
 │  Box / Spacer / Text / TruncateText          chrome (header/tab/status)                          │
 │  SettingsList (when fits)                    Settings Panel                                      │
 │  keybindings / autocomplete APIs             Command Palette / Tab Jump                          │

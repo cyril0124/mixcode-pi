@@ -105,31 +105,6 @@ export interface MixCodeModelRef {
   disabled?: boolean;
 }
 
-export interface VimTranscriptSearchSnapshot {
-  query: string;
-  selectedIndex: number;
-  resultCount: number;
-  selectedKey?: string;
-  chatScrollOffset: number;
-  chatScrollAnchorEntryId?: string;
-  chatScrollAnchorIndex?: number;
-  chatScrollAnchorText?: string;
-  editorText: string;
-}
-
-export interface VimTranscriptSearchState {
-  query: string;
-  selectedIndex: number;
-  resultCount: number;
-  selectedKey?: string;
-  selectionMode: "query" | "next" | "previous" | "retain";
-  anchorRow: number;
-  /** Resolve the windowed renderer's estimated row against the full search corpus once. */
-  anchorPending?: boolean;
-  promptOpen: boolean;
-  cancelSnapshot?: VimTranscriptSearchSnapshot;
-}
-
 export interface MixCodeTabInfo {
   index: number;
   sessionId: string;
@@ -159,10 +134,6 @@ export interface MixCodeTabInfo {
   chatScrollAnchorIndex?: number;
   chatScrollAnchorText?: string;
   vimMode: boolean;
-  /** Non-persisted Vim transcript search state; rendered corpus lives in a WeakMap cache. */
-  vimTranscriptSearch?: VimTranscriptSearchState;
-  /** Restore draftInput into the live editor after a non-editor lifecycle clears search. */
-  vimSearchDraftRestorePending?: boolean;
   vimPendingHome?: boolean;
   /** Timestamp when empty-queue Ctrl+U armed enter-via-u; cleared on next key. */
   vimEnterArmedAt?: number;

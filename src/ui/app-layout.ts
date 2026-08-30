@@ -419,7 +419,7 @@ export class MixCodeLayoutRoot implements Component {
     // Pi uses flex minSize on the editor dock instead of slicing render output;
     // when we must clamp, keep head+last for selectors, and the tail while
     // autocomplete is open so the dropdown stays visible (custom skins are taller).
-    let clampedEditorLines = clampEditorLines(
+    const clampedEditorLines = clampEditorLines(
       editorLines,
       maxEditorRows,
       this.editor.isShowingAutocomplete(),
@@ -435,14 +435,6 @@ export class MixCodeLayoutRoot implements Component {
         metaProbe.length,
     );
     const mainLines = this.main.render(width);
-    if (active?.vimTranscriptSearch) {
-      clampedEditorLines = clampEditorLines(
-        this.editor.render(width),
-        maxEditorRows,
-        this.editor.isShowingAutocomplete(),
-      );
-      this.setEditorRows(clampedEditorLines.length);
-    }
     const footerLines = this.footer.render(width);
     const viewportRows = this.getViewportRows?.();
     const floatingRows = viewportRows

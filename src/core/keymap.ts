@@ -71,18 +71,6 @@ export const MIXCODE_KEYMAP: KeyAction[] = [
     scope: "global",
   },
   {
-    key: "/",
-    action: "vim-transcript-search",
-    description: "In Vim mode, search the rendered transcript",
-    scope: "global",
-  },
-  {
-    key: "n / N",
-    action: "vim-transcript-search-repeat",
-    description: "In Vim mode, jump to next / previous transcript match",
-    scope: "global",
-  },
-  {
     key: "right",
     action: "vim-next-user-message",
     description: "In Vim mode, jump to newer user message",

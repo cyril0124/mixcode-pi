@@ -15,7 +15,6 @@ import { modelToRef } from "../core/models.js";
 import { clearQueueEditToast } from "../core/toast.js";
 import type { MixCodeModel, MixCodeTabInfo } from "../core/types.js";
 import { clearPendingEscape } from "../core/escape.js";
-import { discardVimTranscriptSearch } from "../core/tabs.js";
 import { formatSessionTokens } from "../ui/components/session-info.js";
 import { syncWaitingForInput } from "./runtime-extension-custom.js";
 import { currentExtensionTheme, getActiveExtensionThemeId } from "./runtime-extension-theme.js";
@@ -643,7 +642,6 @@ export function resetTabForNewSession(tab: MixCodeTabInfo, sessionId: string): v
   tab.chatScrollAnchorEntryId = undefined;
   tab.chatScrollAnchorIndex = undefined;
   tab.chatScrollAnchorText = undefined;
-  discardVimTranscriptSearch(tab);
   clearPendingEscape(tab);
   tab.unreadDone = false;
   tab.workingStartedAt = undefined;

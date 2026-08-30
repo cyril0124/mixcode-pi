@@ -93,7 +93,6 @@ export function createTab(
     draftInput: "",
     chatScrollOffset: 0,
     vimMode: false,
-    vimTranscriptSearch: undefined,
     vimPendingHome: false,
     vimEnterArmedAt: undefined,
     zenMode: false,

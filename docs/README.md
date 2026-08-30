@@ -18,7 +18,7 @@ Documentation library for MixCode Pi, a multi-tab terminal AI coding agent built
 - **[Built-in Extensions Overview](builtin-extensions.md)**: Catalog of first-party `mpi-*` extensions and runtime lifecycle (see individual packages under `pi-packages/` for dedicated READMEs).
 - **[Zen Mode & Ambient Status](zen-mode.md)**: Distraction-free view, ambient background status dots, and mode migration across tab switches.
 - **[Inline Widgets Mode (`[INL]`)](inline-widgets.md)**: Natural chat scroll integration for extension widgets and editor vertical space reclamation.
-- **[Vim Navigation & Transcript Search](vim-and-navigation.md)**: Buffer navigation, user message jumping, and regex search.
+- **[Vim Navigation](vim-and-navigation.md)**: Buffer navigation and user message jumping.
 - **[Workspace & Multi-Tab Sessions](workspace-and-tabs.md)**: Multi-tab workflows, `/reset` vs `/clear`, `/fork`, workspace layout persistence, and Agent Tab collaboration (`mpi ctl`).
 - **[Steer & Follow-up Queue](queue-and-follow-up.md)**: Mid-turn prompt steering, next-turn follow-up queues, and `Ctrl+U` dequeue.
 - **[Batch Script Execution](batch-scripts.md)**: Post-launch monorepo automation scripts in Lua or TypeScript, API reference, and dry-run validation.

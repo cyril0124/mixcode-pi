@@ -87,8 +87,8 @@ Tab 之间可以直接对话——同一 TUI，或其他 `mpi` 进程——无�
   <img src="assets/readme-inline-widget.gif" alt="内联挂件模式" width="900">
 </p>
 
-### 5. Vim 模式与对话全文检索
-将对话流作为 Vim 文本 Buffer 浏览：逐行滚动（`j`/`k`）、在关键用户提问间跳跃（`Right` / `Shift+Right`），并支持基于 WeakMap 缓存的高性能 `/` 正则搜索。通过 `/vim` 或空队列 `Ctrl+U` 再按 `u` 进入。
+### 5. Vim 模式对话导航
+将对话流作为 Vim 文本 Buffer 浏览：逐行滚动（`j`/`k`）、`Ctrl+U` / `Ctrl+D` 翻页、在关键用户提问间跳跃（`Right` / `Shift+Right`）。通过 `/vim` 或空队列 `Ctrl+U` 再按 `u` 进入。
 
 <p align="center">
   <img src="assets/readme-vim.gif" alt="Vim 模式" width="900">
@@ -205,7 +205,7 @@ mpi ctl --tab Agent-01 wait && mpi ctl --tab Agent-01 last-message
 - [转向与后续双队列管理](docs/queue-and-follow-up.zh.md)
 - [Zen 专注模式](docs/zen-mode.zh.md)
 - [内联挂件模式 (`[INL]`)](docs/inline-widgets.zh.md)
-- [Vim 模式与检索](docs/vim-and-navigation.zh.md)
+- [Vim 模式与导航](docs/vim-and-navigation.zh.md)
 - [Batch 批量自动化](docs/batch-scripts.zh.md)
 - [Pi 扩展兼容性规范](docs/extension-compatibility.zh.md)
 - [Slash 命令完整手册](docs/commands.zh.md)

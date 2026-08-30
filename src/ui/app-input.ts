@@ -1,7 +1,6 @@
 import { isKeyRelease, matchesKey } from "@earendil-works/pi-tui";
 import { MIXCODE_EXTENSION_KEYBINDINGS_MANAGER } from "../agent/runtime.js";
 import { copyToClipboard } from "@earendil-works/pi-coding-agent";
-import { parseSgrMouseInput } from "../core/mouse.js";
 import {
   closeActiveOverlay,
   isOverlayActive,
@@ -58,12 +57,6 @@ import type {
 import { EXTENSION_PANEL_MIN_TERMINAL_WIDTH } from "./rendering/chrome.js";
 import { handleSubmittedInput } from "./app-submit.js";
 import { renderCommandPalette, renderTabJumpOverlay } from "./rendering.js";
-import {
-  handleVimTranscriptSearchPromptKey,
-  handleVimTranscriptSearchRepeat,
-  isVimTranscriptSearchOpenKey,
-  openVimTranscriptSearch,
-} from "./vim-transcript-search.js";
 import { closeTreeSelector, handleTreeSelectorKey } from "./components/tree-selector.js";
 import type { MixCodeSubmitRuntime } from "./app-types.js";
 
@@ -173,16 +166,6 @@ export function handleMixCodeKeyInput(
     }
     editorActions.forwardToInputComponent?.(data);
     return { consume: true };
-  }
-  // Vim search temporarily owns the existing editor row. Special keys stay in
-  // the global listener; ordinary editing keys fall through to EditorSlot.
-  if (active?.vimTranscriptSearch?.promptOpen && editorActions && !parseSgrMouseInput(data)) {
-    active.queueEditArmedAt = undefined;
-    clearQueueEditToast(active);
-    if (handleVimTranscriptSearchPromptKey(active, data, tui, editorActions)) {
-      return { consume: true };
-    }
-    return undefined;
   }
   // Resolve dual-queue Ctrl+U → S/F before Escape or editor dispatch.
   if (active && active.queueEditArmedAt !== undefined) {
@@ -325,27 +308,6 @@ export function handleMixCodeKeyInput(
     scheduleFloatingPanelExpiryRender(active, tui);
     tui.requestRender();
     return { consume: true };
-  }
-  if (
-    active &&
-    state.activeTabId !== HOME_TAB_ID &&
-    active.vimMode &&
-    !hasAnyOverlay(tui) &&
-    !hasFocusedAppControl(state, active) &&
-    !isEditorAutocompleteOpen() &&
-    !active.extensionUi.waitingForInputs.length
-  ) {
-    if (isVimTranscriptSearchOpenKey(data) && editorActions) {
-      clearPendingEscape(active);
-      if (openVimTranscriptSearch(active, editorActions)) {
-        tui.requestRender();
-        return { consume: true };
-      }
-    }
-    if (handleVimTranscriptSearchRepeat(active, data, tui)) {
-      clearPendingEscape(active);
-      return { consume: true };
-    }
   }
   // Hidden custom overlays still own recovery shortcuts. Editor-slot takeovers
   // must continue suppressing widget listeners such as Up/Down navigation.

@@ -10,11 +10,6 @@ import { activeToast } from "../../core/toast.js";
 import type { MixCodeTabInfo } from "../../core/types.js";
 import type { MixCodeTheme } from "../themes.js";
 import {
-  findTranscriptSearchMatches,
-  type TranscriptSearchMatch,
-  transcriptSearchMatchKey,
-} from "../vim-transcript-search.js";
-import {
   type AgentSurfaceRenderOptions,
   chatBlockRenderOptions,
   oversizedPolicyKey,
@@ -43,7 +38,6 @@ import {
 import { renderExtensionHeader, renderExtensionWidgets } from "./chrome.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
 import { renderHeaderKeyHints } from "../components/header-hints.js";
-import { highlightVisibleColumnRanges } from "./highlight.js";
 import { fitScrolledLinesWithInfo, type ScrolledLinesResult } from "./layout.js";
 import { box, padLine } from "./primitives.js";
 import { applyToastOverlay } from "../components/toast-overlay.js";
@@ -88,45 +82,9 @@ interface ConversationCache {
 
 const conversationCacheMap = new Map<string, ConversationCache>();
 
-interface TranscriptSearchRowRange {
-  startCol: number;
-  endCol: number;
-  matchIndex: number;
-}
-
-interface TranscriptSearchResults {
-  query: string;
-  matches: TranscriptSearchMatch[];
-  indexByKey: Map<string, number>;
-  rangesByRow: Map<number, TranscriptSearchRowRange[]>;
-}
-
-interface TranscriptSearchRenderCache {
-  lines: string[];
-  hasStableBody: boolean;
-  chatRef: ChatLine[];
-  stableChatEnd: number;
-  stableLastChatRef: ChatLine | undefined;
-  stableLastChatText: string;
-  stableLastChatStatus: string | undefined;
-  width: number;
-  themeName: string;
-  toolsExpanded: boolean;
-  oversizedPolicyKey: string;
-  hideThinking: boolean;
-  hiddenThinkingLabel: string;
-  mermaidRenderingMode: string;
-  showImages: boolean;
-  imageWidthCells: number;
-  results?: TranscriptSearchResults;
-}
-
-const transcriptSearchCacheMap = new Map<string, TranscriptSearchRenderCache>();
-
 /** Remove cached conversation lines for a closed tab to prevent memory leaks. */
 export function clearConversationCache(sessionId: string): void {
   conversationCacheMap.delete(sessionId);
-  transcriptSearchCacheMap.delete(sessionId);
 }
 
 /**
@@ -213,18 +171,6 @@ function renderAgentSurfaceInner(
 ): string[] {
   const surfaceWidth = maxHeight === undefined || width < 2 ? width : width - 1;
   const mainWidth = surfaceWidth;
-
-  if (maxHeight !== undefined && runtimeTab && tab.vimTranscriptSearch) {
-    return renderAgentSurfaceSearch(
-      tab,
-      runtimeTab,
-      width,
-      maxHeight,
-      surfaceWidth,
-      mainWidth,
-      options,
-    );
-  }
 
   if (maxHeight !== undefined && runtimeTab && tab.chatScrollAnchorEntryId) {
     return renderAgentSurfaceAnchored(
@@ -333,307 +279,6 @@ function isOversizedAssistantBlock(
     if (lineCount > policy.maxLines) return true;
   }
   return false;
-}
-
-function renderAgentSurfaceSearch(
-  tab: MixCodeTabInfo,
-  runtimeTab: RuntimeTab,
-  width: number,
-  maxHeight: number,
-  surfaceWidth: number,
-  mainWidth: number,
-  options: AgentSurfaceRenderOptions,
-): string[] {
-  const viewport = Math.max(0, Math.floor(maxHeight));
-  if (viewport <= 0) return [];
-  const cache = getTranscriptSearchRenderCache(tab, runtimeTab, mainWidth, options);
-  const dynamicLines = renderTranscriptSearchDynamicLines(
-    tab,
-    runtimeTab,
-    cache.stableChatEnd,
-    mainWidth,
-    options,
-  );
-  let lines = cache.lines;
-  if (dynamicLines.length > 0) {
-    lines = cache.hasStableBody
-      ? [...lines, chatBlockSeparator(mainWidth), ...dynamicLines]
-      : [...lines, ...dynamicLines];
-  }
-  const tail = renderChatTailLines(tab, mainWidth);
-  if (tail.length > 0) {
-    lines = lines.length > 0 ? [...lines, chatBlockSeparator(mainWidth), ...tail] : tail;
-  }
-
-  const search = tab.vimTranscriptSearch!;
-  const total = lines.length;
-  keepScrolledViewStable(tab, total, surfaceWidth, viewport);
-  const maxOffset = Math.max(0, total - viewport);
-  if (tab.chatScrollOffset > maxOffset) tab.chatScrollOffset = maxOffset;
-  applyScrollFreezeAnchor(tab, lines, viewport, surfaceWidth, true);
-  applyPendingScrollUserDelta(tab);
-  if (tab.chatScrollOffset > maxOffset) tab.chatScrollOffset = maxOffset;
-  if (search.anchorPending) {
-    const currentStart = Math.max(0, total - viewport - tab.chatScrollOffset);
-    search.anchorRow = transcriptSearchContentBounds(currentStart, total, viewport).first;
-    search.anchorPending = false;
-  }
-
-  const results = transcriptSearchResults(cache, search.query);
-  const matches = results.matches;
-  const exactIndex = search.selectedKey ? (results.indexByKey.get(search.selectedKey) ?? -1) : -1;
-  let selectedIndex = -1;
-  if (matches.length > 0) {
-    if (search.selectionMode === "query") {
-      selectedIndex = matches.findIndex(
-        (match) => (match.segments[0]?.row ?? 0) >= search.anchorRow,
-      );
-      if (selectedIndex < 0) selectedIndex = 0;
-    } else if (search.selectionMode === "next") {
-      const base =
-        exactIndex >= 0 ? exactIndex : Math.min(search.selectedIndex, matches.length - 1);
-      selectedIndex = base < 0 ? 0 : (base + 1) % matches.length;
-    } else if (search.selectionMode === "previous") {
-      const base =
-        exactIndex >= 0 ? exactIndex : Math.min(search.selectedIndex, matches.length - 1);
-      selectedIndex = base < 0 ? matches.length - 1 : (base - 1 + matches.length) % matches.length;
-    } else {
-      selectedIndex =
-        exactIndex >= 0
-          ? exactIndex
-          : Math.min(Math.max(0, search.selectedIndex), matches.length - 1);
-    }
-  }
-
-  const shouldReveal = search.selectionMode !== "retain";
-  search.selectedIndex = selectedIndex;
-  search.resultCount = matches.length;
-  search.selectedKey =
-    selectedIndex >= 0 ? transcriptSearchMatchKey(matches[selectedIndex]!) : undefined;
-  search.selectionMode = "retain";
-
-  if (shouldReveal && selectedIndex >= 0) {
-    tab.chatScrollOffset = revealTranscriptSearchMatch(
-      matches[selectedIndex]!,
-      total,
-      viewport,
-      tab.chatScrollOffset,
-    );
-  }
-
-  const fitted = fitScrolledLinesWithInfo(lines, maxHeight, surfaceWidth, tab.chatScrollOffset);
-  rememberScrollFreezeAnchor(tab, fitted.lines, surfaceWidth, fitted.height);
-  const highlighted = highlightVisibleChatLines(fitted.lines, tab, surfaceWidth, fitted.height, {
-    rangesByRow: results.rangesByRow,
-    selectedIndex,
-    startRow: fitted.start,
-  });
-  return appendChatScrollbar(
-    { ...fitted, lines: highlighted },
-    width,
-    tab.chatScrollOffset > 0 && (tab.status === "running" || tab.status === "thinking"),
-    tab,
-  );
-}
-
-function transcriptSearchStableChatEnd(runtimeTab: RuntimeTab): number {
-  const chat = runtimeTab.chat;
-  if (runtimeTab.currentRunChatStartIndex !== undefined) {
-    return Math.max(0, Math.min(runtimeTab.currentRunChatStartIndex, chat.length));
-  }
-
-  // Outside an agent run, user bash and concurrent tool calls can still update
-  // in place. Keep the mutable trailing tool group out of the stable snapshot.
-  let stableEnd = chat.length;
-  for (let index = chat.length - 1; index >= 0; index--) {
-    const line = chat[index]!;
-    if (line.role !== "tool") break;
-    if (
-      line.status === "pending" ||
-      line.status === "running" ||
-      line.toolIsPartial ||
-      line.pendingBash
-    ) {
-      stableEnd = index;
-    }
-  }
-  return stableEnd;
-}
-
-function renderTranscriptSearchDynamicLines(
-  tab: MixCodeTabInfo,
-  runtimeTab: RuntimeTab,
-  stableChatEnd: number,
-  width: number,
-  options: AgentSurfaceRenderOptions,
-): string[] {
-  const dynamicChat = runtimeTab.chat.slice(stableChatEnd);
-  if (dynamicChat.length === 0) return [];
-  const displayChat = chatLinesForDisplay(dynamicChat);
-  const originalIndices = originalChatIndicesForDisplay(dynamicChat, displayChat);
-  const blocks = displayChat.map((line, index) =>
-    renderChatBlock(
-      line,
-      width,
-      tab,
-      activeRenderTheme,
-      chatBlockRenderOptions(
-        runtimeTab,
-        stableChatEnd + (originalIndices?.get(line) ?? index),
-        options,
-      ),
-    ),
-  );
-  return joinRenderedBlocksTopToBottom(blocks, chatBlockSeparator(width));
-}
-
-function transcriptSearchContentBounds(
-  start: number,
-  total: number,
-  viewport: number,
-): { first: number; last: number } {
-  const end = Math.min(total, start + viewport);
-  return {
-    first: start + (start > 0 ? 1 : 0),
-    last: end - 1 - (end < total ? 1 : 0),
-  };
-}
-
-function revealTranscriptSearchMatch(
-  match: TranscriptSearchMatch,
-  total: number,
-  viewport: number,
-  currentOffset: number,
-): number {
-  const firstRow = match.segments[0]?.row ?? 0;
-  const lastRow = match.segments.at(-1)?.row ?? firstRow;
-  const maxStart = Math.max(0, total - viewport);
-  const currentStart = Math.max(0, total - viewport - currentOffset);
-  const currentBounds = transcriptSearchContentBounds(currentStart, total, viewport);
-  if (firstRow >= currentBounds.first && lastRow <= currentBounds.last) {
-    return currentOffset;
-  }
-
-  let targetStart = Math.max(
-    0,
-    Math.min(firstRow - Math.max(1, Math.floor(viewport / 3)), maxStart),
-  );
-  // Marker rows replace the first/last viewport row. Nudge the window until
-  // the selected range occupies content rows whenever the viewport permits it.
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const bounds = transcriptSearchContentBounds(targetStart, total, viewport);
-    if (firstRow < bounds.first) {
-      targetStart = Math.max(0, targetStart - (bounds.first - firstRow));
-    } else if (lastRow > bounds.last) {
-      targetStart = Math.min(maxStart, targetStart + (lastRow - bounds.last));
-    } else {
-      break;
-    }
-  }
-  return Math.max(0, total - viewport - targetStart);
-}
-
-function getTranscriptSearchRenderCache(
-  tab: MixCodeTabInfo,
-  runtimeTab: RuntimeTab,
-  width: number,
-  options: AgentSurfaceRenderOptions,
-): TranscriptSearchRenderCache {
-  const chat = runtimeTab.chat;
-  const stableChatEnd = transcriptSearchStableChatEnd(runtimeTab);
-  const stableLast = chat[stableChatEnd - 1];
-  const policyKey = oversizedPolicyKey(options.oversizedAssistantMessage);
-  const hideThinking = options.hideThinking === true;
-  const hiddenThinkingLabel = tab.extensionUi.hiddenThinkingLabel ?? "";
-  const mermaidRenderingMode = options.mermaidRenderingMode ?? "streaming";
-  const showImages = options.showImages !== false;
-  const imageWidthCells = options.imageWidthCells ?? 60;
-  const cached = transcriptSearchCacheMap.get(tab.sessionId);
-  if (
-    cached &&
-    cached.chatRef === chat &&
-    cached.stableChatEnd === stableChatEnd &&
-    cached.stableLastChatRef === stableLast &&
-    cached.stableLastChatText === (stableLast?.text ?? "") &&
-    cached.stableLastChatStatus === stableLast?.status &&
-    cached.width === width &&
-    cached.themeName === activeRenderTheme.name &&
-    cached.toolsExpanded === tab.extensionUi.toolsExpanded &&
-    cached.oversizedPolicyKey === policyKey &&
-    cached.hideThinking === hideThinking &&
-    cached.hiddenThinkingLabel === hiddenThinkingLabel &&
-    cached.mermaidRenderingMode === mermaidRenderingMode &&
-    cached.showImages === showImages &&
-    cached.imageWidthCells === imageWidthCells
-  ) {
-    return cached;
-  }
-
-  const stableChat = chat.slice(0, stableChatEnd);
-  const header = scrollableHeaderLines(tab, width);
-  const displayChat = chatLinesForDisplay(stableChat);
-  const originalIndices = originalChatIndicesForDisplay(stableChat, displayChat);
-  const blocks = displayChat.map((line, index) =>
-    renderChatBlock(
-      line,
-      width,
-      tab,
-      activeRenderTheme,
-      chatBlockRenderOptions(runtimeTab, originalIndices?.get(line) ?? index, options),
-    ),
-  );
-  const body = joinRenderedBlocksTopToBottom(blocks, chatBlockSeparator(width));
-  const transcript =
-    body.length > 0
-      ? [...header, ...body]
-      : chat.length === 0
-        ? [...header, ...renderConversationEmptyState(width)]
-        : header;
-  const next: TranscriptSearchRenderCache = {
-    lines: transcript,
-    hasStableBody: body.length > 0,
-    chatRef: chat,
-    stableChatEnd,
-    stableLastChatRef: stableLast,
-    stableLastChatText: stableLast?.text ?? "",
-    stableLastChatStatus: stableLast?.status,
-    width,
-    themeName: activeRenderTheme.name,
-    toolsExpanded: tab.extensionUi.toolsExpanded,
-    oversizedPolicyKey: policyKey,
-    hideThinking,
-    hiddenThinkingLabel,
-    mermaidRenderingMode,
-    showImages,
-    imageWidthCells,
-  };
-  transcriptSearchCacheMap.set(tab.sessionId, next);
-  return next;
-}
-
-function transcriptSearchResults(
-  cache: TranscriptSearchRenderCache,
-  query: string,
-): TranscriptSearchResults {
-  if (cache.results?.query === query) return cache.results;
-  const matches = findTranscriptSearchMatches(cache.lines, query);
-  const indexByKey = new Map<string, number>();
-  const rangesByRow = new Map<number, TranscriptSearchRowRange[]>();
-  for (let matchIndex = 0; matchIndex < matches.length; matchIndex++) {
-    const match = matches[matchIndex]!;
-    indexByKey.set(transcriptSearchMatchKey(match), matchIndex);
-    for (const segment of match.segments) {
-      const ranges = rangesByRow.get(segment.row) ?? [];
-      ranges.push({
-        startCol: segment.startCol,
-        endCol: segment.endCol,
-        matchIndex,
-      });
-      rangesByRow.set(segment.row, ranges);
-    }
-  }
-  cache.results = { query, matches, indexByKey, rangesByRow };
-  return cache.results;
 }
 
 /**
@@ -1048,17 +693,9 @@ function highlightVisibleChatLines(
   tab: MixCodeTabInfo,
   width: number,
   height: number,
-  searchView?: {
-    rangesByRow: ReadonlyMap<number, readonly TranscriptSearchRowRange[]>;
-    selectedIndex: number;
-    startRow: number;
-  },
 ): string[] {
   tab.lastRenderedChatLines = lines;
-  const searched = searchView
-    ? applyTranscriptSearchHighlights(lines, searchView, activeRenderTheme)
-    : lines;
-  const result = applyToastOverlay(searched, activeToast(tab), width, height, activeRenderTheme);
+  const result = applyToastOverlay(lines, activeToast(tab), width, height, activeRenderTheme);
   const selection = tab.chatSelection;
   if (!selection) return result;
   captureScrollableChatSelection(selection, lines, tab.chatScrollOffset);
@@ -1066,34 +703,6 @@ function highlightVisibleChatLines(
   return result.map((line, row) =>
     highlightChatSelectionLine(line, row, viewportSelection, activeRenderTheme.selectedBg),
   );
-}
-
-function applyTranscriptSearchHighlights(
-  lines: readonly string[],
-  searchView: {
-    rangesByRow: ReadonlyMap<number, readonly TranscriptSearchRowRange[]>;
-    selectedIndex: number;
-    startRow: number;
-  },
-  theme: MixCodeTheme,
-): string[] {
-  const result = [...lines];
-  for (let row = 0; row < result.length; row++) {
-    const cachedRanges = searchView.rangesByRow.get(searchView.startRow + row);
-    if (!cachedRanges) continue;
-    const ranges = cachedRanges.map((range) => ({
-      startCol: range.startCol,
-      endCol: range.endCol,
-      current: range.matchIndex === searchView.selectedIndex,
-    }));
-    result[row] = highlightVisibleColumnRanges(result[row] ?? "", ranges, (text, range) => {
-      const matched = theme.searchMatchBg(theme.searchMatchText(text));
-      return range.current
-        ? `\x1b[1m\x1b[7m${matched}\x1b[27m\x1b[22m`
-        : `\x1b[4m${matched}\x1b[24m`;
-    });
-  }
-  return result;
 }
 
 function appendChatScrollbar(

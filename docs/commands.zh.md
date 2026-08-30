@@ -36,7 +36,7 @@ MixCode 在 `src/core/commands.ts` 中注册了内置本地 Slash 命令。这�
 | `/palette` | - | - | 打开命令面板。与 `Ctrl+P` 相同。 |
 | `/jump` | - | - | 打开 Tab 跳转浮层。与 `Ctrl+T` 相同。 |
 | `/editor` | - | - | 在 `$VISUAL` / `$EDITOR` 中编辑当前输入草稿。与 `Ctrl+G` 相同。 |
-| `/vim` | - | Session | 进入基于 Buffer 滚动的 Vim 对话浏览与全文检索模式。 |
+| `/vim` | - | Session | 进入基于 Buffer 滚动的 Vim 对话浏览模式。 |
 | `/toggle-zen-mode` | - | Session | 开启 / 关闭顶部 Tab 栏的 Zen 专注模式。 |
 | `/toggle-inline-widgets` | - | Session | 切换扩展组件是在 Chat 消息流内联渲染还是固定在编辑器上方。 |
 | `/toggle-hidden-messages` | - | Session | 显示 / 隐藏扩展内部自定义生成的隐藏消息。 |

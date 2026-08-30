@@ -18,7 +18,7 @@ MixCode Pi 官方技术文档库。记录核心架构、特色工作流、命令
 - **[内置扩展总览 (Built-in Extensions)](builtin-extensions.zh.md)**：第一方 `mpi-*` 扩展目录与运行时加载生命周期（具体各扩展详情见 `pi-packages/<name>/README.md`）。
 - **[Zen 专注模式与后台感知 (Zen Mode)](zen-mode.zh.md)**：极简专注视图、后台状态圆点感知与跨 Tab 模式自动迁移。
 - **[内联组件模式 (`[INL]`)](inline-widgets.zh.md)**：扩展组件随 Chat 消息流自然滚动与编辑器垂直空间扩展。
-- **[Vim 模式与对话流检索 (Vim & Search)](vim-and-navigation.zh.md)**：Buffer 级浏览、用户提问正反向跳转与正则全文检索。
+- **[Vim 模式与对话导航 (Vim & Navigation)](vim-and-navigation.zh.md)**：Buffer 级浏览与用户提问正反向跳转。
 - **[多标签与工作区管理 (Workspace & Tabs)](workspace-and-tabs.zh.md)**：多 Tab 工作流、`/reset` 与 `/clear` 差异、`/fork`、工作区布局持久化，以及 Agent Tab 协作（`mpi ctl`）。
 - **[转向与后续双队列 (Queue Management)](queue-and-follow-up.zh.md)**：轮次中 Steer 注入、轮次后 Follow-up 排队与 `Ctrl+U` 出队。
 - **[Batch 批量自动化执行](batch-scripts.zh.md)**：启动后 Monorepo 批量脚本（Lua / TypeScript）、API 规范及 dry-run 校验。
