@@ -12,6 +12,7 @@ import {
   estimateContextSize,
   formatViewText,
   NVIM_TRANSCRIPT_LUA,
+  resolveModel,
 } from "./index.js";
 
 // ─── editorExtraArgs: vim/nvim flags ─────────────────────────────────────────
@@ -1061,4 +1062,26 @@ test("context view reports full context size even when the display is cut to N t
 
   // Other targets keep their existing header.
   assert.doesNotMatch(buildViewText("chatlog", entries, { contextPrefix: prefix }), sizeLine);
+});
+
+// ─── resolveModel: provider-echoed model ids ─────────────────────────────────
+
+test("resolveModel matches an archived model id that differs only in case", () => {
+  const model = {
+    provider: "jw-proxy",
+    id: "DeepSeek-V4-Flash-Vision-Exp",
+    contextWindow: 1000000,
+    cost: { cacheRead: 0.1 },
+  };
+  const registry = {
+    find: (provider: string, modelId: string) =>
+      provider === model.provider && modelId === model.id ? model : undefined,
+    getAll: () => [model],
+  };
+  // pi-ai overwrites the assistant message's model with the id the provider
+  // echoes back, which this proxy lowercases.
+  assert.equal(resolveModel(registry, "jw-proxy", "deepseek-v4-flash-vision-exp"), model);
+  assert.equal(resolveModel(registry, "jw-proxy", "DeepSeek-V4-Flash-Vision-Exp"), model);
+  assert.equal(resolveModel(registry, "other-proxy", "deepseek-v4-flash-vision-exp"), undefined);
+  assert.equal(resolveModel(registry, "jw-proxy", "gone-model"), undefined);
 });

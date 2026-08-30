@@ -331,6 +331,36 @@ function contextBar(share: number): string {
 /** Resolves a model's context window in tokens; undefined when unknown. */
 type ContextWindowLookup = (provider: string, modelId: string) => number | undefined;
 
+/** Model attributes the transcript reads: context window and cache-read price. */
+interface TranscriptModel {
+  contextWindow: number;
+  cost: { cacheRead: number };
+}
+
+/** Registry surface the transcript needs: exact lookup plus a full listing. */
+export interface TranscriptModelRegistry {
+  find(provider: string, modelId: string): TranscriptModel | undefined;
+  getAll(): readonly (TranscriptModel & { provider: string; id: string })[];
+}
+
+/**
+ * Model lookup for archived assistant messages, which record the id the
+ * provider echoed in its response (`output.model = event.message.model` in
+ * pi-ai), not the configured `model.id`. Proxies commonly echo a different
+ * case, so an exact miss retries case-insensitively before giving up; without
+ * it the turn loses its context bar and cache pricing.
+ */
+export function resolveModel(
+  registry: TranscriptModelRegistry,
+  provider: string,
+  modelId: string,
+): TranscriptModel | undefined {
+  const exact = registry.find(provider, modelId);
+  if (exact) return exact;
+  const lower = modelId.toLowerCase();
+  return registry.getAll().find((m) => m.provider === provider && m.id.toLowerCase() === lower);
+}
+
 /**
  * Upstream `estimateTextTokens` (chars/4). Reimplemented because pi-ai keeps it
  * behind `./utils/estimate`, which its package `exports` map does not expose.
@@ -1257,12 +1287,7 @@ const extension: ExtensionFactory = (pi) => {
         getBranch: () => SessionEntry[];
         buildContextEntries: () => SessionEntry[];
       };
-      modelRegistry: {
-        find(
-          provider: string,
-          modelId: string,
-        ): { contextWindow: number; cost: { cacheRead: number } } | undefined;
-      };
+      modelRegistry: TranscriptModelRegistry;
       ui: {
         editor(title: string, prefill?: string): Promise<string | undefined>;
         custom<T>(
@@ -1289,8 +1314,10 @@ const extension: ExtensionFactory = (pi) => {
       fullToolOutput,
       contextPrefix: target === "context" ? resolveContextPrefix(ctx) : undefined,
       contextWindowFor: (provider, modelId) =>
-        ctx.modelRegistry.find(provider, modelId)?.contextWindow,
-      priceSource: { getModel: (provider, modelId) => ctx.modelRegistry.find(provider, modelId) },
+        resolveModel(ctx.modelRegistry, provider, modelId)?.contextWindow,
+      priceSource: {
+        getModel: (provider, modelId) => resolveModel(ctx.modelRegistry, provider, modelId),
+      },
     });
     const editorCmd = externalEditorCommand();
     if (editorCmd && (await openInExternalEditor(ctx, editorCmd, content))) return;
