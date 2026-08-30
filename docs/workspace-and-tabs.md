@@ -40,7 +40,7 @@ Tabs display live status glyphs: `●` (running/working), `-` (idle/ready), `!` 
 
 `/fork` names the new tab `{source}-fork`. `/new-session <name>` uses the given name. If that exact title is already open, MixCode appends `-1`, `-2`, … to the **new** tab only and persists the uniquified name. A nameless `/new-session` still uses the next free `Agent-NN`.
 
-`/rename` and the session-selector rename refuse a title already used by another open tab (warning toast; no change). Resume, workspace restore, peer sync, and auto-rename keep the persisted session name even when it matches another open tab. `mpi ctl --tab` still errors when more than one open tab has the same title.
+`/rename` refuses a title already used by another open tab (`Error:` system message; no change). The session-selector rename refuses the same clash with a warning toast. Resume, workspace restore, peer sync, and auto-rename keep the persisted session name even when it matches another open tab. `mpi ctl --tab` still errors when more than one open tab has the same title.
 
 In the prompt editor, `@` fuzzy-matches the open tab titles of this instance (excluding the prompt-target tab itself) above file results. Selecting one inserts a plain-text mention: `@Title` when quoting is unnecessary, or a JSON-quoted value such as `@"My Title"`; embedded quotes are escaped.
 

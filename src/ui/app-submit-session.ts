@@ -447,10 +447,12 @@ const handleRename: LocalCommandHandler = ({ state, active, args, runtime, tui }
   try {
     renameAgentTab(state, active!.sessionId, args);
   } catch (error) {
-    pushToast(active!, {
-      type: "warning",
-      message: error instanceof Error ? error.message : String(error),
-    });
+    const message = error instanceof Error ? error.message : String(error);
+    appendActiveSystemMessage(
+      state,
+      runtime,
+      message.startsWith("Error:") ? message : `Error: ${message}`,
+    );
     tui.requestRender();
     return SKIP_FINALIZE;
   }

@@ -988,9 +988,8 @@ test("/rename refuses a title already used by another open tab", async () => {
   assert.equal(other.title, "Other");
   assert.equal(worker.title, "Worker");
   assert.deepEqual(renamed, []);
-  assert.deepEqual(system, []);
-  assert.equal(other.toast?.type, "warning");
-  assert.match(other.toast?.message ?? "", /already in use: Worker/);
+  assert.deepEqual(system, ["Error: Tab title already in use: Worker"]);
+  assert.equal(other.toast, undefined);
 });
 
 test("fork rolls back the fork tab and restores the source tab when createTab fails", async () => {

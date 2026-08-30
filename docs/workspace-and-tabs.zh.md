@@ -40,7 +40,7 @@ Tab 实时展示运行状态指示符：`●`（运行中/工作中）、`-`（�
 
 `/fork` 把新 Tab 命名为 `{source}-fork`。`/new-session <name>` 使用给定名字。若该精确标题已被打开的 Tab 占用，MixCode 只给**新** Tab 追加 `-1`、`-2`…，并把去重后的名字写入 session 文件。不带 name 的 `/new-session` 仍使用下一个空闲 `Agent-NN`。
 
-`/rename` 和 session 选择器改名会拒绝已被其它打开 Tab 占用的标题（warning toast，不改名）。Resume、工作区恢复、peer 同步和自动改名沿用磁盘上的 session 名，即使与另一个打开 Tab 同名。多个打开 Tab 同名时，`mpi ctl --tab` 仍报错。
+`/rename` 会拒绝已被其它打开 Tab 占用的标题（聊天里 `Error:` 系统消息，不改名）。session 选择器改名遇到同样冲突时用 warning toast。Resume、工作区恢复、peer 同步和自动改名沿用磁盘上的 session 名，即使与另一个打开 Tab 同名。多个打开 Tab 同名时，`mpi ctl --tab` 仍报错。
 
 提示词编辑器中，`@` 会在文件结果之上模糊匹配本实例已打开的 Tab 标题（不含提示词目标 Tab 自身）；选中后插入纯文本 mention：无需引号时为 `@Title`，否则使用 JSON 引号形式（如 `@"My Title"`），标题内的引号会被转义。
 
