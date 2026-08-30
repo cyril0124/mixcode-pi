@@ -250,6 +250,27 @@ test("runtime maps tool and thinking events into tab UI state", async () => {
   assert.equal(tab.lastWorkedDurationSeconds, undefined);
 });
 
+test("compaction_end skips the failure chat line when the session is too small", async () => {
+  const runtime = new MixCodeRuntime();
+  const tab = createTab(1, "s1", process.cwd());
+  const runtimeTab = await runtime.createTab(tab, {
+    systemPrompt: "system",
+    thinkingLevel: "medium",
+    workdir: process.cwd(),
+  });
+  const anyRuntime = runtime as unknown as {
+    applyEvent: (runtimeTab: unknown, event: unknown) => void;
+  };
+  anyRuntime.applyEvent(runtimeTab, {
+    type: "compaction_end",
+    errorMessage: "Compaction failed: Nothing to compact (session too small)",
+  });
+  assert.equal(
+    runtimeTab.chat.some((line) => /compaction failed|nothing to compact/i.test(line.text)),
+    false,
+  );
+});
+
 test("runtime surfaces an empty agent run as a system message", async () => {
   const runtime = new MixCodeRuntime();
   const tab = createTab(1, "s1", process.cwd());

@@ -4,6 +4,7 @@ import {
   appendEmptyRunNotice,
   appendSystemMessage,
   contextTokensFromUsage,
+  isNothingToCompactError,
   customEntryToChatLine,
   customMessageToChatLine,
   disposeChatRenderers,
@@ -179,11 +180,14 @@ export function applyEvent(
           runtimeTab.tab.unreadDone = true;
         }
       } else if (event.errorMessage) {
-        appendSystemMessage(
-          runtimeTab,
-          normalizeCompactionFailureMessage(event.errorMessage),
-          "error",
-        );
+        // Too-small sessions are a no-op. compactSession posts that notice.
+        if (!isNothingToCompactError(event.errorMessage)) {
+          appendSystemMessage(
+            runtimeTab,
+            normalizeCompactionFailureMessage(event.errorMessage),
+            "error",
+          );
+        }
       } else if (event.aborted) {
         appendSystemMessage(runtimeTab, "Compaction cancelled.");
       }
