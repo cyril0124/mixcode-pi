@@ -10,6 +10,7 @@ import {
   resolveSkillDirs,
   scanSkillEntries,
   createPicker,
+  workdirBreadcrumb,
   filteredPickerItems,
   updatePickerQuery,
   movePickerSelection,
@@ -79,6 +80,23 @@ test("workdir picker completes directories and keeps custom path input", async (
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }
+});
+
+test("workdir breadcrumb keeps the leading slash on the first absolute segment", () => {
+  const picker = (browsingDir: string) => ({
+    kind: "workdir" as const,
+    title: "Change Workdir",
+    query: "",
+    selectedIndex: 0,
+    items: [],
+    browsingDir,
+  });
+  assert.deepEqual(workdirBreadcrumb(picker("/")), ["/"]);
+  assert.deepEqual(workdirBreadcrumb(picker("/tmp")), ["/tmp"]);
+  assert.deepEqual(workdirBreadcrumb(picker("/tmp/foo")), ["/tmp", "foo"]);
+  assert.equal(workdirBreadcrumb(picker("/tmp/foo")).join(" / "), "/tmp / foo");
+  const home = process.env.HOME || os.homedir();
+  assert.deepEqual(workdirBreadcrumb(picker(home)), ["~"]);
 });
 
 test("skill scanning finds flat and nested skills with parsed descriptions", async () => {

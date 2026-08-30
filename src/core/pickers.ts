@@ -149,9 +149,11 @@ export function workdirBreadcrumb(picker: PickerState): string[] {
         .filter(Boolean),
     ];
   }
-  // Absolute path: split into segments, first segment is "/"
+  // Absolute path: first segment is "/tmp", not "/" + "tmp", so join(" / ")
+  // cannot render "/ / tmp".
   const parts = dir.split("/").filter(Boolean);
-  return ["/", ...parts];
+  if (parts.length === 0) return ["/"];
+  return [`/${parts[0]}`, ...parts.slice(1)];
 }
 
 function pickerTitle(kind: PickerKind): string {
