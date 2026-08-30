@@ -146,7 +146,9 @@ const handleExport: LocalCommandHandler = async ({ state, active, args, runtime 
     const filePath =
       outputPath?.endsWith(".jsonl") === true
         ? runtimeTab.agentSession.exportToJsonl(outputPath)
-        : await runtimeTab.agentSession.exportToHtml(outputPath);
+        : // MixCode themes are in-memory and have no sourcePath; Pi HTML export
+          // throws on those names. Use Pi's builtin dark JSON instead.
+          await runtimeTab.agentSession.exportToHtml(outputPath, { themeName: "dark" });
     pushToast(active!, { type: "success", message: `Session exported to: ${filePath}` });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
