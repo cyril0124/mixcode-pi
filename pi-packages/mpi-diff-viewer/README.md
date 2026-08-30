@@ -30,6 +30,7 @@ Invalid Git refs are reported as `Error: ...` notifications.
 | `Tab` / `Shift+Tab` | Switch between file list and diff hunk view. |
 | `j` / `k` or `Down` / `Up` | Scroll lines within the active diff pane. |
 | `n` / `p` | Jump to next / previous diff hunk. |
+| `w` | Wrap or truncate long lines. |
 | `c` | Add / edit inline review comment on current line (`fix` / `discuss`). |
 | `Enter` | Collapse or expand the selected navigator folder. |
 | `Escape` / `q` | Close Diff Viewer overlay without submitting comments. |

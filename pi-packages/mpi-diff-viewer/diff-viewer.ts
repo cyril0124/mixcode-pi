@@ -507,6 +507,7 @@ export class DiffViewer {
   private selectedNavigatorIndex = 0;
   private collapsedPaths = new Set<string>();
   private viewMode: ViewMode;
+  private wrapEnabled = true;
   private navigatorVisible = true;
   private navigatorScroll = 0;
   private diffScroll = 0;
@@ -1105,6 +1106,13 @@ export class DiffViewer {
       this.requestRender();
       return;
     }
+    if (data === "w") {
+      this.wrapEnabled = !this.wrapEnabled;
+      this.cancelPrewarm();
+      this.diffScroll = 0;
+      this.requestRender();
+      return;
+    }
     if (data === "j" || matchesKey(data, Key.down)) {
       this.moveNavigator(1);
       return;
@@ -1168,6 +1176,17 @@ export class DiffViewer {
   ): VisualDiffRow[] {
     const prefixWidth = visibleWidth(prefix);
     const contentWidth = Math.max(1, width - prefixWidth);
+    if (!this.wrapEnabled) {
+      return [
+        {
+          text: this.applyTone(
+            fit(`${prefix}${truncateToWidth(highlighted, contentWidth, "…", false)}`, width),
+            tone,
+          ),
+          targets,
+        },
+      ];
+    }
     const wrapped = wrapTextWithAnsi(highlighted, contentWidth);
     const parts = wrapped.length > 0 ? wrapped : [""];
     return parts.map((part, index) => ({
@@ -1400,7 +1419,7 @@ export class DiffViewer {
   }
 
   private viewCacheKey(viewMode: ViewMode, width: number): string {
-    return `${viewMode}:${width}`;
+    return `${viewMode}:${width}:${this.wrapEnabled ? "wrap" : "nowrap"}`;
   }
 
   private renderedRows(fileIndex: number, width: number, viewMode: ViewMode): VisualDiffRow[] {
@@ -1650,6 +1669,7 @@ export class DiffViewer {
       "Ctrl+D/U          diff down / up",
       "PageUp/PageDown   diff page",
       "g / G             first / last diff row",
+      "w                 wrap / truncate",
       "t or /            filter files",
       "v                 unified / side-by-side",
       "c                 enter changed-line comments",
@@ -1791,7 +1811,7 @@ export class DiffViewer {
             ? `Comment mode • ${selected?.side === "old" ? "deleted" : "added"} ${selected?.line ?? "-"} • j/k lines • Ctrl+D/U page • ←/→ side • V range • Enter comment • Esc files`
             : this.searchMode
               ? "Type to filter • Enter apply • Esc clear"
-              : "j/k tree • n/p files • c line • l file • a all • r review • v view • s submit • ? help • q close";
+              : "j/k tree • n/p files • c line • l file • a all • r review • v view • w wrap • s submit • ? help • q close";
     let rendered = [header, ...body, fit(theme.fg("dim", footerText), width)];
     if (this.reviewMode && !this.editTarget) {
       const modalWidth = Math.max(24, Math.min(width - 4, Math.floor(width * 0.72)));

@@ -897,6 +897,29 @@ test("Ctrl+D and Ctrl+U scroll the diff viewport by half a page", () => {
   assert.match(component.render(100).join("\n"), /added-line-1\b/);
 });
 
+test("w toggles line wrap on long diff lines", () => {
+  const longText = `const result = ${Array.from({ length: 20 }, (_, index) => `item${index}`).join(" + ")};`;
+  const changed = file("src/long.ts", [
+    { kind: "insert", newLineNumber: 1, oldText: "", newText: longText },
+  ]);
+  const { component } = createViewer(
+    { files: [changed], additions: 1, deletions: 0, trackedFiles: 1 },
+    60,
+    28,
+  );
+
+  const wrappedLines = stripTerminalSequences(component.render(60).join("\n")).split("\n");
+  assert.ok(wrappedLines.filter((line) => line.includes("item")).length > 1);
+
+  component.handleInput("w");
+  const truncatedLines = stripTerminalSequences(component.render(60).join("\n")).split("\n");
+  assert.ok(truncatedLines.some((line) => line.includes("const result =") && line.includes("…")));
+  assert.equal(truncatedLines.filter((line) => line.includes("item")).length, 1);
+
+  component.handleInput("w");
+  assert.match(stripTerminalSequences(component.render(60).join("\n")), /item19/);
+});
+
 test("help closes independently and q exits the viewer", () => {
   const { component, closed } = createViewer();
 
