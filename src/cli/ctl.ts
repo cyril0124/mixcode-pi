@@ -436,12 +436,6 @@ export function normalizeCtlStdout(text: string, ansi = false): string {
   return body.replace(/[ \t]+$/gm, "");
 }
 
-function formatCtlSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes}B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
-}
-
 function sliceUtf8Suffix(text: string, maxBytes: number): string {
   const encoder = new TextEncoder();
   if (encoder.encode(text).byteLength <= maxBytes) return text;
@@ -478,7 +472,7 @@ export async function truncateCtlStdout(
   const preview = sliceUtf8Suffix(text, CTL_STDOUT_PREVIEW_BYTES);
   const linesShown = preview.length === 0 ? 0 : preview.split("\n").length;
   return {
-    text: `[Full output: ${overflowPath}. Truncated: showing last ${linesShown} lines (${formatCtlSize(CTL_STDOUT_PREVIEW_BYTES)} tail limit)]\n\n${preview}`,
+    text: `[Full output: ${overflowPath}. Truncated: showing last ${linesShown} lines (${(CTL_STDOUT_PREVIEW_BYTES / 1024).toFixed(1)}KB tail limit)]\n\n${preview}`,
     overflowPath,
   };
 }

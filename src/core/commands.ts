@@ -380,7 +380,6 @@ export const LOCAL_COMMANDS: Array<{
   {
     name: "help",
     description: "Show all keyboard shortcuts",
-    palette: { label: "Help", requires: "session" },
   },
   {
     name: "hotkeys",

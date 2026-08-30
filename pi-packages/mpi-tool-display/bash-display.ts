@@ -5,7 +5,6 @@ import { stripAllEscapes } from "./render-utils.js";
 
 const BASH_SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const;
 const BASH_SPINNER_INTERVAL_MS = 200;
-const BASH_SPINNER_STATE_KEY = "__mpiToolDisplayBashSpinner";
 const BASH_SPINNER_TOOL_CALL_ID_KEY = "__mpiToolDisplayBashSpinnerToolCallId";
 
 interface BashCallArgs {
@@ -29,7 +28,6 @@ interface BashSpinnerState {
 }
 
 interface BashSpinnerStateCarrier {
-  [BASH_SPINNER_STATE_KEY]?: BashSpinnerState;
   [BASH_SPINNER_TOOL_CALL_ID_KEY]?: string;
 }
 
@@ -70,10 +68,7 @@ function getToolCallId(context: BashCallRenderContextLike): string | undefined {
   return getSyntheticToolCallId(toStateCarrier(context.state));
 }
 
-function getOrCreateSpinnerState(
-  toolCallId: string | undefined,
-  carrier: BashSpinnerStateCarrier | undefined,
-): BashSpinnerState | undefined {
+function getOrCreateSpinnerState(toolCallId: string | undefined): BashSpinnerState | undefined {
   if (!toolCallId) {
     return undefined;
   }
@@ -82,9 +77,6 @@ function getOrCreateSpinnerState(
   if (!state) {
     state = { frameIndex: 0 };
     spinnerStatesByToolCallId.set(toolCallId, state);
-  }
-  if (carrier) {
-    carrier[BASH_SPINNER_STATE_KEY] = state;
   }
   return state;
 }
@@ -172,9 +164,8 @@ export function renderBashCall(
   context: BashCallRenderContextLike,
 ): Text {
   const text = context.lastComponent instanceof Text ? context.lastComponent : new Text("", 0, 0);
-  const carrier = toStateCarrier(context.state);
   const toolCallId = getToolCallId(context);
-  const spinnerState = getOrCreateSpinnerState(toolCallId, carrier);
+  const spinnerState = getOrCreateSpinnerState(toolCallId);
   const shouldSpin = context.executionStarted && context.isPartial;
 
   if (!shouldSpin) {
