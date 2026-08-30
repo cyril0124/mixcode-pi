@@ -93,7 +93,7 @@ async function showGitDiff(
     diff = buildGitDiff(cwd, ref);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    ctx.ui.notify(`Error: ${message}`, "error");
+    ctx.ui.notify(message, "error");
     return;
   }
   await openDiff(diff, ctx, `No file modifications found against ${ref}.`);

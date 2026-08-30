@@ -192,7 +192,8 @@ test("/diff <ref> reports a missing git ref as an Error", async () => {
   }
 
   assert.equal(opened, 0);
-  assert.match(notices[0] ?? "", /^Error: /);
+  assert.match(notices[0] ?? "", /fatal:|bad revision|unknown revision/i);
+  assert.doesNotMatch(notices[0] ?? "", /\n/);
 });
 
 test("/diff propagates viewer failures after loading a Git diff", async () => {

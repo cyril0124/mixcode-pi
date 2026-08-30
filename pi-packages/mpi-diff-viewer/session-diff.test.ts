@@ -367,3 +367,20 @@ test("buildGitDiff rejects missing, option-like, and path-like refs", () => {
     fs.rmSync(cwd, { recursive: true, force: true });
   }
 });
+
+test("buildGitDiff reports a one-line fatal outside a git work tree", () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "mpi-diff-git-nongit-"));
+  try {
+    assert.throws(
+      () => buildGitDiff(cwd, "HEAD"),
+      (error: unknown) => {
+        assert.ok(error instanceof Error);
+        assert.match(error.message, /not a git repository/i);
+        assert.doesNotMatch(error.message, /\n/);
+        return true;
+      },
+    );
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});

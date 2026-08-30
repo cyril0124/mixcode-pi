@@ -538,6 +538,20 @@ export function parseGitUnifiedDiff(patch: string): DiffFile[] {
   return parseGitUnifiedDiffChunks(gitDiffChunks(patch));
 }
 
+function gitDiffErrorMessage(result: childProcess.SpawnSyncReturns<string>, ref: string): string {
+  const text = `${result.stderr}
+${result.stdout}`;
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const fatal = lines.find((line) => /^fatal:/i.test(line));
+  if (fatal) return fatal;
+  const notRepo = lines.find((line) => /not a git repository/i.test(line));
+  if (notRepo) return notRepo;
+  return lines[0] ?? `git diff ${ref} failed`;
+}
+
 export function buildGitDiff(cwd: string, ref: string): SessionDiff {
   if (ref === "" || ref.startsWith("-")) {
     throw new Error(`Invalid git ref: ${ref}`);
@@ -549,7 +563,7 @@ export function buildGitDiff(cwd: string, ref: string): SessionDiff {
   );
   if (result.error) throw result.error;
   if (result.status !== 0) {
-    throw new Error(result.stderr.trim() || `git diff ${ref} failed`);
+    throw new Error(gitDiffErrorMessage(result, ref));
   }
   const chunks = gitDiffChunks(result.stdout);
   const files = parseGitUnifiedDiff(result.stdout);
