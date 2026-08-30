@@ -1304,7 +1304,9 @@ function tabChipOpenSeq(paint: (text: string) => string): string {
 function paintTabChip(paint: (text: string) => string, body: string): string {
   const open = tabChipOpenSeq(paint);
   if (!open) return paint(body);
-  // Status glyphs reset fg (39) and inverse (27); restore chip chrome after both.
+  // The focus mark and the shimmer wave reset fg (39) / inverse (27) after every
+  // styled run. Re-open the chip so the rest of the label keeps its chrome.
+  // Anything the label must keep across those resets has to be part of `paint`.
   return paint(
     body.replace(/\x1b\[39m/g, `\x1b[39m${open}`).replace(/\x1b\[27m/g, `\x1b[27m${open}`),
   );
@@ -1329,7 +1331,13 @@ function renderTabSegmentText(
   if (active) {
     const rest = raw.slice(1);
     const shimmery = applyActiveTabShimmer(rest, tab.activatedAt);
-    return withFocusMark(activeRenderTheme.activeTab, fg ? fg(shimmery) : shimmery);
+    // Compose the status color into the chip paint rather than wrapping the
+    // shimmer in it: the wave's fg resets would otherwise strip the status color
+    // from every character after the wave, moving that boundary each frame.
+    const chip = fg
+      ? (body: string) => activeRenderTheme.activeTab(fg(body))
+      : activeRenderTheme.activeTab;
+    return withFocusMark(chip, shimmery);
   }
   const text = fg ? fg(raw) : raw;
   if (onHome) {
