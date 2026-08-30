@@ -6,7 +6,6 @@ import {
 
 export type SessionTreeNode = ReturnType<SessionManager["getTree"]>[number];
 export type TreeFilterMode = "default" | "no-tools" | "user-only" | "labeled-only" | "all";
-export type TreeSelectorMode = "tree" | "navigate";
 
 export interface SummarizePromptState {
   targetEntryId: string;
@@ -18,15 +17,11 @@ export interface SummarizePromptState {
 export interface TreeSelectorState {
   open: boolean;
   ownerSessionId?: string;
-  mode: TreeSelectorMode;
   displayTree: SessionTreeNode[];
   currentLeafId: string | null;
   initialSelectedId?: string;
   filterMode: TreeFilterMode;
-  allowedEntryIds: Set<string> | null;
-  navigationEntryIds: string[];
   selectedEntryId: string | null;
-  selectedIndex: number;
   component?: TreeSelectorComponent;
   selectRequest?: string;
   cancelRequested: boolean;
@@ -39,15 +34,11 @@ export function createTreeSelectorState(): TreeSelectorState {
   return {
     open: false,
     ownerSessionId: undefined,
-    mode: "tree",
     displayTree: [],
     currentLeafId: null,
     initialSelectedId: undefined,
     filterMode: "default",
-    allowedEntryIds: null,
-    navigationEntryIds: [],
     selectedEntryId: null,
-    selectedIndex: 0,
     component: undefined,
     selectRequest: undefined,
     cancelRequested: false,
@@ -63,22 +54,12 @@ export function initTreeSelector(
   currentLeafId: string | null,
   initialSelectedId?: string,
   initialFilterMode?: TreeFilterMode,
-  mode: TreeSelectorMode = "tree",
-  allowedEntryIds?: Set<string>,
 ): void {
   state.open = true;
-  state.mode = mode;
   state.currentLeafId = currentLeafId;
   state.filterMode = initialFilterMode ?? "default";
-  state.allowedEntryIds = allowedEntryIds ?? null;
-  state.navigationEntryIds = [];
-  state.displayTree =
-    mode === "navigate"
-      ? buildNavigationTree(tree, state.allowedEntryIds, state)
-      : addToolSearchMetadata(tree);
-  state.initialSelectedId =
-    initialSelectedId ??
-    (mode === "navigate" ? state.navigationEntryIds.at(-2) : (currentLeafId ?? undefined));
+  state.displayTree = addToolSearchMetadata(tree);
+  state.initialSelectedId = initialSelectedId ?? currentLeafId ?? undefined;
   state.summarizePrompt = null;
   resetTreeSelectorComponent(state, process.stdout.rows || 24);
 }
@@ -95,7 +76,7 @@ export function resetTreeSelectorComponent(
   state.copyRequest = undefined;
   const component = new TreeSelectorComponent(
     state.displayTree,
-    state.mode === "navigate" ? null : state.currentLeafId,
+    state.currentLeafId,
     Math.max(1, terminalHeight),
     (entryId) => {
       state.selectRequest = entryId;
@@ -107,7 +88,7 @@ export function resetTreeSelectorComponent(
       state.labelChangeRequest = { entryId, label };
     },
     state.initialSelectedId,
-    state.mode === "navigate" ? "all" : state.filterMode,
+    state.filterMode,
   );
   component.onCopy = (text) => {
     if (text === undefined) return;
@@ -122,9 +103,6 @@ export function resetTreeSelectorComponent(
 export function syncTreeSelectorSelection(state: TreeSelectorState): string | null {
   const selected = state.component?.getTreeList().getSelectedNode()?.entry.id ?? null;
   state.selectedEntryId = selected;
-  if (state.mode === "navigate") {
-    state.selectedIndex = Math.max(0, state.navigationEntryIds.indexOf(selected ?? ""));
-  }
   state.initialSelectedId = selected ?? state.initialSelectedId;
   return selected;
 }
@@ -177,80 +155,6 @@ function addToolSearchMetadata(tree: SessionTreeNode[]): SessionTreeNode[] {
     }
   }
   return clonedRoots;
-}
-
-export const NEWEST_TREE_ENTRY_ID = "__mixcode_tree_newest__";
-
-export function isNewestTreeSelection(state: TreeSelectorState): boolean {
-  return state.mode === "navigate" && state.selectedEntryId === NEWEST_TREE_ENTRY_ID;
-}
-
-function buildNavigationTree(
-  tree: SessionTreeNode[],
-  allowedEntryIds: Set<string> | null,
-  state: TreeSelectorState,
-): SessionTreeNode[] {
-  const nodes: SessionTreeNode[] = [];
-  const stack = [...tree].reverse();
-  while (stack.length > 0) {
-    const node = stack.pop()!;
-    for (let index = node.children.length - 1; index >= 0; index--) {
-      stack.push(node.children[index]!);
-    }
-    if (allowedEntryIds && !allowedEntryIds.has(node.entry.id)) continue;
-    if (node.entry.type !== "message" || node.entry.message.role !== "user") continue;
-    const sequence = state.navigationEntryIds.length + 1;
-    state.navigationEntryIds.push(node.entry.id);
-    nodes.push({
-      ...node,
-      entry: {
-        ...node.entry,
-        parentId: null,
-        message: {
-          ...node.entry.message,
-          content: [
-            {
-              type: "text",
-              text: `#${sequence} [${formatNavigationTimestamp(node.entry.timestamp)}] ${messageText(node)}`,
-            },
-          ],
-        },
-      },
-      children: [],
-    });
-  }
-
-  state.navigationEntryIds.push(NEWEST_TREE_ENTRY_ID);
-  nodes.push({
-    entry: {
-      type: "message",
-      id: NEWEST_TREE_ENTRY_ID,
-      parentId: null,
-      timestamp: new Date(0).toISOString(),
-      message: {
-        role: "user",
-        content: [{ type: "text", text: "<NEWEST>" }],
-        timestamp: 0,
-      },
-    },
-    children: [],
-  } as SessionTreeNode);
-  return nodes;
-}
-
-function messageText(node: SessionTreeNode): string {
-  if (node.entry.type !== "message" || !("content" in node.entry.message)) return "";
-  const content = node.entry.message.content;
-  if (typeof content === "string") return content.replace(/\s+/g, " ").trim();
-  return content
-    .flatMap((part) => (part.type === "text" ? [part.text] : []))
-    .join(" ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function formatNavigationTimestamp(timestamp: string): string {
-  return timestamp.replace("T", " ").slice(0, 16);
 }
 
 export const SUMMARIZE_OPTIONS = [

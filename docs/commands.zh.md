@@ -32,7 +32,6 @@ MixCode 在 `src/core/commands.ts` 中注册了内置本地 Slash 命令。这�
 | `/delete-all-sessions` | - | Session | 永久删除当前工作目录关联的所有 `.jsonl` 会话文件。 |
 | `/tree` | - | Session | 打开交互式会话分支树状查看器。 |
 | `/resume` | `[session-id \| N:<tab-name>]` | Session | 打开交互式会话选择器；`/resume <session-id>`（精确 id 或前缀，当前目录优先，其次全部根目录）直接恢复会话。`/resume N:<tab-name>` 先完整精确匹配已打开的 Tab 标题，再匹配完整精确的会话名（当前目录优先）；重名时报告全部候选 id。 |
-| `/navigate` | - | Session | 打开过滤为用户提问的对话快速定位器。 |
 | `/palette` | - | - | 打开命令面板。与 `Ctrl+P` 相同。 |
 | `/jump` | - | - | 打开 Tab 跳转浮层。与 `Ctrl+T` 相同。 |
 | `/editor` | - | - | 在 `$VISUAL` / `$EDITOR` 中编辑当前输入草稿。与 `Ctrl+G` 相同。 |

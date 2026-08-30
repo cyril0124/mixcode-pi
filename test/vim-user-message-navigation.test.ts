@@ -1,17 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { NEWEST_TREE_ENTRY_ID, type SessionTreeNode } from "../src/core/tree-selector.js";
+import type { SessionTreeNode } from "../src/core/tree-selector.js";
 import type { MixCodeRuntime } from "./helpers/mixcode.js";
-import {
-  createInitialState,
-  createTab,
-  handleMixCodeKeyInput,
-  handleSubmittedInput,
-} from "./helpers/mixcode.js";
+import { createInitialState, createTab, handleMixCodeKeyInput } from "./helpers/mixcode.js";
 import { testTui } from "./helpers/tui.js";
 import { scrollChatToUserEntry } from "../src/ui/chat-scroll-target.js";
 import { renderAgentSurface } from "../src/ui/rendering/agent-surface.js";
-import { renderTreeSelector } from "../src/ui/components/tree-selector-render.js";
 
 function stripAnsi(text: string): string {
   return text.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "");
@@ -62,7 +56,7 @@ function currentChat() {
   ];
 }
 
-function runtimeWithTree(overrides: Partial<MixCodeRuntime> = {}): MixCodeRuntime {
+function runtimeWithTree(): MixCodeRuntime {
   return {
     getTab: () => ({
       chat: currentChat(),
@@ -74,12 +68,8 @@ function runtimeWithTree(overrides: Partial<MixCodeRuntime> = {}): MixCodeRuntim
       },
       agentSession: { abortBranchSummary: () => undefined },
     }),
-    extensionNavigateTree: async () => {
-      throw new Error("/navigate must scroll chat, not switch tree leaf");
-    },
     appendSystemMessage: () => undefined,
     prompt: async () => undefined,
-    ...overrides,
   } as unknown as MixCodeRuntime;
 }
 
@@ -87,148 +77,18 @@ function emptyEditor() {
   return { getText: () => "", setText: () => undefined };
 }
 
-test("/navigate opens the Session Tree view filtered to current-chat user messages", async () => {
-  const state = createInitialState("/repo");
-  const tab = createTab(1, "s1", "/repo");
-  state.tabs.push(tab);
-  state.activeTabId = "s1";
-  const openedSessions: string[] = [];
-  const tui = testTui({
-    treeSelectorDisplay: {
-      open: (sessionId: string) => {
-        openedSessions.push(sessionId);
-      },
-      refresh: () => undefined,
-      close: () => undefined,
-    },
-  });
-
-  await handleSubmittedInput(state, runtimeWithTree(), "/navigate", tui);
-
-  assert.deepEqual(openedSessions, ["s1"]);
-  assert.equal(state.treeSelector.open, true);
-  assert.equal(state.treeSelector.mode, "navigate");
-  assert.equal(state.treeSelector.filterMode, "user-only");
-  assert.deepEqual(state.treeSelector.navigationEntryIds, ["u1", "u2", NEWEST_TREE_ENTRY_ID]);
-  const text = renderTreeSelector(state, 100).map(stripAnsi).join("\n");
-  assert.match(text, /Session Tree/);
-  assert.match(text, /j\/k: move\+scroll/);
-  assert.doesNotMatch(text, /Type to search|filters|cycle ctrl/);
-  // Navigate rows show sequence number + timestamp, like /prompt-history
-  assert.match(text, /user: #1 \[2026-05-14 00:00\] first user/);
-  assert.match(text, /user: #2 \[2026-05-14 00:00\] second user/);
-  // Virtual <NEWEST> row and counter including it
-  assert.match(text, /<NEWEST>/);
-  assert.match(text, /\(2\/3\)/);
-  assert.doesNotMatch(text, /side branch user/);
-  assert.doesNotMatch(text, /assistant answer/);
-});
-
-test("/navigate moves with arrows and j/k, then scrolls current chat", async () => {
+test("vim Right jumps to next user message and then NEWEST", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo");
   tab.chatSurfaceBounds = { top: 0, left: 0, width: 80, height: 4 };
+  tab.vimMode = true;
+  tab.chatScrollAnchorEntryId = "u1";
+  tab.chatScrollAnchorIndex = 0;
   state.tabs.push(tab);
   state.activeTabId = "s1";
   const runtime = runtimeWithTree();
-  const tui = testTui({
-    treeSelectorDisplay: {
-      open: () => undefined,
-      refresh: () => undefined,
-      close: () => undefined,
-    },
-  });
+  const tui = testTui();
 
-  await handleSubmittedInput(state, runtime, "/navigate", tui);
-  assert.equal(state.treeSelector.selectedEntryId, "u2");
-  assert.equal(tab.chatScrollOffset, 0);
-
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[A", tui, undefined, runtime), {
-    consume: true,
-  });
-  assert.equal(state.treeSelector.selectedEntryId, "u1");
-  await Promise.resolve();
-  assert.equal(tab.chatScrollAnchorEntryId, "u1");
-  assert.equal(tab.chatScrollAnchorIndex, 0);
-
-  const olderAnchor = tab.chatScrollAnchorEntryId;
-  assert.deepEqual(handleMixCodeKeyInput(state, "k", tui, undefined, runtime), { consume: true });
-  assert.equal(state.treeSelector.selectedEntryId, "u1");
-  assert.match(tab.toast?.message ?? "", /No older user message/);
-  assert.equal(tab.chatScrollAnchorEntryId, olderAnchor);
-
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[B", tui, undefined, runtime), {
-    consume: true,
-  });
-  assert.equal(state.treeSelector.selectedEntryId, "u2");
-  await Promise.resolve();
-  assert.equal(tab.chatScrollAnchorEntryId, "u2");
-  assert.equal(tab.chatScrollAnchorIndex, 2);
-  assert.equal(state.treeSelector.summarizePrompt, null);
-
-  // j past the last user message selects the virtual <NEWEST> row: jump to latest
-  assert.deepEqual(handleMixCodeKeyInput(state, "j", tui, undefined, runtime), { consume: true });
-  assert.equal(state.treeSelector.selectedEntryId, NEWEST_TREE_ENTRY_ID);
-  await Promise.resolve();
-  assert.equal(tab.chatScrollAnchorEntryId, undefined);
-  assert.equal(tab.chatScrollOffset, 0);
-
-  // j past <NEWEST> hits the bottom boundary
-  assert.deepEqual(handleMixCodeKeyInput(state, "j", tui, undefined, runtime), { consume: true });
-  assert.equal(state.treeSelector.selectedEntryId, NEWEST_TREE_ENTRY_ID);
-  assert.match(tab.toast?.message ?? "", /No newer user message/);
-  assert.equal(tab.chatScrollAnchorEntryId, undefined);
-
-  // k moves back from <NEWEST> to the last user message and re-anchors
-  assert.deepEqual(handleMixCodeKeyInput(state, "k", tui, undefined, runtime), { consume: true });
-  assert.equal(state.treeSelector.selectedEntryId, "u2");
-  await Promise.resolve();
-  assert.equal(tab.chatScrollAnchorEntryId, "u2");
-
-  state.treeSelector.open = false;
-  tab.vimMode = true;
-  assert.deepEqual(handleMixCodeKeyInput(state, "k", tui, undefined, runtime), { consume: true });
-  assert.equal(tab.chatScrollAnchorEntryId, "u2");
-  assert.ok(tab.chatScrollOffset > 0);
-  assert.deepEqual(handleMixCodeKeyInput(state, "j", tui, undefined, runtime), { consume: true });
-  assert.equal(tab.chatScrollAnchorEntryId, "u2");
-  assert.equal(tab.chatScrollOffset, 0);
-  tab.vimMode = false;
-
-  state.treeSelector.open = true;
-  assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui, undefined, runtime), { consume: true });
-  assert.equal(state.treeSelector.open, false);
-  state.treeSelector.open = true;
-  const selectedBeforePassThrough = state.treeSelector.selectedEntryId;
-  assert.equal(handleMixCodeKeyInput(state, "x", tui, undefined, runtime)?.consume, undefined);
-  assert.equal(state.treeSelector.summarizePrompt, null);
-  assert.equal(state.treeSelector.selectedEntryId, selectedBeforePassThrough);
-});
-
-test("vim Right jumps to next user message and then NEWEST", async () => {
-  const state = createInitialState("/repo");
-  const tab = createTab(1, "s1", "/repo");
-  tab.chatSurfaceBounds = { top: 0, left: 0, width: 80, height: 4 };
-  state.tabs.push(tab);
-  state.activeTabId = "s1";
-  const runtime = runtimeWithTree();
-  const tui = testTui({
-    treeSelectorDisplay: {
-      open: () => undefined,
-      refresh: () => undefined,
-      close: () => undefined,
-    },
-  });
-
-  await handleSubmittedInput(state, runtime, "/navigate", tui);
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[A", tui, undefined, runtime), {
-    consume: true,
-  });
-  await Promise.resolve();
-  assert.equal(tab.chatScrollAnchorEntryId, "u1");
-
-  state.treeSelector.open = false;
-  tab.vimMode = true;
   assert.deepEqual(
     handleMixCodeKeyInput(
       state,
@@ -242,7 +102,6 @@ test("vim Right jumps to next user message and then NEWEST", async () => {
     ),
     { consume: true },
   );
-  assert.equal(state.treeSelector.open, false);
   assert.equal(tab.chatScrollAnchorEntryId, "u2");
 
   assert.deepEqual(
@@ -364,10 +223,8 @@ test("vim Shift+Right treats a stale anchor as the newest position", () => {
   assert.equal(tab.chatScrollAnchorIndex, 2);
 });
 
-test("/navigate scroll alignment puts selected user message at top when possible", () => {
-  const state = createInitialState("/repo");
+test("scrollChatToUserEntry puts selected user message at top when possible", () => {
   const tab = createTab(1, "s1", "/repo");
-  state.tabs.push(tab);
   const u1 = messageNode("u1", null, "user", "first user");
   const a1 = messageNode("a1", "u1", "assistant", "assistant one");
   const u2 = messageNode("u2", "a1", "user", "middle user");
@@ -399,7 +256,7 @@ test("/navigate scroll alignment puts selected user message at top when possible
   assert.doesNotMatch(visible.slice(0, 3).join("\n"), /first user/);
 });
 
-test("/navigate scroll targeting does not render every chat block", () => {
+test("scrollChatToUserEntry targeting does not render every chat block", () => {
   const tab = createTab(1, "s1", "/repo");
   const u1 = messageNode("u1", null, "user", "first user");
   const x1 = {
@@ -436,23 +293,4 @@ test("/navigate scroll targeting does not render every chat block", () => {
     .filter((line) => line.trim());
   assert.match(visible.slice(0, 3).join("\n"), /second user/);
   assert.equal(renderCalls, 0);
-});
-
-test("/navigate warns instead of throwing when runtime tab is missing", async () => {
-  const state = createInitialState("/repo");
-  const tab = createTab(1, "s1", "/repo");
-  state.tabs.push(tab);
-  state.activeTabId = "s1";
-  const runtime = {
-    appendSystemMessage: () => {
-      throw new Error("must not append to a missing runtime tab");
-    },
-    prompt: async () => undefined,
-    getTab: () => undefined,
-  } as unknown as MixCodeRuntime;
-  const tui = testTui();
-
-  await handleSubmittedInput(state, runtime, "/navigate", tui);
-
-  assert.match(tab.toast?.message ?? "", /Navigate requires an active agent chat/);
 });

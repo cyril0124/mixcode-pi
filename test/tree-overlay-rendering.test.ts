@@ -303,12 +303,12 @@ test("attached tree selector editor ignores Kitty key release events", () => {
   assert.equal(renders, 0);
 });
 
-test("navigate mode consumes Left so app-input cannot leave to Home", () => {
+test("tree selector consumes Left so app-input cannot leave to Home", () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"));
   state.activeTabId = "s1";
   state.treeSelector = createTreeSelectorState();
-  initTreeSelector(state.treeSelector, sampleTree(), "active", "navigate");
+  initTreeSelector(state.treeSelector, sampleTree(), "active");
   state.treeSelector.open = true;
   const tui = {
     requestRender: () => undefined,
@@ -438,13 +438,13 @@ test("tree selector keeps key priority over extension terminal input handlers be
   assert.equal(renders, 1);
 });
 
-test("openQuitConfirm unloads navigate tree so cancel does not leave a dead editor", async () => {
+test("openQuitConfirm unloads tree so cancel does not leave a dead editor", async () => {
   const { openQuitConfirm } = await import("../src/ui/app-actions.js");
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"));
   state.activeTabId = "s1";
   state.treeSelector = createTreeSelectorState();
-  initTreeSelector(state.treeSelector, sampleTree(), "active", "navigate");
+  initTreeSelector(state.treeSelector, sampleTree(), "active");
   state.treeSelector.open = true;
   let editorClosed = false;
   const tui = {
@@ -466,40 +466,12 @@ test("openQuitConfirm unloads navigate tree so cancel does not leave a dead edit
   assert.equal(state.quitConfirmOpen, true);
 });
 
-test("Ctrl+T closes navigate before opening Tab Jump", () => {
-  const state = createInitialState("/repo");
-  state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
-  state.activeTabId = "s1";
-  state.treeSelector = createTreeSelectorState();
-  initTreeSelector(state.treeSelector, sampleTree(), "active", undefined, undefined, "navigate");
-  state.treeSelector.open = true;
-  let editorClosed = false;
-  const tui = {
-    requestRender: () => undefined,
-    showOverlay: () => ({ hide: () => undefined }) as never,
-    hideOverlay: () => undefined,
-    hasOverlay: () => true,
-    treeSelectorDisplay: {
-      open: () => undefined,
-      refresh: () => undefined,
-      close: () => {
-        editorClosed = true;
-      },
-    },
-  };
-
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x14", tui), { consume: true }); // ctrl+t
-  assert.equal(state.treeSelector.open, false);
-  assert.equal(editorClosed, true);
-  assert.equal(state.tabJumpOpen, true);
-});
-
 test("Tab switch closes tree so destination accepts typing", () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
   state.activeTabId = "s1";
   state.treeSelector = createTreeSelectorState();
-  initTreeSelector(state.treeSelector, sampleTree(), "active", undefined, undefined, "tree");
+  initTreeSelector(state.treeSelector, sampleTree(), "active");
   state.treeSelector.open = true;
   state.treeSelector.ownerSessionId = "s1";
   let closedOwner: string | undefined;

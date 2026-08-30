@@ -649,9 +649,6 @@ function handleAgentSurfaceKeys(
   }
   if (MIXCODE_EXTENSION_KEYBINDINGS_MANAGER.matches(data, "app.model.cycleBackward")) {
     if (active) clearPendingEscape(active);
-    // Navigate installs a tree editor that falls through Ctrl+T; close it first
-    // so Tab Jump is the only layer and Esc dismisses it (not the tree under it).
-    if (state.treeSelector.open) closeTreeSelector(state, tui);
     openTabJump(state);
     showLinesOverlay(tui, (width) => renderTabJumpOverlay(state, width));
     return { consume: true };

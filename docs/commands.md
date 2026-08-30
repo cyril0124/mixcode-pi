@@ -32,7 +32,6 @@ Commands operate across three distinct persistence tiers:
 | `/delete-all-sessions` | - | Session | Permanently deletes all `.jsonl` session files for the current workspace. |
 | `/tree` | - | Session | Opens interactive session branch tree viewer. |
 | `/resume` | `[session-id \| N:<tab-name>]` | Session | Opens the interactive session selector; `/resume <session-id>` (exact id or prefix, current folder first, then all roots) resumes directly. `/resume N:<tab-name>` first matches an open tab title exactly, then an exact full session name (current folder first). Duplicate names report all candidate ids. |
-| `/navigate` | - | Session | Opens message navigator filtered to user turns. |
 | `/palette` | - | - | Opens the command palette. Same as `Ctrl+P`. |
 | `/jump` | - | - | Opens the tab jump overlay. Same as `Ctrl+T`. |
 | `/editor` | - | - | Edits the input draft in `$VISUAL` / `$EDITOR`. Same as `Ctrl+G`. |

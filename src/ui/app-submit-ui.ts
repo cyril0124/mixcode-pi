@@ -16,17 +16,12 @@ import {
   type RuntimeToolInfo,
   SKIP_FINALIZE,
 } from "./app-types.js";
-import { userMessageEntryIdsInBranch } from "./chat-scroll-target.js";
 import { renderHotkeysText } from "./hotkeys.js";
 import { getConfiguredQuitOptions, quitMixCode } from "./quit.js";
 import { clearConversationCache, renderCommandPalette, renderTabJumpOverlay } from "./rendering.js";
 import { renderSystemToolsText } from "./system-tools.js";
 import { renderSystemPromptSectionStats } from "./components/system-prompt-stats.js";
-import {
-  closeTreeSelector,
-  openTreeSelector,
-  type TreeSelectorRuntime,
-} from "./components/tree-selector.js";
+import { closeTreeSelector } from "./components/tree-selector.js";
 
 /** Delay before bell + external done signals so the user can leave the pane first. */
 const MARK_DONE_SIGNAL_DELAY_MS = 5_000;
@@ -94,44 +89,6 @@ const handleToggleHiddenMessages: LocalCommandHandler = ({ active, runtime, tui 
       : "Hidden extension messages hidden",
   });
   tui.requestRender();
-};
-
-const handleNavigate: LocalCommandHandler = async ({
-  state,
-  active,
-  runtime,
-  tui,
-  onStateChanged,
-}): Promise<typeof SKIP_FINALIZE> => {
-  const runtimeTab = runtime.getTab(active!.sessionId);
-  if (
-    !runtimeTab?.session.getTree ||
-    !runtimeTab.session.getLeafId ||
-    !runtimeTab.session.getBranch
-  ) {
-    pushToast(active!, { type: "warning", message: "Navigate requires an active agent chat" });
-    tui.requestRender();
-    return SKIP_FINALIZE;
-  }
-  const userEntryIds = userMessageEntryIdsInBranch(runtimeTab.session.getBranch());
-  if (userEntryIds.length === 0) {
-    pushToast(active!, { type: "warning", message: "No user messages in current chat" });
-    tui.requestRender();
-    return SKIP_FINALIZE;
-  }
-  openTreeSelector(
-    state,
-    runtime as unknown as TreeSelectorRuntime,
-    tui,
-    active!.sessionId,
-    undefined,
-    "user-only",
-    "navigate",
-    new Set(userEntryIds),
-  );
-  await onStateChanged?.(state);
-  tui.requestRender();
-  return SKIP_FINALIZE;
 };
 
 const handlePalette: LocalCommandHandler = ({ state, args, runtime, tui }) => {
@@ -215,7 +172,6 @@ export const UI_COMMAND_HANDLERS = {
   vim: handleVim,
   "toggle-zen-mode": handleToggleZenMode,
   "toggle-inline-widgets": handleToggleInlineWidgets,
-  navigate: handleNavigate,
   help: handleHotkeys,
   hotkeys: handleHotkeys,
   palette: handlePalette,

@@ -1,4 +1,4 @@
-import { stripTerminalSequences, truncateToWidth } from "@earendil-works/pi-tui";
+import { truncateToWidth } from "@earendil-works/pi-tui";
 import { applyMixCodeKeybindings } from "../../agent/runtime-pi-tui-bridge.js";
 import type { TreeSelectorState } from "../../core/tree-selector.js";
 import { SUMMARIZE_OPTIONS } from "../../core/tree-selector.js";
@@ -29,25 +29,8 @@ function renderTreeSelectorInner(
   } finally {
     restoreKeybindings();
   }
-  if (selector.mode === "navigate") customizeNavigateHeader(lines);
   const fitted = fitEditorRows(lines, maxRows);
   return fitted.map((line) => truncateToWidth(line, panelWidth));
-}
-
-function customizeNavigateHeader(lines: string[]): void {
-  const titleIndex = lines.findIndex((line) =>
-    stripTerminalSequences(line).includes("Session Tree"),
-  );
-  if (titleIndex < 0) return;
-  const borderIndex = lines.findIndex(
-    (line, index) => index > titleIndex && /^─+$/.test(stripTerminalSequences(line).trim()),
-  );
-  if (borderIndex < 0) return;
-  lines.splice(
-    titleIndex + 1,
-    borderIndex - titleIndex - 1,
-    activeRenderTheme.dim("  ↑/↓ or j/k: move+scroll. Enter/Esc: close. Other keys pass through."),
-  );
 }
 
 function fitEditorRows(lines: string[], maxRows?: number): string[] {

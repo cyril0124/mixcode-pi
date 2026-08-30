@@ -1,10 +1,7 @@
-import type { SessionEntry } from "@earendil-works/pi-coding-agent";
+import { copyToClipboard } from "@earendil-works/pi-coding-agent";
 import { type EditorComponent, isKeyRelease, matchesKey } from "@earendil-works/pi-tui";
 
-import type { ChatLine } from "../../agent/runtime.js";
 import { applyMixCodeKeybindings } from "../../agent/runtime-pi-tui-bridge.js";
-import { copyToClipboard } from "@earendil-works/pi-coding-agent";
-import { chatEnd } from "../../core/overlays.js";
 import { pushToast } from "../../core/toast.js";
 import {
   cancelCustomInstructions,
@@ -12,19 +9,16 @@ import {
   confirmCustomInstructions,
   confirmSummarizeSelection,
   initTreeSelector,
-  isNewestTreeSelection,
   moveSummarizeSelection,
   resetTreeSelectorComponent,
   type SessionTreeNode,
   showSummarizePrompt,
   syncTreeSelectorSelection,
   type TreeFilterMode,
-  type TreeSelectorMode,
 } from "../../core/tree-selector.js";
 import type { MixCodeState } from "../../core/types.js";
 import { showErrorOverlay } from "../app-overlays.js";
 import type { MixCodeKeyRuntime, OverlayTui, TreeSelectorDisplayHost } from "../app-types.js";
-import { scrollChatToUserEntry } from "../chat-scroll-target.js";
 import { renderTreeSelector } from "./tree-selector-render.js";
 
 function getTreeSelectorDisplayHost(tui: OverlayTui): TreeSelectorDisplayHost | undefined {
@@ -116,9 +110,7 @@ export interface TreeSelectorRuntime {
           getTree: () => SessionTreeNode[];
           getLeafId: () => string | null;
           appendLabelChange: (entryId: string, label: string | undefined) => string;
-          getBranch?: () => SessionEntry[];
         };
-        chat?: ChatLine[];
         agentSession: { abortBranchSummary: () => void };
         services?: { settingsManager?: { getTreeFilterMode: () => TreeFilterMode } };
       }
@@ -137,9 +129,6 @@ export function openTreeSelector(
   tui: OverlayTui,
   sessionId: string,
   initialSelectedId?: string,
-  initialFilterMode?: TreeFilterMode,
-  mode: TreeSelectorMode = "tree",
-  allowedEntryIds?: Set<string>,
 ): void {
   const runtimeTab = runtime.getTab(sessionId);
   if (!runtimeTab) {
@@ -161,10 +150,7 @@ export function openTreeSelector(
     tree,
     runtimeTab.session.getLeafId(),
     initialSelectedId,
-    // settings.json treeFilterMode; explicit initialFilterMode (navigate) wins.
-    initialFilterMode ?? runtimeTab.services?.settingsManager?.getTreeFilterMode(),
-    mode,
-    allowedEntryIds,
+    runtimeTab.services?.settingsManager?.getTreeFilterMode(),
   );
   state.treeSelector.ownerSessionId = sessionId;
   const display = getTreeSelectorDisplayHost(tui);
@@ -193,22 +179,6 @@ export function handleTreeSelectorKey(
 
   if (selector.summarizePrompt !== null) {
     return handleSummarizeKey(state, data, tui, runtime, onStateChanged);
-  }
-
-  if (selector.mode === "navigate") {
-    if (matchesKey(data, "escape") || matchesKey(data, "enter")) {
-      closeTreeSelector(state, tui);
-      return true;
-    }
-    if (matchesKey(data, "up") || data === "k") {
-      moveNavigateSelection(state, tui, runtime, onStateChanged, -1);
-      return true;
-    }
-    if (matchesKey(data, "down") || data === "j") {
-      moveNavigateSelection(state, tui, runtime, onStateChanged, 1);
-      return true;
-    }
-    return matchesKey(data, "left");
   }
 
   withTreeKeybindings(() => selector.component?.handleInput(data));
@@ -329,32 +299,6 @@ function drainTreeComponentEvents(
   }
 }
 
-function moveNavigateSelection(
-  state: MixCodeState,
-  tui: OverlayTui,
-  runtime: MixCodeKeyRuntime | undefined,
-  onStateChanged: ((state: MixCodeState) => void | Promise<void>) | undefined,
-  direction: -1 | 1,
-): void {
-  const selector = state.treeSelector;
-  const nextIndex = selector.selectedIndex + direction;
-  if (nextIndex < 0 || nextIndex >= selector.navigationEntryIds.length) {
-    const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId);
-    if (active) {
-      pushToast(active, {
-        type: "info",
-        message: direction < 0 ? "No older user message" : "No newer user message",
-      });
-    }
-  } else {
-    withTreeKeybindings(() => selector.component?.handleInput(direction < 0 ? "\x1b[A" : "\x1b[B"));
-    syncTreeSelectorSelection(selector);
-    void navigateOnSelectionChange(state, tui, runtime, onStateChanged);
-  }
-  refreshTreeSelectorDisplay(tui);
-  tui.requestRender();
-}
-
 function withTreeKeybindings<T>(action: () => T): T {
   const restore = applyMixCodeKeybindings();
   try {
@@ -362,44 +306,6 @@ function withTreeKeybindings<T>(action: () => T): T {
   } finally {
     restore();
   }
-}
-
-async function navigateOnSelectionChange(
-  state: MixCodeState,
-  tui: OverlayTui,
-  runtime?: MixCodeKeyRuntime,
-  onStateChanged?: (state: MixCodeState) => void | Promise<void>,
-): Promise<void> {
-  const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId);
-  if (!active) return;
-  if (isNewestTreeSelection(state.treeSelector)) {
-    chatEnd(active);
-    await onStateChanged?.(state);
-    refreshTreeSelectorDisplay(tui);
-    tui.requestRender();
-    return;
-  }
-
-  const entryId = state.treeSelector.selectedEntryId;
-  const runtimeRef = runtime as unknown as TreeSelectorRuntime | undefined;
-  const runtimeTab = runtimeRef?.getTab(active.sessionId);
-  if (!entryId || !runtimeTab) return;
-  const branch = runtimeTab.session.getBranch?.() ?? [];
-  const bounds = active.chatSurfaceBounds;
-  const result = scrollChatToUserEntry(
-    active,
-    runtimeTab.chat ?? [],
-    branch,
-    entryId,
-    bounds?.height ?? Math.max(1, Math.floor((process.stdout.rows || 24) / 2)),
-    bounds?.width ?? (process.stdout.columns || 80),
-  );
-  if (!result.found) {
-    pushToast(active, { type: "warning", message: "Message is not in the current chat" });
-  }
-  await onStateChanged?.(state);
-  refreshTreeSelectorDisplay(tui);
-  tui.requestRender();
 }
 
 async function navigateToEntry(
