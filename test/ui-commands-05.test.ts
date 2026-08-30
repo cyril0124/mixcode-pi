@@ -909,6 +909,23 @@ test("/new-session rejects --focus and --no-focus together", async () => {
   assert.equal(state.activeTabId, "s1");
 });
 
+test("/new-session rejects an unknown -- flag instead of using it as a title", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo", { title: "Agent-01" }));
+  state.activeTabId = "s1";
+  const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
+
+  await assert.rejects(
+    () => handleSubmittedInput(state, commandRuntime(), "/new-session --bogus", tui),
+    /Error: Usage: \/new-session \[--focus\|--no-focus\] \[title\]/,
+  );
+  assert.deepEqual(
+    state.tabs.map((tab) => tab.sessionId),
+    ["s1"],
+  );
+  assert.equal(state.activeTabId, "s1");
+});
+
 test("/new-session --no-focus rolls back the tab and leaves the previous active id", async () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo", { status: "done" }));

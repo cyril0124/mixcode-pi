@@ -141,6 +141,7 @@ function parseNewSessionArgs(args: string): { focus: boolean; title?: string } {
       focus = false;
       continue;
     }
+    if (part.startsWith("--")) throw new Error(NEW_SESSION_USAGE);
     titleParts.push(part);
   }
   const requested = titleParts.join(" ");
