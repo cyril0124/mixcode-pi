@@ -916,9 +916,14 @@ test("buildViewText chatlog: renders model and thinking level change events", ()
 });
 
 test("buildViewText chatlog: assistant meta line shows model, tokens, cost, and time", () => {
+  const at = "2026-08-26T10:00:00.000Z";
   const entries: SessionEntry[] = [
-    userEntry("q"),
-    assistantEntry([{ type: "text", text: "a" }], { totalTokens: 8432, costTotal: 0.021 }),
+    userEntry("q", at),
+    assistantEntry([{ type: "text", text: "a" }], {
+      totalTokens: 8432,
+      costTotal: 0.021,
+      at,
+    }),
   ];
   const text = buildViewText("chatlog", entries);
   assert.match(
