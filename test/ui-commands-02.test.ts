@@ -369,7 +369,7 @@ test("picker key handling covers no-match, empty selection, and no active tab", 
   };
   assert.match(renderPickerOverlay(state, 80).join("\n"), /No matching items/);
   assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui), { consume: true });
-  assert.equal(state.picker?.kind, "models");
+  assert.equal(state.picker, undefined);
 
   state.picker = {
     kind: "models",
