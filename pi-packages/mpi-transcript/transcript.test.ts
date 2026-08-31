@@ -1090,7 +1090,7 @@ test("buildViewText: shows full-branch tool and SKILL statistics at the top", ()
   const text = buildViewText("chatlog", entries, { lastTurns: 1 });
   assert.match(
     text,
-    /^# Chat Export\n\n╭─+╮\n│ 📊 Transcript Stats +│\n│ Session · 2 turns · 7 messages · [\d.]+s +│\n│ Result · 2 success · 1 errors · 2 pending +│\n│ Tools · 5 total · `read` × 3 · `bash` × 2 +│\n│ Skills · 2 reads · `worktree-dev` × 2 +│\n╰─+╯/m,
+    /^# Chat Export\n\n╭─+╮\n│ 📊 Transcript Stats +│\n│ Session · 2 turns · 7 messages · [\d.]+s +│\n│ File · In-memory +│\n│ Result · 2 success · 1 errors · 2 pending +│\n│ Tools · 5 total · `read` × 3 · `bash` × 2 +│\n│ Skills · 2 reads · `worktree-dev` × 2 +│\n╰─+╯/m,
   );
   assert.match(text, /earlier 1 turn omitted/);
   assert.doesNotMatch(text, /q1/);

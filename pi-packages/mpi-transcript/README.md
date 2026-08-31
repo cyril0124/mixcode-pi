@@ -13,7 +13,7 @@
 
 `/transcript config` opens the transcript editor configuration panel. The panel always offers `auto` and `builtin`; `nvim` and `vim` appear only when their `--version` checks succeed.
 
-`N` applies to `context`, `chatlog`, and `thinking`. `full` applies to `context` and `chatlog`.
+`N` applies to `context`, `chatlog`, and `thinking`. `full` applies to `context` and `chatlog`. Every view starts with transcript statistics, including the current session file path or `In-memory` for an unpersisted session.
 
 ## Editor selection
 

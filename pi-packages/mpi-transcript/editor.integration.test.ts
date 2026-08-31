@@ -22,6 +22,7 @@ test("transcript auto mode opens nvim before vim through the command handler", a
   await fs.mkdir(bin, { recursive: true });
   const nvimMarker = path.join(root, "nvim.marker");
   const vimMarker = path.join(root, "vim.marker");
+  const sessionFile = path.join(root, "sessions", "session-123.jsonl");
   await fs.writeFile(path.join(bin, "nvim"), createEditorScript(nvimMarker), { mode: 0o755 });
   await fs.writeFile(path.join(bin, "vim"), createEditorScript(vimMarker), { mode: 0o755 });
   writeTranscriptConfig(agentDir, { editor: "auto" });
@@ -45,6 +46,7 @@ test("transcript auto mode opens nvim before vim through the command handler", a
     const lifecycle: string[] = [];
     const notifications: Array<{ message: string; type?: string }> = [];
     let inAppCalls = 0;
+    let inAppContent: string | undefined;
     const ctx = {
       hasUI: true,
       ui: {
@@ -68,8 +70,9 @@ test("transcript auto mode opens nvim before vim through the command handler", a
               resolve,
             );
           }),
-        editor: async () => {
+        editor: async (_title: string, content: string) => {
           inAppCalls++;
+          inAppContent = content;
         },
         notify: (message: string, type?: string) => notifications.push({ message, type }),
         select: async () => undefined,
@@ -83,6 +86,7 @@ test("transcript auto mode opens nvim before vim through the command handler", a
           },
         ],
         buildContextEntries: () => [],
+        getSessionFile: () => sessionFile,
       },
       modelRegistry: {},
       getSystemPromptOptions: () => ({}),
@@ -117,6 +121,7 @@ test("transcript auto mode opens nvim before vim through the command handler", a
     writeTranscriptConfig(agentDir, { editor: "builtin" });
     await command.handler("latest-user", ctx);
     assert.equal(inAppCalls, 2);
+    assert.ok(inAppContent?.includes(`│ File · ${sessionFile}`));
     assert.deepEqual(lifecycle, [
       "stop",
       "start",

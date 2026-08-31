@@ -13,7 +13,7 @@
 
 `/transcript config` 打开由本包管理的编辑器配置面板。面板始终提供 `auto` 与 `builtin`；只有对应命令的 `--version` 检查成功时才显示 `nvim` 或 `vim`。
 
-`N` 适用于 `context`、`chatlog` 和 `thinking`。`full` 适用于 `context` 和 `chatlog`。
+`N` 适用于 `context`、`chatlog` 和 `thinking`。`full` 适用于 `context` 和 `chatlog`。每个视图顶部都会显示 transcript 统计信息，其中包含当前 session 文件路径；未持久化的 session 显示 `In-memory`。
 
 ## 编辑器选择
 

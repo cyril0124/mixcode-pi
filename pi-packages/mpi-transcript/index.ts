@@ -191,9 +191,13 @@ function formatStatItems(items: ReadonlyMap<string, number>): string {
 }
 
 /** Rounded box shown before the selected transcript content. */
-function renderTranscriptStats(stats: TranscriptStats): string {
+function renderTranscriptStats(
+  stats: TranscriptStats,
+  sessionFile: string | null | undefined,
+): string {
   const rows = [
     `Session · ${stats.sessionTurns} turn${stats.sessionTurns === 1 ? "" : "s"} · ${stats.messageCount} message${stats.messageCount === 1 ? "" : "s"} · ${stats.durationMs === undefined ? "duration n/a" : fmtDuration(stats.durationMs)}`,
+    `File · ${sessionFile ?? "In-memory"}`,
     `Result · ${stats.resultCounts.success} success · ${stats.resultCounts.errors} errors · ${stats.resultCounts.pending} pending`,
     `Tools · ${stats.totalToolCalls} total · ${formatStatItems(stats.toolCalls)}`,
     `Skills · ${[...stats.skills.values()].reduce((total, count) => total + count, 0)} reads · ${formatStatItems(stats.skills)}`,
@@ -836,6 +840,8 @@ export interface BuildViewOptions {
   priceSource?: ModelPriceSource;
   /** Render complete tool results instead of the 20-line cap. */
   fullToolOutput?: boolean;
+  /** Absolute session JSONL path; null when the session is not persisted. */
+  sessionFile?: string | null;
   /**
    * Prompt-side context for the `context` view's size estimate. Omitted for
    * other targets and when the caller cannot resolve it; the summary line is
@@ -850,9 +856,10 @@ export function buildViewText(
   entries: SessionEntry[],
   options: BuildViewOptions = {},
 ): string {
-  const { lastTurns, contextWindowFor, priceSource, fullToolOutput, contextPrefix } = options;
+  const { lastTurns, contextWindowFor, priceSource, fullToolOutput, contextPrefix, sessionFile } =
+    options;
   const meta = TARGETS.find((t) => t.id === target)!;
-  const stats = renderTranscriptStats(collectTranscriptStats(entries));
+  const stats = renderTranscriptStats(collectTranscriptStats(entries), sessionFile);
   if (target === "thinking" || target === "chatlog" || target === "context") {
     const { sliced, turnOffset } = cutForLastTurns(entries, lastTurns);
     const note =
@@ -1708,6 +1715,7 @@ const extension: ExtensionFactory = (pi) => {
       priceSource: {
         getModel: (provider, modelId) => resolveModel(ctx.modelRegistry, provider, modelId),
       },
+      sessionFile: ctx.sessionManager.getSessionFile(),
     });
     const loaded = loadTranscriptConfig(agentDir);
     if (!loaded.ok) {
