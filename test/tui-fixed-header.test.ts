@@ -870,19 +870,15 @@ test("working indicator is driven by the Pi TUI loader animation", async () => {
 
   try {
     tui.start();
-    await sleep(130);
-    const normal = stripAnsi(writes);
-    assert.match(normal, /A Working \(\d+s . esc to interrupt\)/);
-    assert.match(normal, /B Working \(\d+s . esc to interrupt\)/);
+    await waitForMatch(() => writes, /A Working \(\d+s . esc to interrupt\)/);
+    await waitForMatch(() => writes, /B Working \(\d+s . esc to interrupt\)/);
     tab.activeCompactionReason = "threshold";
     tui.requestRender(true);
-    await sleep(80);
+    await waitForMatch(() => writes, /A Auto-compacting\.\.\. \(\d+s . esc to interrupt\)/);
+    await waitForMatch(() => writes, /B Auto-compacting\.\.\. \(\d+s . esc to interrupt\)/);
   } finally {
     tui.stop();
   }
-  const plain = stripAnsi(writes);
-  assert.match(plain, /A Auto-compacting\.\.\. \(\d+s . esc to interrupt\)/);
-  assert.match(plain, /B Auto-compacting\.\.\. \(\d+s . esc to interrupt\)/);
 });
 
 test("rendering overlay defaults cover closed and fallback branches", () => {
@@ -930,6 +926,23 @@ test("handleMixCodeKeyInput lets q pass through to the editor", () => {
 
 function sleep(ms: number): Promise<void> {
   return Bun.sleep(ms);
+}
+
+async function waitForMatch(
+  getText: () => string,
+  pattern: RegExp,
+  timeoutMs = 1000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const plain = stripAnsi(getText());
+    if (pattern.test(plain)) return;
+    if (Date.now() >= deadline) {
+      assert.match(plain, pattern);
+      return;
+    }
+    await sleep(10);
+  }
 }
 
 function stripAnsi(text: string): string {
