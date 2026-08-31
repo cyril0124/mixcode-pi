@@ -1,9 +1,10 @@
+import * as path from "node:path";
 import type { LocalCommand } from "../core/commands.js";
 import { assertConfiguredOpenTabsReadable, noteTabReplaced } from "../core/open-tabs-store.js";
 import { createPicker } from "../core/pickers.js";
 import { activateTab } from "../core/tabs.js";
 import { pushToast } from "../core/toast.js";
-import { applyWorkdirSelection } from "./app-actions.js";
+import { appendActiveSystemMessage, applyWorkdirSelection } from "./app-actions.js";
 import { syncOwnedAppOverlay } from "./app-overlays.js";
 import { HOME_TAB_ID } from "../core/types.js";
 import { type LocalCommandHandler, type MixCodeSubmitRuntime, SKIP_FINALIZE } from "./app-types.js";
@@ -136,23 +137,42 @@ const handleImport: LocalCommandHandler = async ({ state, active, args, runtime 
   return undefined;
 };
 
+function resolveExportOutputPath(
+  workdir: string,
+  outputPath: string | undefined,
+  sessionFile: string | undefined,
+): string {
+  if (outputPath) {
+    return path.isAbsolute(outputPath) ? outputPath : path.join(workdir, outputPath);
+  }
+  const name = sessionFile
+    ? `pi-session-${path.basename(sessionFile, path.extname(sessionFile))}.html`
+    : "pi-session.html";
+  return path.join(workdir, name);
+}
+
 const handleExport: LocalCommandHandler = async ({ state, active, args, runtime }) => {
   // Pi handleExportCommand: .jsonl path -> exportToJsonl, else HTML.
   if (state.activeTabId === HOME_TAB_ID) return SKIP_FINALIZE;
   const runtimeTab = runtime.getTab(active!.sessionId);
   if (!runtimeTab) throw new Error(`Unknown tab session: ${active!.sessionId}`);
-  const outputPath = args.trim() || undefined;
+  const outputPath = resolveExportOutputPath(
+    active!.workdir,
+    args.trim() || undefined,
+    runtimeTab.agentSession.sessionFile,
+  );
   try {
-    const filePath =
-      outputPath?.endsWith(".jsonl") === true
-        ? runtimeTab.agentSession.exportToJsonl(outputPath)
-        : // MixCode themes are in-memory and have no sourcePath; Pi HTML export
-          // throws on those names. Use Pi's builtin dark JSON instead.
-          await runtimeTab.agentSession.exportToHtml(outputPath, { themeName: "dark" });
-    pushToast(active!, { type: "success", message: `Session exported to: ${filePath}` });
+    const filePath = outputPath.endsWith(".jsonl")
+      ? runtimeTab.agentSession.exportToJsonl(outputPath)
+      : // MixCode themes are in-memory and have no sourcePath; Pi HTML export
+        // throws on those names. Use Pi's builtin dark JSON instead.
+        await runtimeTab.agentSession.exportToHtml(outputPath, { themeName: "dark" });
+    appendActiveSystemMessage(state, runtime, `Session exported to: ${filePath}`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    pushToast(active!, { type: "error", message: `Error: Failed to export session: ${message}` });
+    throw new Error(
+      message.startsWith("Error:") ? message : `Error: Failed to export session: ${message}`,
+    );
   }
 };
 

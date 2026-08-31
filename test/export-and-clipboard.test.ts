@@ -42,9 +42,11 @@ test("handleSubmittedInput /export routes html vs jsonl via Pi APIs", async () =
   state.activeTabId = "s1";
 
   const calls: Array<{ kind: "html" | "jsonl"; path?: string; themeName?: string }> = [];
+  const notices: string[] = [];
   const runtime = {
     getTab: () => ({
       agentSession: {
+        sessionFile: "/sessions/demo.jsonl",
         exportToHtml: async (outputPath?: string, options?: { themeName?: string }) => {
           calls.push({ kind: "html", path: outputPath, themeName: options?.themeName });
           return outputPath ?? "/tmp/session.html";
@@ -55,6 +57,9 @@ test("handleSubmittedInput /export routes html vs jsonl via Pi APIs", async () =
         },
       },
     }),
+    appendSystemMessage: (_sessionId: string, message: string) => {
+      notices.push(message);
+    },
   } as unknown as MixCodeRuntime;
 
   await handleSubmittedInput(state, runtime, "/export", mockTui());
@@ -62,12 +67,15 @@ test("handleSubmittedInput /export routes html vs jsonl via Pi APIs", async () =
   await handleSubmittedInput(state, runtime, "/export ./chat.jsonl", mockTui());
 
   assert.deepEqual(calls, [
-    { kind: "html", path: undefined, themeName: "dark" },
-    { kind: "html", path: "./chat.html", themeName: "dark" },
-    { kind: "jsonl", path: "./chat.jsonl" },
+    { kind: "html", path: "/repo/pi-session-demo.html", themeName: "dark" },
+    { kind: "html", path: "/repo/chat.html", themeName: "dark" },
+    { kind: "jsonl", path: "/repo/chat.jsonl" },
   ]);
-  assert.equal(tab.toast?.type, "success");
-  assert.match(tab.toast?.message ?? "", /Session exported to: \.\/chat\.jsonl/);
+  assert.deepEqual(notices, [
+    "Session exported to: /repo/pi-session-demo.html",
+    "Session exported to: /repo/chat.html",
+    "Session exported to: /repo/chat.jsonl",
+  ]);
 });
 
 test("clipboardPasteForEditor prefers image temp path over text", async () => {

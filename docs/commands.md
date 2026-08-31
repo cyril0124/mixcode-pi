@@ -46,7 +46,7 @@ Commands operate across three distinct persistence tiers:
 | `/save-workspace` | `[name]` | Workdir | Saves multi-tab layout to `<stateDir>/workspaces.json`. |
 | `/restore-workspace` | `[name]` | Workdir | Restores a saved workspace; omit name to open the picker. |
 | `/delete-workspace` | `[name]` | Workdir | Deletes a saved workspace record. |
-| `/export` | `[path]` | Session | Exports the session as HTML, or JSONL when the path ends with `.jsonl`. |
+| `/export` | `[path]` | Session | Writes HTML into the tab workdir when `path` is omitted; JSONL when `path` ends with `.jsonl`. Relative `path` is resolved against the tab workdir. |
 | `/import` | `<jsonl-path>` | Session | Imports an external session JSONL into the current workspace. |
 | `/extension-manager` | - | Workdir | Interactive manager to enable or disable discovered Pi extensions. |
 | `/reload` | - | Session | Reloads model configurations, project skills, and rebinds extensions. |
