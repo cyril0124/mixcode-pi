@@ -41,16 +41,11 @@ import {
 } from "./session-resume.js";
 import { openTreeSelector, type TreeSelectorRuntime } from "./components/tree-selector.js";
 
-const handleFollowUp: LocalCommandHandler = async ({ active, args, runtime, tui }) => {
+const handleFollowUp: LocalCommandHandler = async ({ active, args, runtime }) => {
   // Queue as followUp (wait until idle). Do not send "/follow-up ..." as model text.
   const message = args.trim();
   if (!message) {
-    pushToast(active!, {
-      type: "warning",
-      message: "Error: Usage: /follow-up <message>",
-    });
-    tui.requestRender();
-    return SKIP_FINALIZE;
+    throw new Error("Error: Usage: /follow-up <message>");
   }
   assertModelEnabled(active!.model);
   await runtime.prompt(active!.sessionId, message, { streamingBehavior: "followUp" });
