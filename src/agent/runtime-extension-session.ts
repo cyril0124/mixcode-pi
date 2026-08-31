@@ -208,7 +208,7 @@ export async function importRuntimeJsonl(
   const runtimeTab = context.requireTab(sessionId);
   const resolvedPath = path.resolve(inputPath);
   if (!(await Bun.file(resolvedPath).exists())) {
-    throw new Error(`Session import file not found: ${resolvedPath}`);
+    throw new Error(`Error: Session import file not found: ${resolvedPath}`);
   }
   const sessionDir = runtimeTab.session.getSessionDir();
   await fs.mkdir(sessionDir, { recursive: true });

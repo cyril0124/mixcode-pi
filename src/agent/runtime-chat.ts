@@ -714,7 +714,7 @@ export async function inspectSessionImport(
     content = await Bun.file(resolvedPath).text();
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new Error(`Session import file not found: ${resolvedPath}`);
+      throw new Error(`Error: Session import file not found: ${resolvedPath}`);
     }
     throw error;
   }
