@@ -75,22 +75,20 @@ const handleContextLimit: LocalCommandHandler = async ({
   }
   const value = parseContextLimitValue(args);
   if (value === undefined) {
-    pushToast(active!, {
-      type: "error",
-      message: `Error: Invalid context limit: "${args}". Use a number (e.g. 32k, 40000) or "reset".`,
+    throw new Error(
+      `Error: Invalid context limit: "${args}". Use a number (e.g. 32k, 40000) or "reset".`,
+    );
+  }
+  // Drive UI + live model.contextWindow + SDK compaction budgets so Pi and
+  // extensions see the same window as the footer limit.
+  const runtimeTab = runtime.getTab(active!.sessionId);
+  if (runtimeTab) {
+    applyContextLimitToSession(active!, value, {
+      model: runtimeTab.agentSession.model,
+      settingsManager: runtimeTab.agentSession.settingsManager,
     });
   } else {
-    // Drive UI + live model.contextWindow + SDK compaction budgets so Pi and
-    // extensions see the same window as the footer limit.
-    const runtimeTab = runtime.getTab(active!.sessionId);
-    if (runtimeTab) {
-      applyContextLimitToSession(active!, value, {
-        model: runtimeTab.agentSession.model,
-        settingsManager: runtimeTab.agentSession.settingsManager,
-      });
-    } else {
-      applyContextLimit(active!, value);
-    }
+    applyContextLimit(active!, value);
   }
 };
 
