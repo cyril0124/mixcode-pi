@@ -719,13 +719,13 @@ export async function inspectSessionImport(
     throw error;
   }
   const firstLine = content.split(/\r?\n/, 1)[0]?.trim();
-  if (!firstLine) throw new Error(`Session import file is empty: ${resolvedPath}`);
+  if (!firstLine) throw new Error(`Error: Session import file is empty: ${resolvedPath}`);
   let header: unknown;
   try {
     header = JSON.parse(firstLine);
   } catch (error) {
     throw new Error(
-      `Session import header is not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
+      `Error: Session import header is not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
   if (
@@ -734,23 +734,25 @@ export async function inspectSessionImport(
     Array.isArray(header) ||
     (header as { type?: unknown }).type !== "session"
   ) {
-    throw new Error("Session import file must start with a session header");
+    throw new Error("Error: Session import file must start with a session header");
   }
   const cwd = (header as { cwd?: unknown }).cwd;
   if (!cwdOverride) {
     if (typeof cwd !== "string" || !cwd.trim()) {
-      throw new Error("Session import requires a cwd override because the JSONL header has no cwd");
+      throw new Error(
+        "Error: Session import requires a cwd override because the JSONL header has no cwd",
+      );
     }
     // Directory existence: Bun.file().exists() is file-only (returns false for dirs).
     if (!fs.existsSync(cwd)) {
       throw new Error(
-        `Stored session working directory does not exist: ${cwd}\nSession file: ${resolvedPath}\nCurrent working directory: ${fallbackCwd}`,
+        `Error: Stored session working directory does not exist: ${cwd}\nSession file: ${resolvedPath}\nCurrent working directory: ${fallbackCwd}`,
       );
     }
   }
   const sessionId = (header as { id?: unknown }).id;
   if (typeof sessionId !== "string" || !sessionId.trim()) {
-    throw new Error("Session import header is missing a valid session id");
+    throw new Error("Error: Session import header is missing a valid session id");
   }
   return { resolvedPath, sessionId };
 }

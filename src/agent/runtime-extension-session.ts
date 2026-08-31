@@ -240,7 +240,7 @@ async function publishImportedSession(
       await fs.link(tempPath, destinationPath);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "EEXIST") {
-        throw new Error(`Session import destination already exists: ${destinationPath}`, {
+        throw new Error(`Error: Session import destination already exists: ${destinationPath}`, {
           cause: error,
         });
       }
