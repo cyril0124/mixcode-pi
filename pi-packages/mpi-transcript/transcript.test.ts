@@ -13,6 +13,7 @@ import {
   formatViewText,
   NVIM_TRANSCRIPT_LUA,
   resolveModel,
+  VIM_TRANSCRIPT_VIM,
 } from "./index.js";
 
 // ─── editorExtraArgs: vim/nvim flags ─────────────────────────────────────────
@@ -27,7 +28,7 @@ test("editorExtraArgs leaves non-vim editors untouched", () => {
   assert.deepEqual(editorExtraArgs("/usr/local/bin/emacs"), []);
 });
 
-test("editorExtraArgs sources transcript lua only for nvim", () => {
+test("editorExtraArgs sources nvim lua and vim view scripts", () => {
   assert.deepEqual(editorExtraArgs("nvim", "/tmp/t.lua"), [
     "-R",
     "-n",
@@ -37,16 +38,91 @@ test("editorExtraArgs sources transcript lua only for nvim", () => {
     "-c",
     "luafile /tmp/t.lua",
   ]);
-  assert.deepEqual(editorExtraArgs("/usr/bin/vim", "/tmp/t.lua"), [
+  assert.deepEqual(editorExtraArgs("/usr/bin/vim", "/tmp/t.vim"), [
     "-R",
     "-n",
     "-i",
     "NONE",
     "+normal G",
+    "-c",
+    "source /tmp/t.vim",
   ]);
 });
 
+const TRANSCRIPT_VIEW_MARKDOWN = [
+  "# LLM Context",
+  "",
+  "---",
+  "",
+  "## 👤 User · #1",
+  "",
+  "_2026-08-26 10:00:00_",
+  "",
+  "q",
+  "",
+  "---",
+  "",
+  "## 🤖 Assistant · #1",
+  "",
+  "_anthropic/test · 12s · 2026-08-26 10:00:12_",
+  "",
+  "hello",
+  "",
+  "## Fake heading from the model",
+  "",
+  "```js",
+  "decoy",
+  "still",
+  "```",
+  "",
+  "### 🔧 Tool: bash — ✅ success",
+  "",
+  "```json",
+  "{",
+  '  "cmd": "x"',
+  "}",
+  "```",
+  "",
+  "```text",
+  "world",
+  // Verbatim tool output shaped like transcript chrome. It must survive
+  // to the screen as written.
+  "---",
+  "## 👤 User · #9",
+  "more",
+  "```",
+  "",
+  // Assistant turns before any user message carry no ' · #N' joiner.
+  "## 🤖 Assistant",
+  "",
+  "orphan",
+  "",
+  "### 📘 Skill: sample — ✅ success",
+  "",
+  "_/tmp/skills/sample/SKILL.md_",
+  "",
+  "Does things.",
+  "",
+  "# Sample Body",
+  "",
+  "after tool prose",
+  "",
+  // Model prose that opens a fence and never closes it, as a truncated
+  // reply does. Everything after it must still be decorated.
+  "```js",
+  "nope",
+  "stillnope",
+  "",
+  "---",
+  "",
+  "## 👤 User · #2",
+  "",
+  "second ask",
+  "",
+].join("\n");
+
 const nvimAvailable = spawnSync("nvim", ["--version"], { encoding: "utf8" }).status === 0;
+const vimAvailable = spawnSync("vim", ["--version"], { encoding: "utf8" }).status === 0;
 
 test("nvim transcript lua sets wrap/conceal, heading winbar, and heading badges", {
   skip: nvimAvailable ? false : "nvim not on PATH",
@@ -55,80 +131,7 @@ test("nvim transcript lua sets wrap/conceal, heading winbar, and heading badges"
   try {
     const md = path.join(dir, "t.md");
     const lua = path.join(dir, "t.lua");
-    await fs.writeFile(
-      md,
-      [
-        "# LLM Context",
-        "",
-        "---",
-        "",
-        "## 👤 User · #1",
-        "",
-        "_2026-08-26 10:00:00_",
-        "",
-        "q",
-        "",
-        "---",
-        "",
-        "## 🤖 Assistant · #1",
-        "",
-        "_anthropic/test · 12s · 2026-08-26 10:00:12_",
-        "",
-        "hello",
-        "",
-        "## Fake heading from the model",
-        "",
-        "```js",
-        "decoy",
-        "still",
-        "```",
-        "",
-        "### 🔧 Tool: bash — ✅ success",
-        "",
-        "```json",
-        "{",
-        '  "cmd": "x"',
-        "}",
-        "```",
-        "",
-        "```text",
-        "world",
-        // Verbatim tool output shaped like transcript chrome. It must survive
-        // to the screen as written.
-        "---",
-        "## 👤 User · #9",
-        "more",
-        "```",
-        "",
-        // Assistant turns before any user message carry no ' · #N' joiner.
-        "## 🤖 Assistant",
-        "",
-        "orphan",
-        "",
-        "### 📘 Skill: sample — ✅ success",
-        "",
-        "_/tmp/skills/sample/SKILL.md_",
-        "",
-        "Does things.",
-        "",
-        "# Sample Body",
-        "",
-        "after tool prose",
-        "",
-        // Model prose that opens a fence and never closes it, as a truncated
-        // reply does. Everything after it must still be decorated.
-        "```js",
-        "nope",
-        "stillnope",
-        "",
-        "---",
-        "",
-        "## 👤 User · #2",
-        "",
-        "second ask",
-        "",
-      ].join("\n"),
-    );
+    await fs.writeFile(md, TRANSCRIPT_VIEW_MARKDOWN);
     await fs.writeFile(lua, NVIM_TRANSCRIPT_LUA);
     const dump = path.join(dir, "dump.lua");
     await fs.writeFile(
@@ -284,6 +287,167 @@ test("nvim transcript lua sets wrap/conceal, heading winbar, and heading badges"
     // inside a fenced tool result.
     assert.equal(out[33], out[34]);
     assert.equal(out[35], out[36]);
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("vim transcript view sets wrap/conceal, heading statusline, and tool folds", {
+  skip: vimAvailable ? false : "vim not on PATH",
+}, async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "transcript-vim-"));
+  try {
+    const md = path.join(dir, "t.md");
+    const view = path.join(dir, "t.vim");
+    const dump = path.join(dir, "dump.vim");
+    const outFile = path.join(dir, "out.txt");
+    await fs.writeFile(md, TRANSCRIPT_VIEW_MARKDOWN);
+    await fs.writeFile(view, VIM_TRANSCRIPT_VIM);
+    await fs.writeFile(
+      dump,
+      [
+        "set nomore",
+        "function! s:line_of(text)",
+        "  for i in range(1, line('$'))",
+        "    if getline(i) ==# a:text | return i | endif",
+        "  endfor",
+        "  return -1",
+        "endfunction",
+        "function! s:has_pos(group, lnum)",
+        "  for m in getmatches()",
+        "    if get(m, 'group', '') ==# a:group && get(m, 'pos1', [0])[0] == a:lnum",
+        "      return 1",
+        "    endif",
+        "  endfor",
+        "  return 0",
+        "endfunction",
+        "let L = []",
+        "let fake = s:line_of('## Fake heading from the model')",
+        "let world = s:line_of('world')",
+        "let decoy = s:line_of('decoy')",
+        "let nope = s:line_of('nope')",
+        "let hello = s:line_of('hello')",
+        "let assist = s:line_of('## 🤖 Assistant · #1')",
+        "let user1 = s:line_of('## 👤 User · #1')",
+        "let user2 = s:line_of('## 👤 User · #2')",
+        "let user9 = s:line_of('## 👤 User · #9')",
+        "let orphan = s:line_of('orphan')",
+        "let tool = s:line_of('### 🔧 Tool: bash — ✅ success')",
+        "let skill = s:line_of('### 📘 Skill: sample — ✅ success')",
+        "let meta = s:line_of('_2026-08-26 10:00:00_')",
+        "let brace = s:line_of('{')",
+        "let ft = foldtextresult(world)",
+        "let ftin = foldtextresult(brace)",
+        "call cursor(hello, 1)",
+        "call MpiTranscriptJump('t', -1)",
+        "let jumped = line('.')",
+        "call cursor(orphan, 1)",
+        "call MpiTranscriptJump('u', -1)",
+        "let uback = line('.')",
+        "call cursor(orphan, 1)",
+        "call MpiTranscriptJump('u', 1)",
+        "let ufwd = line('.')",
+        "call cursor(hello, 1)",
+        "let st_hello = MpiTranscriptStatus()",
+        "call cursor(fake, 1)",
+        "let st_fake = MpiTranscriptStatus()",
+        "call cursor(user2, 1)",
+        "let st_user2 = MpiTranscriptStatus()",
+        "let nconceal = 0",
+        "if meta > 0",
+        "  let nconceal += synconcealed(meta, 1)[0]",
+        "  let nconceal += synconcealed(meta, strlen(getline(meta)))[0]",
+        "endif",
+        "let nrules = 0",
+        "for i in range(1, line('$'))",
+        "  if getline(i) ==# '---' && synconcealed(i, 1)[0]",
+        "    let nrules += 1",
+        "  endif",
+        "endfor",
+        "call add(L, &conceallevel)",
+        "call add(L, &wrap)",
+        "call add(L, &linebreak)",
+        "call add(L, st_hello)",
+        "call add(L, st_fake)",
+        "call add(L, &foldmethod)",
+        "call add(L, foldclosed(world))",
+        "call add(L, foldclosed(decoy))",
+        "call add(L, foldclosed(nope))",
+        "call add(L, ft)",
+        "call add(L, ftin)",
+        "call add(L, jumped)",
+        "call add(L, assist)",
+        "call add(L, nconceal)",
+        "call add(L, synconcealed(assist, 1)[0])",
+        "call add(L, synconcealed(user9, 1)[0])",
+        "call add(L, synconcealed(tool, 1)[0])",
+        "call add(L, nrules)",
+        "call add(L, s:has_pos('MpiTranscriptAssistant', assist))",
+        "call add(L, s:has_pos('MpiTranscriptUser', user9))",
+        "call add(L, s:has_pos('MpiTranscriptTool', tool))",
+        "call add(L, s:has_pos('MpiTranscriptSkill', skill))",
+        "call add(L, uback)",
+        "call add(L, user1)",
+        "call add(L, ufwd)",
+        "call add(L, user2)",
+        "call add(L, st_user2)",
+        "call add(L, synconcealed(user2, 1)[0])",
+        "call add(L, maparg('[t', 'n'))",
+        "call add(L, maparg(']u', 'n'))",
+        `call writefile(L, ${JSON.stringify(outFile)})`,
+        "qa!",
+      ].join("\n"),
+    );
+    const r = spawnSync(
+      "vim",
+      [
+        "-u",
+        "NONE",
+        "-n",
+        "-es",
+        "--not-a-term",
+        md,
+        "-c",
+        `source ${view}`,
+        "-c",
+        `source ${dump}`,
+      ],
+      { encoding: "utf8" },
+    );
+    assert.equal(r.status, 0, r.error?.message ?? r.stderr);
+    const out = (await fs.readFile(outFile, "utf8")).replace(/\n$/, "").split("\n");
+    assert.equal(out.length, 30);
+    assert.equal(out[0], "2");
+    assert.notEqual(out[1], "0");
+    assert.notEqual(out[2], "0");
+    assert.match(out[3] ?? "", /Assistant · #1/);
+    assert.match(out[3] ?? "", /12s/);
+    assert.match(out[4] ?? "", /Assistant · #1/);
+    assert.doesNotMatch(out[4] ?? "", /Fake/);
+    assert.equal(out[5], "manual");
+    assert.notEqual(out[6], "-1");
+    assert.equal(out[7], "-1");
+    assert.equal(out[8], "-1");
+    assert.match(out[9] ?? "", /bash/);
+    assert.match(out[9] ?? "", /out/);
+    assert.match(out[10] ?? "", /bash/);
+    assert.match(out[10] ?? "", /in/);
+    assert.equal(out[11], out[12]);
+    assert.ok(Number(out[13]) >= 2);
+    assert.equal(out[14], "1");
+    assert.equal(out[15], "0");
+    assert.equal(out[16], "1");
+    assert.equal(out[17], "3");
+    assert.equal(out[18], "1");
+    assert.equal(out[19], "0");
+    assert.equal(out[20], "1");
+    assert.equal(out[21], "1");
+    assert.equal(out[22], out[23]);
+    assert.equal(out[24], out[25]);
+    assert.match(out[26] ?? "", /User · #2/);
+    assert.equal(out[27], "1");
+    assert.match(out[28] ?? "", /MpiTranscriptJump/);
+    assert.match(out[29] ?? "", /MpiTranscriptJump/);
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
   }

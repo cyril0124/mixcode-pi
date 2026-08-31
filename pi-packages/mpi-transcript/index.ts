@@ -911,15 +911,16 @@ function transcriptConfigError(loaded: { ok: false; path: string; error: string 
  * Extra CLI flags for vim/nvim (matched on the binary's basename): readonly
  * (the buffer is a throwaway view, nothing is written back), no swap file,
  * no shada/viminfo writes (the tmp file must not pollute oldfiles/marks),
- * and jump to the end where the latest content lives. nvim also sources
- * `luafile` (winbar, heading colors, wrap/conceal) when a path is given.
- * Other editors get none.
+ * and jump to the end where the latest content lives. nvim sources `luafile`
+ * and vim sources the view script when a path is given. Other editors get none.
  */
-export function editorExtraArgs(cmd: string, luafile?: string): string[] {
+export function editorExtraArgs(cmd: string, scriptFile?: string): string[] {
   const base = path.basename(cmd);
   if (base !== "nvim" && base !== "vim") return [];
   const args = ["-R", "-n", "-i", "NONE", "+normal G"];
-  if (base === "nvim" && luafile) args.push("-c", `luafile ${luafile}`);
+  if (!scriptFile) return args;
+  if (base === "nvim") args.push("-c", `luafile ${scriptFile}`);
+  else args.push("-c", `source ${scriptFile}`);
   return args;
 }
 
@@ -1240,6 +1241,258 @@ vim.api.nvim_create_autocmd("CursorMoved", {
 refresh()
 `;
 
+/** Sourced into vim after the transcript buffer loads (`-c source`). */
+export const VIM_TRANSCRIPT_VIM = `
+" mpi-transcript vim view. Sourced after the buffer loads (-c source).
+set encoding=utf-8
+scriptencoding utf-8
+if !has('conceal') || !has('eval') || !has('folding')
+  echoerr 'mpi-transcript: vim view requires +conceal, +eval, and +folding'
+  finish
+endif
+
+" View options after syntax enable: markdown ftplugin would otherwise change
+" foldmethod and conceallevel.
+syntax enable
+setlocal conceallevel=2
+setlocal concealcursor=nvic
+setlocal wrap
+setlocal linebreak
+setlocal signcolumn=no
+setlocal foldmethod=manual
+setlocal foldenable
+let s:fc = []
+for s:item in split(&fillchars, ',')
+  if s:item !~# '^fold:'
+    call add(s:fc, s:item)
+  endif
+endfor
+call add(s:fc, 'fold:' . nr2char(32))
+let &l:fillchars = join(s:fc, ',')
+
+hi default link MpiTranscriptUser Title
+hi default link MpiTranscriptAssistant Identifier
+hi default link MpiTranscriptTool Statement
+hi default link MpiTranscriptSkill Question
+hi default link MpiTranscriptInjected Special
+hi default link MpiTranscriptCompaction WarningMsg
+hi default link MpiTranscriptBranch Type
+hi default link MpiTranscriptError ErrorMsg
+hi default link MpiTranscriptRule NonText
+
+let s:tick = nr2char(96)
+let s:lines = getline(1, '$')
+let s:in_fence = {}
+let s:tool_fences = []
+
+function! s:role_heading(line) abort
+  if a:line =~# '^## 👤 User' | return 'user' | endif
+  if a:line =~# '^## 🤖 Assistant' | return 'assistant' | endif
+  if a:line =~# '^## 📥 Injected' | return 'injected' | endif
+  if a:line =~# '^## 📦 Compaction' | return 'compaction' | endif
+  if a:line =~# '^## 🌿 Branch Summary' | return 'branch' | endif
+  return ''
+endfunction
+
+function! s:tool_heading(line) abort
+  return a:line =~# '^### 🔧 Tool'
+endfunction
+
+function! s:fence_open(line) abort
+  return matchstr(a:line, '^' . s:tick . '\\+')
+endfunction
+
+function! s:heading_hl(line) abort
+  if a:line =~# '^## 👤 User' | return 'MpiTranscriptUser' | endif
+  if a:line =~# '^## 🤖 Assistant' | return 'MpiTranscriptAssistant' | endif
+  if a:line =~# '^### 🔧 Tool'
+    return a:line =~# '❌' ? 'MpiTranscriptError' : 'MpiTranscriptTool'
+  endif
+  if a:line =~# '^### 📘 Skill' | return 'MpiTranscriptSkill' | endif
+  if a:line =~# '^## 📥 Injected' | return 'MpiTranscriptInjected' | endif
+  if a:line =~# '^## 📦 Compaction' | return 'MpiTranscriptCompaction' | endif
+  if a:line =~# '^## 🌿 Branch Summary' | return 'MpiTranscriptBranch' | endif
+  return ''
+endfunction
+
+function! MpiTranscriptFoldtext() abort
+  let l:s = v:foldstart
+  let l:e = v:foldend
+  let l:name = 'tool'
+  let l:k = l:s
+  while l:k >= 1
+    let l:line = getline(l:k)
+    if s:tool_heading(l:line)
+      let l:raw = matchstr(l:line, 'Tool:\\s*\\zs.\\{-}\\ze\\s*—')
+      if l:raw ==# ''
+        let l:raw = matchstr(l:line, 'Tool:\\s*\\zs.*')
+      endif
+      let l:name = substitute(substitute(l:raw, '^\\s\\+', '', ''), '\\s\\+$', '', '')
+      if l:name ==# '' | let l:name = 'tool' | endif
+      break
+    endif
+    let l:k -= 1
+  endwhile
+  let l:open = getline(max([1, l:s - 1]))
+  let l:lang = matchstr(l:open, s:tick . '\\+\\zs\\w*')
+  let l:io = l:lang ==# 'json' ? 'in' : 'out'
+  return '  ▸ ' . l:name . ' ' . l:io . ' · ' . (l:e - l:s + 1) . ' lines'
+endfunction
+setlocal foldtext=MpiTranscriptFoldtext()
+
+let s:scan = 1
+while s:scan <= len(s:lines)
+  if !s:tool_heading(s:lines[s:scan - 1])
+    let s:scan += 1
+  else
+    let s:scan += 1
+    while s:scan <= len(s:lines)
+      if s:lines[s:scan - 1] =~# '^\\s*$'
+        let s:scan += 1
+      else
+        let s:ticks = s:fence_open(s:lines[s:scan - 1])
+        if s:ticks ==# ''
+          break
+        endif
+        let s:close = s:scan + 1
+        while s:close <= len(s:lines) && s:lines[s:close - 1] !~# '^' . s:ticks
+          let s:close += 1
+        endwhile
+        let s:k = s:scan
+        while s:k <= min([s:close, len(s:lines)])
+          let s:in_fence[s:k] = 1
+          let s:k += 1
+        endwhile
+        call add(s:tool_fences, {'open': s:scan, 'close': s:close})
+        let s:scan = min([s:close, len(s:lines)]) + 1
+      endif
+    endwhile
+  endif
+endwhile
+
+let s:i = 1
+while s:i <= len(s:lines)
+  if !has_key(s:in_fence, s:i)
+    let s:line = s:lines[s:i - 1]
+    if s:line ==# '---'
+      execute 'syntax match MpiTranscriptRule /^\\%' . s:i . 'l---$/ conceal cchar=─ containedin=ALL'
+    else
+      let s:hl = s:heading_hl(s:line)
+      if s:hl !=# ''
+        call matchaddpos(s:hl, [s:i])
+        if s:line =~# '^### '
+          execute 'syntax match MpiTranscriptHide /^\\%' . s:i . 'l### / conceal containedin=ALL'
+        else
+          execute 'syntax match MpiTranscriptHide /^\\%' . s:i . 'l## / conceal containedin=ALL'
+        endif
+      endif
+    endif
+  endif
+  let s:i += 1
+endwhile
+
+let s:t = 1
+while s:t <= len(s:lines)
+  let s:line = s:lines[s:t - 1]
+  if s:line =~# '^_🔄' || s:line =~# '^_\\d\\d\\d\\d-' || s:line =~# '^_.* · \\d\\d\\d\\d-'
+    call matchaddpos('Comment', [s:t])
+    if s:line =~# '^_.*_$' && strlen(s:line) >= 2
+      execute 'syntax match MpiTranscriptHide /^\\%' . s:t . 'l_/ conceal containedin=ALL'
+      execute 'syntax match MpiTranscriptHide /\\%' . s:t . 'l_$/ conceal containedin=ALL'
+    endif
+    let s:t += 1
+  elseif s:line =~# '^>' && s:line =~# '💭 Thinking'
+    while s:t <= len(s:lines) && s:lines[s:t - 1] =~# '^>'
+      call matchaddpos('Comment', [s:t])
+      let s:t += 1
+    endwhile
+  else
+    let s:t += 1
+  endif
+endwhile
+
+for s:f in s:tool_fences
+  if s:f.close <= len(s:lines) && s:f.close - s:f.open > 1
+    execute 'silent ' . (s:f.open + 1) . ',' . (s:f.close - 1) . 'fold'
+  endif
+endfor
+
+let g:MpiTranscriptTurns = []
+let g:MpiTranscriptUsers = []
+let s:n = 1
+while s:n <= len(s:lines)
+  if !has_key(s:in_fence, s:n)
+    let s:kind = s:role_heading(s:lines[s:n - 1])
+    if s:kind ==# 'user' || s:kind ==# 'assistant'
+      let s:turn = {'lnum': s:n, 'text': s:lines[s:n - 1]}
+      call add(g:MpiTranscriptTurns, s:turn)
+      if s:kind ==# 'user'
+        call add(g:MpiTranscriptUsers, s:turn)
+      endif
+    endif
+  endif
+  let s:n += 1
+endwhile
+
+function! MpiTranscriptStatus() abort
+  let l:lnum = line('.')
+  let l:info = {}
+  for l:t in g:MpiTranscriptTurns
+    if l:t.lnum <= l:lnum
+      let l:info = l:t
+    else
+      break
+    endif
+  endfor
+  if empty(l:info)
+    return ''
+  endif
+  let l:h = substitute(l:info.text, '^#\\+\\s\\+', '', '')
+  let l:below = getline(l:info.lnum + 1)
+  if l:below ==# ''
+    let l:below = getline(l:info.lnum + 2)
+  endif
+  let l:dur = matchstr(l:below, '· \\zs[0-9.]\\+s\\ze · [0-9][0-9][0-9][0-9]-')
+  if l:dur ==# ''
+    let l:dur = matchstr(l:below, '· \\zs[0-9]\\+m [0-9]\\+s\\ze · [0-9][0-9][0-9][0-9]-')
+  endif
+  if l:dur !=# ''
+    let l:h = l:h . ' · ' . l:dur
+  endif
+  return l:h
+endfunction
+
+set laststatus=2
+setlocal statusline=\\ %{MpiTranscriptStatus()}%=[t/]t\\ turn\\ \\ [u/]u\\ user
+
+function! MpiTranscriptJump(which, dir) abort
+  let l:list = a:which ==# 'u' ? g:MpiTranscriptUsers : g:MpiTranscriptTurns
+  let l:lnum = line('.')
+  if a:dir > 0
+    for l:t in l:list
+      if l:t.lnum > l:lnum
+        call cursor(l:t.lnum, 1)
+        return
+      endif
+    endfor
+  else
+    let l:i = len(l:list) - 1
+    while l:i >= 0
+      if l:list[l:i].lnum < l:lnum
+        call cursor(l:list[l:i].lnum, 1)
+        return
+      endif
+      let l:i -= 1
+    endwhile
+  endif
+endfunction
+
+nnoremap <buffer> <silent> <nowait> ]t :call MpiTranscriptJump('t', 1)<CR>
+nnoremap <buffer> <silent> <nowait> [t :call MpiTranscriptJump('t', -1)<CR>
+nnoremap <buffer> <silent> <nowait> ]u :call MpiTranscriptJump('u', 1)<CR>
+nnoremap <buffer> <silent> <nowait> [u :call MpiTranscriptJump('u', -1)<CR>
+`;
+
 // Open `content` in an external editor on the inherited tty. TUI state is
 // always restored before the result is returned to the caller.
 function openInExternalEditor(
@@ -1266,7 +1519,7 @@ function openInExternalEditor(
     };
     t.stop();
     const tmpFile = path.join(os.tmpdir(), `transcript-${process.pid}-${Date.now()}.md`);
-    let luaFile: string | undefined;
+    let scriptFile: string | undefined;
     const [cmd, ...cmdArgs] = editorCmd.split(" ").filter(Boolean);
     let resumed = false;
     const resume = (result: ExternalEditorResult) => {
@@ -1276,8 +1529,8 @@ function openInExternalEditor(
       void fs.unlink(tmpFile).catch(() => {
         /* ENOENT: tmp already gone */
       });
-      if (luaFile) {
-        void fs.unlink(luaFile).catch(() => {
+      if (scriptFile) {
+        void fs.unlink(scriptFile).catch(() => {
           /* ENOENT: tmp already gone */
         });
       }
@@ -1289,11 +1542,15 @@ function openInExternalEditor(
       try {
         if (!cmd) throw new Error("External editor command is empty");
         await fs.writeFile(tmpFile, `${content}\n`);
-        if (path.basename(cmd) === "nvim") {
-          luaFile = tmpFile.replace(/\.md$/, ".lua");
-          await fs.writeFile(luaFile, NVIM_TRANSCRIPT_LUA);
+        const base = path.basename(cmd);
+        if (base === "nvim" || base === "vim") {
+          scriptFile = tmpFile.replace(/\.md$/, base === "nvim" ? ".lua" : ".vim");
+          await fs.writeFile(
+            scriptFile,
+            base === "nvim" ? NVIM_TRANSCRIPT_LUA : VIM_TRANSCRIPT_VIM,
+          );
         }
-        const child = spawn(cmd, [...cmdArgs, ...editorExtraArgs(cmd, luaFile), tmpFile], {
+        const child = spawn(cmd, [...cmdArgs, ...editorExtraArgs(cmd, scriptFile), tmpFile], {
           stdio: "inherit",
         });
         const exit = await new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(

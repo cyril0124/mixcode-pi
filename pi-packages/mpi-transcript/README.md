@@ -32,7 +32,7 @@ Supported values:
 | --- | --- |
 | `auto` | Use `nvim` when available, then `vim`, then the in-app viewer. |
 | `nvim` | Open the read-only transcript in nvim with transcript navigation and styling. |
-| `vim` | Open the read-only transcript in vim. |
+| `vim` | Open the read-only transcript in vim with transcript navigation and styling. |
 | `builtin` | Use the in-app multi-line viewer. |
 
 The package reads this file when `/transcript` runs. Missing configuration uses `auto`. Invalid configuration is reported as an error and the transcript does not open. If a selected external editor cannot start, the package reports the error and opens the in-app viewer.

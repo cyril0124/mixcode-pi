@@ -32,7 +32,7 @@
 | --- | --- |
 | `auto` | 优先使用可用的 `nvim`，然后是 `vim`，最后使用内置查看器。 |
 | `nvim` | 使用 nvim 以只读方式打开 transcript，并启用 transcript 导航与样式。 |
-| `vim` | 使用 vim 以只读方式打开 transcript。 |
+| `vim` | 使用 vim 以只读方式打开 transcript，并启用 transcript 导航与样式。 |
 | `builtin` | 使用内置多行查看器。 |
 
 每次执行 `/transcript` 时都会读取该文件。配置文件缺失时使用 `auto`；配置无效时报告错误并停止打开 transcript。指定的外部编辑器无法启动时，先报告错误，再使用内置查看器。
