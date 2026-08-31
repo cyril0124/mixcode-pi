@@ -7,9 +7,10 @@
 // ║      full = untruncated tool output (chatlog/context)             ║
 // ║                                                                    ║
 // ║  Rebuilds the requested slice of the current session branch and    ║
-// ║  opens it in the user's external editor ($VISUAL/$EDITOR), falling  ║
-// ║  back to the in-app multi-line editor (ctx.ui.editor) when none is   ║
-// ║  configured. For scrolling and copying; nothing is written to disk. ║
+// ║  opens it in the configured transcript editor. The configuration   ║
+// ║  lives in <agentDir>/mpi-transcript.json and defaults to nvim, vim, ║
+// ║  then the in-app multi-line editor when no choice is configured.    ║
+// ║  For scrolling and copying; nothing is written to disk.            ║
 // ║                                                                    ║
 // ║  Targets:                                                          ║
 // ║    context       Effective LLM context (what the model sees)       ║
@@ -34,6 +35,7 @@ import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type {
   BuildSystemPromptOptions,
   CacheMiss,
+  ExtensionCommandContext,
   ExtensionFactory,
   ModelPriceSource,
   SessionEntry,
@@ -44,8 +46,12 @@ import {
   CACHE_TTL_MS,
   collectCacheMisses,
   estimateTokens,
+  getAgentDir,
   sessionEntryToContextMessages,
 } from "@earendil-works/pi-coding-agent";
+import { loadTranscriptConfig, writeTranscriptConfig } from "./config.js";
+import { resolveTranscriptEditor, transcriptEditorOptions } from "./editor.js";
+import { createTranscriptConfigOverlay } from "./config-overlay.js";
 import type { Component, TUI } from "@earendil-works/pi-tui";
 
 // ─── Session content types (subset of SDK AgentMessage we consume) ────────────
@@ -893,11 +899,12 @@ export function buildViewText(
   return formatViewText(meta.title, [stats, latestUserMessage(entries) ?? "No user message."]);
 }
 
-// ─── Display: external editor (default) with in-app editor fallback ───────────
+// ─── Display: configured external editor with in-app editor fallback ─────────
 
-/** The user's configured external editor command, or undefined when none. */
-function externalEditorCommand(): string | undefined {
-  return process.env.VISUAL || process.env.EDITOR || undefined;
+type ExternalEditorResult = { ok: true } | { ok: false; error: string };
+
+function transcriptConfigError(loaded: { ok: false; path: string; error: string }): string {
+  return `mpi-transcript config error (${loaded.path}): ${loaded.error}`;
 }
 
 /**
@@ -1233,10 +1240,8 @@ vim.api.nvim_create_autocmd("CursorMoved", {
 refresh()
 `;
 
-// Open `content` in the user's $VISUAL/$EDITOR. Follows the diff-tracker
-// pattern: pause the TUI via ctx.ui.custom, spawn the editor on the inherited
-// tty, and resume once it exits. Resolves true on success, false if the editor
-// could not be launched (so the caller can fall back to the in-app editor).
+// Open `content` in an external editor on the inherited tty. TUI state is
+// always restored before the result is returned to the caller.
 function openInExternalEditor(
   ctx: {
     ui: {
@@ -1252,8 +1257,8 @@ function openInExternalEditor(
   },
   editorCmd: string,
   content: string,
-): Promise<boolean> {
-  return ctx.ui.custom<boolean>((tui, _theme, _keybindings, done) => {
+): Promise<ExternalEditorResult> {
+  return ctx.ui.custom<ExternalEditorResult>((tui, _theme, _keybindings, done) => {
     const t = tui as unknown as {
       stop: () => void;
       start: () => void;
@@ -1262,11 +1267,9 @@ function openInExternalEditor(
     t.stop();
     const tmpFile = path.join(os.tmpdir(), `transcript-${process.pid}-${Date.now()}.md`);
     let luaFile: string | undefined;
-    // Split so `EDITOR="code -w"` style commands keep their flags.
     const [cmd, ...cmdArgs] = editorCmd.split(" ").filter(Boolean);
-    // Resume exactly once (a double start leaks a resize listener).
     let resumed = false;
-    const resume = (ok: boolean) => {
+    const resume = (result: ExternalEditorResult) => {
       if (resumed) return;
       resumed = true;
       // node:fs — pure pi runs on Node; Bun.file is unavailable there.
@@ -1280,25 +1283,35 @@ function openInExternalEditor(
       }
       t.start();
       t.requestRender(true);
-      done(ok);
+      done(result);
     };
     void (async () => {
       try {
+        if (!cmd) throw new Error("External editor command is empty");
         await fs.writeFile(tmpFile, `${content}\n`);
-        if (path.basename(cmd!) === "nvim") {
+        if (path.basename(cmd) === "nvim") {
           luaFile = tmpFile.replace(/\.md$/, ".lua");
           await fs.writeFile(luaFile, NVIM_TRANSCRIPT_LUA);
         }
-        const child = spawn(cmd!, [...cmdArgs, ...editorExtraArgs(cmd!, luaFile), tmpFile], {
+        const child = spawn(cmd, [...cmdArgs, ...editorExtraArgs(cmd, luaFile), tmpFile], {
           stdio: "inherit",
         });
-        await new Promise<void>((resolve, reject) => {
-          child.once("error", reject);
-          child.once("close", () => resolve());
+        const exit = await new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
+          (resolve, reject) => {
+            child.once("error", reject);
+            child.once("close", (code, signal) => resolve({ code, signal }));
+          },
+        );
+        if (exit.code !== 0) {
+          const reason = exit.signal ?? exit.code ?? "unknown";
+          throw new Error(`External editor exited with ${reason}`);
+        }
+        resume({ ok: true });
+      } catch (error) {
+        resume({
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
         });
-        resume(true);
-      } catch {
-        resume(false);
       }
     })();
     return { render: () => [], invalidate: () => {}, handleInput: () => {} };
@@ -1308,6 +1321,7 @@ function openInExternalEditor(
 // ─── Extension entry point ────────────────────────────────────────────────────
 
 const extension: ExtensionFactory = (pi) => {
+  const agentDir = getAgentDir();
   // Read live rather than snapshotted at startup, so the estimate reflects the
   // tools currently enabled and the system prompt as it stands now.
   const resolveContextPrefix = (ctx: {
@@ -1385,31 +1399,41 @@ const extension: ExtensionFactory = (pi) => {
     return TARGETS.find((t) => t.label === picked)?.id;
   };
 
-  // Default to the user's external editor ($VISUAL/$EDITOR); fall back to the
-  // in-app multi-line editor when none is configured or it fails to launch.
+  const openTranscriptConfig = async (ctx: ExtensionCommandContext): Promise<void> => {
+    if (!ctx.hasUI) {
+      ctx.ui.notify("/transcript config requires interactive UI.", "error");
+      return;
+    }
+    const loaded = loadTranscriptConfig(agentDir);
+    if (!loaded.ok) {
+      ctx.ui.notify(transcriptConfigError(loaded), "error");
+      return;
+    }
+    const options = transcriptEditorOptions();
+    await ctx.ui.custom<void>((tui, theme, _keybindings, done) =>
+      createTranscriptConfigOverlay({
+        theme,
+        requestRender: () => tui.requestRender(),
+        done: () => done(undefined),
+        configPath: loaded.path,
+        initial: loaded.config,
+        options,
+        persist: (config) => {
+          const written = writeTranscriptConfig(agentDir, config);
+          return written.ok
+            ? { ok: true, config: written.config }
+            : { ok: false, error: `${written.path}: ${written.error}` };
+        },
+        onError: (message) => ctx.ui.notify(message, "error"),
+      }),
+    );
+  };
+
   const openView = async (
     target: TargetId,
     lastTurns: number | undefined,
     fullToolOutput: boolean | undefined,
-    ctx: {
-      sessionManager: {
-        getBranch: () => SessionEntry[];
-        buildContextEntries: () => SessionEntry[];
-      };
-      modelRegistry: TranscriptModelRegistry;
-      ui: {
-        editor(title: string, prefill?: string): Promise<string | undefined>;
-        custom<T>(
-          factory: (
-            tui: TUI,
-            theme: unknown,
-            keybindings: unknown,
-            done: (result: T) => void,
-          ) => Component,
-        ): Promise<T>;
-      };
-      getSystemPromptOptions(): BuildSystemPromptOptions;
-    },
+    ctx: ExtensionCommandContext,
   ): Promise<void> => {
     // context = the effective LLM context (branch resolution, compaction,
     // summaries applied); other targets read the full branch.
@@ -1428,20 +1452,37 @@ const extension: ExtensionFactory = (pi) => {
         getModel: (provider, modelId) => resolveModel(ctx.modelRegistry, provider, modelId),
       },
     });
-    const editorCmd = externalEditorCommand();
-    if (editorCmd && (await openInExternalEditor(ctx, editorCmd, content))) return;
+    const loaded = loadTranscriptConfig(agentDir);
+    if (!loaded.ok) {
+      ctx.ui.notify(transcriptConfigError(loaded), "error");
+      return;
+    }
+    const mode = loaded.config.editor;
+    const editorCmd = resolveTranscriptEditor(mode);
+    if (!editorCmd) {
+      await ctx.ui.editor(meta.title, content);
+      return;
+    }
+    const result = await openInExternalEditor(ctx, editorCmd, content);
+    if (result.ok) return;
+    ctx.ui.notify(result.error, "error");
     await ctx.ui.editor(meta.title, content);
   };
 
   pi.registerCommand("transcript", {
     description:
-      "View context (effective LLM view), chatlog, thinking, latest-agent, or latest-user text; N = last N turns, full = untruncated tool output",
+      "View transcript slices or configure the editor; N = last N turns, full = untruncated tool output",
     getArgumentCompletions: (prefix: string) =>
       [
         ...TARGETS.map((t) => ({ value: t.id, label: t.id, description: t.label })),
+        { value: "config", label: "config", description: "Choose the transcript editor" },
         { value: "full", label: "full", description: "Untruncated tool output" },
       ].filter((item) => item.value.startsWith(prefix.trim())),
     handler: async (args, ctx) => {
+      if ((args ?? "").trim().toLowerCase() === "config") {
+        await openTranscriptConfig(ctx);
+        return;
+      }
       const parsed = parseArgs(args, ctx);
       if (!parsed) return;
       const target = await resolveTarget(parsed.targetToken, ctx);

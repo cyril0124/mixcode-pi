@@ -85,6 +85,14 @@ import diffViewerPackageJson from "../../pi-packages/mpi-diff-viewer/package.jso
   type: "text",
 };
 import transcriptIndex from "../../pi-packages/mpi-transcript/index.ts" with { type: "text" };
+import transcriptConfig from "../../pi-packages/mpi-transcript/config.ts" with { type: "text" };
+import transcriptEditor from "../../pi-packages/mpi-transcript/editor.ts" with { type: "text" };
+import transcriptConfigOverlay from "../../pi-packages/mpi-transcript/config-overlay.ts" with {
+  type: "text",
+};
+import transcriptSchemaJson from "../../pi-packages/mpi-transcript/mpi-transcript.schema.json" with {
+  type: "text",
+};
 import transcriptPackageJson from "../../pi-packages/mpi-transcript/package.json" with {
   type: "text",
 };
@@ -530,6 +538,10 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
     },
     "mpi-transcript": {
       "index.ts": transcriptIndex,
+      "config.ts": transcriptConfig,
+      "editor.ts": transcriptEditor,
+      "config-overlay.ts": transcriptConfigOverlay,
+      "mpi-transcript.schema.json": transcriptSchemaJson,
       "package.json": transcriptPackageJson,
     },
     "mpi-bash": {

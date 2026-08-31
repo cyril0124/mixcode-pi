@@ -1,0 +1,20 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "mpi-transcript configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S",
+      "description": "Optional JSON Schema reference for editor completion."
+    },
+    "editor": {
+      "type": "string",
+      "enum": ["auto", "nvim", "vim", "builtin"],
+      "default": "auto",
+      "description": "Transcript editor mode. Auto selects nvim, then vim, then the in-app viewer."
+    }
+  }
+}
