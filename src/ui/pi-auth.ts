@@ -154,12 +154,7 @@ export async function openPiLogout(
   try {
     const providers = await getLogoutProviders(modelRuntime);
     if (providers.length === 0) {
-      notifyTab(active, {
-        type: "warning",
-        message:
-          "No stored credentials to remove. /logout only removes credentials saved by /login; environment variables and models.json config are unchanged.",
-      });
-      return;
+      throw new Error("Error: No stored credentials to remove.");
     }
     const selected = await showProviderSelector(inputHost, "logout", providers, sessionId);
     if (!selected) return;
@@ -174,6 +169,7 @@ export async function openPiLogout(
           : `Removed stored API key for ${selected.name}. Environment variables and models.json config are unchanged.`,
     });
   } catch (error) {
+    if (error instanceof Error && error.message.startsWith("Error:")) throw error;
     const message = error instanceof Error ? error.message : String(error);
     notifyTab(active, {
       type: "error",
