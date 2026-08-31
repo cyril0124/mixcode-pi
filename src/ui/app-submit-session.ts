@@ -49,6 +49,7 @@ const handleFollowUp: LocalCommandHandler = async ({ active, args, runtime }) =>
   }
   assertModelEnabled(active!.model);
   await runtime.prompt(active!.sessionId, message, { streamingBehavior: "followUp" });
+  return undefined;
 };
 
 const handleReset: LocalCommandHandler = ({ state, active, runtime, tui }) => {
