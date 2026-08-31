@@ -47,7 +47,7 @@ MixCode 在 `src/core/commands.ts` 中注册了内置本地 Slash 命令。这�
 | `/restore-workspace` | `[name]` | Workdir | 恢复已保存工作区；省略名称则打开选择器。 |
 | `/delete-workspace` | `[name]` | Workdir | 删除已保存的工作区记录。 |
 | `/export` | `[path]` | Session | 省略 `path` 时把 HTML 写到当前 tab 的 workdir；`path` 以 `.jsonl` 结尾则导出 JSONL。相对路径相对 tab workdir 解析。 |
-| `/import` | `<jsonl-path>` | Session | 导入外部会话 JSONL 文件至当前工作区。 |
+| `/import` | `<jsonl-path>` | Session | 导入外部会话 JSONL 文件至当前工作区。相对路径相对 tab workdir 解析。 |
 | `/extension-manager` | - | Workdir | 交互式启用 / 禁用已发现的 Pi 扩展。 |
 | `/reload` | - | Session | 重新加载模型配置、项目 Skill 并重新绑定扩展资源。 |
 | `/system-prompt` | - | Session | 在外部编辑器中检视或编辑当前组装的 System Prompt；末尾附带各分段大小与估算 token 占比的统计表。 |

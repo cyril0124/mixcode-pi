@@ -47,7 +47,7 @@ Commands operate across three distinct persistence tiers:
 | `/restore-workspace` | `[name]` | Workdir | Restores a saved workspace; omit name to open the picker. |
 | `/delete-workspace` | `[name]` | Workdir | Deletes a saved workspace record. |
 | `/export` | `[path]` | Session | Writes HTML into the tab workdir when `path` is omitted; JSONL when `path` ends with `.jsonl`. Relative `path` is resolved against the tab workdir. |
-| `/import` | `<jsonl-path>` | Session | Imports an external session JSONL into the current workspace. |
+| `/import` | `<jsonl-path>` | Session | Imports an external session JSONL into the current workspace. Relative `jsonl-path` is resolved against the tab workdir. |
 | `/extension-manager` | - | Workdir | Interactive manager to enable or disable discovered Pi extensions. |
 | `/reload` | - | Session | Reloads model configurations, project skills, and rebinds extensions. |
 | `/system-prompt` | - | Session | Inspects or edits the assembled system prompt in an external editor; a footer lists each section's size and estimated token share. |

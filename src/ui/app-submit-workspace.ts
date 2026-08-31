@@ -90,9 +90,10 @@ const handleDeleteWorkspace: LocalCommandHandler = async ({
 const handleImport: LocalCommandHandler = async ({ state, active, args, runtime }) => {
   assertConfiguredOpenTabsReadable();
   const request = parseImportRequest(args);
+  const importPath = resolveAgainstWorkdir(active!.workdir, request.path);
   const oldSessionId = active!.sessionId;
   const { sessionId: targetSessionId } = await runtime.previewSessionImport(
-    request.path,
+    importPath,
     request.cwdOverride,
     active!.workdir,
   );
@@ -123,7 +124,7 @@ const handleImport: LocalCommandHandler = async ({ state, active, args, runtime 
   if (identityChanged) publishIdentity(oldSessionId, targetSessionId);
   let result: Awaited<ReturnType<MixCodeSubmitRuntime["importFromJsonl"]>>;
   try {
-    result = await runtime.importFromJsonl(oldSessionId, request.path, request.cwdOverride);
+    result = await runtime.importFromJsonl(oldSessionId, importPath, request.cwdOverride);
   } catch (error) {
     if (identityChanged) rollbackIdentity(error);
     throw error;
@@ -132,19 +133,21 @@ const handleImport: LocalCommandHandler = async ({ state, active, args, runtime 
     if (identityChanged) rollbackIdentity();
     pushToast(active!, { type: "warning", message: "Import cancelled." });
   } else {
-    pushToast(active!, { type: "success", message: `Imported session: ${request.path}` });
+    pushToast(active!, { type: "success", message: `Imported session: ${importPath}` });
   }
   return undefined;
 };
+
+function resolveAgainstWorkdir(workdir: string, filePath: string): string {
+  return path.isAbsolute(filePath) ? filePath : path.join(workdir, filePath);
+}
 
 function resolveExportOutputPath(
   workdir: string,
   outputPath: string | undefined,
   sessionFile: string | undefined,
 ): string {
-  if (outputPath) {
-    return path.isAbsolute(outputPath) ? outputPath : path.join(workdir, outputPath);
-  }
+  if (outputPath) return resolveAgainstWorkdir(workdir, outputPath);
   const name = sessionFile
     ? `pi-session-${path.basename(sessionFile, path.extname(sessionFile))}.html`
     : "pi-session.html";
@@ -187,7 +190,7 @@ export const WORKSPACE_COMMAND_HANDLERS = {
 
 function parseImportRequest(args: string): { path: string; cwdOverride?: string } {
   const parts = args.trim().split(/\s+/).filter(Boolean);
-  const path = parts[0];
-  if (!path) throw new Error("Error: Usage: /import <path> [cwd]");
-  return { path, cwdOverride: parts[1] };
+  const filePath = parts[0];
+  if (!filePath) throw new Error("Error: Usage: /import <path> [cwd]");
+  return { path: filePath, cwdOverride: parts[1] };
 }
