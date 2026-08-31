@@ -41,6 +41,8 @@ MixCode 在 `src/core/commands.ts` 中注册了内置本地 Slash 命令。这�
 | `/toggle-hidden-messages` | - | Session | 显示 / 隐藏扩展内部自定义生成的隐藏消息。 |
 | `/hide-thinking` | - | `[global]` | 切换是否将 Thinking 推理内容折叠为占位符。 |
 | `/settings` | - | Global | 打开全局主题、图标与 UI 偏好设置面板。 |
+| `/login` | `[provider]` | Global | 配置 provider 鉴权。无参数时先选择订阅登录或 API Key；传入精确的 provider id 或名称时直接进入该 provider。凭证通过 `<agentDir>/auth.json` 与 Pi 共享。 |
+| `/logout` | - | Global | 移除 `/login` 保存的凭证；环境变量与 `models.json` 鉴权配置保持不变。 |
 | `/save-workspace` | `[name]` | Workdir | 将多 Tab 布局写入 `<stateDir>/workspaces.json`。 |
 | `/restore-workspace` | `[name]` | Workdir | 恢复已保存工作区；省略名称则打开选择器。 |
 | `/delete-workspace` | `[name]` | Workdir | 删除已保存的工作区记录。 |

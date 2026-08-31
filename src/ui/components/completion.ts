@@ -250,6 +250,7 @@ const AUGMENTABLE_BUILTIN_COMMANDS = new Set([
   "delete-workspace",
   "models",
   "thinking",
+  "login",
 ]);
 
 function canAugmentBuiltInCommand(name: string): boolean {

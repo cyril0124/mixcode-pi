@@ -176,7 +176,7 @@ const handleReload: LocalCommandHandler = async ({ state, active, runtime, setti
 
 const handleLogin: LocalCommandHandler = async ({ state, args, runtime, authInputHost }) => {
   const { openPiLogin } = await import("./pi-auth.js");
-  await openPiLogin(state, runtime, authInputHost, args || undefined);
+  await openPiLogin(state, runtime, authInputHost, args.trim() || undefined);
   return undefined;
 };
 

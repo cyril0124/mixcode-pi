@@ -5,11 +5,17 @@ import * as path from "node:path";
 import * as os from "node:os";
 import { test } from "node:test";
 import { InMemoryCredentialStore } from "@earendil-works/pi-ai";
-import { ModelRegistry, ModelRuntime } from "@earendil-works/pi-coding-agent";
+import {
+  ExtensionSelectorComponent,
+  ModelRegistry,
+  ModelRuntime,
+} from "@earendil-works/pi-coding-agent";
+import type { Component } from "@earendil-works/pi-tui";
 import { MixCodeRuntime, createInitialState, createTab } from "./helpers/mixcode.js";
 import { activateTab } from "../src/core/tabs.js";
 import { testRuntime } from "./helpers/runtime-stub.js";
-import { openPiLogin, openPiLogout } from "../src/ui/pi-auth.js";
+import { loginArgumentCompletions, openPiLogin, openPiLogout } from "../src/ui/pi-auth.js";
+import type { AuthInputHost } from "../src/ui/app-types.js";
 
 async function offlineModelRuntime(): Promise<ModelRuntime> {
   return await ModelRuntime.create({
@@ -18,6 +24,87 @@ async function offlineModelRuntime(): Promise<ModelRuntime> {
     allowModelNetwork: false,
   });
 }
+
+function dualAuthModelRuntime(): ModelRuntime {
+  return {
+    getProviders: () => [
+      {
+        id: "dual",
+        name: "Dual Provider",
+        auth: {
+          oauth: { name: "Dual account", loginLabel: "Sign in to Dual" },
+          apiKey: { name: "Dual API key", login: async () => ({ type: "api_key" }) },
+        },
+      },
+    ],
+    getProviderAuthStatus: () => ({ configured: false }),
+    isUsingOAuth: () => false,
+  } as unknown as ModelRuntime;
+}
+
+function capturingInputHost(): {
+  host: AuthInputHost;
+  current: () => Component | undefined;
+} {
+  let component: Component | undefined;
+  return {
+    host: {
+      setInputComponent: (next) => {
+        component = next;
+      },
+      clearInputComponent: () => {
+        component = undefined;
+      },
+      requestRender: () => undefined,
+    },
+    current: () => component,
+  };
+}
+
+test("openPiLogin starts with Pi's authentication-type selector", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"));
+  const modelRuntime = dualAuthModelRuntime();
+  const input = capturingInputHost();
+
+  const login = openPiLogin(
+    state,
+    testRuntime({ getSharedModelRuntime: () => modelRuntime }),
+    input.host,
+  );
+  const selector = input.current();
+  assert.ok(selector instanceof ExtensionSelectorComponent);
+  selector.handleInput("\x1b");
+  await login;
+});
+
+test("openPiLogin asks for an auth type when an exact provider supports both", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"));
+  const modelRuntime = dualAuthModelRuntime();
+  const input = capturingInputHost();
+
+  const login = openPiLogin(
+    state,
+    testRuntime({ getSharedModelRuntime: () => modelRuntime }),
+    input.host,
+    "DUAL",
+  );
+  const selector = input.current();
+  assert.ok(selector instanceof ExtensionSelectorComponent);
+  selector.handleInput("\x1b");
+  await login;
+});
+
+test("loginArgumentCompletions deduplicates provider auth methods", () => {
+  assert.deepEqual(loginArgumentCompletions(dualAuthModelRuntime(), "dual"), [
+    {
+      value: "dual",
+      label: "dual",
+      description: "Dual Provider · subscription/API key",
+    },
+  ]);
+});
 
 test("MixCodeRuntime shares the provided ModelRuntime across tabs", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-auth-shared-"));

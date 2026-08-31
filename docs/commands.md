@@ -41,6 +41,8 @@ Commands operate across three distinct persistence tiers:
 | `/toggle-hidden-messages` | - | Session | Reveals or hides internal custom extension messages. |
 | `/hide-thinking` | - | `[global]` | Toggles whether thinking blocks are hidden behind placeholders. |
 | `/settings` | - | Global | Opens interactive settings overlay for themes, icons, and UI preferences. |
+| `/login` | `[provider]` | Global | Configures provider authentication. Without an argument, select subscription or API key first; an exact provider id or name opens that provider directly. Credentials are shared with Pi through `<agentDir>/auth.json`. |
+| `/logout` | - | Global | Removes a credential saved by `/login`; environment variables and `models.json` authentication remain unchanged. |
 | `/save-workspace` | `[name]` | Workdir | Saves multi-tab layout to `<stateDir>/workspaces.json`. |
 | `/restore-workspace` | `[name]` | Workdir | Restores a saved workspace; omit name to open the picker. |
 | `/delete-workspace` | `[name]` | Workdir | Deletes a saved workspace record. |

@@ -1,6 +1,15 @@
-import type { AuthEvent, AuthInteraction, AuthPrompt, AuthType } from "@earendil-works/pi-ai";
-import type { TUI } from "@earendil-works/pi-tui";
+import type {
+  ApiKeyAuth,
+  AuthCheck,
+  AuthEvent,
+  AuthInteraction,
+  AuthPrompt,
+  AuthType,
+  OAuthAuth,
+} from "@earendil-works/pi-ai";
+import { fuzzyFilter, type TUI } from "@earendil-works/pi-tui";
 import {
+  CredentialSynchronizationError,
   LoginDialogComponent,
   OAuthSelectorComponent,
   ExtensionSelectorComponent,
@@ -9,51 +18,69 @@ import {
 import { applyMixCodeKeybindings } from "../agent/runtime-pi-tui-bridge.js";
 import { ensureExtensionThemeInitialized } from "../agent/runtime-extension-theme.js";
 import type { MixCodeRuntime } from "../agent/runtime.js";
-import { reloadRuntimeModels } from "./app-actions.js";
-import type { MixCodeState, MixCodeTabInfo } from "../core/types.js";
-import { pushToast, type ToastRequest } from "../core/toast.js";
+import { defaultPiAuthPath } from "../core/pi-models.js";
 import { getActiveTab } from "../core/tabs.js";
+import { pushToast, type ToastRequest } from "../core/toast.js";
+import type { MixCodeState, MixCodeTabInfo } from "../core/types.js";
+import { reloadRuntimeModels } from "./app-actions.js";
 import type { AuthInputHost } from "./app-types.js";
 
 type AuthSelectorProvider = {
   id: string;
   name: string;
   authType: AuthType;
+  method?: ApiKeyAuth | OAuthAuth;
+  status?: AuthCheck;
 };
 
-/**
- * Toasts paint on an agent tab surface (Home paints the selected agent's toast).
- * /login and /logout are reachable with zero agent tabs open, where no surface exists.
- */
+type AuthRuntime = Pick<
+  MixCodeRuntime,
+  | "getSharedModelRuntime"
+  | "reloadModelConfig"
+  | "refreshScopedModels"
+  | "resolveModel"
+  | "updateTabModel"
+>;
+
+type ArgumentCompletion = { value: string; label: string; description?: string };
+type LoginCompletionProvider = { id: string; name: string; authTypes: AuthType[] };
+
+const AUTH_TIMEOUT_MS = 15_000;
+const ACCOUNT_LOGIN_LABEL = "Sign in with an account";
+const API_KEY_LOGIN_LABEL = "Sign in with an API key";
+const AUTH_TYPE_ORDER: Record<AuthType, number> = { oauth: 0, api_key: 1 };
+
+/** /login and /logout can run from Home, where no tab-owned toast surface exists. */
 function notifyTab(tab: MixCodeTabInfo | undefined, toast: ToastRequest): void {
   if (tab) pushToast(tab, toast);
 }
 
-/**
- * Open /login flow: replace input area with provider selector → auth type → OAuth or API key input.
- * Matches Pi agent's editorContainer pattern.
- */
+export function loginArgumentCompletions(
+  modelRuntime: ModelRuntime | undefined,
+  prefix: string,
+): ArgumentCompletion[] {
+  if (!modelRuntime) return [];
+  const providers = getLoginProviderCompletionOptions(getLoginProviders(modelRuntime));
+  return fuzzyFilter(providers, prefix, getLoginProviderSearchText).map((provider) => ({
+    value: provider.id,
+    label: provider.id,
+    description: formatLoginProviderCompletionDescription(provider),
+  }));
+}
+
+/** Matches Pi's auth-type → provider → credential flow using Pi's public TUI components. */
 export async function openPiLogin(
   state: MixCodeState,
-  runtime: Pick<
-    MixCodeRuntime,
-    | "getSharedModelRuntime"
-    | "reloadModelConfig"
-    | "refreshScopedModels"
-    | "resolveModel"
-    | "updateTabModel"
-  >,
+  runtime: AuthRuntime,
   inputHost: AuthInputHost | undefined,
   providerRef?: string,
 ): Promise<void> {
   const modelRuntime = runtime.getSharedModelRuntime();
   const active = getActiveTab(state);
-
   if (!modelRuntime) {
     notifyTab(active, { type: "error", message: "Auth not available (no model runtime)" });
     return;
   }
-
   if (!inputHost) {
     notifyTab(active, { type: "error", message: "Auth UI not available" });
     return;
@@ -61,75 +88,61 @@ export async function openPiLogin(
 
   ensureExtensionThemeInitialized();
   const restoreKeys = applyMixCodeKeybindings();
-
+  const sessionId = active?.sessionId;
   try {
-    const providers = await getLoginProviders(modelRuntime);
-    if (providers.length === 0) {
-      notifyTab(active, { type: "warning", message: "No login providers available" });
+    const selected = await selectLoginProvider(
+      inputHost,
+      modelRuntime,
+      sessionId,
+      providerRef,
+      (message) => notifyTab(active, { type: "warning", message }),
+    );
+    if (!selected) return;
+
+    if (selected.authType === "api_key" && !selected.method?.login) {
+      await showAmbientAuthDialog(inputHost, selected, sessionId);
       return;
     }
 
-    let selectedProvider: AuthSelectorProvider | undefined;
-
-    if (providerRef) {
-      const normalized = providerRef.toLowerCase();
-      selectedProvider = providers.find(
-        (p) => p.id.toLowerCase() === normalized || p.name.toLowerCase() === normalized,
-      );
-      if (!selectedProvider) {
-        notifyTab(active, {
-          type: "error",
-          message: `Provider not found: ${providerRef}`,
-        });
-        return;
-      }
-    } else {
-      selectedProvider = await showProviderSelector(inputHost, "login", providers);
-      if (!selectedProvider) return;
-    }
-
-    await performLogin(inputHost, modelRuntime, selectedProvider);
-
+    await performLogin(inputHost, modelRuntime, selected, sessionId);
+    const actionLabel =
+      selected.authType === "oauth"
+        ? `Logged in to ${selected.name}`
+        : `Saved API key for ${selected.name}`;
     await reloadRuntimeModels(state, runtime);
     notifyTab(active, {
       type: "success",
-      message: `Logged in to ${selectedProvider.name}`,
+      message: `${actionLabel}. Credentials saved to ${defaultPiAuthPath()}`,
     });
+    refreshProviderCatalog(modelRuntime, selected.id, actionLabel, state, runtime, active);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    if (message !== "Login cancelled" && message !== "Cancelled") {
-      notifyTab(active, { type: "error", message: `Login failed: ${message}` });
+    if (message !== "Login cancelled") {
+      notifyTab(active, {
+        type: "error",
+        message:
+          error instanceof CredentialSynchronizationError
+            ? `Credentials saved, but local model state could not be synchronized: ${message}`
+            : `Login failed: ${message}`,
+      });
     }
   } finally {
     restoreKeys();
-    inputHost?.clearInputComponent(active?.sessionId);
+    inputHost.clearInputComponent(sessionId);
   }
 }
 
-/**
- * Open /logout flow: replace input area with stored provider selector, remove credential.
- * Matches Pi agent's editorContainer pattern.
- */
 export async function openPiLogout(
   state: MixCodeState,
-  runtime: Pick<
-    MixCodeRuntime,
-    | "getSharedModelRuntime"
-    | "reloadModelConfig"
-    | "refreshScopedModels"
-    | "resolveModel"
-    | "updateTabModel"
-  >,
+  runtime: AuthRuntime,
   inputHost: AuthInputHost | undefined,
 ): Promise<void> {
   const modelRuntime = runtime.getSharedModelRuntime();
   const active = getActiveTab(state);
-
   if (!modelRuntime) {
     notifyTab(active, { type: "error", message: "Auth not available (no model runtime)" });
     return;
   }
-
   if (!inputHost) {
     notifyTab(active, { type: "error", message: "Auth UI not available" });
     return;
@@ -137,51 +150,148 @@ export async function openPiLogout(
 
   ensureExtensionThemeInitialized();
   const restoreKeys = applyMixCodeKeybindings();
-
+  const sessionId = active?.sessionId;
   try {
     const providers = await getLogoutProviders(modelRuntime);
     if (providers.length === 0) {
-      notifyTab(active, { type: "warning", message: "No stored credentials to logout" });
+      notifyTab(active, {
+        type: "warning",
+        message:
+          "No stored credentials to remove. /logout only removes credentials saved by /login; environment variables and models.json config are unchanged.",
+      });
       return;
     }
-
-    const selected = await showProviderSelector(inputHost, "logout", providers);
+    const selected = await showProviderSelector(inputHost, "logout", providers, sessionId);
     if (!selected) return;
 
-    await modelRuntime.logout(selected.id);
+    await modelRuntime.logout(selected.id, { signal: AbortSignal.timeout(AUTH_TIMEOUT_MS) });
     await reloadRuntimeModels(state, runtime);
     notifyTab(active, {
       type: "success",
-      message: `Logged out from ${selected.name}`,
+      message:
+        selected.authType === "oauth"
+          ? `Logged out of ${selected.name}`
+          : `Removed stored API key for ${selected.name}. Environment variables and models.json config are unchanged.`,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    if (message !== "Cancelled") {
-      notifyTab(active, { type: "error", message: `Logout failed: ${message}` });
-    }
+    notifyTab(active, {
+      type: "error",
+      message:
+        error instanceof CredentialSynchronizationError
+          ? `Credentials removed, but local model state could not be synchronized: ${message}`
+          : `Logout failed: ${message}`,
+    });
   } finally {
     restoreKeys();
-    inputHost?.clearInputComponent(active?.sessionId);
+    inputHost.clearInputComponent(sessionId);
   }
 }
 
-async function getLoginProviders(modelRuntime: ModelRuntime): Promise<AuthSelectorProvider[]> {
+function getLoginProviderCompletionOptions(
+  providerOptions: AuthSelectorProvider[],
+): LoginCompletionProvider[] {
+  const byId = new Map<string, LoginCompletionProvider>();
+  for (const provider of providerOptions) {
+    const existing = byId.get(provider.id);
+    if (existing) {
+      if (!existing.authTypes.includes(provider.authType)) {
+        existing.authTypes.push(provider.authType);
+        existing.authTypes.sort((a, b) => AUTH_TYPE_ORDER[a] - AUTH_TYPE_ORDER[b]);
+      }
+      continue;
+    }
+    byId.set(provider.id, {
+      id: provider.id,
+      name: provider.name,
+      authTypes: [provider.authType],
+    });
+  }
+  return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function getLoginProviderSearchText(provider: LoginCompletionProvider): string {
+  const authTypes = provider.authTypes
+    .map((authType) => `${authType} ${formatAuthType(authType)}`)
+    .join(" ");
+  return `${provider.id} ${provider.name} ${authTypes}`;
+}
+
+function formatLoginProviderCompletionDescription(provider: LoginCompletionProvider): string {
+  const authTypes = provider.authTypes.map(formatAuthType).join("/");
+  return provider.name === provider.id ? authTypes : `${provider.name} · ${authTypes}`;
+}
+
+function formatAuthType(authType: AuthType): string {
+  return authType === "oauth" ? "subscription" : "API key";
+}
+
+async function selectLoginProvider(
+  inputHost: AuthInputHost,
+  modelRuntime: ModelRuntime,
+  sessionId: string | undefined,
+  providerRef: string | undefined,
+  warn: (message: string) => void,
+): Promise<AuthSelectorProvider | undefined> {
+  const providers = getLoginProviders(modelRuntime);
+  const normalized = providerRef?.trim().toLowerCase();
+  if (normalized) {
+    const matches = providers.filter(
+      (provider) =>
+        provider.id.toLowerCase() === normalized || provider.name.toLowerCase() === normalized,
+    );
+    if (matches.length === 1) return matches[0];
+    if (matches.length > 1 && new Set(matches.map((provider) => provider.id)).size === 1) {
+      const authType = await showAuthTypeSelector(inputHost, matches, sessionId);
+      return matches.find((provider) => provider.authType === authType);
+    }
+    if (providers.length === 0) {
+      warn("No login providers available.");
+      return undefined;
+    }
+    return showProviderSelector(inputHost, "login", providers, sessionId, providerRef?.trim());
+  }
+
+  const authType = await showAuthTypeSelector(inputHost, undefined, sessionId);
+  if (!authType) return undefined;
+  const typedProviders = providers.filter((provider) => provider.authType === authType);
+  if (typedProviders.length === 0) {
+    warn(
+      authType === "oauth"
+        ? "No subscription providers available."
+        : "No API key providers available.",
+    );
+    return undefined;
+  }
+  return showProviderSelector(inputHost, "login", typedProviders, sessionId);
+}
+
+function getLoginProviders(modelRuntime: ModelRuntime): AuthSelectorProvider[] {
   const providers: AuthSelectorProvider[] = [];
   for (const provider of modelRuntime.getProviders()) {
-    const auth = provider.auth;
-    if (!auth) continue;
-    if (auth.oauth?.login) {
+    const authStatus = modelRuntime.getProviderAuthStatus(provider.id);
+    const status: AuthCheck | undefined = authStatus.configured
+      ? {
+          type: modelRuntime.isUsingOAuth(provider.id) ? "oauth" : "api_key",
+          source: authStatus.label ?? authStatus.source,
+        }
+      : undefined;
+    if (provider.auth.oauth) {
       providers.push({
         id: provider.id,
-        name: auth.oauth.name || provider.name || provider.id,
+        name: provider.name,
         authType: "oauth",
+        method: provider.auth.oauth,
+        status,
       });
     }
-    if (auth.apiKey?.login) {
+    if (provider.auth.apiKey) {
       providers.push({
         id: provider.id,
-        name: auth.apiKey.name || provider.name || provider.id,
+        name: provider.name,
         authType: "api_key",
+        method: provider.auth.apiKey,
+        status,
       });
     }
   }
@@ -189,37 +299,104 @@ async function getLoginProviders(modelRuntime: ModelRuntime): Promise<AuthSelect
 }
 
 async function getLogoutProviders(modelRuntime: ModelRuntime): Promise<AuthSelectorProvider[]> {
-  const stored = await modelRuntime.listCredentials();
-  return stored
-    .map((credential) => ({
-      id: credential.providerId,
-      name: modelRuntime.getProvider(credential.providerId)?.name ?? credential.providerId,
-      authType: credential.type,
-    }))
+  return (await modelRuntime.listCredentials({ signal: AbortSignal.timeout(AUTH_TIMEOUT_MS) }))
+    .map((credential) => {
+      const provider = modelRuntime.getProvider(credential.providerId);
+      return {
+        id: credential.providerId,
+        name: provider?.name ?? credential.providerId,
+        authType: credential.type,
+        method: credential.type === "oauth" ? provider?.auth.oauth : provider?.auth.apiKey,
+        status: { type: credential.type, source: "stored credential" },
+      };
+    })
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-async function showProviderSelector(
+function showAuthTypeSelector(
+  inputHost: AuthInputHost,
+  providers: AuthSelectorProvider[] | undefined,
+  sessionId: string | undefined,
+): Promise<AuthType | undefined> {
+  const oauth = providers?.find((provider) => provider.authType === "oauth");
+  const oauthLabel =
+    oauth?.method && "loginLabel" in oauth.method
+      ? (oauth.method.loginLabel ?? ACCOUNT_LOGIN_LABEL)
+      : ACCOUNT_LOGIN_LABEL;
+  const available = providers
+    ? new Set(providers.map((provider) => provider.authType))
+    : new Set<AuthType>(["oauth", "api_key"]);
+  const choices = [
+    ...(available.has("oauth") ? [{ label: oauthLabel, type: "oauth" as const }] : []),
+    ...(available.has("api_key") ? [{ label: API_KEY_LOGIN_LABEL, type: "api_key" as const }] : []),
+  ];
+  if (choices.length === 1) return Promise.resolve(choices[0]!.type);
+
+  return new Promise((resolve) => {
+    const selector = new ExtensionSelectorComponent(
+      providers?.[0]
+        ? `Select authentication method for ${providers[0].name}:`
+        : "Select authentication method:",
+      choices.map((choice) => choice.label),
+      (label) => {
+        inputHost.clearInputComponent(sessionId);
+        resolve(choices.find((choice) => choice.label === label)?.type);
+      },
+      () => {
+        inputHost.clearInputComponent(sessionId);
+        resolve(undefined);
+      },
+    );
+    inputHost.setInputComponent(selector, sessionId);
+  });
+}
+
+function showProviderSelector(
   inputHost: AuthInputHost,
   mode: "login" | "logout",
   providers: AuthSelectorProvider[],
+  sessionId: string | undefined,
+  initialSearchInput?: string,
 ): Promise<AuthSelectorProvider | undefined> {
   return new Promise((resolve) => {
     const selector = new OAuthSelectorComponent(
       mode,
       providers,
       (id, authType) => {
-        const selected = providers.find((p) => p.id === id && p.authType === authType);
-        inputHost.clearInputComponent();
-        resolve(selected);
+        inputHost.clearInputComponent(sessionId);
+        resolve(providers.find((provider) => provider.id === id && provider.authType === authType));
       },
       () => {
-        inputHost.clearInputComponent();
+        inputHost.clearInputComponent(sessionId);
         resolve(undefined);
       },
+      initialSearchInput,
     );
-    inputHost.setInputComponent(selector);
+    inputHost.setInputComponent(selector, sessionId);
     selector.focused = true;
+  });
+}
+
+function showAmbientAuthDialog(
+  inputHost: AuthInputHost,
+  provider: AuthSelectorProvider,
+  sessionId: string | undefined,
+): Promise<void> {
+  return new Promise((resolve) => {
+    const dialog = new LoginDialogComponent(
+      tuiStub(inputHost),
+      provider.id,
+      () => resolve(),
+      provider.name,
+      `${provider.name} setup`,
+    );
+    dialog.showInfo(
+      `${provider.method?.name ?? "Authentication"} is configured outside MixCode.`,
+      [],
+      true,
+    );
+    inputHost.setInputComponent(dialog, sessionId);
+    dialog.focused = true;
   });
 }
 
@@ -227,86 +404,138 @@ async function performLogin(
   inputHost: AuthInputHost,
   modelRuntime: ModelRuntime,
   provider: AuthSelectorProvider,
+  sessionId: string | undefined,
 ): Promise<void> {
-  const tui = { requestRender: () => inputHost.requestRender() } as TUI;
   const { promise: cancelled, reject: rejectLogin } = Promise.withResolvers<never>();
   const dialog = new LoginDialogComponent(
-    tui,
+    tuiStub(inputHost),
     provider.id,
     (success, message) => {
       if (!success) rejectLogin(new Error(message ?? "Login cancelled"));
     },
     provider.name,
-    provider.authType === "api_key" ? `${provider.name} API key` : undefined,
   );
-  inputHost.setInputComponent(dialog);
+  inputHost.setInputComponent(dialog, sessionId);
   dialog.focused = true;
-
   const interaction: AuthInteraction = {
     signal: dialog.signal,
-    prompt: async (prompt: AuthPrompt) => {
-      if (prompt.type === "select") {
-        const selected = await showOAuthMethodSelector(
-          inputHost,
-          prompt.message,
-          prompt.options.map((option) => ({ id: option.id, label: option.label })),
-        );
-        if (!selected) throw new Error("Login cancelled");
-        inputHost.setInputComponent(dialog);
-        dialog.focused = true;
-        return selected;
-      }
-      if (prompt.type === "manual_code") {
-        return dialog.showManualInput(prompt.message);
-      }
-      return dialog.showPrompt(prompt.message, prompt.placeholder);
-    },
-    notify: (event: AuthEvent) => {
-      if (event.type === "auth_url") {
-        dialog.showAuth(event.url, event.instructions);
-        return;
-      }
-      if (event.type === "device_code") {
-        dialog.showDeviceCode({
-          userCode: event.userCode,
-          verificationUri: event.verificationUri,
-          intervalSeconds: event.intervalSeconds,
-          expiresInSeconds: event.expiresInSeconds,
-        });
-        return;
-      }
-      if (event.type === "progress") {
-        dialog.showProgress(event.message);
-        return;
-      }
-      if (event.type === "info") {
-        dialog.showInfo(event.message, event.links);
-      }
-    },
+    prompt: (prompt) => showAuthPrompt(inputHost, dialog, prompt, sessionId),
+    notify: (event) => notifyAuthDialog(dialog, event),
   };
-
   await Promise.race([modelRuntime.login(provider.id, provider.authType, interaction), cancelled]);
 }
 
-async function showOAuthMethodSelector(
+async function showAuthPrompt(
   inputHost: AuthInputHost,
+  dialog: LoginDialogComponent,
+  prompt: AuthPrompt,
+  sessionId: string | undefined,
+): Promise<string> {
+  let response: Promise<string>;
+  if (prompt.type === "select") {
+    response = showOAuthMethodSelector(
+      inputHost,
+      dialog,
+      prompt.message,
+      prompt.options.map((option) => ({ id: option.id, label: option.label })),
+      sessionId,
+    );
+  } else if (prompt.type === "manual_code") {
+    response = dialog.showManualInput(prompt.message);
+  } else {
+    response = dialog.showPrompt(prompt.message, prompt.placeholder);
+  }
+  if (!prompt.signal) return response;
+  if (prompt.signal.aborted) throw new Error("Login cancelled");
+  const signal = prompt.signal;
+  const { promise: aborted, reject } = Promise.withResolvers<never>();
+  const onAbort = () => reject(new Error("Login cancelled"));
+  signal.addEventListener("abort", onAbort, { once: true });
+  try {
+    return await Promise.race([response, aborted]);
+  } finally {
+    signal.removeEventListener("abort", onAbort);
+  }
+}
+
+function showOAuthMethodSelector(
+  inputHost: AuthInputHost,
+  dialog: LoginDialogComponent,
   message: string,
   options: Array<{ id: string; label: string }>,
-): Promise<string | undefined> {
-  return new Promise((resolve) => {
+  sessionId: string | undefined,
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const restoreDialog = () => {
+      inputHost.setInputComponent(dialog, sessionId);
+      dialog.focused = true;
+    };
     const selector = new ExtensionSelectorComponent(
       message,
-      options.map((opt) => opt.label),
-      (selected) => {
-        const index = options.findIndex((opt) => opt.label === selected);
-        inputHost.clearInputComponent();
-        resolve(index >= 0 ? options[index]!.id : undefined);
+      options.map((option) => option.label),
+      (label) => {
+        restoreDialog();
+        const id = options.find((option) => option.label === label)?.id;
+        if (id) resolve(id);
+        else reject(new Error("Login cancelled"));
       },
       () => {
-        inputHost.clearInputComponent();
-        resolve(undefined);
+        restoreDialog();
+        reject(new Error("Login cancelled"));
       },
     );
-    inputHost.setInputComponent(selector);
+    inputHost.setInputComponent(selector, sessionId);
   });
+}
+
+function notifyAuthDialog(dialog: LoginDialogComponent, event: AuthEvent): void {
+  if (event.type === "auth_url") {
+    dialog.showAuth(event.url, event.instructions);
+  } else if (event.type === "device_code") {
+    dialog.showDeviceCode(event);
+    dialog.showWaiting("Waiting for authentication...");
+  } else if (event.type === "info") {
+    dialog.showInfo(event.message, event.links);
+  } else {
+    dialog.showProgress(event.message);
+  }
+}
+
+function refreshProviderCatalog(
+  modelRuntime: ModelRuntime,
+  providerId: string,
+  actionLabel: string,
+  state: MixCodeState,
+  runtime: AuthRuntime,
+  tab: MixCodeTabInfo | undefined,
+): void {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), AUTH_TIMEOUT_MS);
+  void modelRuntime
+    .refresh({ providers: [providerId], signal: controller.signal })
+    .then(async (result) => {
+      if (result.aborted) {
+        notifyTab(tab, {
+          type: "warning",
+          message: `${actionLabel}, but its model catalog refresh timed out; using cached models.`,
+        });
+      } else if (result.errors.size > 0) {
+        notifyTab(tab, {
+          type: "warning",
+          message: `${actionLabel}, but its model catalog could not be refreshed; using cached models.`,
+        });
+      }
+      await reloadRuntimeModels(state, runtime);
+    })
+    .catch((error) => {
+      notifyTab(tab, {
+        type: "warning",
+        message: `${actionLabel}, but its model catalog could not be refreshed: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    })
+    .finally(() => clearTimeout(timeout));
+}
+
+function tuiStub(inputHost: AuthInputHost): TUI {
+  return { requestRender: () => inputHost.requestRender() } as TUI;
 }
