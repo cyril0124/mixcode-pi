@@ -102,6 +102,107 @@ function normalizeTarget(raw: string): TargetId | undefined {
   }
 }
 
+// ─── Transcript statistics ────────────────────────────────────────────────────
+
+interface TranscriptStats {
+  totalToolCalls: number;
+  toolCalls: ReadonlyMap<string, number>;
+  skills: ReadonlyMap<string, number>;
+  sessionTurns: number;
+  messageCount: number;
+  durationMs: number | undefined;
+  resultCounts: { success: number; errors: number; pending: number };
+}
+
+/** Count assistant tool calls and reads of skill files in a session branch. */
+function collectTranscriptStats(entries: SessionEntry[]): TranscriptStats {
+  const toolCalls = new Map<string, number>();
+  const skills = new Map<string, number>();
+  const resultById = new Map<string, boolean>();
+  let totalToolCalls = 0;
+  let sessionTurns = 0;
+  let messageCount = 0;
+  let firstAt: number | undefined;
+  let lastAt: number | undefined;
+
+  for (const entry of entries) {
+    const entryAt = Date.parse(entry.timestamp);
+    if (!Number.isNaN(entryAt)) {
+      firstAt = firstAt === undefined ? entryAt : Math.min(firstAt, entryAt);
+      lastAt = lastAt === undefined ? entryAt : Math.max(lastAt, entryAt);
+    }
+    if (entry.type !== "message") continue;
+    messageCount += 1;
+    const message = messageOf(entry);
+    if (message?.role === "user" && blockText(message.content).trim()) sessionTurns += 1;
+    if (message?.role === "toolResult" && message.toolCallId) {
+      resultById.set(message.toolCallId, Boolean(message.isError));
+    }
+  }
+
+  let success = 0;
+  let errors = 0;
+  let pending = 0;
+  for (const entry of entries) {
+    const message = messageOf(entry);
+    if (message?.role !== "assistant" || !Array.isArray(message.content)) continue;
+    for (const block of message.content as AssistantBlock[]) {
+      if (block.type !== "toolCall") continue;
+      const call = block as ToolCallBlock;
+      const toolName = call.name ?? "(unknown)";
+      toolCalls.set(toolName, (toolCalls.get(toolName) ?? 0) + 1);
+      totalToolCalls += 1;
+
+      if (call.id === undefined || !resultById.has(call.id)) pending += 1;
+      else if (resultById.get(call.id)) errors += 1;
+      else success += 1;
+
+      if (toolName !== "read") continue;
+      const rawPath = call.arguments?.file_path ?? call.arguments?.path;
+      if (typeof rawPath !== "string" || path.basename(rawPath) !== "SKILL.md") continue;
+      const skillName = path.basename(path.dirname(rawPath)) || "SKILL.md";
+      skills.set(skillName, (skills.get(skillName) ?? 0) + 1);
+    }
+  }
+
+  return {
+    totalToolCalls,
+    toolCalls,
+    skills,
+    sessionTurns,
+    messageCount,
+    durationMs: firstAt !== undefined && lastAt !== undefined ? lastAt - firstAt : undefined,
+    resultCounts: { success, errors, pending },
+  };
+}
+
+function formatStatItems(items: ReadonlyMap<string, number>): string {
+  if (items.size === 0) return "none";
+  return [...items.entries()]
+    .sort(([nameA, countA], [nameB, countB]) => countB - countA || nameA.localeCompare(nameB))
+    .map(([name, count]) => `\`${name}\` × ${count}`)
+    .join(" · ");
+}
+
+/** Rounded box shown before the selected transcript content. */
+function renderTranscriptStats(stats: TranscriptStats): string {
+  const rows = [
+    `Session · ${stats.sessionTurns} turn${stats.sessionTurns === 1 ? "" : "s"} · ${stats.messageCount} message${stats.messageCount === 1 ? "" : "s"} · ${stats.durationMs === undefined ? "duration n/a" : fmtDuration(stats.durationMs)}`,
+    `Result · ${stats.resultCounts.success} success · ${stats.resultCounts.errors} errors · ${stats.resultCounts.pending} pending`,
+    `Tools · ${stats.totalToolCalls} total · ${formatStatItems(stats.toolCalls)}`,
+    `Skills · ${[...stats.skills.values()].reduce((total, count) => total + count, 0)} reads · ${formatStatItems(stats.skills)}`,
+  ];
+  const title = "📊 Transcript Stats";
+  const width = Math.max(title.length, ...rows.map((row) => row.length));
+  const row = (text: string) => `│ ${text.padEnd(width)} │`;
+  return [
+    `╭${"─".repeat(width + 2)}╮`,
+    row(title),
+    ...rows.map(row),
+    `╰${"─".repeat(width + 2)}╯`,
+  ].join("\n");
+}
+
 // ─── Output assembly ───────────────────────────────────────────────────────
 
 /**
@@ -120,7 +221,9 @@ export function formatViewText(title: string, body: string[]): string {
 // ─── Content reconstruction from the session branch ───────────────────────────
 
 /** Narrow a branch entry to its message when it is a normal chat message. */
-function messageOf(entry: SessionEntry): { role: string; content: unknown } | undefined {
+function messageOf(
+  entry: SessionEntry,
+): { role: string; content: unknown; toolCallId?: string; isError?: boolean } | undefined {
   if (entry.type !== "message") return undefined;
   return entry.message as unknown as { role: string; content: unknown };
 }
@@ -743,6 +846,7 @@ export function buildViewText(
 ): string {
   const { lastTurns, contextWindowFor, priceSource, fullToolOutput, contextPrefix } = options;
   const meta = TARGETS.find((t) => t.id === target)!;
+  const stats = renderTranscriptStats(collectTranscriptStats(entries));
   if (target === "thinking" || target === "chatlog" || target === "context") {
     const { sliced, turnOffset } = cutForLastTurns(entries, lastTurns);
     const note =
@@ -752,6 +856,7 @@ export function buildViewText(
     if (target === "thinking") {
       const thinking = collectThinking(sliced, turnOffset);
       return formatViewText(meta.title, [
+        stats,
         ...note,
         ...(thinking.length ? thinking : ["No thinking entries."]),
       ]);
@@ -773,15 +878,19 @@ export function buildViewText(
           ]
         : [];
     return formatViewText(meta.title, [
+      stats,
       ...sizeLine,
       ...note,
       ...collectChatlog(sliced, { turnOffset, contextWindowFor, cacheMisses, fullToolOutput }),
     ]);
   }
   if (target === "latest-agent") {
-    return formatViewText(meta.title, [latestAgentReply(entries) ?? "No assistant message."]);
+    return formatViewText(meta.title, [
+      stats,
+      latestAgentReply(entries) ?? "No assistant message.",
+    ]);
   }
-  return formatViewText(meta.title, [latestUserMessage(entries) ?? "No user message."]);
+  return formatViewText(meta.title, [stats, latestUserMessage(entries) ?? "No user message."]);
 }
 
 // ─── Display: external editor (default) with in-app editor fallback ───────────
