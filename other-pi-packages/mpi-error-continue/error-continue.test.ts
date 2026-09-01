@@ -144,6 +144,10 @@ function assistantEmpty(stopReason = "stop", content: unknown[] = []) {
   return { role: "assistant", stopReason, content };
 }
 
+function successfulToolResult() {
+  return { isError: false };
+}
+
 function stateEntry(enabled: boolean) {
   return {
     type: "custom",
@@ -277,6 +281,35 @@ test("MAX_INVISIBLE + MAX_VISIBLE error settles send all continues; extra sends 
   });
 });
 
+test("three successful tools in one turn reset retry phase counters", async () => {
+  const harness = createHarness();
+  await harness.emit("session_start");
+  await errorSettle(harness, "before-tools");
+  assert.deepEqual(harness.statuses.at(-1), {
+    key: STATUS_KEY,
+    text: statusText(1, "invisible 1/3"),
+  });
+
+  await harness.emit("turn_start");
+  await harness.emit("tool_execution_end", successfulToolResult());
+  await harness.emit("tool_execution_end", successfulToolResult());
+  assert.deepEqual(harness.statuses.at(-1), {
+    key: STATUS_KEY,
+    text: statusText(1, "invisible 1/3"),
+  });
+  await harness.emit("tool_execution_end", successfulToolResult());
+  assert.deepEqual(harness.statuses.at(-1), {
+    key: STATUS_KEY,
+    text: statusText(1),
+  });
+
+  await errorSettle(harness, "after-tools");
+  assert.deepEqual(harness.statuses.at(-1), {
+    key: STATUS_KEY,
+    text: statusText(2, "invisible 1/3"),
+  });
+});
+
 test("successful settle resets phase counters but keeps cumulative status count", async () => {
   const harness = createHarness();
   await harness.emit("session_start");
@@ -295,6 +328,26 @@ test("successful settle resets phase counters but keeps cumulative status count"
     text: statusText(2, "invisible 1/3"),
   });
   assert.deepEqual(harness.delays, [5000, 5000]);
+});
+
+test("failed tool breaks the in-turn success streak", async () => {
+  const harness = createHarness();
+  await harness.emit("session_start");
+  await errorSettle(harness, "before-tools");
+  await harness.emit("turn_start");
+  await harness.emit("tool_execution_end", successfulToolResult());
+  await harness.emit("tool_execution_end", { isError: true });
+  await harness.emit("tool_execution_end", successfulToolResult());
+  await harness.emit("tool_execution_end", successfulToolResult());
+  assert.deepEqual(harness.statuses.at(-1), {
+    key: STATUS_KEY,
+    text: statusText(1, "invisible 1/3"),
+  });
+  await harness.emit("tool_execution_end", successfulToolResult());
+  assert.deepEqual(harness.statuses.at(-1), {
+    key: STATUS_KEY,
+    text: statusText(1),
+  });
 });
 
 test("endsWithThinkingOrToolCall helper", () => {
