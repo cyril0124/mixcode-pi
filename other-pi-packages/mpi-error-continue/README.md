@@ -76,6 +76,7 @@ resolves `confirm()` to `false`, which would otherwise be misread as a cancel.
 |---------|--------|
 | `/error-continue on` | Enable for this session (default if no state) |
 | `/error-continue off` | Disable; persists in session branch |
+| `/error-continue reset` | Reset retry phase and session counters; keep enabled state |
 
 ## Local load (not installed by MixCode)
 

@@ -297,6 +297,7 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
         return [
           { label: "on", value: "on", description: "Enable automatic error-settle continues" },
           { label: "off", value: "off", description: "Disable automatic error-settle continues" },
+          { label: "reset", value: "reset", description: "Reset retry counters" },
         ].filter((entry) => entry.value.startsWith(normalized));
       },
       handler: async (args, ctx) => {
@@ -323,7 +324,18 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
           ctx.ui.notify("Error continue disabled for this session.", "info");
           return;
         }
-        ctx.ui.notify(`Usage: /${COMMAND_NAME} on|off`, "warning");
+        if (mode === "reset") {
+          retryArmed = false;
+          midWorkArmed = false;
+          pendingAutoContinue = false;
+          abortWait();
+          retryCount = 0;
+          clearPhaseCounters();
+          clearPhase(ctx);
+          ctx.ui.notify("Error continue counters reset.", "info");
+          return;
+        }
+        ctx.ui.notify(`Usage: /${COMMAND_NAME} on|off|reset`, "warning");
       },
     });
 

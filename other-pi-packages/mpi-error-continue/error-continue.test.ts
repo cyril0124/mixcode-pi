@@ -586,6 +586,27 @@ test("slash command on/off persists state, toggles status, and blocks sends when
   assert.equal(harness.sent.length, 1);
 });
 
+test("reset clears retry counters without disabling the extension", async () => {
+  const harness = createHarness();
+  await harness.emit("session_start");
+  await errorSettle(harness, "before-reset");
+  assert.deepEqual(harness.statuses.at(-1), {
+    key: STATUS_KEY,
+    text: statusText(1, "invisible 1/3"),
+  });
+
+  await harness.runCommand("reset");
+  assert.deepEqual(harness.statuses.at(-1), { key: STATUS_KEY, text: statusText(0) });
+  assert.equal(harness.notices.at(-1)?.message, "Error continue counters reset.");
+
+  await errorSettle(harness, "after-reset");
+  assert.equal(harness.sent.length, 2);
+  assert.deepEqual(harness.statuses.at(-1), {
+    key: STATUS_KEY,
+    text: statusText(1, "invisible 1/3"),
+  });
+});
+
 test("session_start restores enabled=false from branch state", async () => {
   const harness = createHarness({ initialBranch: [stateEntry(false)] });
   await harness.emit("session_start");

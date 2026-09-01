@@ -74,6 +74,7 @@ error-continue: on · mid-work · total 9
 |---|---|
 | `/error-continue on` | 为本会话启用；无状态记录时默认启用 |
 | `/error-continue off` | 禁用；状态持久化到会话分支 |
+| `/error-continue reset` | 重置重试阶段和本会话累计计数；保持启用状态 |
 
 ## 本地加载
 
