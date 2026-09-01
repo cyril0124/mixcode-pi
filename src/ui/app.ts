@@ -211,6 +211,7 @@ export function createMixCodeTui(
         }
       } else {
         showErrorOverlay(tui, error);
+        editor.setText(text);
       }
       tui.setFocus(editor);
       tui.requestRender();

@@ -42,7 +42,9 @@ export async function handleSubmittedInput(
   const active = activeTabOverride ?? getActiveTab(state);
   const requiresActive =
     parsed.kind === "prompt" || parsed.kind === "shell" || !configScopedCommand(parsed.command);
-  if (!active && requiresActive) return;
+  if (!active && requiresActive) {
+    throw new Error("Error: No agent to send to");
+  }
   if (active?.status === "Not Ready" && requiresActive) {
     throw new Error("Tab is still loading extensions. Please wait a moment.");
   }

@@ -15,6 +15,7 @@ import {
 import { testOverlayHandle } from "./helpers/tui.js";
 import { testRuntime } from "./helpers/runtime-stub.js";
 import { testRuntimeTab } from "./helpers/runtime-tab.js";
+import { handleSubmittedInput } from "../src/ui/app-submit.js";
 import type { ChatLine } from "../src/agent/runtime-types.js";
 
 function stripAnsi(text: string): string {
@@ -846,6 +847,15 @@ test("Home Right/Enter does NOT consume when no tabs exist", () => {
   const result = handleMixCodeKeyInput(state, "\x1b[C", tui); // Right
   // Should not consume because tabs.length === 0
   assert.notDeepEqual(result, { consume: true });
+});
+
+test("Home submit with no agent tabs throws Error: No agent to send to", async () => {
+  const state = createInitialState("/repo");
+  state.activeTabId = "home";
+  await assert.rejects(
+    () => handleSubmittedInput(state, testRuntime(), "hello", makeTui()),
+    /Error: No agent to send to/,
+  );
 });
 
 test("Home Up/Down does NOT consume when no tabs exist", () => {
