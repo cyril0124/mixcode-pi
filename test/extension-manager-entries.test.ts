@@ -508,7 +508,8 @@ test("extension manager search keyboard flow toggles the filtered entry", () => 
   panel.handleInput("\r");
   panel.handleInput(" ");
   assert.equal(entries[0]!.enabled, true);
-  assert.equal(entries[1]!.enabled, false);
+  assert.equal(entries[1]!.enabled, true);
+  assert.equal(panel.entries[1]!.enabled, false);
 
   panel.handleInput("\x1b");
   assert.match(render(), /● rename/);

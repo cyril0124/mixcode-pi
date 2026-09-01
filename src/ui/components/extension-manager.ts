@@ -44,6 +44,10 @@ export interface ExtensionManagerDeps {
  */
 let currentPanel: ExtensionManagerPanel | undefined;
 
+function cloneExtensionManagerEntries(entries: ExtensionManagerEntry[]): ExtensionManagerEntry[] {
+  return entries.map((entry) => ({ ...entry }));
+}
+
 export class ExtensionManagerPanel implements Component {
   selectedIndex = 0;
   detailScrollOffset = 0;
@@ -59,7 +63,7 @@ export class ExtensionManagerPanel implements Component {
     private readonly deps: ExtensionManagerDeps,
     entries: ExtensionManagerEntry[],
   ) {
-    this.entries = entries;
+    this.entries = cloneExtensionManagerEntries(entries);
   }
 
   invalidate(): void {}
@@ -244,7 +248,7 @@ export class ExtensionManagerPanel implements Component {
   }
 
   private refreshEntries(runtime: MixCodeSubmitRuntime, sessionId: string): void {
-    this.entries = runtime.getExtensionManagerEntries(sessionId);
+    this.entries = cloneExtensionManagerEntries(runtime.getExtensionManagerEntries(sessionId));
     const visibleEntries = filteredExtensionManagerEntries(this);
     this.selectedIndex = Math.min(this.selectedIndex, Math.max(0, visibleEntries.length - 1));
     this.detailScrollOffset = 0;
