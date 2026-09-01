@@ -143,7 +143,7 @@ export const MIXCODE_KEYMAP: KeyAction[] = [
     scope: "command-palette",
   },
   {
-    key: "tab/shift+tab",
+    key: "up/down/ctrl+k/ctrl+j/tab/shift+tab",
     action: "tab-jump-select",
     description: "Move tab jump selection",
     scope: "tab-jump",

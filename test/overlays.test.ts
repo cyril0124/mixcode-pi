@@ -127,7 +127,7 @@ test("tab jump state opens, filters, moves, accepts, and closes", () => {
   assert.match(statusOverlay, /!\s+Beta\s+s2/);
   assert.match(
     statusOverlay,
-    /type filter · ↑↓\/tab select · ctrl\+f non-idle · enter jump · esc cancel/,
+    /filter · ↑↓\/ctrl\+j\/k\/tab · ctrl\+f non-idle · enter jump · esc cancel/,
   );
   closeTabJump(state);
   assert.equal(state.tabJumpQuery, "");

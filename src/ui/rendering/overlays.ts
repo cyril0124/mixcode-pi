@@ -749,9 +749,7 @@ function renderTabJumpOverlayInner(state: MixCodeState, width: number): string[]
   }
   lines.push(
     "",
-    activeRenderTheme.dim(
-      "type filter · ↑↓/tab select · ctrl+f non-idle · enter jump · esc cancel",
-    ),
+    activeRenderTheme.dim("filter · ↑↓/ctrl+j/k/tab · ctrl+f non-idle · enter jump · esc cancel"),
   );
   return overlayPanel("Tab Jump", lines, width);
 }

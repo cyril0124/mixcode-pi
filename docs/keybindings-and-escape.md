@@ -12,6 +12,7 @@ MixCode Pi provides comprehensive global and context-sensitive keyboard shortcut
 | `Shift+Tab` | Global | Previous Tab | Previous tab. Same autocomplete / Zen exceptions as `Tab`. |
 | `Ctrl+P` | Global | Command Palette | Opens fuzzy searchable command palette. Same as `/palette`. |
 | `Ctrl+T` | Global | Tab Jump | Opens interactive full-screen tab switcher. Same as `/jump`. |
+| `Ctrl+J` / `Ctrl+K` | Tab Jump | Next / Previous Result | Moves the Tab Jump selection down / up. |
 | `Ctrl+F` | Home | Non-idle filter | Toggles Agent View to non-idle agents only. Same rule as Tab Jump `Ctrl+F`. |
 | `Ctrl+G` | Global | External Editor | Opens the current input draft in `$VISUAL` / `$EDITOR`. Same as `/editor`. |
 | `Ctrl+Q` | Global | Quit | Safely persists workspace state and exits. |

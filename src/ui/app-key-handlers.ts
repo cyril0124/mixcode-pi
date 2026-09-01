@@ -384,21 +384,21 @@ export function handleTabJumpKey(state: MixCodeState, data: string, tui: Overlay
     showLinesOverlay(tui, (width) => renderTabJumpOverlay(state, width));
     return true;
   }
+  if (matchesKey(data, "down") || matchesKey(data, "ctrl+j")) {
+    moveTabJumpSelection(state, 1);
+    showLinesOverlay(tui, (width) => renderTabJumpOverlay(state, width));
+    return true;
+  }
+  if (matchesKey(data, "up") || matchesKey(data, "ctrl+k")) {
+    moveTabJumpSelection(state, -1);
+    showLinesOverlay(tui, (width) => renderTabJumpOverlay(state, width));
+    return true;
+  }
   if (matchesKey(data, "enter")) {
     acceptTabJumpSelection(state);
     // vim/zen transfer is centralized in activateTab (agent→agent only).
     closeAppOverlay(tui);
     tui.requestRender();
-    return true;
-  }
-  if (matchesKey(data, "down")) {
-    moveTabJumpSelection(state, 1);
-    showLinesOverlay(tui, (width) => renderTabJumpOverlay(state, width));
-    return true;
-  }
-  if (matchesKey(data, "up")) {
-    moveTabJumpSelection(state, -1);
-    showLinesOverlay(tui, (width) => renderTabJumpOverlay(state, width));
     return true;
   }
   if (data === "\u007f") {
