@@ -182,12 +182,23 @@ function collectTranscriptStats(entries: SessionEntry[]): TranscriptStats {
   };
 }
 
-function formatStatItems(items: ReadonlyMap<string, number>): string {
-  if (items.size === 0) return "none";
-  return [...items.entries()]
-    .sort(([nameA, countA], [nameB, countB]) => countB - countA || nameA.localeCompare(nameB))
-    .map(([name, count]) => `\`${name}\` × ${count}`)
-    .join(" · ");
+/**
+ * Itemized stats section (Tools/Skills): a header line followed by one
+ * `    - name × N` line per item, sorted by count desc then name. An empty
+ * section renders `none` on the header line.
+ */
+function statItemLines(
+  label: string,
+  summary: string,
+  items: ReadonlyMap<string, number>,
+): string[] {
+  const sorted = [...items.entries()].sort(
+    ([nameA, countA], [nameB, countB]) => countB - countA || nameA.localeCompare(nameB),
+  );
+  return [
+    `${label} · ${summary}:${sorted.length ? "" : " none"}`,
+    ...sorted.map(([name, count]) => `    - \`${name}\` × ${count}`),
+  ];
 }
 
 /** Rounded box shown before the selected transcript content. */
@@ -195,20 +206,26 @@ function renderTranscriptStats(
   stats: TranscriptStats,
   sessionFile: string | null | undefined,
 ): string {
-  const rows = [
+  // The session file path stays on one line because a mid-path break is
+  // unreadable, so it may widen the box; same for an oversized tool name.
+  const lines = [
     `Session · ${stats.sessionTurns} turn${stats.sessionTurns === 1 ? "" : "s"} · ${stats.messageCount} message${stats.messageCount === 1 ? "" : "s"} · ${stats.durationMs === undefined ? "duration n/a" : fmtDuration(stats.durationMs)}`,
     `File · ${sessionFile ?? "In-memory"}`,
     `Result · ${stats.resultCounts.success} success · ${stats.resultCounts.errors} errors · ${stats.resultCounts.pending} pending`,
-    `Tools · ${stats.totalToolCalls} total · ${formatStatItems(stats.toolCalls)}`,
-    `Skills · ${[...stats.skills.values()].reduce((total, count) => total + count, 0)} reads · ${formatStatItems(stats.skills)}`,
+    ...statItemLines("Tools", `${stats.totalToolCalls} total`, stats.toolCalls),
+    ...statItemLines(
+      "Skills",
+      `${[...stats.skills.values()].reduce((total, count) => total + count, 0)} reads`,
+      stats.skills,
+    ),
   ];
   const title = "📊 Transcript Stats";
-  const width = Math.max(title.length, ...rows.map((row) => row.length));
+  const width = Math.max(title.length, ...lines.map((line) => line.length));
   const row = (text: string) => `│ ${text.padEnd(width)} │`;
   return [
     `╭${"─".repeat(width + 2)}╮`,
     row(title),
-    ...rows.map(row),
+    ...lines.map(row),
     `╰${"─".repeat(width + 2)}╯`,
   ].join("\n");
 }

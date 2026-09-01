@@ -1090,10 +1090,49 @@ test("buildViewText: shows full-branch tool and SKILL statistics at the top", ()
   const text = buildViewText("chatlog", entries, { lastTurns: 1 });
   assert.match(
     text,
-    /^# Chat Export\n\n╭─+╮\n│ 📊 Transcript Stats +│\n│ Session · 2 turns · 7 messages · [\d.]+s +│\n│ File · In-memory +│\n│ Result · 2 success · 1 errors · 2 pending +│\n│ Tools · 5 total · `read` × 3 · `bash` × 2 +│\n│ Skills · 2 reads · `worktree-dev` × 2 +│\n╰─+╯/m,
+    /^# Chat Export\n\n╭─+╮\n│ 📊 Transcript Stats +│\n│ Session · 2 turns · 7 messages · [\d.]+s +│\n│ File · In-memory +│\n│ Result · 2 success · 1 errors · 2 pending +│\n│ Tools · 5 total: +│\n│ +- `read` × 3 +│\n│ +- `bash` × 2 +│\n│ Skills · 2 reads: +│\n│ +- `worktree-dev` × 2 +│\n╰─+╯/m,
   );
   assert.match(text, /earlier 1 turn omitted/);
   assert.doesNotMatch(text, /q1/);
+});
+
+test("buildViewText: stats box lists each tool on its own line, sorted by count", () => {
+  const toolNames = Array.from({ length: 4 }, (_, i) => `tool-with-a-long-name-${i}`);
+  const entries: SessionEntry[] = [
+    userEntry("q"),
+    assistantEntry([
+      ...toolNames
+        .slice(1)
+        .map((name, i) => ({ type: "toolCall", id: `w-${i}`, name, arguments: {} })),
+      { type: "toolCall", id: "w-first", name: toolNames[0], arguments: {} },
+      { type: "toolCall", id: "w-first-2", name: toolNames[0], arguments: {} },
+    ]),
+  ];
+
+  const text = buildViewText("chatlog", entries);
+  // toolNames[0] is called twice, so it sorts first despite its id order.
+  const expected = [
+    "│ Tools · 5 total:│",
+    `│     - \`${toolNames[0]}\` × 2│`,
+    ...toolNames.slice(1).map((name) => `│     - \`${name}\` × 1│`),
+  ];
+  const box = text
+    .slice(text.indexOf("╭"), text.indexOf("╯") + 1)
+    .split("\n")
+    // Box rows are padded to a uniform width; drop the padding for comparison.
+    .map((line) => line.replace(/ +│$/, "│"));
+  assert.deepEqual(
+    box.filter((line) => line.startsWith("│ Tools") || line.includes(" × ")),
+    expected,
+  );
+});
+
+test("buildViewText: stats box keeps a long session file path on one line", () => {
+  const sessionFile =
+    "/nfs/home/user/.pi/agent/sessions/2026/09/01/very-long-session-file-name.jsonl";
+  const text = buildViewText("chatlog", [userEntry("q")], { sessionFile });
+  const fileLine = text.split("\n").find((line) => line.includes("File · "));
+  assert.ok(fileLine?.includes(sessionFile), "session file path is broken across lines");
 });
 
 test("buildViewText chatlog: successful SKILL.md read renders a skill card, not a generic tool block", () => {
