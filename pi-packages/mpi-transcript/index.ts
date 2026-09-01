@@ -932,16 +932,19 @@ function transcriptConfigError(loaded: { ok: false; path: string; error: string 
 }
 
 /**
- * Extra CLI flags for vim/nvim (matched on the binary's basename): readonly
- * (the buffer is a throwaway view, nothing is written back), no swap file,
- * no shada/viminfo writes (the tmp file must not pollute oldfiles/marks),
- * and jump to the end where the latest content lives. nvim sources `luafile`
- * and vim sources the view script when a path is given. Other editors get none.
+ * Extra CLI flags for vim/nvim (matched on the binary's basename). `--clean`
+ * skips the user's init, plugins, and colorscheme; plugins cost seconds on
+ * multi-MB transcript buffers (measured 6s to 0.4s on a 178k-line export),
+ * and the view ships its own styling. `-R` makes the buffer readonly, `-n`
+ * disables swap, `+normal G` jumps to the end where the latest content
+ * lives. nvim sources `luafile` and vim sources the view script when a path
+ * is given. Other editors get none.
  */
 export function editorExtraArgs(cmd: string, scriptFile?: string): string[] {
   const base = path.basename(cmd);
   if (base !== "nvim" && base !== "vim") return [];
-  const args = ["-R", "-n", "-i", "NONE", "+normal G"];
+  // --clean implies -u NONE / --noplugin / no shada, so no separate -i NONE.
+  const args = ["--clean", "-R", "-n", "+normal G"];
   if (!scriptFile) return args;
   if (base === "nvim") args.push("-c", `luafile ${scriptFile}`);
   else args.push("-c", `source ${scriptFile}`);
@@ -950,6 +953,17 @@ export function editorExtraArgs(cmd: string, scriptFile?: string): string[] {
 
 /** Sourced into nvim after the transcript buffer loads (`-c luafile`). */
 export const NVIM_TRANSCRIPT_LUA = `
+-- Legacy markdown syntax, not treesitter. The treesitter parser walks the
+-- whole buffer up front (seconds on multi-MB transcripts), while legacy
+-- syntax highlights only the visible window at redraw. filetype is already
+-- "markdown" under --clean, so enabling syntax is all this needs.
+vim.cmd("syntax enable")
+-- The default colorscheme leaves legacy markdown code spans and fenced
+-- blocks uncolored. Special is the same color treesitter gives them.
+vim.api.nvim_set_hl(0, "markdownCodeDelimiter", { link = "Special" })
+vim.api.nvim_set_hl(0, "markdownCode", { link = "Special" })
+vim.api.nvim_set_hl(0, "markdownCodeBlock", { link = "Special" })
+
 vim.opt_local.conceallevel = 2
 -- Overlay virt_text replaces headings and metadata. Without this the raw
 -- markup pops back in whenever the cursor lands on such a line, and the whole
@@ -989,14 +1003,6 @@ for name in pairs(ROLES) do
   local resolved = vim.api.nvim_get_hl(0, { name = name, link = false })
   vim.api.nvim_set_hl(0, name .. "Badge", { fg = resolved.fg, reverse = true, bold = true })
 end
-
--- The markdown treesitter parser paints blockquotes and _italic_ metadata,
--- which fights the Comment dimming applied below. Blanking those two captures
--- in a window-local namespace lets the dim win.
-local hl_ns = vim.api.nvim_create_namespace("mpi_transcript_hl")
-vim.api.nvim_set_hl(hl_ns, "@markup.quote.markdown", {})
-vim.api.nvim_set_hl(hl_ns, "@markup.italic.markdown_inline", {})
-vim.api.nvim_win_set_hl_ns(0, hl_ns)
 
 local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
 local tick3 = string.rep(string.char(96), 3)

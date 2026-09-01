@@ -18,9 +18,9 @@ import {
 
 // ─── editorExtraArgs: vim/nvim flags ─────────────────────────────────────────
 
-test("editorExtraArgs adds readonly/no-swap/no-shada/jump-to-end flags for vim and nvim", () => {
-  assert.deepEqual(editorExtraArgs("nvim"), ["-R", "-n", "-i", "NONE", "+normal G"]);
-  assert.deepEqual(editorExtraArgs("/usr/bin/vim"), ["-R", "-n", "-i", "NONE", "+normal G"]);
+test("editorExtraArgs adds clean/readonly/no-swap/jump-to-end flags for vim and nvim", () => {
+  assert.deepEqual(editorExtraArgs("nvim"), ["--clean", "-R", "-n", "+normal G"]);
+  assert.deepEqual(editorExtraArgs("/usr/bin/vim"), ["--clean", "-R", "-n", "+normal G"]);
 });
 
 test("editorExtraArgs leaves non-vim editors untouched", () => {
@@ -30,19 +30,17 @@ test("editorExtraArgs leaves non-vim editors untouched", () => {
 
 test("editorExtraArgs sources nvim lua and vim view scripts", () => {
   assert.deepEqual(editorExtraArgs("nvim", "/tmp/t.lua"), [
+    "--clean",
     "-R",
     "-n",
-    "-i",
-    "NONE",
     "+normal G",
     "-c",
     "luafile /tmp/t.lua",
   ]);
   assert.deepEqual(editorExtraArgs("/usr/bin/vim", "/tmp/t.vim"), [
+    "--clean",
     "-R",
     "-n",
-    "-i",
-    "NONE",
     "+normal G",
     "-c",
     "source /tmp/t.vim",
@@ -166,9 +164,6 @@ test("nvim transcript lua sets wrap/conceal, heading winbar, and heading badges"
         'local caged = deco_at(line_of("## 👤 User · #9"))',
         'local orphan = deco_at(line_of("## 🤖 Assistant"))',
         'local reopened = deco_at(line_of("## 👤 User · #2"))',
-        'local hlns = vim.api.nvim_get_namespaces()["mpi_transcript_hl"]',
-        "local nsgroups = vim.api.nvim_get_hl(hlns, {})",
-        'local quoted = nsgroups["@markup.quote.markdown"]',
         'vim.api.nvim_win_set_cursor(0, { line_of("hello"), 0 })',
         'vim.cmd("normal [t")',
         "local jumped = vim.api.nvim_win_get_cursor(0)[1]",
@@ -201,8 +196,6 @@ test("nvim transcript lua sets wrap/conceal, heading winbar, and heading badges"
         "  stc_b, stc_s,",
         "  ah.virt_text[1][2], tostring(ah.conceal), th.virt_text[1][1],",
         "  rl.virt_text[1][2], tostring(vim.fn.strcharlen(rl.virt_text[1][1])),",
-        "  tostring(vim.api.nvim_get_hl_ns({ winid = 0 }) == hlns),",
-        "  tostring(quoted ~= nil and vim.tbl_isempty(quoted)),",
         "  tostring(nrules), tostring(next(caged) == nil), orphan.virt_text[1][1],",
         "  tostring(#orphan.virt_text), reopened.virt_text[1][1],",
         '  tostring(uback), tostring(line_of("## 👤 User · #1")),',
@@ -232,7 +225,7 @@ test("nvim transcript lua sets wrap/conceal, heading winbar, and heading badges"
     const out = r.stdout.trim().split("\n");
     // Pin the emit count. The assertions below index positionally, and a
     // dropped value would turn later comparisons into undefined === undefined.
-    assert.equal(out.length, 37);
+    assert.equal(out.length, 35);
     assert.equal(out[0], "2");
     assert.equal(out[1], "true");
     assert.equal(out[2], "true");
@@ -268,25 +261,21 @@ test("nvim transcript lua sets wrap/conceal, heading winbar, and heading badges"
     // A `---` separator becomes a rule spanning the whole window.
     assert.equal(out[24], "MpiTranscriptRule");
     assert.equal(out[25], String(80));
-    // Window-local namespace blanks the treesitter markdown captures that
-    // would otherwise repaint the dimmed metadata and thinking quotes.
-    assert.equal(out[26], "true");
-    assert.equal(out[27], "true");
     // Only the three real separators become rules; the '---' inside the fenced
     // tool output stays literal, as does a role heading captured in output.
-    assert.equal(out[28], "3");
-    assert.equal(out[29], "true");
+    assert.equal(out[26], "3");
+    assert.equal(out[27], "true");
     // A joiner-less '## 🤖 Assistant' still gets its badge, with no empty suffix
     // chunk trailing it.
-    assert.equal(out[30], " 🤖 AGENT ");
-    assert.equal(out[31], "1");
+    assert.equal(out[28], " 🤖 AGENT ");
+    assert.equal(out[29], "1");
     // A fence the model opened and never closed must not swallow the rest of
     // the document. The heading after it still gets its badge.
-    assert.equal(out[32], " 👤 USER ");
+    assert.equal(out[30], " 👤 USER ");
     // [u and ]u stop only at user headings, never at one that is just bytes
     // inside a fenced tool result.
+    assert.equal(out[31], out[32]);
     assert.equal(out[33], out[34]);
-    assert.equal(out[35], out[36]);
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
   }

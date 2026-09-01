@@ -35,6 +35,8 @@ Supported values:
 | `vim` | Open the read-only transcript in vim with transcript navigation and styling. |
 | `builtin` | Use the in-app multi-line viewer. |
 
+`nvim` and `vim` open with `--clean`, so your init config, plugins, and colorscheme are not loaded. The transcript view brings its own styling and keybindings, and startup stays fast even on multi-megabyte transcripts.
+
 The package reads this file when `/transcript` runs. Missing configuration uses `auto`. Invalid configuration is reported as an error and the transcript does not open. If a selected external editor cannot start, the package reports the error and opens the in-app viewer.
 
 The package ships `mpi-transcript.schema.json` next to the extension. The optional `$schema` field is preserved when the configuration is written.
