@@ -709,15 +709,19 @@ export async function inspectSessionImport(
   fallbackCwd: string,
 ): Promise<{ resolvedPath: string; sessionId: string }> {
   const resolvedPath = path.resolve(inputPath);
-  let content: string;
+  let stat: fs.Stats;
   try {
-    content = await Bun.file(resolvedPath).text();
+    stat = await fs.promises.stat(resolvedPath);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
       throw new Error(`Error: Session import file not found: ${resolvedPath}`);
     }
     throw error;
   }
+  if (!stat.isFile()) {
+    throw new Error(`Error: Session import path is not a file: ${resolvedPath}`);
+  }
+  const content = await Bun.file(resolvedPath).text();
   const firstLine = content.split(/\r?\n/, 1)[0]?.trim();
   if (!firstLine) throw new Error(`Error: Session import file is empty: ${resolvedPath}`);
   let header: unknown;

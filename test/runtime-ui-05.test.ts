@@ -507,6 +507,10 @@ test("runtime imports pi session JSONL into the active tab", async () => {
       () => runtime.importFromJsonl("no-cwd", emptyPath),
       /Session import file is empty/,
     );
+    await assert.rejects(
+      () => runtime.previewSessionImport(sourceDir, undefined, process.cwd()),
+      /Session import path is not a file/,
+    );
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }
