@@ -28,7 +28,7 @@ Tabs display live status glyphs: `●` (running/working), `-` (idle/ready), `!` 
 |---|---|---|
 | New Tab | `/new-session [--focus\|--no-focus] [title]` | Spawns a clean agent tab with an optional custom title. Default focuses the new tab; `--no-focus` leaves the current tab focused. |
 | Close Tab | `/close-session [yes]` | Closes the current tab and cleans up its in-memory runtime. `yes` skips confirmation. |
-| Reset Session | `/reset` | Resets tree leaf back to root in the same tab, retaining title and session ID. |
+| Reset Session | `/reset` | Resets tree leaf back to root in the same tab, retaining title and session ID. Chat is empty. `/tree` still lists earlier branches. |
 | Clear Session | `/clear` | Generates a fresh session file in the same tab, resetting the title. |
 | Fork Tab | `/fork` | Clones conversation history into a new tab with its own runtime services. |
 | Rename Tab | `/rename <title>` | Sets the active tab title. |

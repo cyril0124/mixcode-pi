@@ -24,7 +24,7 @@ MixCode 在 `src/core/commands.ts` 中注册了内置本地 Slash 命令。这�
 | `/fork` | - | Workdir | 将当前会话分支复制到新 Tab，新 Tab 拥有独立的运行时服务。标题为 `{source}-fork`，已被占用则为 `{source}-fork-N`。见 [Tab 标题](workspace-and-tabs.zh.md#tab-标题)。 |
 | `/follow-up` | `<text>` | Session | 向 Follow-up 队列添加消息，在当前轮次完成后优先执行。 |
 | `/compact` | `[custom instructions]` | Session | 手动触发当前分支的上下文压缩（Compaction）。 |
-| `/reset` | - | Session | 将会话重置回根节点，保留 Session 文件与 Tab 标题。 |
+| `/reset` | - | Session | 将会话重置回根节点，保留 Session 文件与 Tab 标题。先前分支仍在 `/tree`。 |
 | `/clear` | - | Session | 在当前 Tab 生成全新 Session 文件，重置 Tab 标题。 |
 | `/close-session` | `[yes]` | Session | 关闭当前 Tab 并释放其内存运行时。加 `yes` 跳过确认框。 |
 | `/close-all-sessions`| - | Session | 用户确认后关闭所有打开的 Agent Tab。 |

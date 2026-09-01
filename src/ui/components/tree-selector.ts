@@ -145,11 +145,13 @@ export function openTreeSelector(
     return;
   }
 
+  const leafId = runtimeTab.session.getLeafId();
+  // Null leaf: Pi TreeList selects the last visible entry. Pass the first root.
   initTreeSelector(
     state.treeSelector,
     tree,
-    runtimeTab.session.getLeafId(),
-    initialSelectedId,
+    leafId,
+    initialSelectedId ?? (leafId === null ? tree[0]?.entry.id : undefined),
     runtimeTab.services?.settingsManager?.getTreeFilterMode(),
   );
   state.treeSelector.ownerSessionId = sessionId;

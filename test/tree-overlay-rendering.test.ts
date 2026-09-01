@@ -252,6 +252,36 @@ test("tree selector opens in the editor input area instead of an overlay", () =>
   assert.deepEqual(openedSessions, ["s1"]);
 });
 
+test("tree selector at session root starts on the first root, not the last entry", () => {
+  const state = createInitialState("/repo");
+  state.tabs.push({ ...state.tabs[0]!, sessionId: "s1" });
+  state.activeTabId = "s1";
+  const tui = testTui({
+    treeSelectorDisplay: {
+      open: () => undefined,
+      refresh: () => undefined,
+      close: () => undefined,
+    },
+  });
+  const runtime = {
+    getTab: () => ({
+      session: {
+        getTree: () => sampleTree(),
+        getLeafId: () => null,
+        appendLabelChange: () => "",
+      },
+      agentSession: { abortBranchSummary: () => undefined },
+    }),
+    extensionNavigateTree: async () => ({ cancelled: false }),
+    appendSystemMessage: () => undefined,
+  };
+
+  openTreeSelector(state, runtime, tui, "s1");
+
+  assert.equal(state.treeSelector.currentLeafId, null);
+  assert.equal(state.treeSelector.initialSelectedId, "root");
+});
+
 test("attached tree selector editor handles focused TUI input directly", () => {
   const state = createInitialState("/repo");
   initTreeSelector(state.treeSelector, toolSearchTree(), "tool-result");

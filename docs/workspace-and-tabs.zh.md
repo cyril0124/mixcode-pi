@@ -28,7 +28,7 @@ Tab 实时展示运行状态指示符：`●`（运行中/工作中）、`-`（�
 |---|---|---|
 | 新建 Tab | `/new-session [--focus\|--no-focus] [title]` | 创建全新的 Agent Tab，可指定自定义标题。默认 focus 到新 Tab；`--no-focus` 留在当前 Tab。 |
 | 关闭 Tab | `/close-session [yes]` | 关闭当前 Tab 并释放其内存中的运行时。加 `yes` 跳过确认。 |
-| 重置会话 | `/reset` | 在当前 Tab 中将分支指针重置回根节点（保留标题与会话文件）。 |
+| 重置会话 | `/reset` | 在当前 Tab 中将分支指针重置回根节点（保留标题与会话文件）。聊天为空。`/tree` 仍列出先前分支。 |
 | 清空会话 | `/clear` | 在当前 Tab 内生成全新的 Session 文件（重置标题）。 |
 | 分支复制 | `/fork` | 将当前对话历史克隆到新 Tab 中，新 Tab 拥有独立的运行时服务。 |
 | 重命名 Tab | `/rename <title>` | 设置当前 Tab 标题。 |

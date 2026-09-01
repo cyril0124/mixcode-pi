@@ -24,7 +24,7 @@ Commands operate across three distinct persistence tiers:
 | `/fork` | - | Workdir | Clones current conversation branch into a new tab that owns its runtime services. Title is `{source}-fork`, or `{source}-fork-N` if taken. See [Tab titles](workspace-and-tabs.md#tab-titles). |
 | `/follow-up` | `<text>` | Session | Enqueues prompt into follow-up queue, prioritized after current turn finishes. |
 | `/compact` | `[custom instructions]` | Session | Manually triggers context compaction on the current branch. |
-| `/reset` | - | Session | Resets the conversation leaf to root while retaining session file and tab title. |
+| `/reset` | - | Session | Resets the conversation leaf to root while retaining session file and tab title. Earlier branches stay in `/tree`. |
 | `/clear` | - | Session | Generates a fresh session file in the active tab and resets tab title. |
 | `/close-session` | `[yes]` | Session | Closes the active tab and tears down in-memory agent runtime. `yes` skips the confirmation overlay. |
 | `/close-all-sessions`| - | Session | Closes all open agent tabs after user confirmation. |

@@ -63,6 +63,12 @@ const handleReset: LocalCommandHandler = ({ state, active, runtime, tui }) => {
     active!.currentContextTokens = undefined;
     if (result.noop) {
       appendActiveSystemMessage(state, runtime, "Already at session root (nothing to reset).");
+    } else {
+      appendActiveSystemMessage(
+        state,
+        runtime,
+        "Reset to session root. Earlier branches are in /tree.",
+      );
     }
   } catch (error: unknown) {
     appendActiveSystemMessage(
