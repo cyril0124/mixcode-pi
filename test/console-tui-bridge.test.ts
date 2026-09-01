@@ -56,40 +56,29 @@ test("console history counts multiline calls once and caps at 1000 entries", () 
       process.execPath,
       "-e",
       `import { getConsoleHistory, installConsoleTuiBridge } from ${JSON.stringify(bridgePath)};
+const fresh = getConsoleHistory();
 installConsoleTuiBridge();
 console.log("multi\\nline");
 for (let index = 0; index < 999; index++) console.debug(\`history-\${index}\`);
 const exactlyFull = getConsoleHistory();
 for (let index = 0; index <= 1000; index++) console.debug(\`history-\${index}\`);
 const capped = getConsoleHistory();
-process.stdout.write(JSON.stringify({ exactlyFull, capped }));`,
+process.stdout.write(JSON.stringify({ fresh, exactlyFull, capped }));`,
     ],
     { stdout: "pipe", stderr: "pipe" },
   );
   assert.equal(result.exitCode, 0, result.stderr.toString());
   const output = JSON.parse(result.stdout.toString()) as {
+    fresh: string[];
     exactlyFull: string[];
     capped: string[];
   };
+  assert.deepEqual(output.fresh, []);
   assert.equal(output.exactlyFull.length, 1_000);
   assert.equal(output.exactlyFull[0], "[console.log]: multi\nline");
   assert.equal(output.capped.length, 1_000);
   assert.equal(output.capped[0], "[console.debug]: history-1");
   assert.equal(output.capped.at(-1), "[console.debug]: history-1000");
-});
-
-test("a new process starts with empty console history", () => {
-  const bridgePath = path.join(import.meta.dir, "..", "src", "cli", "console-tui-bridge.ts");
-  const result = Bun.spawnSync(
-    [
-      process.execPath,
-      "-e",
-      `import { getConsoleHistory } from ${JSON.stringify(bridgePath)}; process.stdout.write(JSON.stringify(getConsoleHistory()));`,
-    ],
-    { stdout: "pipe", stderr: "pipe" },
-  );
-  assert.equal(result.exitCode, 0, result.stderr.toString());
-  assert.equal(result.stdout.toString(), "[]");
 });
 
 test("notice overlay appends consecutive console lines instead of replacing", () => {
