@@ -853,7 +853,7 @@ test("Home submit with no agent tabs throws Error: No agent to send to", async (
   const state = createInitialState("/repo");
   state.activeTabId = "home";
   await assert.rejects(
-    () => handleSubmittedInput(state, testRuntime(), "hello", makeTui()),
+    () => handleSubmittedInput(state, testRuntime({}), "hello", makeTui()),
     /Error: No agent to send to/,
   );
 });
