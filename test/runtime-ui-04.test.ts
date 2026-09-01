@@ -256,7 +256,10 @@ test("submitted input handles prompt, shell, local commands, clear, and missing 
     assert.equal(state.theme, "mixcode-dark");
     assert.ok(notices.some((msg) => msg.includes("Keyboard Shortcuts")));
     state.tabs.length = 0;
-    await handleSubmittedInput(state, runtime, "ignored", tui);
+    await assert.rejects(
+      () => handleSubmittedInput(state, runtime, "ignored", tui),
+      /Error: No agent to send to/,
+    );
   } finally {
     configureOpenTabsPath(undefined);
     await fsPromises.rm(dir, { recursive: true, force: true });
