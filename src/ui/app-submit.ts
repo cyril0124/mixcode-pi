@@ -107,6 +107,7 @@ const LOCAL_COMMAND_HANDLERS = {
 
 const CONFIG_SCOPED_COMMANDS: ReadonlySet<LocalCommand> = new Set([
   "tui-state",
+  "console-history",
   "new-session",
   "resume",
   "hide-thinking",

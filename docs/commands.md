@@ -52,5 +52,6 @@ Commands operate across three distinct persistence tiers:
 | `/reload` | - | Session | Reloads model configurations, project skills, and rebinds extensions. |
 | `/system-prompt` | - | Session | Inspects or edits the assembled system prompt in an external editor; a footer lists each section's size and estimated token share. |
 | `/system-tools` | - | Session | Inspects active tool schemas and tool owners; a footer lists each tool's size and estimated token share, counting only what is sent to the model (name + description + parameter schema). |
+| `/console-history` | - | - | Opens the latest 1,000 bridged `console.log/info/debug/warn/error` records from the current `mpi` process. Checks the project setting, global setting, `$VISUAL`, and `$EDITOR`, in that order. The selected command must pass a one-second `--version` probe. If none is set, MixCode tries `nvim` and then `vim`. If no external editor is available, MixCode opens the built-in read-only viewer. Restarting `mpi` clears the history. |
 | `/hotkeys` | - | - | Displays full keyboard shortcut reference. |
 | `/quit` / `/exit` | - | - | Safely persists state and exits MixCode. |

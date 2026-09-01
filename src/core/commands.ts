@@ -18,6 +18,7 @@ export type LocalCommand =
   | "reload"
   | "system-prompt"
   | "system-tools"
+  | "console-history"
   | "toggle-hidden-messages"
   | "hide-thinking"
   | "settings"
@@ -272,6 +273,15 @@ export const LOCAL_COMMANDS: Array<{
     name: "system-tools",
     description: "Show the active agent tools",
     palette: { label: "Open System Tools", requires: "session" },
+  },
+  {
+    name: "console-history",
+    description: "View recent console output",
+    palette: {
+      label: "Console History",
+      description: "View console output captured during this process",
+      scope: "both",
+    },
   },
   {
     name: "toggle-hidden-messages",

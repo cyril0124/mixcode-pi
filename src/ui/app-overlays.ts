@@ -1,15 +1,24 @@
+import { copyToClipboard } from "@earendil-works/pi-coding-agent";
 import {
   type Component,
+  Editor,
+  getKeybindings,
+  isKeyRelease,
+  matchesKey,
   type OverlayHandle,
   type OverlayOptions,
   resolveOverlayLayout,
+  type TUI as TuiType,
 } from "@earendil-works/pi-tui";
 import {
   type ChatSelectionState,
   type ChatSurfaceBounds,
   highlightChatSelectionLine,
 } from "../core/chat-selection.js";
-import { editTextInExternalEditor } from "../core/external-editor.js";
+import {
+  editTextInExternalEditor,
+  resolveAvailableExternalEditor,
+} from "../core/external-editor.js";
 import {
   isInstanceOverlayOpen,
   pickerIsLive,
@@ -17,6 +26,7 @@ import {
 } from "../core/overlays.js";
 import type { MixCodeState } from "../core/types.js";
 import type { OverlayTui } from "./app-types.js";
+import { editorThemeFor } from "./app-editor.js";
 import { overlayPanel, padLine, renderPickerOverlay } from "./rendering.js";
 import {
   noticeOverlayOptions,
@@ -35,6 +45,105 @@ type OwnedPresentation = "picker" | "confirm";
 const presentedOwnedOverlay = new WeakMap<object, OwnedPresentation>();
 
 export const DEFAULT_OVERLAY_MAX_HEIGHT_PERCENT = 80;
+
+const UP_KEY = "\x1b[A";
+const DOWN_KEY = "\x1b[B";
+const PAGE_UP_KEY = "\x1b[5~";
+const PAGE_DOWN_KEY = "\x1b[6~";
+
+class ReadOnlyEditorOverlay implements Component {
+  private readonly editor: Editor;
+
+  constructor(
+    private readonly tui: OverlayTui,
+    private readonly text: string,
+    private readonly title: string,
+  ) {
+    this.editor = new Editor(tui as TuiType, editorThemeFor(getCurrentUiTheme()), { paddingX: 1 });
+    this.editor.disableSubmit = true;
+    this.editor.setText(text);
+    this.editor.focused = true;
+  }
+
+  invalidate(): void {
+    this.editor.invalidate();
+  }
+
+  render(width: number): string[] {
+    const theme = getCurrentUiTheme();
+    return [
+      padLine(theme.bold(this.title), width),
+      ...this.editor.render(width),
+      padLine(theme.dim("j/k scroll  ctrl+u/d page  g/G top/bottom  ctrl+c copy  q close"), width),
+    ];
+  }
+
+  handleInput(data: string): void {
+    if (isKeyRelease(data)) return;
+    if (matchesKey(data, "escape") || matchesKey(data, "q")) {
+      closeAppOverlay(this.tui);
+      return;
+    }
+    const keybindings = getKeybindings();
+    if (keybindings.matches(data, "tui.input.copy")) {
+      void copyToClipboard(this.text).catch((error: unknown) => {
+        showErrorOverlay(this.tui, error);
+        this.tui.requestRender();
+      });
+      return;
+    }
+    if (matchesKey(data, "g") || matchesKey(data, "shift+g")) {
+      this.moveToBoundary(matchesKey(data, "g") ? PAGE_UP_KEY : PAGE_DOWN_KEY);
+      return;
+    }
+    if (matchesKey(data, "k") || matchesKey(data, "ctrl+u")) {
+      this.editor.handleInput(matchesKey(data, "k") ? UP_KEY : PAGE_UP_KEY);
+      return;
+    }
+    if (matchesKey(data, "j") || matchesKey(data, "ctrl+d")) {
+      this.editor.handleInput(matchesKey(data, "j") ? DOWN_KEY : PAGE_DOWN_KEY);
+      return;
+    }
+    if (
+      keybindings.matches(data, "tui.editor.cursorUp") ||
+      keybindings.matches(data, "tui.editor.cursorDown") ||
+      keybindings.matches(data, "tui.editor.cursorLeft") ||
+      keybindings.matches(data, "tui.editor.cursorRight") ||
+      keybindings.matches(data, "tui.editor.cursorWordLeft") ||
+      keybindings.matches(data, "tui.editor.cursorWordRight") ||
+      keybindings.matches(data, "tui.editor.cursorLineStart") ||
+      keybindings.matches(data, "tui.editor.cursorLineEnd") ||
+      keybindings.matches(data, "tui.editor.pageUp") ||
+      keybindings.matches(data, "tui.editor.pageDown")
+    ) {
+      this.editor.handleInput(data);
+    }
+  }
+
+  private moveToBoundary(key: string): void {
+    for (;;) {
+      const before = this.editor.getCursor();
+      this.editor.handleInput(key);
+      const after = this.editor.getCursor();
+      if (before.line === after.line && before.col === after.col) return;
+    }
+  }
+}
+
+/** Open text in an available external editor, otherwise in a read-only Pi Editor overlay. */
+export async function showTextInPreferredViewer(
+  tui: OverlayTui,
+  text: string,
+  title: string,
+): Promise<void> {
+  const preferred = resolvePreferredExternalEditor?.() ?? process.env.VISUAL ?? process.env.EDITOR;
+  const editor = resolveAvailableExternalEditor(preferred);
+  if (editor) {
+    await editTextWithTuiPaused(tui, text, editor);
+    return;
+  }
+  showComponentOverlay(tui, new ReadOnlyEditorOverlay(tui, text, title));
+}
 
 /** Live Notice/Error panel state for mouse select + full-text copy. */
 export interface ActiveNotice {
@@ -403,14 +512,17 @@ function isConsoleNoticeBody(text: string): boolean {
 }
 
 // settings.json externalEditor is the default for Ctrl+G, /editor,
-// /system-prompt, and /system-tools. Explicit `editor` wins; no resolver
-// falls back to $VISUAL/$EDITOR.
+// /system-prompt, and /system-tools. /console-history gets the explicit
+// settings/env value separately so an unset editor can auto-detect nvim/vim.
 let resolveDefaultExternalEditor: (() => string | undefined) | undefined;
+let resolvePreferredExternalEditor: (() => string | undefined) | undefined;
 
 export function setDefaultExternalEditorResolver(
   resolver: (() => string | undefined) | undefined,
+  preferredResolver: (() => string | undefined) | undefined = resolver,
 ): void {
   resolveDefaultExternalEditor = resolver;
+  resolvePreferredExternalEditor = preferredResolver;
 }
 
 export async function editTextWithTuiPaused(

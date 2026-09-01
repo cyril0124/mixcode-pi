@@ -104,6 +104,7 @@
 │  showOverlay anchors / resolveOverlayLayout  Toast / Floating Panel                              │
 │                                              Picker / Tree / Session / Fork                      │
 │                                              Workspace Overlay                                   │
+│                                              只读文本查看器                                      │
 │                                              Notice/Error + console bridge                       │
 │                                              Extension panel / widgets host                      │
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘

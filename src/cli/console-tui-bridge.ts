@@ -17,6 +17,7 @@ import { format } from "node:util";
 
 /** Console methods relocated to the TUI. console.trace/dir/etc. are left as-is. */
 const BRIDGED_METHODS = ["log", "info", "debug", "warn", "error"] as const;
+const CONSOLE_HISTORY_LIMIT = 1_000;
 type BridgedMethod = (typeof BRIDGED_METHODS)[number];
 
 /** Receives a fully formatted, prefixed line ready to display. */
@@ -26,6 +27,12 @@ let sink: ConsoleSink | undefined;
 // Backlog of lines produced before the TUI sink is wired (e.g. during extension
 // loading). Flushed in arrival order by wireConsoleSink.
 const pending: string[] = [];
+const history: string[] = [];
+
+/** Return a stable snapshot of console output captured during this process. */
+export function getConsoleHistory(): string[] {
+  return [...history];
+}
 
 /** Format console args the way console itself does, then tag with the method. */
 function formatLine(method: BridgedMethod, args: unknown[]): string {
@@ -33,6 +40,8 @@ function formatLine(method: BridgedMethod, args: unknown[]): string {
 }
 
 function emit(line: string): void {
+  history.push(line);
+  if (history.length > CONSOLE_HISTORY_LIMIT) history.shift();
   if (sink) sink(line);
   else pending.push(line);
 }

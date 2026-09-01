@@ -8,6 +8,7 @@
 // the original console afterward so other test files are unaffected.
 
 import assert from "node:assert/strict";
+import * as path from "node:path";
 import { test } from "node:test";
 import { installConsoleTuiBridge, wireConsoleSink } from "../src/cli/console-tui-bridge.js";
 import { closeAppOverlay, getActiveNotice, showNoticeTextOverlay } from "../src/ui/app-overlays.js";
@@ -46,6 +47,49 @@ test("console bridge queues before wiring, then flushes in order with prefixes",
   } finally {
     Object.assign(console, original);
   }
+});
+
+test("console history counts multiline calls once and caps at 1000 entries", () => {
+  const bridgePath = path.join(import.meta.dir, "..", "src", "cli", "console-tui-bridge.ts");
+  const result = Bun.spawnSync(
+    [
+      process.execPath,
+      "-e",
+      `import { getConsoleHistory, installConsoleTuiBridge } from ${JSON.stringify(bridgePath)};
+installConsoleTuiBridge();
+console.log("multi\\nline");
+for (let index = 0; index < 999; index++) console.debug(\`history-\${index}\`);
+const exactlyFull = getConsoleHistory();
+for (let index = 0; index <= 1000; index++) console.debug(\`history-\${index}\`);
+const capped = getConsoleHistory();
+process.stdout.write(JSON.stringify({ exactlyFull, capped }));`,
+    ],
+    { stdout: "pipe", stderr: "pipe" },
+  );
+  assert.equal(result.exitCode, 0, result.stderr.toString());
+  const output = JSON.parse(result.stdout.toString()) as {
+    exactlyFull: string[];
+    capped: string[];
+  };
+  assert.equal(output.exactlyFull.length, 1_000);
+  assert.equal(output.exactlyFull[0], "[console.log]: multi\nline");
+  assert.equal(output.capped.length, 1_000);
+  assert.equal(output.capped[0], "[console.debug]: history-1");
+  assert.equal(output.capped.at(-1), "[console.debug]: history-1000");
+});
+
+test("a new process starts with empty console history", () => {
+  const bridgePath = path.join(import.meta.dir, "..", "src", "cli", "console-tui-bridge.ts");
+  const result = Bun.spawnSync(
+    [
+      process.execPath,
+      "-e",
+      `import { getConsoleHistory } from ${JSON.stringify(bridgePath)}; process.stdout.write(JSON.stringify(getConsoleHistory()));`,
+    ],
+    { stdout: "pipe", stderr: "pipe" },
+  );
+  assert.equal(result.exitCode, 0, result.stderr.toString());
+  assert.equal(result.stdout.toString(), "[]");
 });
 
 test("notice overlay appends consecutive console lines instead of replacing", () => {

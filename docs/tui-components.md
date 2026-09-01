@@ -102,6 +102,7 @@ Covers:
 │  showOverlay anchors / resolveOverlayLayout  Toast / Floating Panel                              │
 │                                              Picker / Tree / Session / Fork                      │
 │                                              Workspace Overlay                                   │
+│                                              Read-only text viewer                              │
 │                                              Notice/Error + console bridge                       │
 │                                              Extension panel / widgets host                      │
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘

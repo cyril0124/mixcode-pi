@@ -1,3 +1,4 @@
+import { getConsoleHistory } from "../cli/console-tui-bridge.js";
 import { getSystemPromptSections } from "../agent/pi-session-internals.js";
 import type { RuntimeTab } from "../agent/runtime.js";
 import { MIXCODE_EXTENSION_KEYBINDINGS } from "../agent/runtime-extension-theme.js";
@@ -7,7 +8,12 @@ import { pushToast } from "../core/toast.js";
 import { HOME_TAB_ID, type MixCodeState } from "../core/types.js";
 import { emitMarkDone } from "../core/extension-event-bus.js";
 import { appendActiveSystemMessage } from "./app-actions.js";
-import { editTextWithTuiPaused, showLinesOverlay, showTextOverlay } from "./app-overlays.js";
+import {
+  editTextWithTuiPaused,
+  showLinesOverlay,
+  showTextInPreferredViewer,
+  showTextOverlay,
+} from "./app-overlays.js";
 import { activeExtensionCommands } from "./app-runtime.js";
 import {
   type LocalCommandHandler,
@@ -148,6 +154,17 @@ const handleSystemTools: LocalCommandHandler = async ({ active, args, runtime, t
   return undefined;
 };
 
+const handleConsoleHistory: LocalCommandHandler = async ({ args, tui }) => {
+  if (args.trim()) throw new Error("Error: Usage: /console-history");
+  const history = getConsoleHistory();
+  await showTextInPreferredViewer(
+    tui,
+    history.length > 0 ? history.join("\n") : "No console history in this process.",
+    "Console History (read-only)",
+  );
+  return undefined;
+};
+
 const handleTuiState: LocalCommandHandler = async ({ state, args, tui }) => {
   const request = parseEditorFlag(args);
   const text = JSON.stringify(createTuiDebugState(state), null, 2);
@@ -167,6 +184,7 @@ const handleQuit: LocalCommandHandler = async ({ runtime, tui }) => {
 export const UI_COMMAND_HANDLERS = {
   "system-prompt": handleSystemPrompt,
   "system-tools": handleSystemTools,
+  "console-history": handleConsoleHistory,
   "toggle-hidden-messages": handleToggleHiddenMessages,
   "mark-done": handleMarkDone,
   vim: handleVim,

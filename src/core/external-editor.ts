@@ -25,6 +25,48 @@ export async function editTextInExternalEditor(
   }
 }
 
+export type ExternalEditorProbe = (editor: string) => boolean;
+
+export function resolveAvailableExternalEditor(
+  preferred?: string,
+  probe: ExternalEditorProbe = isExternalEditorAvailable,
+): string | undefined {
+  const explicit = preferred?.trim();
+  if (explicit) return probe(explicit) ? explicit : undefined;
+  return ["nvim", "vim"].find(probe);
+}
+
+export function isExternalEditorAvailable(editor?: string): boolean {
+  const [command, ...args] = parseEditorCommand(
+    editor ?? process.env.VISUAL ?? process.env.EDITOR ?? "",
+  );
+  if (!command) return false;
+  const executable = resolveEditorExecutable(command);
+  if (!executable) return false;
+  const probe = Bun.spawnSync([executable, ...args, "--version"], {
+    stdout: "ignore",
+    stderr: "ignore",
+    timeout: 1_000,
+    killSignal: "SIGTERM",
+  });
+  return probe.exitCode === 0;
+}
+
+function resolveEditorExecutable(command: string): string | undefined {
+  if (!(path.isAbsolute(command) || command.includes(path.sep))) {
+    return Bun.which(command) ?? undefined;
+  }
+  try {
+    if (!fsSync.statSync(command).isFile()) return undefined;
+    fsSync.accessSync(command, fsSync.constants.X_OK);
+    return command;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "ENOENT" || code === "ENOTDIR" || code === "EACCES") return undefined;
+    throw error;
+  }
+}
+
 async function runEditor(editor: string, filePath: string): Promise<void> {
   const [command, ...args] = parseEditorCommand(editor);
   if (!command) throw new Error("External editor command is empty");

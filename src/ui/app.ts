@@ -107,7 +107,16 @@ export function createMixCodeTui(
     tui.setClearOnShrink(settingsManager.getClearOnShrink());
   }
   // Default command for every external-edit surface; explicit args still win.
-  setDefaultExternalEditorResolver(() => settingsManager?.getExternalEditorCommand());
+  setDefaultExternalEditorResolver(
+    () => settingsManager?.getExternalEditorCommand(),
+    () =>
+      [
+        settingsManager?.getProjectSettings().externalEditor,
+        settingsManager?.getGlobalSettings().externalEditor,
+        process.env.VISUAL,
+        process.env.EDITOR,
+      ].find((value): value is string => typeof value === "string" && value.trim() !== ""),
+  );
   // Strip only: extension clears never hit the wire, so the previous frame is still
   // valid. Do not requestRender/clearScreen on block — that reintroduces the flash.
   const uninstallStdoutGuard = installStdoutScreenGuard({});
