@@ -1,5 +1,5 @@
 import * as fs from "node:fs";
-import { type DetachedStart, formatElapsed, stripLogHeader } from "./exec.js";
+import { type DetachedStart, formatElapsed, stripLogHeader, xmlElement } from "./exec.js";
 import { readLogTail, type StallDetails } from "./widget.js";
 
 /**
@@ -75,19 +75,35 @@ export interface StallReport {
 }
 
 export function formatStallNotice(options: StallDetails & { logPath: string }): string {
-  const lines = options.tail.split(/\r?\n/).filter((line) => line.trim() !== "");
-  const quoted = lines.slice(-TAIL_LINES);
-  const output =
-    quoted.length === 0
-      ? "It has produced no output at all."
-      : `Its last output:\n${quoted.map((line) => `  ${line}`).join("\n")}`;
-  return (
-    `[mpi-bash] Background job #${options.id} has written nothing for ${formatElapsed(options.silenceMs)} (running ${formatElapsed(options.elapsedMs)}) and may be stuck.\n` +
-    `Command: ${options.command}\n` +
-    `${output}\n` +
-    `Check it with \`tail -n 50 ${options.logPath}\`, stop it with \`kill -- -${options.id}\` (the whole process group).\n` +
-    `If this command is expected to be silent for this long, ignore this notice and continue with your work.`
-  );
+  const silence = formatElapsed(options.silenceMs);
+  const elapsed = formatElapsed(options.elapsedMs);
+  const output = options.tail
+    .split(/\r?\n/)
+    .filter((line) => line.trim() !== "")
+    .slice(-TAIL_LINES)
+    .join("\n");
+  return [
+    `<bash_stall job_id="${options.id}">`,
+    xmlElement(
+      "summary",
+      `Background job #${options.id} may be stuck after ${silence} of silence.`,
+    ),
+    xmlElement("command", options.command),
+    xmlElement("silence", silence),
+    xmlElement("elapsed", elapsed),
+    xmlElement("log_path", options.logPath),
+    xmlElement("output", output),
+    xmlElement(
+      "logs_hint",
+      `Use /bash-logs or tail -n 50 ${options.logPath} to inspect recent output.`,
+    ),
+    xmlElement("stop_hint", `Use kill -- -${options.id} to stop the whole process group.`),
+    xmlElement(
+      "action_hint",
+      "Ignore this event if long periods without output are expected for this command.",
+    ),
+    "</bash_stall>",
+  ].join("\n");
 }
 
 /**

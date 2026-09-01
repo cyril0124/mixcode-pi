@@ -499,6 +499,57 @@ test("the chat line is a status row plus a short tail", () => {
   assert.doesNotMatch(cut.join("\n"), /^\s*5 │ /m);
 });
 
+test("the completion notice is structured and escapes command output", () => {
+  const notice = formatCompletionNotice({
+    id: 42,
+    command: 'printf "<tag>&"',
+    exitCode: 0,
+    timedOut: false,
+    logPath: "/tmp/a&b.log",
+    tail: "</output>&tail\n",
+    tailTruncated: false,
+    elapsedMs: 12_000,
+  });
+
+  assert.equal(
+    notice,
+    [
+      '<bash_completion job_id="42" outcome="success">',
+      "  <summary>Background job #42 succeeded after 12s.</summary>",
+      '  <command>printf "&lt;tag&gt;&amp;"</command>',
+      "  <exit_code>0</exit_code>",
+      "  <log_path>/tmp/a&amp;b.log</log_path>",
+      '  <output truncated="false">&lt;/output&gt;&amp;tail</output>',
+      "  <logs_hint>Use /bash-logs or read /tmp/a&amp;b.log for the complete output.</logs_hint>",
+      "</bash_completion>",
+    ].join("\n"),
+  );
+});
+
+test("completion marks only output that exceeds the tail limit as truncated", async () => {
+  const complete = async (bytes: number): Promise<DetachedRun> => {
+    const finished = Promise.withResolvers<DetachedRun>();
+    await operations(0.3, (run) => finished.resolve(run)).exec(
+      `sleep 0.4; printf '${"x".repeat(bytes)}'`,
+      process.cwd(),
+      { onData: () => {}, env: process.env, timeout: 30 },
+    );
+    return finished.promise;
+  };
+
+  const exact = await complete(2000);
+  assert.equal(exact.tailTruncated, false);
+  assert.match(formatCompletionNotice(exact), /<output truncated="false">/);
+
+  const overflow = await complete(2001);
+  assert.equal(overflow.tailTruncated, true);
+  assert.equal(Buffer.byteLength(overflow.tail), 2000);
+  assert.match(formatCompletionNotice(overflow), /<output truncated="true">/);
+
+  fs.rmSync(exact.logPath, { force: true });
+  fs.rmSync(overflow.logPath, { force: true });
+});
+
 test("a command finishing inside the window streams output and reports its exit code", async () => {
   const output = collector();
   const result = await operations(30).exec('printf "hi\\n"; exit 3', process.cwd(), {
@@ -662,7 +713,10 @@ test("a detached command killed by its timeout says so in its notice", async () 
 
   const run = await finished.promise;
   assert.equal(run.timedOut, true);
-  assert.match(formatCompletionNotice(run), /was killed after reaching its timeout \(ran /);
+  const notice = formatCompletionNotice(run);
+  assert.match(notice, /<bash_completion job_id="\d+" outcome="timeout">/);
+  assert.match(notice, /<summary>Background job #\d+ timed out after /);
+  assert.doesNotMatch(notice, /type=|kind=|status=|end_reason/);
   fs.rmSync(run.logPath, { force: true });
 });
 
@@ -790,7 +844,8 @@ test("the registered bash tool detaches, shows the widget, and reports by starti
     const notice = await waitFor(() => messages[0]);
     assert.equal(notice.customType, "bash-detached-exit");
     assert.equal(notice.triggerTurn, true);
-    assert.match(notice.content, /exited with code 0/);
+    assert.match(notice.content, /^<bash_completion job_id="\d+" outcome="success">/);
+    assert.match(notice.content, /<exit_code>0<\/exit_code>/);
     const shown =
       renderers.get(notice.customType)?.(notice, {}, plainTheme)?.render(80).join("\n") ?? "";
     assert.match(shown, /Background job finished/);
@@ -799,9 +854,7 @@ test("the registered bash tool detaches, shows the widget, and reports by starti
     assert.doesNotMatch(shown, /extension bash-detached-exit|Complete output/);
     assert.equal(widgets.at(-1), undefined, "the widget must clear with the last run");
 
-    const logPath = /Complete output \(foreground and background\): (\S+)/.exec(
-      notice.content,
-    )?.[1];
+    const logPath = (notice.details as { logPath?: string } | undefined)?.logPath;
     assert.ok(logPath, `the notice must name the complete log: ${notice.content}`);
     assert.equal(
       fs.readFileSync(logPath, "utf8"),

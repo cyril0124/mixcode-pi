@@ -98,26 +98,54 @@ export function formatElapsed(ms: number): string {
   return minutes > 0 ? `${minutes}m${String(total % 60).padStart(2, "0")}s` : `${total}s`;
 }
 
+function escapeXmlText(value: string): string {
+  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+}
+
+export function xmlElement(name: string, value: string, attrs = ""): string {
+  return `  <${name}${attrs ? ` ${attrs}` : ""}>${escapeXmlText(value)}</${name}>`;
+}
+
 export function formatCompletionNotice(run: {
+  id: number;
   command: string;
   exitCode: number | null;
   timedOut: boolean;
   logPath: string;
   logError?: string;
   tail: string;
+  tailTruncated: boolean;
   elapsedMs: number;
 }): string {
-  const lasted = formatElapsed(run.elapsedMs);
-  const outcome = run.timedOut
-    ? `was killed after reaching its timeout (ran ${lasted})`
-    : `exited with code ${run.exitCode ?? "unknown"} after ${lasted}`;
-  const log = run.logError
-    ? `\nIts output could not be written to ${run.logPath}: ${run.logError}`
-    : `\nComplete output (foreground and background): ${run.logPath} - read that file when the tail below is not enough.`;
-  // Only claim a truncated tail when the buffer actually hit its cap.
-  const label = Buffer.byteLength(run.tail) >= NOTICE_TAIL_BYTES ? "Last bytes" : "Output";
-  const tail = run.tail.trim() ? `\n${label}:\n${run.tail.trim()}` : "\nNo output.";
-  return `[mpi-bash] The detached command ${outcome}.\nCommand: ${run.command}${log}${tail}`;
+  const elapsed = formatElapsed(run.elapsedMs);
+  const outcome = run.timedOut ? "timeout" : run.exitCode === 0 ? "success" : "failure";
+  const summary =
+    outcome === "timeout"
+      ? `Background job #${run.id} timed out after ${elapsed}.`
+      : outcome === "success"
+        ? `Background job #${run.id} succeeded after ${elapsed}.`
+        : run.exitCode === null
+          ? `Background job #${run.id} failed with an unknown exit code after ${elapsed}.`
+          : `Background job #${run.id} failed with exit code ${run.exitCode} after ${elapsed}.`;
+  const lines = [
+    `<bash_completion job_id="${run.id}" outcome="${outcome}">`,
+    xmlElement("summary", summary),
+    xmlElement("command", run.command),
+  ];
+  if (run.exitCode !== null) lines.push(xmlElement("exit_code", String(run.exitCode)));
+  lines.push(xmlElement("log_path", run.logPath));
+  if (run.logError) lines.push(xmlElement("log_error", run.logError));
+  lines.push(xmlElement("output", run.tail.trim(), `truncated="${run.tailTruncated}"`));
+  lines.push(
+    xmlElement(
+      "logs_hint",
+      run.logError
+        ? `The complete log is unavailable because writing ${run.logPath} failed.`
+        : `Use /bash-logs or read ${run.logPath} for the complete output.`,
+    ),
+  );
+  lines.push("</bash_completion>");
+  return lines.join("\n");
 }
 
 /** Node's timer ceiling; pi rejects longer timeouts rather than truncating them. */
@@ -268,6 +296,8 @@ export interface DetachedRun {
   /** Set when the background log could not be written; reported to the model. */
   logError?: string;
   tail: string;
+  /** True when output exceeded the completion notice tail limit. */
+  tailTruncated: boolean;
   /** Total output lines, including a last line that has no trailing newline. */
   lineCount: number;
   startedAt: number;
@@ -336,6 +366,7 @@ export function createDetachingBashOperations(options: {
       let timedOut = false;
       let logError: string | undefined;
       let tail = Buffer.alloc(0);
+      let tailTruncated = false;
       let lineCount = 0;
       let danglingLine = false;
       // Held in memory until the command detaches, then flushed to the log so
@@ -356,7 +387,9 @@ export function createDetachingBashOperations(options: {
           }
         }
         logStream?.write(data);
-        tail = Buffer.concat([tail, data]).subarray(-NOTICE_TAIL_BYTES);
+        const nextTail = Buffer.concat([tail, data]);
+        tailTruncated ||= nextTail.length > NOTICE_TAIL_BYTES;
+        tail = nextTail.subarray(-NOTICE_TAIL_BYTES);
         for (const byte of data) {
           if (byte === 0x0a) {
             lineCount++;
@@ -471,6 +504,7 @@ export function createDetachingBashOperations(options: {
           logPath,
           logError,
           tail: tail.toString("utf8"),
+          tailTruncated,
           lineCount: lineCount + (danglingLine ? 1 : 0),
           startedAt,
           elapsedMs: Date.now() - startedAt,

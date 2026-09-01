@@ -42,6 +42,48 @@ The header shows how many jobs are running and that `/bash-logs` opens their log
 
 When a background command ends, the chat shows a `Background job finished` heading, how long it ran, the command, and, if there is output, a rule then the last 10 lines with their log line numbers. Earlier output is marked `… N lines omitted (full log at <path>)`.
 
+The model receives XML-style completion messages. The formatter escapes `&`, `<`, and `>` in commands, paths, errors, and output so those values cannot close or add elements.
+
+A successful command sets `outcome="success"`.
+
+```xml
+<bash_completion job_id="109" outcome="success">
+  <summary>Background job #109 succeeded after 22s.</summary>
+  <command>bun run build</command>
+  <exit_code>0</exit_code>
+  <log_path>/tmp/mpi-bash-109-1.log</log_path>
+  <output truncated="false">Build complete.</output>
+  <logs_hint>Use /bash-logs or read /tmp/mpi-bash-109-1.log for the complete output.</logs_hint>
+</bash_completion>
+```
+
+A non-zero exit sets `outcome="failure"`.
+
+```xml
+<bash_completion job_id="108" outcome="failure">
+  <summary>Background job #108 failed with exit code 2 after 3s.</summary>
+  <command>cargo test</command>
+  <exit_code>2</exit_code>
+  <log_path>/tmp/mpi-bash-108-1.log</log_path>
+  <output truncated="false">FAILED tests/retry.rs</output>
+  <logs_hint>Use /bash-logs or read /tmp/mpi-bash-108-1.log for the complete output.</logs_hint>
+</bash_completion>
+```
+
+A background command killed by its timeout sets `outcome="timeout"`.
+
+```xml
+<bash_completion job_id="107" outcome="timeout">
+  <summary>Background job #107 timed out after 5m00s.</summary>
+  <command>pytest -k slow</command>
+  <log_path>/tmp/mpi-bash-107-1.log</log_path>
+  <output truncated="false"></output>
+  <logs_hint>Use /bash-logs or read /tmp/mpi-bash-107-1.log for the complete output.</logs_hint>
+</bash_completion>
+```
+
+An unknown exit also uses `outcome="failure"`. The formatter omits `<exit_code>` when the process provides no code, adds `<log_error>` when it cannot write the complete log, and sets `<output truncated="true">` when it keeps only the last 2000 bytes. The chat renderer reads `details` and does not display the XML body:
+
 ```text
  Background job finished
  ✓ 12s printf "FOREGROUND-OUTPUT"; sleep 12; printf 'done'
@@ -82,15 +124,20 @@ The chat panel uses the completion panel's layout, with the silence where a fini
  connecting to build-box...
 ```
 
-What the model receives names the job, how long it has been silent, how long it has run, its last three lines of output, and the commands to inspect or kill it:
+The model receives `<bash_stall>`. It includes the job ID, command, silence duration, total runtime, up to the last three non-empty lines from the final 2000 bytes of log output, and commands to inspect the log or stop the process. A line may be partial when the tail starts mid-line:
 
-```text
-[mpi-bash] Background job #1258366 has written nothing for 5m02s (running 8m14s) and may be stuck.
-Command: ssh build-box make release
-Its last output:
-  Compiling serde v1.0.219
-Check it with `tail -n 50 /tmp/mpi-bash-1258366-1.log`, stop it with `kill -- -1258366` (the whole process group).
-If this command is expected to be silent for this long, ignore this notice and continue with your work.
+```xml
+<bash_stall job_id="1258366">
+  <summary>Background job #1258366 may be stuck after 5m02s of silence.</summary>
+  <command>ssh build-box make release</command>
+  <silence>5m02s</silence>
+  <elapsed>8m14s</elapsed>
+  <log_path>/tmp/mpi-bash-1258366-1.log</log_path>
+  <output>Compiling serde v1.0.219</output>
+  <logs_hint>Use /bash-logs or tail -n 50 /tmp/mpi-bash-1258366-1.log to inspect recent output.</logs_hint>
+  <stop_hint>Use kill -- -1258366 to stop the whole process group.</stop_hint>
+  <action_hint>Ignore this event if long periods without output are expected for this command.</action_hint>
+</bash_stall>
 ```
 
 Delivery is `followUp`, so a silent job never cuts into a running turn. On an idle session it does start one, and the model decides to wait or kill instead of blocking until the timeout. Jobs that come due in the same check share one message and one turn.

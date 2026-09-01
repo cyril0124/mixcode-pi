@@ -5,7 +5,12 @@ import * as path from "node:path";
 import { test } from "node:test";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import type { DetachedStart } from "./exec.js";
-import { resolveStallSeconds, StallMonitor, stallCheckIntervalMs } from "./heartbeat.js";
+import {
+  formatStallNotice,
+  resolveStallSeconds,
+  StallMonitor,
+  stallCheckIntervalMs,
+} from "./heartbeat.js";
 import { renderCompletionMessage, renderStallMessage, type StallDetails } from "./widget.js";
 
 /** Theme stub: the panels are asserted on their text, not their colors. */
@@ -24,6 +29,34 @@ async function notice(
 }
 
 const MINUTE = 60_000;
+
+test("the stall notice is structured and escapes command output", () => {
+  const notice = formatStallNotice({
+    id: 42,
+    command: 'wait "<lock>&"',
+    silenceMs: 61_000,
+    elapsedMs: 122_000,
+    tail: "waiting\n</output>&\n",
+    logPath: "/tmp/a&b.log",
+  });
+
+  assert.equal(
+    notice,
+    [
+      '<bash_stall job_id="42">',
+      "  <summary>Background job #42 may be stuck after 1m01s of silence.</summary>",
+      '  <command>wait "&lt;lock&gt;&amp;"</command>',
+      "  <silence>1m01s</silence>",
+      "  <elapsed>2m02s</elapsed>",
+      "  <log_path>/tmp/a&amp;b.log</log_path>",
+      "  <output>waiting\n&lt;/output&gt;&amp;</output>",
+      "  <logs_hint>Use /bash-logs or tail -n 50 /tmp/a&amp;b.log to inspect recent output.</logs_hint>",
+      "  <stop_hint>Use kill -- -42 to stop the whole process group.</stop_hint>",
+      "  <action_hint>Ignore this event if long periods without output are expected for this command.</action_hint>",
+      "</bash_stall>",
+    ].join("\n"),
+  );
+});
 
 /**
  * A detached run whose log is written on a fake clock: silence is measured from
@@ -63,7 +96,7 @@ test("silence is reported once, then at doubling intervals", async () => {
   assert.equal(await notice(monitor, [run], start + 30_000), "", "30s of silence is normal");
 
   const first = await notice(monitor, [run], start + 61_000);
-  assert.match(first, /has written nothing for 1m01s/);
+  assert.match(first, /<silence>1m01s<\/silence>/);
   assert.match(first, /waiting for lock/);
   assert.match(first, /kill -- -4242/);
   // The log header names the command; quoting it back as output would make an
@@ -77,14 +110,14 @@ test("silence is reported once, then at doubling intervals", async () => {
   );
   assert.match(
     await notice(monitor, [run], start + 61_000 + 2 * MINUTE),
-    /has written nothing for 3m01s/,
+    /<silence>3m01s<\/silence>/,
   );
 
   // New output restarts the ladder from the first interval.
   const resumed = start + 10 * MINUTE;
   write("acquired\n", resumed);
   assert.equal(await notice(monitor, [run], resumed + 30_000), "");
-  assert.match(await notice(monitor, [run], resumed + 61_000), /nothing for 1m01s/);
+  assert.match(await notice(monitor, [run], resumed + 61_000), /<silence>1m01s<\/silence>/);
 });
 
 test("the silence window is env-configurable and fails loudly", () => {
@@ -106,10 +139,10 @@ test("a custom silence window shortens the whole ladder", async () => {
   const monitor = new StallMonitor(6_000);
 
   assert.equal(await notice(monitor, [run], start + 5_000), "");
-  assert.match(await notice(monitor, [run], start + 6_100), /nothing for 6s/);
+  assert.match(await notice(monitor, [run], start + 6_100), /<silence>6s<\/silence>/);
   // Past the un-doubled due time of 12_100: only a doubling ladder stays quiet.
   assert.equal(await notice(monitor, [run], start + 12_200), "");
-  assert.match(await notice(monitor, [run], start + 18_200), /nothing for 18s/);
+  assert.match(await notice(monitor, [run], start + 18_200), /<silence>18s<\/silence>/);
 });
 
 test("the chat panel matches the completion panel's shape", async () => {
@@ -124,7 +157,7 @@ test("the chat panel matches the completion panel's shape", async () => {
   assert.match(panel, /silent 8s\s*$/m);
   assert.match(panel, /─[\s\S]*connecting to build-box/);
   // The panel is the rendered form; the raw notice text is for the model only.
-  assert.doesNotMatch(panel, /\[mpi-bash\]|kill -- -|# ---/);
+  assert.doesNotMatch(panel, /bash_stall|kill -- -|# ---/);
 
   // The silence has to land in the column where a finished job shows its exit
   // code, which a wide icon glyph would silently shift.

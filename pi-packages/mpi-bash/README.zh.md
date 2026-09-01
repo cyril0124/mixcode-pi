@@ -42,6 +42,48 @@ Bash 执行策略：默认超时、前台窗口、到期自动转后台、结束
 
 后台命令结束后，聊天里先是一行 `Background job finished` 标题，再是运行时长和命令本身；有输出时中间一条分隔线，下面是带行号的最后 10 行。上面还有输出时写 `… N lines omitted (full log at <路径>)`。
 
+模型收到 XML 风格的完成消息。格式化器会转义命令、路径、错误和输出中的 `&`、`<`、`>`，这些值无法闭合或插入 XML 元素。
+
+命令成功时使用 `outcome="success"`。
+
+```xml
+<bash_completion job_id="109" outcome="success">
+  <summary>Background job #109 succeeded after 22s.</summary>
+  <command>bun run build</command>
+  <exit_code>0</exit_code>
+  <log_path>/tmp/mpi-bash-109-1.log</log_path>
+  <output truncated="false">Build complete.</output>
+  <logs_hint>Use /bash-logs or read /tmp/mpi-bash-109-1.log for the complete output.</logs_hint>
+</bash_completion>
+```
+
+非零退出码使用 `outcome="failure"`。
+
+```xml
+<bash_completion job_id="108" outcome="failure">
+  <summary>Background job #108 failed with exit code 2 after 3s.</summary>
+  <command>cargo test</command>
+  <exit_code>2</exit_code>
+  <log_path>/tmp/mpi-bash-108-1.log</log_path>
+  <output truncated="false">FAILED tests/retry.rs</output>
+  <logs_hint>Use /bash-logs or read /tmp/mpi-bash-108-1.log for the complete output.</logs_hint>
+</bash_completion>
+```
+
+已转入后台的命令被超时终止时使用 `outcome="timeout"`。
+
+```xml
+<bash_completion job_id="107" outcome="timeout">
+  <summary>Background job #107 timed out after 5m00s.</summary>
+  <command>pytest -k slow</command>
+  <log_path>/tmp/mpi-bash-107-1.log</log_path>
+  <output truncated="false"></output>
+  <logs_hint>Use /bash-logs or read /tmp/mpi-bash-107-1.log for the complete output.</logs_hint>
+</bash_completion>
+```
+
+未知退出状态也使用 `outcome="failure"`。进程没有提供退出码时，格式化器省略 `<exit_code>`；完整日志写入失败时增加 `<log_error>`；只保留最后 2000 字节时设置 `<output truncated="true">`。聊天渲染器读取 `details`，不显示 XML 正文：
+
 ```text
  Background job finished
  ✓ 12s printf "FOREGROUND-OUTPUT"; sleep 12; printf 'done'
@@ -82,15 +124,20 @@ Bash 执行策略：默认超时、前台窗口、到期自动转后台、结束
  connecting to build-box...
 ```
 
-模型收到的文本则给出任务编号、静默时长、已运行时长、最后三行输出，以及查看和终止它的命令：
+模型收到 `<bash_stall>`。其中包含任务编号、命令、静默时长、总运行时长、日志最后 2000 字节中的至多三行非空输出，以及查看日志和终止进程的命令。如果截取起点落在一行中间，第一行可能不完整：
 
-```text
-[mpi-bash] Background job #1258366 has written nothing for 5m02s (running 8m14s) and may be stuck.
-Command: ssh build-box make release
-Its last output:
-  Compiling serde v1.0.219
-Check it with `tail -n 50 /tmp/mpi-bash-1258366-1.log`, stop it with `kill -- -1258366` (the whole process group).
-If this command is expected to be silent for this long, ignore this notice and continue with your work.
+```xml
+<bash_stall job_id="1258366">
+  <summary>Background job #1258366 may be stuck after 5m02s of silence.</summary>
+  <command>ssh build-box make release</command>
+  <silence>5m02s</silence>
+  <elapsed>8m14s</elapsed>
+  <log_path>/tmp/mpi-bash-1258366-1.log</log_path>
+  <output>Compiling serde v1.0.219</output>
+  <logs_hint>Use /bash-logs or tail -n 50 /tmp/mpi-bash-1258366-1.log to inspect recent output.</logs_hint>
+  <stop_hint>Use kill -- -1258366 to stop the whole process group.</stop_hint>
+  <action_hint>Ignore this event if long periods without output are expected for this command.</action_hint>
+</bash_stall>
 ```
 
 投递用 `followUp`，所以静默任务不会打断正在进行的一轮。会话空闲时它会开新一轮，由模型决定继续等还是杀掉，而不是一直阻塞到超时。同一次检查中一起到期的任务共用一条消息、一轮开销。
