@@ -31,6 +31,35 @@ error-continue: on · mid-work · total 9
 `continue $simple-plan` wait. `total N` counts only continues actually sent; waiting, timeout,
 Esc/No cancellation, and external abort do not increase it.
 
+Three successful tool executions within one `turn` reset `invisibleUsed` and `visibleUsed` while keeping
+`total N`. A tool execution is successful when its public `tool_execution_end` event has `isError: false`.
+The consecutive-success count resets at `turn_start`, on a failed tool, and when the session/user flow is
+reset.
+
+### State transitions
+
+```text
+                    tool_execution_end
+                 isError=false x 1 or x 2
+                              │
+                              v
+                    ┌─────────────────┐
+                    │ retry phase     │
+                    │ invisible/visible│
+                    └────────┬────────┘
+                             │ isError=false x 3
+                             v
+                    ┌─────────────────┐
+                    │ phase counters  │
+                    │ cleared         │
+                    └────────┬────────┘
+                             │ next error settle
+                             v
+                    invisible 1/3
+
+turn_start / failed tool / new user message ─────► success streak = 0
+```
+
 ## Mid-work
 
 Sends one visible `continue $simple-plan` so the simple-plan skill is loaded on resume. One send

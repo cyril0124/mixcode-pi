@@ -30,6 +30,34 @@ error-continue: on · mid-work · total 9
 `mid-work` 表示正在等待发送 `continue $simple-plan`。
 `total N` 只统计实际发送的继续；等待、超时、Esc/No 取消和外部中止均不增加计数。
 
+同一个 `turn` 内连续 3 个成功的工具执行会清零 `invisibleUsed` 和 `visibleUsed`，但保留 `total N`。
+公开的 `tool_execution_end` 事件中 `isError: false` 表示工具执行成功。连续成功计数会在
+`turn_start`、工具失败以及会话/用户流程重置时清零。
+
+### 状态转移
+
+```text
+                    tool_execution_end
+                 isError=false x 1 或 x 2
+                              │
+                              v
+                    ┌─────────────────┐
+                    │ 当前重试阶段    │
+                    │ invisible/visible│
+                    └────────┬────────┘
+                             │ isError=false x 3
+                             v
+                    ┌─────────────────┐
+                    │ 清零阶段计数    │
+                    │ total 保持不变  │
+                    └────────┬────────┘
+                             │ 下一次错误 settle
+                             v
+                    invisible 1/3
+
+turn_start / 工具失败 / 新用户消息 ───────────────► 连续成功数 = 0
+```
+
 ## 工作中断
 
 发送一次可见的 `continue $simple-plan`，以便恢复时加载 simple-plan skill。

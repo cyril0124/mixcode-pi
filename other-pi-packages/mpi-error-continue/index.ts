@@ -12,6 +12,7 @@ export const STATUS_PREFIX = "error-continue: on";
 export const COMMAND_NAME = "error-continue";
 /** Floor for the cancellable confirm window: a 1s dialog is not clickable. */
 export const MIN_CONFIRM_MS = 5000;
+export const SUCCESSFUL_TOOLS_TO_RESET = 3;
 
 const STATE_VERSION = 1;
 
@@ -213,6 +214,7 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
     let invisibleUsed = 0;
     let visibleUsed = 0;
     let retryCount = 0;
+    let successfulToolResults = 0;
     let retryPhase: RetryPhase | undefined;
     let pendingAutoContinue = false;
     let waitAbort: AbortController | undefined;
@@ -309,6 +311,7 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
           pendingAutoContinue = false;
           abortWait();
           clearPhase(ctx);
+          successfulToolResults = 0;
           persistEnabled(true);
           ctx.ui.notify("Error continue enabled for this session.", "info");
           return;
@@ -320,6 +323,7 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
           pendingAutoContinue = false;
           abortWait();
           clearPhase(ctx);
+          successfulToolResults = 0;
           persistEnabled(false);
           ctx.ui.notify("Error continue disabled for this session.", "info");
           return;
@@ -331,6 +335,7 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
           abortWait();
           retryCount = 0;
           clearPhaseCounters();
+          successfulToolResults = 0;
           clearPhase(ctx);
           ctx.ui.notify("Error continue counters reset.", "info");
           return;
@@ -356,7 +361,25 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
       midWorkArmed = false;
       clearPhaseCounters();
       clearPhase(ctx);
+      successfulToolResults = 0;
       abortWait();
+    });
+
+    pi.on("turn_start", () => {
+      successfulToolResults = 0;
+    });
+
+    pi.on("tool_execution_end", (event, ctx) => {
+      if (event.isError) {
+        successfulToolResults = 0;
+        return;
+      }
+      successfulToolResults++;
+      if (successfulToolResults >= SUCCESSFUL_TOOLS_TO_RESET) {
+        successfulToolResults = 0;
+        clearPhaseCounters();
+        clearPhase(ctx);
+      }
     });
 
     // Arm only from agent_end; fire on agent_settled so Pi auto-retry/compact finish first.
@@ -371,6 +394,7 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
         if (ctx.signal?.aborted) {
           clearPhaseCounters();
           clearPhase(ctx);
+          successfulToolResults = 0;
         }
         return;
       }
@@ -405,6 +429,7 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
           MIN_CONFIRM_MS,
         );
         if (decision === "aborted") {
+          successfulToolResults = 0;
           clearPhase();
           return;
         }
@@ -426,6 +451,7 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
       const onCancel = () => {
         clearPhaseCounters();
         clearPhase(ctx);
+        successfulToolResults = 0;
         ctx.ui.notify("Error continue cancelled; this retry loop is stopped.", "info");
       };
 
@@ -500,6 +526,7 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
       midWorkArmed = false;
       pendingAutoContinue = false;
       retryCount = 0;
+      successfulToolResults = 0;
       retryPhase = undefined;
       clearPhaseCounters();
       abortWait();
@@ -512,6 +539,7 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
       midWorkArmed = false;
       pendingAutoContinue = false;
       retryPhase = undefined;
+      successfulToolResults = 0;
       clearPhaseCounters();
       abortWait();
       inFlight = false;
