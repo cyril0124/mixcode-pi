@@ -128,6 +128,11 @@ export default function permissionExtension(pi: ExtensionAPI) {
     return layers;
   }
 
+  // Built-in packages live under agentDir/extensions instead of Pi package settings.
+  pi.on("resources_discover", () => ({
+    skillPaths: [path.join(import.meta.dirname, "skills")],
+  }));
+
   // Session rules live in this closure and drop when the extension instance
   // is rebuilt (restart, /reload, new tab).
   pi.on("session_start", (_event, ctx) => reload(ctx.cwd));

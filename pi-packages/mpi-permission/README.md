@@ -6,6 +6,12 @@ The rule semantics (allow/ask/deny actions, per-tool wildcard rule objects, last
 
 [中文文档](README.zh.md)
 
+## Skill
+
+`$mpi-permission` or `/skill:mpi-permission` writes a policy file. It stays out of the system prompt (`disable-model-invocation`). Pi loads `pi.skills` on a normal package install. MixCode installs the built-in under `<agentDir>/extensions/`; `index.ts` contributes the same `skills/` tree through `resources_discover`. `$` completion scans that tree. Package skills are not copied into `<agentDir>/skills`.
+
+Cookbook: [skills/mpi-permission/SKILL.md](skills/mpi-permission/SKILL.md).
+
 ## Config
 
 | Layer | File | Notes |

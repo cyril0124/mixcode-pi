@@ -6,6 +6,12 @@
 
 [English](README.md)
 
+## Skill
+
+`$mpi-permission` 或 `/skill:mpi-permission` 用来写策略文件。它不进 system prompt（`disable-model-invocation`）。正常安装 Pi package 时由 `pi.skills` 加载。MixCode 把内置包安装到 `<agentDir>/extensions/` 时，`index.ts` 通过 `resources_discover` 提供同一个 `skills/` 目录。`$` 补全扫描该目录。Package skill 不会复制到 `<agentDir>/skills`。
+
+手册：[skills/mpi-permission/SKILL.md](skills/mpi-permission/SKILL.md)。
+
 ## 配置
 
 | 层级 | 文件 | 说明 |
