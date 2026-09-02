@@ -122,4 +122,4 @@ Gate every external path and repeated identical calls:
 }
 ```
 
-Write 2-space JSON with a trailing newline. JSON has no comments. `doom_loop` is an action string, never a pattern object.
+Write 2-space JSON with a trailing newline. The loader accepts `//` line comments and `/* */` block comments (JSONC); the `/permission` overlay rewrites the file as plain JSON, dropping hand-written comments. `doom_loop` is an action string, never a pattern object.

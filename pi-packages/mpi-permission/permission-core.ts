@@ -102,7 +102,7 @@ export function loadPermissionConfig(filePath: string): ConfigLoadResult {
   }
   let raw: unknown;
   try {
-    raw = JSON.parse(text);
+    raw = JSON.parse(stripJsonComments(text));
   } catch (err) {
     return {
       ok: false,
@@ -113,6 +113,48 @@ export function loadPermissionConfig(filePath: string): ConfigLoadResult {
   const parsed = parsePermissionConfig(raw);
   if (!parsed.ok) return { ok: false, path: filePath, error: parsed.error };
   return { ok: true, config: parsed.config, path: filePath };
+}
+
+/** Strip line comments (slash-slash) and block comments outside string literals (JSONC). */
+function stripJsonComments(text: string): string {
+  let out = "";
+  let i = 0;
+  let inString = false;
+  while (i < text.length) {
+    const ch = text[i]!;
+    const next = text[i + 1];
+    if (inString) {
+      out += ch;
+      if (ch === "\\" && next !== undefined) {
+        out += next;
+        i += 2;
+        continue;
+      }
+      if (ch === '"') inString = false;
+      i++;
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      out += ch;
+      i++;
+      continue;
+    }
+    if (ch === "/" && next === "/") {
+      while (i < text.length && text[i] !== "\n") i++;
+      continue;
+    }
+    if (ch === "/" && next === "*") {
+      i += 2;
+      while (i < text.length && !(text[i] === "*" && text[i + 1] === "/")) i++;
+      i += 2;
+      out += " ";
+      continue;
+    }
+    out += ch;
+    i++;
+  }
+  return out;
 }
 
 export function writePermissionConfig(

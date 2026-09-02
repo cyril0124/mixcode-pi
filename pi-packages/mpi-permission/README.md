@@ -45,6 +45,8 @@ Root value is an action string or an object. Keys are actual tool names (`bash`,
 
 The package ships `mpi-permission.schema.json` (installed to `<agentDir>/extensions/mpi-permission/mpi-permission.schema.json`) for editor completion and validation. In the global file the relative form above works as-is; in a project file use an absolute path or your editor's schema mapping.
 
+Both config files accept `//` line comments and `/* ... */` block comments (JSONC); comments inside string values are preserved. Note the `/permission` overlay rewrites the file as plain JSON, dropping hand-written comments.
+
 ## Permission probe
 
 The package registers a `permission_probe` tool, but keeps it inactive at session start. Enable it through Pi's existing active-tool controls when the model should use it. It accepts a target tool name and input object, validates the input against the target tool's registered parameter schema, then reports the current `allow` / `ask` / `deny` result without executing the target tool. Unknown tools return `unknown_tool`; invalid target input returns `invalid_target_input`. Probe calls do not advance the `doom_loop` counter.

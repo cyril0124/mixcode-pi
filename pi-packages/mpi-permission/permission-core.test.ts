@@ -173,6 +173,33 @@ test("load: invalid JSON and invalid schema fail loud with the file path", () =>
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
+test("load: // and /* */ comments are stripped, // inside strings kept", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "mpi-permission-"));
+  const file = path.join(dir, "mpi-permission.json");
+  fs.writeFileSync(
+    file,
+    [
+      "// top-level comment",
+      "{",
+      '  "$schema": "./mpi-permission.schema.json", /* block */',
+      '  "read": {',
+      '    "*.env": "deny" // trailing comment',
+      "  },",
+      '  "bash": { "curl http://x//y*": "ask" }',
+      "}",
+    ].join("\n"),
+    "utf8",
+  );
+  const loaded = loadPermissionConfig(file);
+  assert.equal(loaded.ok, true);
+  const config = (loaded as { config: PermissionConfig }).config;
+  const layers: LayeredConfig[] = [{ layer: "global", config }];
+  assert.deepEqual(evaluate(layers, "read", { path: "a.env" }).action, "deny");
+  // The // in the pattern is part of the string, not a comment.
+  assert.deepEqual(evaluate(layers, "bash", { command: "curl http://x//y?q" }).action, "ask");
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 // ─── bash splitting ──────────────────────────────────────────────────────────
 
 test("splitBashCommand: compound operators split into segments", () => {
