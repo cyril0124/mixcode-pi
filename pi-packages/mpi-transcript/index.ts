@@ -964,6 +964,27 @@ vim.api.nvim_set_hl(0, "markdownCodeDelimiter", { link = "Special" })
 vim.api.nvim_set_hl(0, "markdownCode", { link = "Special" })
 vim.api.nvim_set_hl(0, "markdownCodeBlock", { link = "Special" })
 
+-- --clean skips init. unnamedplus + OSC 52 (when not in tmux) send yanks
+-- to the outer terminal. OSC 52 paste is a no-op: those reads hang.
+if not vim.env.TMUX or vim.env.TMUX == "" then
+  local osc52 = require("vim.ui.clipboard.osc52")
+  local function no_paste()
+    return 0
+  end
+  vim.g.clipboard = {
+    name = "OSC 52",
+    copy = {
+      ["+"] = osc52.copy("+"),
+      ["*"] = osc52.copy("*"),
+    },
+    paste = {
+      ["+"] = no_paste,
+      ["*"] = no_paste,
+    },
+  }
+end
+vim.opt.clipboard = "unnamedplus"
+
 vim.opt_local.conceallevel = 2
 -- Overlay virt_text replaces headings and metadata. Without this the raw
 -- markup pops back in whenever the cursor lands on such a line, and the whole
@@ -1284,6 +1305,12 @@ endif
 " View options after syntax enable: markdown ftplugin would otherwise change
 " foldmethod and conceallevel.
 syntax enable
+" --clean skips vimrc; unnamedplus (or unnamed) so yanks leave vim.
+if has('unnamedplus')
+  set clipboard=unnamedplus
+elseif has('clipboard')
+  set clipboard=unnamed
+endif
 setlocal conceallevel=2
 setlocal concealcursor=nvic
 setlocal wrap

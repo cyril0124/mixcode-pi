@@ -35,7 +35,7 @@
 | `vim` | 使用 vim 以只读方式打开 transcript，并启用 transcript 导航与样式。 |
 | `builtin` | 使用内置多行查看器。 |
 
-`nvim` 与 `vim` 以 `--clean` 启动，不加载 init 配置、插件与配色。transcript 视图自带样式与快捷键，即使 transcript 有数 MB 也能快速打开。
+`nvim` 与 `vim` 以 `--clean` 启动，不加载 init 配置、插件与配色。transcript 视图自带样式、快捷键和剪贴板（`unnamedplus`；`$TMUX` 未设置时 nvim 用 OSC 52 把 yank 交给外层终端）。即使 transcript 有数 MB 也能快速打开。
 
 每次执行 `/transcript` 时都会读取该文件。配置文件缺失时使用 `auto`；配置无效时报告错误并停止打开 transcript。指定的外部编辑器无法启动时，先报告错误，再使用内置查看器。
 

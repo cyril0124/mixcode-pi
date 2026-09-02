@@ -281,6 +281,55 @@ test("nvim transcript lua sets wrap/conceal, heading winbar, and heading badges"
   }
 });
 
+test("nvim transcript lua yanks via unnamedplus and OSC 52 outside tmux", {
+  skip: nvimAvailable ? false : "nvim not on PATH",
+}, async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "transcript-nvim-clip-"));
+  try {
+    const md = path.join(dir, "t.md");
+    const lua = path.join(dir, "t.lua");
+    const dump = path.join(dir, "dump.lua");
+    await fs.writeFile(md, "hello\n");
+    await fs.writeFile(lua, NVIM_TRANSCRIPT_LUA);
+    await fs.writeFile(
+      dump,
+      [
+        "io.stdout:write(table.concat({\n",
+        "  vim.o.clipboard,\n",
+        "  tostring(vim.g.clipboard and vim.g.clipboard.name),\n",
+        '  tostring(vim.fn["provider#clipboard#Executable"]()),\n',
+        '}, "\\n"))\n',
+      ].join(""),
+    );
+    const env = { ...process.env };
+    delete env.TMUX;
+    const r = spawnSync(
+      "nvim",
+      [
+        "--headless",
+        "-u",
+        "NONE",
+        "-n",
+        md,
+        "-c",
+        `luafile ${lua}`,
+        "-c",
+        `luafile ${dump}`,
+        "-c",
+        "qa",
+      ],
+      { encoding: "utf8", env },
+    );
+    assert.equal(r.status, 0, r.error?.message ?? r.stderr);
+    const out = r.stdout.trim().split("\n");
+    assert.equal(out[0], "unnamedplus");
+    assert.equal(out[1], "OSC 52");
+    assert.equal(out[2], "OSC 52");
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("vim transcript view sets wrap/conceal, heading statusline, and tool folds", {
   skip: vimAvailable ? false : "vim not on PATH",
 }, async () => {

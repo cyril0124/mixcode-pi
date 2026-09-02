@@ -35,7 +35,7 @@ Supported values:
 | `vim` | Open the read-only transcript in vim with transcript navigation and styling. |
 | `builtin` | Use the in-app multi-line viewer. |
 
-`nvim` and `vim` open with `--clean`, so your init config, plugins, and colorscheme are not loaded. The transcript view brings its own styling and keybindings, and startup stays fast even on multi-megabyte transcripts.
+`nvim` and `vim` open with `--clean`, so your init config, plugins, and colorscheme are not loaded. The transcript view brings its own styling, keybindings, and clipboard (`unnamedplus`; nvim uses OSC 52 when `$TMUX` is unset so the outer terminal receives yanks). Startup stays fast even on multi-megabyte transcripts.
 
 The package reads this file when `/transcript` runs. Missing configuration uses `auto`. Invalid configuration is reported as an error and the transcript does not open. If a selected external editor cannot start, the package reports the error and opens the in-app viewer.
 
