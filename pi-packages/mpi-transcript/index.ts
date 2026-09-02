@@ -645,7 +645,9 @@ function collectChatlog(entries: SessionEntry[], options: ChatlogOptions = {}): 
     // show them or the transcript reads as if context appeared from nowhere.
     if (entry.type === "compaction") {
       const tokens = entry.tokensBefore.toLocaleString("en-US");
-      sections.push(`---\n\n## 📦 Compaction · ${tokens} tokens before\n\n${entry.summary.trim()}`);
+      sections.push(
+        `---\n\n## 📦 Compaction · ${tokens} tokens before\n\n_${formatTime(entry.timestamp)}_\n\n${entry.summary.trim()}`,
+      );
       continue;
     }
     if (entry.type === "branch_summary") {

@@ -738,7 +738,7 @@ test("buildViewText chatlog: renders compaction and branch summary entries", () 
       type: "compaction",
       id: "comp-1",
       parentId: null,
-      timestamp: new Date().toISOString(),
+      timestamp: "2026-08-26T10:03:42.000",
       summary: "earlier work summarized",
       firstKeptEntryId: "u-x",
       tokensBefore: 54321,
@@ -754,7 +754,10 @@ test("buildViewText chatlog: renders compaction and branch summary entries", () 
     userEntry("continue"),
   ];
   const text = buildViewText("chatlog", entries);
-  assert.match(text, /## 📦 Compaction · 54,321 tokens before\n\nearlier work summarized/);
+  assert.match(
+    text,
+    /## 📦 Compaction · 54,321 tokens before\n\n_2026-08-26 10:03:42_\n\nearlier work summarized/,
+  );
   assert.match(text, /## 🌿 Branch Summary\n\nsummary of the other branch/);
 });
 
@@ -895,7 +898,7 @@ test("buildViewText context: renders context entries as chatlog sections under i
       type: "compaction",
       id: "comp-2",
       parentId: null,
-      timestamp: new Date().toISOString(),
+      timestamp: "2026-08-26T10:04:01.000",
       summary: "summary of dropped history",
       firstKeptEntryId: "u-kept",
       tokensBefore: 1000,
@@ -905,7 +908,10 @@ test("buildViewText context: renders context entries as chatlog sections under i
   ];
   const text = buildViewText("context", entries);
   assert.match(text, /^# LLM Context\n/);
-  assert.match(text, /## 📦 Compaction · 1,000 tokens before\n\nsummary of dropped history/);
+  assert.match(
+    text,
+    /## 📦 Compaction · 1,000 tokens before\n\n_2026-08-26 10:04:01_\n\nsummary of dropped history/,
+  );
   assert.match(text, /## 👤 User · #1\n\n_[^\n]+_\n\nkept question/);
 });
 
