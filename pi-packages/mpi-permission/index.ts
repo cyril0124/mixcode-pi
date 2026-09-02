@@ -13,6 +13,8 @@ import * as os from "node:os";
 import * as path from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { CONFIG_DIR_NAME, getAgentDir } from "@earendil-works/pi-coding-agent";
+import { Type } from "typebox";
+import { Value } from "typebox/value";
 import {
   addRule,
   createDoomLoopTracker,
@@ -24,6 +26,7 @@ import {
   loadPermissionConfig,
   permissionConfigPath,
   projectPermissionConfigPath,
+  stricterPermissionDecision,
   writePermissionConfig,
   type ConfigLoadResult,
   type LayeredConfig,
@@ -45,6 +48,58 @@ function cacheFromLoad(loaded: ConfigLoadResult): CachedConfig {
 }
 
 const SUBJECT_PREVIEW_MAX = 200;
+const PERMISSION_PROBE_NAME = "permission_probe";
+
+const permissionProbeSchema = Type.Object({
+  toolName: Type.String({ description: "Registered tool to evaluate" }),
+  input: Type.Record(Type.String(), Type.Unknown(), {
+    description: "Arguments that would be passed to the registered tool",
+  }),
+});
+
+function invalidTargetInputResult(toolName: string, input: unknown, schema: unknown) {
+  if (Value.Check(schema as Parameters<typeof Value.Check>[0], input)) return null;
+  const errors = [...Value.Errors(schema as Parameters<typeof Value.Errors>[0], input)].map(
+    (error) => ({
+      path: "path" in error ? error.path : "",
+      message: error.message,
+    }),
+  );
+  return {
+    ok: false as const,
+    error: "invalid_target_input" as const,
+    toolName,
+    errors,
+  };
+}
+
+function permissionProbeResult(
+  toolName: string,
+  input: Record<string, unknown>,
+  layers: readonly LayeredConfig[],
+  cwd: string,
+  home: string,
+) {
+  const decisions = evaluateToolCallDecisions({ layers, toolName, input, cwd, home });
+  const decision = decisions.reduce(
+    (current, candidate) => stricterPermissionDecision(current, candidate),
+    { action: "allow" as const },
+  );
+  return {
+    ok: true as const,
+    toolName,
+    inputValid: true as const,
+    action: decision.action,
+    wouldAllow: decision.action === "allow",
+    wouldAsk: decision.action === "ask",
+    wouldBlock: decision.action === "deny",
+    sources: decisions.flatMap((candidate) => (candidate.source ? [candidate.source] : [])),
+    doomLoop: {
+      checked: false as const,
+      reason: "permission_probe does not advance the repeated-call counter",
+    },
+  };
+}
 
 function preview(text: string): string {
   return text.length > SUBJECT_PREVIEW_MAX ? `${text.slice(0, SUBJECT_PREVIEW_MAX)}…` : text;
@@ -135,10 +190,88 @@ export default function permissionExtension(pi: ExtensionAPI) {
 
   // Session rules live in this closure and drop when the extension instance
   // is rebuilt (restart, /reload, new tab).
-  pi.on("session_start", (_event, ctx) => reload(ctx.cwd));
+  pi.on("session_start", (event, ctx) => {
+    reload(ctx.cwd);
+    if (event.reason === "startup") {
+      const active = pi.getActiveTools();
+      const next = active.filter((name) => name !== PERMISSION_PROBE_NAME);
+      if (next.length !== active.length) pi.setActiveTools(next);
+    }
+  });
   pi.on("before_agent_start", (_event, ctx) => reload(ctx.cwd));
 
+  pi.registerTool({
+    name: PERMISSION_PROBE_NAME,
+    label: "Permission Probe",
+    description:
+      "Check whether a registered tool call would be allowed, require approval, or be blocked. " +
+      "Validates the target input against that tool's registered schema and never executes it.",
+    parameters: permissionProbeSchema,
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const target = pi.getAllTools().find((tool) => tool.name === params.toolName);
+      if (!target) {
+        const result = {
+          ok: false as const,
+          error: "unknown_tool" as const,
+          toolName: params.toolName,
+        };
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+          details: result,
+        };
+      }
+      const invalid = invalidTargetInputResult(params.toolName, params.input, target.parameters);
+      if (invalid) {
+        return {
+          content: [{ type: "text", text: JSON.stringify(invalid, null, 2) }],
+          details: invalid,
+        };
+      }
+      ensureLoaded(ctx.cwd);
+      const trusted = ctx.isProjectTrusted();
+      const broken = configError(trusted);
+      if (broken && broken.status === "error") {
+        const result = {
+          ok: false as const,
+          error: "invalid_permission_config" as const,
+          path: broken.path,
+          details: broken.error,
+        };
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+          details: result,
+        };
+      }
+      const result = permissionProbeResult(
+        params.toolName,
+        params.input,
+        buildLayers(trusted),
+        ctx.cwd,
+        home,
+      );
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        details: result,
+      };
+    },
+  });
+
+  pi.registerCommand("permission-probe", {
+    description: "Enable the permission_probe tool for this session",
+    handler: async (_args, ctx) => {
+      if (!ctx.hasUI) {
+        throw new Error("Error: permission-probe requires interactive UI");
+      }
+      const active = pi.getActiveTools();
+      if (!active.includes(PERMISSION_PROBE_NAME)) {
+        pi.setActiveTools([...active, PERMISSION_PROBE_NAME]);
+      }
+      ctx.ui.notify("permission_probe enabled for this session", "info");
+    },
+  });
+
   pi.on("tool_call", async (event, ctx) => {
+    if (event.toolName === PERMISSION_PROBE_NAME) return undefined;
     ensureLoaded(ctx.cwd);
     const trusted = ctx.isProjectTrusted();
     const broken = configError(trusted);

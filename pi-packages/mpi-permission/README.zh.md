@@ -45,6 +45,21 @@
 
 包内随带 `mpi-permission.schema.json`（安装于 `<agentDir>/extensions/mpi-permission/mpi-permission.schema.json`），供编辑器补全与校验。全局文件中直接使用上例的相对路径即可；项目文件请用绝对路径或编辑器的 schema 映射。
 
+## 探针工具
+
+包会注册 `permission_probe`，但在会话开始时保持 inactive。需要模型使用时，通过 Pi 现有的 active tool 管理入口显式开启。探针接收目标工具名和 input 对象，使用目标工具注册的参数 schema 校验 input，然后报告当前 `allow` / `ask` / `deny` 结果；它不会执行目标工具。未知工具返回 `unknown_tool`，目标参数非法返回 `invalid_target_input`。探针调用不会推进 `doom_loop` 计数。
+
+```json
+{
+  "toolName": "read",
+  "input": { "path": ".env" }
+}
+```
+
+成功结果包含 `action`、`wouldAllow` / `wouldAsk` / `wouldBlock` 布尔字段以及命中的权限来源。探针只说明后续真实调用在当前策略下会如何处理，不保证目标工具本身执行成功。
+
+使用 `/permission-probe` 可在当前会话开启探针。命令可重复执行，不会移除当前其他 active tools。开启状态仅限当前会话，不会持久化。
+
 ## 匹配
 
 - `*` 匹配零个或多个任意字符（含 `/`），`?` 精确匹配一个字符，其余按字面值。

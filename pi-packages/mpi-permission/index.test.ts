@@ -32,6 +32,8 @@ test("mpi-permission contributes a user-invoked skill from an installed extensio
       sessionManager: SessionManager.inMemory(agentDir),
     });
     await session.bindExtensions({ mode: "print" });
+    assert.ok(session.getAllTools().some((tool) => tool.name === "permission_probe"));
+    assert.equal(session.getActiveToolNames().includes("permission_probe"), false);
 
     const loaded = services.resourceLoader.getSkills();
     const skill = loaded.skills.find((entry) => entry.name === "mpi-permission");

@@ -70,6 +70,10 @@ When a path-taking tool resolves outside cwd, also evaluate `external_directory`
 
 Same tool plus identical `JSON.stringify(input)` 3 times in a row applies this action on the 3rd and every further consecutive repeat. Action string only. Independent of tool rules. Combines by severity. Omit the key to leave it off.
 
+## Permission probe
+
+The package registers `permission_probe` but keeps it inactive at session start. Enable it for the current session with `/permission-probe`; the command preserves all active tools and does not persist the activation. The tool validates `input` against the registered target tool schema and reports the predicted permission action without executing the target or advancing `doom_loop`.
+
 ## 5. Templates
 
 Start from a template that matches the policy, then edit. Put `"*"` first in each pattern object.
