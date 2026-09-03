@@ -348,7 +348,7 @@ export const LOCAL_COMMANDS: Array<{
   },
   {
     name: "vim",
-    description: "Enter Vim mode for chat scrolling",
+    description: "Enter Vim mode for chat scrolling (q to leave)",
     palette: { label: "Vim Mode", requires: "session" },
   },
   {

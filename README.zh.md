@@ -88,7 +88,7 @@ Tab 之间可以直接对话——同一 TUI，或其他 `mpi` 进程——无�
 </p>
 
 ### 5. Vim 模式对话导航
-将对话流作为 Vim 文本 Buffer 浏览：逐行滚动（`j`/`k`）、`Ctrl+U` / `Ctrl+D` 翻页、在关键用户提问间跳跃（`Right` / `Shift+Right`）。通过 `/vim` 或空队列 `Ctrl+U` 再按 `u` 进入。
+将对话流作为 Vim 文本 Buffer 浏览：逐行滚动（`j`/`k`）、`Ctrl+U` / `Ctrl+D` 翻页、在关键用户提问间跳跃（`Right` / `Shift+Right`）。通过 `/vim` 或空队列 `Ctrl+U` 再按 `u` 进入，`q` 退出。
 
 <p align="center">
   <img src="assets/readme-vim.gif" alt="Vim 模式" width="900">
@@ -130,7 +130,7 @@ Tab 之间可以直接对话——同一 TUI，或其他 `mpi` 进程——无�
 | `Ctrl+Q` | 全局 | 退出 | 安全保存工作区状态并退出程序。 |
 | `Ctrl+U` | 输入框/队列 | 出队 / 选择 / Vim | 只有一个非空队列时直接弹出；两个队列都有消息时使用 `Ctrl+U,S/F`；队列为空时预备进入 Vim。详见[队列管理](docs/queue-and-follow-up.zh.md)。 |
 | `Right` | 空输入框 | 扩展侧边栏 | 展开 / 折叠右侧扩展组件侧边栏。 |
-| `Escape` | 全局 | 智能 Escape | 关闭浮层 → 退出 Vim → 中断/撤回 Prompt。 |
+| `Escape` | 全局 | 智能 Escape | 关闭浮层 → 中断/撤回 Prompt。 |
 | `!` | 编辑器 | Bash 命令 | 进入单行 Shell 命令快速执行模式。 |
 | `$` | 编辑器 | Skill 补全 | 触发项目、全局与已安装 package Skill 自动补全。 |
 | `@` | 编辑器 | 文件 / Tab 补全 | 补全工作区文件路径和其它 Tab 标题。 |

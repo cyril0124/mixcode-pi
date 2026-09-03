@@ -543,7 +543,7 @@ export function handleEscapeKey(
   }
 
   // 5. Empty editor double-Esc → tree / fork / none
-  // Vim owns Esc for mode exit; do not arm/open session tree while vim is on.
+  // Skip the empty-editor double-Esc tree/fork arm in Vim. Exit is `q`.
   if (
     active &&
     state.activeTabId !== HOME_TAB_ID &&

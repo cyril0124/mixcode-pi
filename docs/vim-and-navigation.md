@@ -15,8 +15,8 @@ Terminal-native coding agents should not force developers to reach for a mouse t
 - **Enter**:
   - Run `/vim`.
   - Press `Ctrl+U` on an empty message queue to arm, then press `u` (or `Ctrl+U` a second time) within 1 second.
-- **Exit**: Press `i`, `a`, or `Escape` to return to normal prompt editing.
-- Double-Esc on an empty idle editor opens the session tree (or fork), not Vim.
+- **Exit**: Press `q`.
+- Double-Esc on an empty idle editor opens the session tree or fork. No-op while Vim is on.
 
 ## Keybindings
 
@@ -29,4 +29,3 @@ Terminal-native coding agents should not force developers to reach for a mouse t
 | `Right` | Vim | Jump forward to the next user message; jumping past the last selects `[NEWEST]`. |
 | `Shift+Right` | Vim | Jump backward to the previous user message. |
 | `q` | Vim | Exit Vim mode. |
-| `i` / `a` / `Escape` | Vim | Exit Vim mode and focus the prompt editor. |

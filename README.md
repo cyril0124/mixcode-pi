@@ -88,7 +88,7 @@ Switch dynamically between docked editor widgets and inline chat-stream widgets 
 </p>
 
 ### 5. Vim navigation
-Treat the conversation transcript as a Vim buffer: scroll line-by-line (`j`/`k`), page with `Ctrl+U` / `Ctrl+D`, and jump between milestone user turns (`Right` / `Shift+Right`). Enter via `/vim` or empty-queue `Ctrl+U` then `u`.
+Treat the conversation transcript as a Vim buffer: scroll line-by-line (`j`/`k`), page with `Ctrl+U` / `Ctrl+D`, and jump between milestone user turns (`Right` / `Shift+Right`). Enter via `/vim` or empty-queue `Ctrl+U` then `u`. Leave with `q`.
 
 <p align="center">
   <img src="assets/readme-vim.gif" alt="Vim mode" width="900">
@@ -130,7 +130,7 @@ Core keys only. Open **Help** or the Command Palette in-app for the full map:
 | `Ctrl+Q` | Global | Quit | Safely persists workspace state and exits. |
 | `Ctrl+U` | Input / Queue | Dequeue / Choose / Vim | Pops the sole non-empty queue; when both contain messages, use `Ctrl+U,S/F`; when empty, arms Vim entry. See [queue management](docs/queue-and-follow-up.md). |
 | `Right` | Empty Input | Side Panel | Toggle right-hand extension widget panel. |
-| `Escape` | Global | Smart Escape | Close overlay → exit Vim → abort/retract prompt. |
+| `Escape` | Global | Smart Escape | Close overlay → abort/retract prompt. |
 | `!` | Editor | Bash Command | Single-line shell execution mode. |
 | `$` | Editor | Skill Autocomplete | Trigger project, global, and installed package skill completion. |
 | `@` | Editor | File / Tab Autocomplete | Complete workspace file paths and peer tab titles. |

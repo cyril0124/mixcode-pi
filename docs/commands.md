@@ -35,7 +35,7 @@ Commands operate across three distinct persistence tiers:
 | `/palette` | - | - | Opens the command palette. Same as `Ctrl+P`. |
 | `/jump` | - | - | Opens the tab jump overlay. Same as `Ctrl+T`. |
 | `/editor` | - | - | Edits the input draft in `$VISUAL` / `$EDITOR`. Same as `Ctrl+G`. |
-| `/vim` | - | Session | Enters buffer-style Vim transcript navigation mode. |
+| `/vim` | - | Session | Enters buffer-style Vim transcript navigation mode (`q` to leave). |
 | `/toggle-zen-mode` | - | Session | Toggles tab bar visibility for distraction-free view. |
 | `/toggle-inline-widgets` | - | Session | Toggles inline widget rendering in the chat scroll area vs above the editor. |
 | `/toggle-hidden-messages` | - | Session | Reveals or hides internal custom extension messages. |
