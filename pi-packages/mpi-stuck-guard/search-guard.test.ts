@@ -70,6 +70,19 @@ test("blocked: find targeting /tmp", () => {
   assert.equal(inspectBashCommand("find /tmp -name '*.log'", CWD), "/tmp");
 });
 
+test("blocked: rg regex alternation in quotes targeting /", () => {
+  // The pipe inside quotes must not be treated as a shell pipe.
+  assert.equal(inspectBashCommand("rg 'foo|bar' /", CWD), "/");
+});
+
+test("blocked: grep -E quoted alternation targeting ~", () => {
+  assert.equal(inspectBashCommand("grep -E 'x|y' ~", CWD), "~");
+});
+
+test("blocked: quoted semicolon in pattern targeting /", () => {
+  assert.equal(inspectBashCommand('rg "a;b" /', CWD), "/");
+});
+
 test("blocked: grep targeting ~ (tilde)", () => {
   assert.equal(inspectBashCommand("grep -r foo ~", CWD), "~");
 });

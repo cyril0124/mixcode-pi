@@ -85,18 +85,66 @@ function stripHeredocs(input: string): string {
 
 /**
  * Split a shell script into individual command segments.
- * Splits on: \n, |, ;, &&, ||
+ * Splits on: \n, |, ;, &&, || — but only outside quotes, so a quoted regex
+ * alternation (`rg 'foo|bar' /`) is not cut into bogus segments.
  * Strips shell comments (# to end of line).
  */
 function splitShellCommands(input: string): string[] {
   const segments: string[] = [];
-  // First strip comments: replace # to end of line (outside quotes)
   const noComments = stripComments(input);
-  // Split on command boundaries: newlines, pipes, semicolons, && and ||
-  for (const seg of noComments.split(/\n|&&|\|\||[|;]/)) {
-    const trimmed = seg.trim();
+  let cur = "";
+  let inSingle = false;
+  let inDouble = false;
+  let esc = false;
+
+  const pushSegment = () => {
+    const trimmed = cur.trim();
     if (trimmed) segments.push(trimmed);
+    cur = "";
+  };
+
+  for (let i = 0; i < noComments.length; i++) {
+    const ch = noComments[i]!;
+    if (esc) {
+      cur += ch;
+      esc = false;
+      continue;
+    }
+    if (ch === "\\" && !inSingle) {
+      esc = true;
+      continue;
+    }
+    if (ch === "'" && !inDouble) {
+      inSingle = !inSingle;
+      cur += ch;
+      continue;
+    }
+    if (ch === '"' && !inSingle) {
+      inDouble = !inDouble;
+      cur += ch;
+      continue;
+    }
+    if (inSingle || inDouble) {
+      cur += ch;
+      continue;
+    }
+    if (ch === "\n") {
+      pushSegment();
+      continue;
+    }
+    if (ch === "&" || ch === "|") {
+      // && and || split once; a doubled operator adds no empty segment.
+      if (noComments[i + 1] === ch) i++;
+      pushSegment();
+      continue;
+    }
+    if (ch === ";") {
+      pushSegment();
+      continue;
+    }
+    cur += ch;
   }
+  pushSegment();
   return segments;
 }
 
