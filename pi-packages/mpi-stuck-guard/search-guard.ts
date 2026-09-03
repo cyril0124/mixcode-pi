@@ -1,6 +1,6 @@
 import * as os from "node:os";
 import * as path from "node:path";
-import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 /**
  * High-cardinality directories that must never be used as search roots.
@@ -378,12 +378,13 @@ function blocked(tool: string, path: string): { block: true; reason: string } {
   return {
     block: true,
     reason:
-      `[search-guard] Blocked: ${tool} on "${path}" is a high-cardinality directory — ` +
-      `recursive search would be too slow. Narrow the path to a specific subdirectory.`,
+      `[search-guard] Blocked: ${tool} on "${path}" is a high-cardinality directory, ` +
+      `so a recursive search would be too slow. Narrow the path to a specific subdirectory.`,
   };
 }
 
-const extension: ExtensionFactory = (pi) => {
+/** Block recursive searches of high-cardinality directories in bash/grep/find tool calls. */
+export function wireSearchGuard(pi: ExtensionAPI): void {
   pi.on("tool_call", (event, ctx) => {
     const { toolName, input } = event as { toolName: string; input: Record<string, unknown> };
     const cwd = ctx.cwd;
@@ -402,6 +403,4 @@ const extension: ExtensionFactory = (pi) => {
       if (isBlacklisted(path, cwd)) return blocked(toolName, path);
     }
   });
-};
-
-export default extension;
+}

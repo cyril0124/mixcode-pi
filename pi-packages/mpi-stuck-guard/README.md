@@ -1,6 +1,10 @@
 # mpi-stuck-guard
 
-`mpi-stuck-guard` protects provider stream liveness. It watches the first provider event and the idle gap between events, aborts stalled requests, and returns a retryable error to the host retry mechanism.
+`mpi-stuck-guard` guards against stuck sessions on two layers: it blocks recursive searches that would never finish, and it watches provider stream liveness, aborts stalled requests, and returns a retryable error to the host retry mechanism.
+
+## Search guard
+
+The search guard intercepts `bash`, `grep`, and `find` tool calls before execution and blocks recursive searches rooted at high-cardinality directories (`/`, `/home`, `/etc`, `/usr`, `/var`, `/tmp`, `/opt`, `/nfs`, `~`, and the home parent). Blocked calls return a reason telling the agent to narrow the path to a specific subdirectory. Bash command inspection handles heredocs, comments, quotes, command splitting (`;`, `&&`, `||`, pipes), `sudo`/`env` prefixes, and redirections; it parses `grep`/`rg`/`find`/`fd`/`ag`/`ack` arguments to locate path positionals.
 
 ## Provider stream watchdog
 

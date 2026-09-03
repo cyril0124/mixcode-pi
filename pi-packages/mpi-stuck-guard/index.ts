@@ -18,6 +18,7 @@ import {
   type ProviderWrapperOptions,
 } from "./provider-wrapper.js";
 import { StuckGuardStats } from "./stats.js";
+import { wireSearchGuard } from "./search-guard.js";
 
 function wrapperOptionsFrom(
   config: StuckGuardConfig,
@@ -120,4 +121,5 @@ export function wireStuckGuard(pi: ExtensionAPI, loadConfig: () => StuckGuardCon
 
 export default function stuckGuardExtension(pi: ExtensionAPI): void {
   wireStuckGuard(pi, () => loadStuckGuardConfig(getAgentDir()));
+  wireSearchGuard(pi);
 }

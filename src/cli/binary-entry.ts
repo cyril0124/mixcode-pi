@@ -65,10 +65,6 @@ import clankolasImagePath from "../../node_modules/@earendil-works/pi-coding-age
 import photonWasmPath from "../../node_modules/@silvia-odwyer/photon-node/photon_rs_bg.wasm" with {
   type: "file",
 };
-import searchGuardIndex from "../../pi-packages/mpi-search-guard/index.ts" with { type: "text" };
-import searchGuardPackageJson from "../../pi-packages/mpi-search-guard/package.json" with {
-  type: "text",
-};
 import imageHoistIndex from "../../pi-packages/mpi-image-hoist/index.ts" with { type: "text" };
 import imageHoistPackageJson from "../../pi-packages/mpi-image-hoist/package.json" with {
   type: "text",
@@ -177,6 +173,9 @@ import skillRefsPackageJson from "../../pi-packages/mpi-skill-refs/package.json"
   type: "text",
 };
 import stuckGuardIndex from "../../pi-packages/mpi-stuck-guard/index.ts" with { type: "text" };
+import stuckGuardSearchGuard from "../../pi-packages/mpi-stuck-guard/search-guard.ts" with {
+  type: "text",
+};
 import stuckGuardProviderWatchdog from "../../pi-packages/mpi-stuck-guard/provider-watchdog.ts" with {
   type: "text",
 };
@@ -551,10 +550,6 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
   photonWasmPath,
   packageJson,
   builtinPackages: {
-    "mpi-search-guard": {
-      "index.ts": searchGuardIndex,
-      "package.json": searchGuardPackageJson,
-    },
     "mpi-image-hoist": {
       "index.ts": imageHoistIndex,
       "package.json": imageHoistPackageJson,
@@ -633,6 +628,7 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
     },
     "mpi-stuck-guard": {
       "index.ts": stuckGuardIndex,
+      "search-guard.ts": stuckGuardSearchGuard,
       "provider-watchdog.ts": stuckGuardProviderWatchdog,
       "provider-wrapper.ts": stuckGuardProviderWrapper,
       "config.ts": stuckGuardConfig,

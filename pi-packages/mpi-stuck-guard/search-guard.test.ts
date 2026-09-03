@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
-import { inspectBashCommand, tokenize } from "./index.js";
+import { inspectBashCommand, tokenize } from "./search-guard.js";
 
 const CWD = "/project/myapp";
 const HOME = os.homedir();

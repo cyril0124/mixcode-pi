@@ -1,6 +1,10 @@
 # mpi-stuck-guard
 
-`mpi-stuck-guard` 保护 Provider 流活性：监控 Provider 的首个事件和事件间空闲时间，中止卡住的请求，并返回可交给宿主 retry 机制的错误。
+`mpi-stuck-guard` 在两个层面防卡死：拦截注定跑不完的递归搜索，以及监控 Provider 流活性，中止卡住的请求，并返回可交给宿主 retry 机制的错误。
+
+## 搜索拦截（search guard）
+
+search guard 在执行前拦截 `bash`、`grep`、`find` 工具调用，阻止以高基数目录（`/`、`/home`、`/etc`、`/usr`、`/var`、`/tmp`、`/opt`、`/nfs`、`~` 及 home 父目录）为根的递归搜索。被拦截的调用返回原因，引导 Agent 把路径缩小到具体子目录。bash 命令解析覆盖 heredoc、注释、引号、命令切分（`;`、`&&`、`||`、管道）、`sudo`/`env` 前缀和重定向；支持 `grep`/`rg`/`find`/`fd`/`ag`/`ack` 的参数定位路径位置参数。
 
 ## Provider 流 watchdog
 
