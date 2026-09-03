@@ -18,8 +18,7 @@ MixCode 随附位于 `pi-packages/mpi-*` 的第一方内置 Pi 包。启动时�
 | `mpi-prompt-history` | `/prompt-history` | 交互式 Prompt 历史记录搜索、过滤及直接插入编辑器。 |
 | `mpi-transcript` | `/transcript [context\|chatlog\|thinking\|latest-agent\|latest-user] [N] [full]` | 在 nvim、vim 或内置查看器中检视会话转录切片；使用 `/transcript config` 配置编辑器，只有对应命令的 `--version` 检查成功时才显示 nvim 和 vim。每个视图顶部都有圆角统计框，显示会话轮数、消息数、持续时间、session 文件路径（未持久化时为 `In-memory`）、工具结果状态、各工具调用次数和 `SKILL.md` 读取次数。`context` 视图顶部给出 chars/4 的体积估算——`系统提示 + 工具 schema + 全部消息`，模型上下文窗口已知时附带占比；该数字始终按完整上下文计算，`N` 只截断展示、不改变估算。nvim 额外提供 User/Assistant 标题 winbar、`]t`/`[t` 跳轮次与 `]u`/`[u` 跳用户消息、以覆盖式 `virt_text` 绘制并隐藏原始 markup 的角色徽章条与全宽分隔线、当前轮次左侧竖线、折叠工具 in/out 输出、淡化 meta/thinking、wrap/linebreak 与 `conceallevel=2`。vim 额外提供 User/Assistant 状态栏、`]t`/`[t` 跳轮次与 `]u`/`[u` 跳用户消息、隐藏 `##`/`###` 前缀的角色着色标题、将 `---` 隐藏为 `─`、折叠工具 in/out 输出、淡化 meta/thinking、wrap/linebreak 与 `conceallevel=2`。配色来自 `MpiTranscript*` 高亮组，以 `default = true` 链接，可被主题覆盖。成功 `read` 的 `SKILL.md` 渲染为技能卡片，含名称、路径、描述，以及剥离 frontmatter 后按 markdown 渲染的正文，正文 20 行截断（`full` 输出全文）。nvim 为技能标题提供单独的徽章条。 |
 | `mpi-diff-viewer` | `/diff [ref]` | 终端内交互式 Diff 查看器，支持 hunk 导航与行级评审注释。 |
-| `mpi-model-skills` | `/model-skills`，`<agentDir>/mpi-model-skills.json` | 按当前模型匹配规则动态挂载或卸载 Skill。 |
-| `mpi-model-extensions` | `/model-extensions`，`<agentDir>/mpi-model-extensions.json` | 按当前模型动态加载 Pi 扩展。 |
+| `mpi-model-attach` | `/model-attach`，`<agentDir>/mpi-model-attach.json` | 按当前模型增删 Skill，并加载额外 Pi 扩展。 |
 | `mpi-length-resume` | 回答被长度截断时自动触发 | 回答因输出长度截断后自动续跑：原生自动压缩完成后、或 run 在接近上下文上限处以 length 结束时，通过隐藏 follow-up 恢复。轮内阈值压缩由 Pi 核心负责。 |
 | `mpi-stuck-guard` | 高基数目录搜索自动拦截；`/stuck-guard`、`/stuck-guard config`、`/stuck-guard stats`、`<agentDir>/mpi-stuck-guard.json` | 防卡死双护栏：拦截对根目录、`~` 等高基数目录的盲目递归搜索，并对 Provider 流做首事件/idle timeout watchdog，支持 retry cooldown、Provider 过滤和当前 session 统计。 |
 | `mpi-tool-block` | `/tool-block`，`<agentDir>/mpi-tool-block.json` 或当前 session 内存 | 弹出 overlay 勾选要隐藏的 tool，从 active 集合拿掉，模型看不见。 |

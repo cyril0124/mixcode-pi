@@ -1,5 +1,5 @@
 // +---------------------------------------------------------------------------+
-// |  model-extensions loader                                                  |
+// |  model-attach loader                                                      |
 // |  Dynamically import extension factories and invoke with host ExtensionAPI.|
 // |                                                                           |
 // |  No jiti dependency: this package is itself loaded by Pi's jiti, so       |
@@ -51,7 +51,7 @@ export function createDynamicExtensionLoader(): DynamicLoader {
         }
         try {
           // Cache-bust so /reload + new loader instance can pick up file edits.
-          const href = `${pathToFileURL(entryPath).href}?mpi-model-ext=${Date.now()}`;
+          const href = `${pathToFileURL(entryPath).href}?mpi-model-attach=${Date.now()}`;
           const mod: unknown = await import(href);
           const factory = extractFactory(mod);
           if (!factory) {

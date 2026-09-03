@@ -365,29 +365,17 @@ import lengthResumeIndex from "../../pi-packages/mpi-length-resume/index.ts" wit
 import lengthResumePackageJson from "../../pi-packages/mpi-length-resume/package.json" with {
   type: "text",
 };
-import modelSkillsIndex from "../../pi-packages/mpi-model-skills/index.ts" with { type: "text" };
-import modelSkillsCore from "../../pi-packages/mpi-model-skills/model-skills-core.ts" with {
+import modelAttachIndex from "../../pi-packages/mpi-model-attach/index.ts" with { type: "text" };
+import modelAttachCore from "../../pi-packages/mpi-model-attach/model-attach-core.ts" with {
   type: "text",
 };
-import modelSkillsPackageJson from "../../pi-packages/mpi-model-skills/package.json" with {
+import modelAttachLoader from "../../pi-packages/mpi-model-attach/model-attach-loader.ts" with {
   type: "text",
 };
-import modelSkillsSchemaJson from "../../pi-packages/mpi-model-skills/mpi-model-skills.schema.json" with {
+import modelAttachPackageJson from "../../pi-packages/mpi-model-attach/package.json" with {
   type: "text",
 };
-import modelExtensionsIndex from "../../pi-packages/mpi-model-extensions/index.ts" with {
-  type: "text",
-};
-import modelExtensionsCore from "../../pi-packages/mpi-model-extensions/model-extensions-core.ts" with {
-  type: "text",
-};
-import modelExtensionsLoader from "../../pi-packages/mpi-model-extensions/model-extensions-loader.ts" with {
-  type: "text",
-};
-import modelExtensionsPackageJson from "../../pi-packages/mpi-model-extensions/package.json" with {
-  type: "text",
-};
-import modelExtensionsSchemaJson from "../../pi-packages/mpi-model-extensions/mpi-model-extensions.schema.json" with {
+import modelAttachSchemaJson from "../../pi-packages/mpi-model-attach/mpi-model-attach.schema.json" with {
   type: "text",
 };
 import permissionIndex from "../../pi-packages/mpi-permission/index.ts" with { type: "text" };
@@ -718,18 +706,12 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
       "index.ts": lengthResumeIndex,
       "package.json": lengthResumePackageJson,
     },
-    "mpi-model-skills": {
-      "index.ts": modelSkillsIndex,
-      "model-skills-core.ts": modelSkillsCore,
-      "package.json": modelSkillsPackageJson,
-      "mpi-model-skills.schema.json": modelSkillsSchemaJson,
-    },
-    "mpi-model-extensions": {
-      "index.ts": modelExtensionsIndex,
-      "model-extensions-core.ts": modelExtensionsCore,
-      "model-extensions-loader.ts": modelExtensionsLoader,
-      "package.json": modelExtensionsPackageJson,
-      "mpi-model-extensions.schema.json": modelExtensionsSchemaJson,
+    "mpi-model-attach": {
+      "index.ts": modelAttachIndex,
+      "model-attach-core.ts": modelAttachCore,
+      "model-attach-loader.ts": modelAttachLoader,
+      "package.json": modelAttachPackageJson,
+      "mpi-model-attach.schema.json": modelAttachSchemaJson,
     },
     "mpi-tool-block": {
       "index.ts": toolBlockIndex,

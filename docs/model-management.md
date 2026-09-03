@@ -10,8 +10,7 @@ MixCode Pi provides model discovery, selection, thinking tier adjustments, provi
 ~/.pi/agent/models.json            Model definitions & custom endpoint configurations
 ~/.pi/agent/auth.json              API keys & provider credentials
 ~/.pi/agent/mixcode-pi/mixcode_settings.json   disabledProviders & disabledModels
-~/.pi/agent/mpi-model-skills.json      Per-model dynamic skill attachments (mpi-model-skills)
-~/.pi/agent/mpi-model-extensions.json  Per-model dynamic extension attachments (mpi-model-extensions)
+~/.pi/agent/mpi-model-attach.json      Per-model skill and extension rules (mpi-model-attach)
 ```
 
 ## Model Selection & Thinking
@@ -52,33 +51,26 @@ The surviving catalogue is also the session's model scope: extensions read it as
 
 ## Per-Model Dynamic Rules
 
-### 1. Dynamic Skills (`mpi-model-skills`)
-
-Configured via `~/.pi/agent/mpi-model-skills.json`:
+Config file: `~/.pi/agent/mpi-model-attach.json`. Schema and commands: [pi-packages/mpi-model-attach/README.md](../pi-packages/mpi-model-attach/README.md).
 
 ```jsonc
 {
-  "rules": [
-    {
-      "match": { "model": "anthropic/*" },
-      "add": ["tdd", "generic-writing"],
-      "remove": ["caveman"]
-    }
-  ]
-}
-```
-
-### 2. Dynamic Extensions (`mpi-model-extensions`)
-
-Configured via `~/.pi/agent/mpi-model-extensions.json`:
-
-```jsonc
-{
-  "rules": [
-    {
-      "match": { "provider": "deepseek" },
-      "add": ["npm:pi-web-access"]
-    }
-  ]
+  "skills": {
+    "rules": [
+      {
+        "match": { "model": "anthropic/*" },
+        "add": ["tdd", "generic-writing"],
+        "remove": ["caveman"]
+      }
+    ]
+  },
+  "extensions": {
+    "rules": [
+      {
+        "match": { "model": "deepseek/*" },
+        "add": ["$HOME/.pi/agent/model-exts/vision-helper"]
+      }
+    ]
+  }
 }
 ```

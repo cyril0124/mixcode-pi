@@ -1,8 +1,8 @@
 {
-  "name": "mpi-model-skills",
+  "name": "mpi-model-attach",
   "version": "0.1.0",
   "type": "module",
-  "description": "Per-model skill add/remove via system prompt rebuild",
+  "description": "Per-model skill add/remove and extension load",
   "pi": {
     "extensions": [
       "./index.ts"

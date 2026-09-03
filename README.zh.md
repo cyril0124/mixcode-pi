@@ -68,7 +68,7 @@ Tab 之间可以直接对话——同一 TUI，或其他 `mpi` 进程——无�
 - **`mpi-prompt-history`**：Prompt 历史召回与交互式浏览面板（`/prompt-history`）。
 - **`mpi-tool-block`**：动态对模型屏蔽指定工具（`/tool-block`）。
 - **`mpi-tool-display`**：终端紧凑型工具调用与 Thinking 消息渲染优化。
-- **`mpi-model-skills` / `mpi-model-extensions`**：按模型动态切换 Skill 与扩展。
+- **`mpi-model-attach`**：按当前模型增删 Skill，并加载额外扩展（`/model-attach`）。
 - **`mpi-skill-refs`**：`$` 触发 Skill 自动补全与内嵌展开。
 - **`mpi-stuck-guard`**：防卡死双护栏：拦截对高基数目录的递归搜索，外加 Provider 流 watchdog（`/stuck-guard config`、`/stuck-guard stats`、retry cooldown、Provider 过滤）。
 - **`mpi-length-resume`**：回答因输出长度截断时自动续跑（原生压缩后与 run 结束时两类恢复）。

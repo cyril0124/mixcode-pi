@@ -68,7 +68,7 @@ Install community extensions directly through Pi package declarations (`settings
 - **`mpi-prompt-history`**: Prompt recall log and interactive browser (`/prompt-history`).
 - **`mpi-tool-block`**: Selectively hide tools from model context (`/tool-block`).
 - **`mpi-tool-display`**: Compact terminal transcript presentation for tools and thinking.
-- **`mpi-model-skills` / `mpi-model-extensions`**: Per-model skill and extension dynamic switching.
+- **`mpi-model-attach`**: Add or remove skills and load extra extensions for the current model (`/model-attach`).
 - **`mpi-skill-refs`**: `$skill` autocomplete and prompt expansion.
 - **`mpi-stuck-guard`**: Guard against stuck sessions: blocks recursive searches of high-cardinality directories, plus a provider stream watchdog with `/stuck-guard config`, `/stuck-guard stats`, retry cooldowns, and Provider filtering.
 - **`mpi-length-resume`**: Auto-continue after length-truncated answers (post-compact and settled-run resume).

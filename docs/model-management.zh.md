@@ -10,8 +10,7 @@ MixCode Pi 提供模型发现、选择、思考深度调整、全局模型禁用
 ~/.pi/agent/models.json            模型定义与自定义 API 端点
 ~/.pi/agent/auth.json              API 密钥与凭证
 ~/.pi/agent/mixcode-pi/mixcode_settings.json   disabledProviders 与 disabledModels
-~/.pi/agent/mpi-model-skills.json      基于模型的动态 Skill 挂载规则 (mpi-model-skills)
-~/.pi/agent/mpi-model-extensions.json  基于模型的动态 Extension 挂载规则 (mpi-model-extensions)
+~/.pi/agent/mpi-model-attach.json      基于模型的 Skill 与 Extension 规则 (mpi-model-attach)
 ```
 
 ## 模型选择与思考深度
@@ -52,33 +51,26 @@ deepseek  deepseek-v4-pro    1M       off,high,max                 (disabled)
 
 ## 基于模型的动态规则
 
-### 1. 动态 Skill 挂载 (`mpi-model-skills`)
-
-配置文件 `~/.pi/agent/mpi-model-skills.json`：
+配置文件：`~/.pi/agent/mpi-model-attach.json`。字段与命令见 [pi-packages/mpi-model-attach/README.zh.md](../pi-packages/mpi-model-attach/README.zh.md)。
 
 ```jsonc
 {
-  "rules": [
-    {
-      "match": { "model": "anthropic/*" },
-      "add": ["tdd", "generic-writing"],
-      "remove": ["caveman"]
-    }
-  ]
-}
-```
-
-### 2. 动态 Extension 加载 (`mpi-model-extensions`)
-
-配置文件 `~/.pi/agent/mpi-model-extensions.json`：
-
-```jsonc
-{
-  "rules": [
-    {
-      "match": { "provider": "deepseek" },
-      "add": ["npm:pi-web-access"]
-    }
-  ]
+  "skills": {
+    "rules": [
+      {
+        "match": { "model": "anthropic/*" },
+        "add": ["tdd", "generic-writing"],
+        "remove": ["caveman"]
+      }
+    ]
+  },
+  "extensions": {
+    "rules": [
+      {
+        "match": { "model": "deepseek/*" },
+        "add": ["$HOME/.pi/agent/model-exts/vision-helper"]
+      }
+    ]
+  }
 }
 ```

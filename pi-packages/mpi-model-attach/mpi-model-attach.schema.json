@@ -1,0 +1,83 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Model attach config (mpi-model-attach)",
+  "description": "Add or remove skills, and load extra extensions, from rules matched against the current model. Skills rewrite the system prompt. Extensions load on session_start and when the model changes; already-loaded factories stay loaded.",
+  "type": "object",
+  "properties": {
+    "$schema": { "type": "string" },
+    "skills": {
+      "description": "Per-model skill add/remove. Omitted: no skill rewrite.",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "description": "false stops applying skill rules. Default true.",
+          "type": "boolean"
+        },
+        "rules": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/rule" }
+        }
+      },
+      "required": ["rules"],
+      "additionalProperties": false
+    },
+    "extensions": {
+      "description": "Per-model extension load. Omitted: no dynamic loads.",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "description": "false stops applying extension rules. Default true.",
+          "type": "boolean"
+        },
+        "rules": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/rule" }
+        }
+      },
+      "required": ["rules"],
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "rule": {
+      "type": "object",
+      "properties": {
+        "match": {
+          "description": "All present conditions must hold for the rule to apply.",
+          "type": "object",
+          "properties": {
+            "model": {
+              "description": "Glob against `provider/modelId`, e.g. `deepseek/*`.",
+              "type": "string",
+              "minLength": 1
+            },
+            "missingInput": {
+              "description": "Every listed modality must be absent from the model's inputs.",
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "hasInput": {
+              "description": "Every listed modality must be present on the model's inputs.",
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          },
+          "additionalProperties": false
+        },
+        "add": {
+          "description": "Skills: names from the discovered pool or absolute SKILL.md paths. Extensions: entry paths or friendly names under <agentDir>/extensions/<name>. $ENV vars expand; relative paths are rejected.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "remove": {
+          "description": "Skills: skill names to detach. Extensions: friendly names (path basename / package dir) whose adds are dropped from this package's load plan.",
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["match"],
+      "additionalProperties": false
+    }
+  }
+}
