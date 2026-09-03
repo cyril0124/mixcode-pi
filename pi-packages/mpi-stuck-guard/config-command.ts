@@ -95,6 +95,16 @@ async function openStatsOverlay(
 export function registerStuckGuardCommand(pi: ExtensionAPI, stats: StuckGuardStats): void {
   pi.registerCommand("stuck-guard", {
     description: "Open stuck-guard configuration or stats",
+    ...({ argumentHint: "[config|stats]" } as Record<string, unknown>),
+    getArgumentCompletions: (prefix: string) => {
+      if (prefix.trim() === "") {
+        return [
+          { label: "config", description: "Open the configuration overlay", value: "config" },
+          { label: "stats", description: "Open the watchdog statistics overlay", value: "stats" },
+        ];
+      }
+      return null;
+    },
     handler: async (args, ctx) => {
       const subcommand = args.trim();
       if (subcommand !== "" && subcommand !== "config" && subcommand !== "stats") {
