@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mpi-stuck-guard.schema.json",
+  "title": "mpi-stuck-guard configuration",
+  "description": "Configuration for provider stream watchdog. Lives at <agentDir>/mpi-stuck-guard.json; missing keys use defaults.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Optional editor schema reference."
+    },
+    "streamWatchdogEnabled": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enables or disables provider stream start/idle timeouts."
+    },
+    "providerIds": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "default": [],
+      "description": "Provider IDs to watch; an empty array watches every configured provider."
+    },
+    "streamStartTimeoutSeconds": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 300,
+      "description": "Maximum seconds before the first provider stream event; 0 disables this timeout."
+    },
+    "streamIdleTimeoutSeconds": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 300,
+      "description": "Maximum seconds between provider stream events; 0 disables this timeout."
+    },
+    "streamRetryStartTimeoutSeconds": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 300,
+      "description": "Maximum seconds before the first event after a known timeout in this session; 0 disables the retry start window. Default matches streamStartTimeoutSeconds."
+    },
+    "knownTimeoutCooldownSeconds": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 60,
+      "description": "How long this session keeps the retry start window after a watchdog timeout; 0 keeps it for the session lifetime. Not shared across tabs."
+    }
+  }
+}

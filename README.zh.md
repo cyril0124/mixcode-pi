@@ -71,6 +71,7 @@ Tab 之间可以直接对话——同一 TUI，或其他 `mpi` 进程——无�
 - **`mpi-model-skills` / `mpi-model-extensions`**：按模型动态切换 Skill 与扩展。
 - **`mpi-skill-refs`**：`$` 触发 Skill 自动补全与内嵌展开。
 - **`mpi-search-guard`**：高危/大范围目录搜索防护，避免无边界递归检索。
+- **`mpi-stuck-guard`**：Provider 流 watchdog，提供 `/stuck-guard config`、`/stuck-guard stats`、retry cooldown 和 Provider 过滤。
 - **`mpi-length-resume`**：回答因输出长度截断时自动续跑（原生压缩后与 run 结束时两类恢复）。
 - **`mpi-herdr-report`**：向 Herdr 窗格上报 Agent 运行与就绪状态（`HERDR_ENV=1`）。
 - **`mpi-image-hoist`**：自动提升输入中的图片路径为原生多模态消息。

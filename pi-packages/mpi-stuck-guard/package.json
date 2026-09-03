@@ -1,0 +1,11 @@
+{
+  "name": "mpi-stuck-guard",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Watch provider streams for first-event and idle timeouts, abort stalled requests, and hand retryable errors to the host",
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

@@ -176,6 +176,33 @@ import skillRefsCore from "../../pi-packages/mpi-skill-refs/skill-core.ts" with 
 import skillRefsPackageJson from "../../pi-packages/mpi-skill-refs/package.json" with {
   type: "text",
 };
+import stuckGuardIndex from "../../pi-packages/mpi-stuck-guard/index.ts" with { type: "text" };
+import stuckGuardProviderWatchdog from "../../pi-packages/mpi-stuck-guard/provider-watchdog.ts" with {
+  type: "text",
+};
+import stuckGuardProviderWrapper from "../../pi-packages/mpi-stuck-guard/provider-wrapper.ts" with {
+  type: "text",
+};
+import stuckGuardConfig from "../../pi-packages/mpi-stuck-guard/config.ts" with { type: "text" };
+import stuckGuardConfigCommand from "../../pi-packages/mpi-stuck-guard/config-command.ts" with {
+  type: "text",
+};
+import stuckGuardConfigOverlay from "../../pi-packages/mpi-stuck-guard/config-overlay.ts" with {
+  type: "text",
+};
+import stuckGuardProviderPicker from "../../pi-packages/mpi-stuck-guard/provider-picker.ts" with {
+  type: "text",
+};
+import stuckGuardStats from "../../pi-packages/mpi-stuck-guard/stats.ts" with { type: "text" };
+import stuckGuardStatsOverlay from "../../pi-packages/mpi-stuck-guard/stats-overlay.ts" with {
+  type: "text",
+};
+import stuckGuardSchemaJson from "../../pi-packages/mpi-stuck-guard/mpi-stuck-guard.schema.json" with {
+  type: "text",
+};
+import stuckGuardPackageJson from "../../pi-packages/mpi-stuck-guard/package.json" with {
+  type: "text",
+};
 import mpiCtlIndex from "../../pi-packages/mpi-ctl/index.ts" with { type: "text" };
 import mpiCtlPackageJson from "../../pi-packages/mpi-ctl/package.json" with { type: "text" };
 import mpiCtlSkillMd from "../../pi-packages/mpi-ctl/skills/mpi-ctl/SKILL.md" with { type: "text" };
@@ -603,6 +630,19 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
       "index.ts": skillRefsIndex,
       "skill-core.ts": skillRefsCore,
       "package.json": skillRefsPackageJson,
+    },
+    "mpi-stuck-guard": {
+      "index.ts": stuckGuardIndex,
+      "provider-watchdog.ts": stuckGuardProviderWatchdog,
+      "provider-wrapper.ts": stuckGuardProviderWrapper,
+      "config.ts": stuckGuardConfig,
+      "config-command.ts": stuckGuardConfigCommand,
+      "config-overlay.ts": stuckGuardConfigOverlay,
+      "provider-picker.ts": stuckGuardProviderPicker,
+      "stats.ts": stuckGuardStats,
+      "stats-overlay.ts": stuckGuardStatsOverlay,
+      "mpi-stuck-guard.schema.json": stuckGuardSchemaJson,
+      "package.json": stuckGuardPackageJson,
     },
     "mpi-ctl": {
       "index.ts": mpiCtlIndex,
