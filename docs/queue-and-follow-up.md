@@ -22,7 +22,7 @@ User Submits Message While Agent Is Running
    │                                 ├─ Injected into current model context on next tool completion
    │                                 └─ `Esc` → Flushes / sends immediately
    │
-   └─ `/follow-up <text>` ──────> Follow-up Queue (Post-turn dispatch)
+   └─ `/follow-up <text>` / Alt+Enter ──> Follow-up Queue (Post-turn dispatch)
                                      │
                                      └─ Survives `Esc` / abort; dispatched as fresh prompt when idle
 ```
@@ -31,7 +31,7 @@ User Submits Message While Agent Is Running
 
 | Feature | Steer Queue | Follow-up Queue |
 |---|---|---|
-| Command / Trigger | Regular Prompt (while running) | `/follow-up <text>` |
+| Command / Trigger | Regular Prompt (while running) | `/follow-up <text>` or `Alt+Enter` |
 | Ingestion Point | Mid-turn context injection | Fresh user prompt turn after `waitForIdle` |
 | Interruption Behavior (`Esc`) | Flushes to start turn immediately | Preserved across turns and aborts |
 | Dequeue Key | `Ctrl+U` when Follow-up is empty; `Ctrl+U,S` when both queues contain messages | `Ctrl+U` when Steer is empty; `Ctrl+U,F` when both queues contain messages |

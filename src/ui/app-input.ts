@@ -689,6 +689,49 @@ function handleEditorControlKeys(
     tui.requestRender();
     return { consume: true };
   }
+  // Follow-up chord. Consume before the editor inserts a newline.
+  if (
+    MIXCODE_EXTENSION_KEYBINDINGS_MANAGER.matches(data, "app.message.followUp") &&
+    editorActions &&
+    active &&
+    state.activeTabId !== HOME_TAB_ID &&
+    !isPendingEditorTakeover(active, editorActions) &&
+    !isEditorAutocompleteOpen() &&
+    !hasAnyOverlay(tui)
+  ) {
+    clearPendingEscape(active);
+    const text = (editorActions.getExpandedText?.() ?? editorActions.getText()).trim();
+    if (!text) {
+      tui.requestRender();
+      return { consume: true };
+    }
+    const runtimeTab = runtime?.getTab(active.sessionId);
+    const busy =
+      runtimeTab?.agentSession?.isStreaming === true ||
+      runtimeTab?.agentSession?.isCompacting === true ||
+      runtimeTab?.compactionInFlight === true;
+    if (busy) {
+      if (!runtime) throw new Error("Queueing follow-up requires runtime prompt support");
+      editorActions.addToHistory?.(text, active.sessionId);
+      editorActions.setText("");
+      void runtime
+        .prompt(active.sessionId, text, { streamingBehavior: "followUp" })
+        .then(() => {
+          tui.requestRender();
+        })
+        .catch((error: unknown) => {
+          editorActions.setText(text);
+          showErrorOverlay(tui, error);
+          tui.requestRender();
+        });
+      tui.requestRender();
+      return { consume: true };
+    }
+    if (!editorActions.submitCurrentText) return { consume: true };
+    editorActions.submitCurrentText();
+    tui.requestRender();
+    return { consume: true };
+  }
   // Temporary takeovers own newline keys (wrapper often no-ops setText).
   // Permanent skins still get MixCode newline insertion.
   if (

@@ -59,6 +59,12 @@ export const MIXCODE_KEYMAP: KeyAction[] = [
     scope: "global",
   },
   {
+    key: "alt+enter",
+    action: "follow-up",
+    description: "Queue follow-up while the agent is running. Submit when idle",
+    scope: "global",
+  },
+  {
     key: "up/down",
     action: "prompt-history",
     description: "Browse prompt history when input is empty",

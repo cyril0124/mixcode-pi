@@ -8,6 +8,7 @@ import {
   renderInputMeta,
 } from "./helpers/mixcode.js";
 import { testRuntime } from "./helpers/runtime-stub.js";
+import { testRuntimeTab } from "./helpers/runtime-tab.js";
 
 function createDualQueueKeyFixture() {
   const state = createInitialState("/repo");
@@ -1060,4 +1061,136 @@ test("vim mode allows ctrl-t tab jump and transfers vim mode to selected tab", (
   assert.equal(beta.vimPendingHome, false);
   assert.equal(state.tabJumpOpen, false);
   assert.equal(overlayOpen, false);
+});
+
+const ALT_ENTER = "\x1b\r";
+
+test("Alt+Enter queues follow-up while the agent is streaming", async () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo", { status: "running" });
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  let text = "do this next";
+  const prompted: Array<{ text: string; options?: { streamingBehavior?: string } }> = [];
+  const history: string[] = [];
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({}) as never,
+    hideOverlay: () => undefined,
+    hasOverlay: () => false,
+  };
+  const runtime = testRuntime({
+    getTab: () => testRuntimeTab({ agentSession: { isStreaming: true } }),
+    prompt: async (_sessionId, message, options) => {
+      prompted.push({ text: message, options });
+    },
+  });
+
+  assert.deepEqual(
+    handleMixCodeKeyInput(state, ALT_ENTER, tui, undefined, runtime, undefined, () => false, {
+      getText: () => text,
+      setText: (next: string) => {
+        text = next;
+      },
+      addToHistory: (message: string) => {
+        history.push(message);
+      },
+      submitCurrentText: () => {
+        throw new Error("Alt+Enter must not submit as steer");
+      },
+      insertTextAtCursor: () => {
+        throw new Error("Alt+Enter must not insert a newline");
+      },
+    }),
+    { consume: true },
+  );
+  await Promise.resolve();
+  assert.deepEqual(prompted, [
+    { text: "do this next", options: { streamingBehavior: "followUp" } },
+  ]);
+  assert.equal(text, "");
+  assert.deepEqual(history, ["do this next"]);
+});
+
+test("Alt+Enter submits like Enter when the agent is idle", () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"));
+  state.activeTabId = "s1";
+  let text = "hello idle";
+  let submitted = 0;
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({}) as never,
+    hideOverlay: () => undefined,
+    hasOverlay: () => false,
+  };
+  const runtime = testRuntime({
+    getTab: () => testRuntimeTab({ agentSession: { isStreaming: false, isCompacting: false } }),
+    prompt: async () => {
+      throw new Error("idle Alt+Enter must use submitCurrentText, not prompt");
+    },
+  });
+
+  assert.deepEqual(
+    handleMixCodeKeyInput(state, ALT_ENTER, tui, undefined, runtime, undefined, () => false, {
+      getText: () => text,
+      setText: (next: string) => {
+        text = next;
+      },
+      submitCurrentText: () => {
+        submitted += 1;
+        text = "";
+      },
+      insertTextAtCursor: () => {
+        throw new Error("Alt+Enter must not insert a newline");
+      },
+    }),
+    { consume: true },
+  );
+  assert.equal(submitted, 1);
+  assert.equal(text, "");
+});
+
+test("Alt+Enter on empty input does not insert a newline", () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"));
+  state.activeTabId = "s1";
+  let text = "";
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({}) as never,
+    hideOverlay: () => undefined,
+    hasOverlay: () => false,
+  };
+
+  assert.deepEqual(
+    handleMixCodeKeyInput(
+      state,
+      ALT_ENTER,
+      tui,
+      undefined,
+      testRuntime({
+        getTab: () => testRuntimeTab({ agentSession: { isStreaming: true } }),
+        prompt: async () => {
+          throw new Error("empty Alt+Enter must not prompt");
+        },
+      }),
+      undefined,
+      () => false,
+      {
+        getText: () => text,
+        setText: (next: string) => {
+          text = next;
+        },
+        submitCurrentText: () => {
+          throw new Error("empty Alt+Enter must not submit");
+        },
+        insertTextAtCursor: () => {
+          throw new Error("empty Alt+Enter must not insert a newline");
+        },
+      },
+    ),
+    { consume: true },
+  );
+  assert.equal(text, "");
 });

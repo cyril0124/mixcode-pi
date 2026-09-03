@@ -18,6 +18,7 @@ MixCode Pi provides comprehensive global and context-sensitive keyboard shortcut
 | `Ctrl+Q` | Global | Quit | Safely persists workspace state and exits. |
 | `Ctrl+C` | Global | Clear Input | Clears the editor. Does not abort a running turn (`Esc` does). |
 | `Ctrl+U` | Input / Queue | Dequeue / Choose / Vim | Pops the sole non-empty queue; with both queues non-empty, arms an explicit choice; with both empty, arms Vim entry. |
+| `Alt+Enter` | Input | Follow-up | Queue the editor draft as follow-up when the agent is running. Submit when idle. |
 | `Ctrl+U,S` / `Ctrl+U,F` | Queue choice | Edit Steer / Follow-up | Pops the selected queue after dual-queue `Ctrl+U`. See [queue management](queue-and-follow-up.md). |
 | `Right` | Empty Input | Side Panel | Expands / collapses right-hand extension widget panel. |
 | `$` | Editor | Skill Completion | Triggers project, global, and installed package skill autocompletion. |

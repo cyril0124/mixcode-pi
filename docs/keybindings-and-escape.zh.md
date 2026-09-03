@@ -18,6 +18,7 @@ MixCode Pi 提供完整的全局与局部快捷键映射系统（`src/core/keyma
 | `Ctrl+Q` | 全局 | 退出 | 安全保存工作区状态并退出程序。 |
 | `Ctrl+C` | 全局 | 清空输入 | 清空编辑器。不会中断正在跑的轮次（中断用 `Esc`）。 |
 | `Ctrl+U` | 输入框/队列 | 出队 / 选择 / Vim | 只有一个非空队列时直接弹出；两个队列都非空时预备显式选择；都为空时预备进入 Vim。 |
+| `Alt+Enter` | 输入框 | Follow-up | Agent 忙碌时把草稿排进 Follow-up。空闲时提交。 |
 | `Ctrl+U,S` / `Ctrl+U,F` | 队列选择 | 编辑 Steer / Follow-up | 双队列 `Ctrl+U` 后弹出所选队列。详见[队列管理](queue-and-follow-up.zh.md)。 |
 | `Right` | 空输入框 | 侧边栏挂件 | 展开 / 折叠右侧扩展挂件面板。 |
 | `$` | 编辑器 | Skill 补全 | 触发项目、全局与已安装 package Skill 自动补全。 |

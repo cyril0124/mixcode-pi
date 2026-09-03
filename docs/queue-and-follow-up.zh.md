@@ -22,7 +22,7 @@ MixCode 通过双队列将二者的处理时机、中断表现与生命周期完
    │                                 ├─ 在下一个工具调用完成时注入当前模型上下文
    │                                 └─ 按 `Esc` → 立即刷新为新 Prompt 发送
    │
-   └─ `/follow-up <text>` ─────> 后续队列 (Follow-up Queue - 轮次后排队)
+   └─ `/follow-up <text>` / Alt+Enter ──> 后续队列 (Follow-up Queue - 轮次后排队)
                                      │
                                      └─ 在 `Esc` / 中断中存活；待 Agent 空闲后自动作为新轮次发送
 ```
@@ -31,7 +31,7 @@ MixCode 通过双队列将二者的处理时机、中断表现与生命周期完
 
 | 特性 | 转向队列 (Steer) | 后续队列 (Follow-up) |
 |---|---|---|
-| 触发方式 | Agent 运行中提交普通 Prompt | 执行 `/follow-up <text>` |
+| 触发方式 | Agent 运行中提交普通 Prompt | `/follow-up <text>` 或 `Alt+Enter` |
 | 消费时机 | 当前轮次中作为 Steering Message 注入 | 当前轮次结束且 Agent 空闲后触发新轮次 |
 | 中断表现 (`Esc`) | 刷新为新轮次立即发送 | 在中断与轮次交替中完整保留 |
 | 弹出编辑 | Follow-up 为空时按 `Ctrl+U`；两个队列都有消息时按 `Ctrl+U,S` | Steer 为空时按 `Ctrl+U`；两个队列都有消息时按 `Ctrl+U,F` |
