@@ -105,6 +105,7 @@ export function formatModelAttachHelp(configPath: string): string {
     "## Config",
     "",
     `- File (global): \`${configPath}\``,
+    "- Line (`//`) and block comments are allowed.",
     "- Reload: session start or `/reload`. The agent path does not re-read this file every prompt.",
     "- Extension loads: `session_start` (current model) and `model_select` (newly matched paths only)",
     "- `enabled`: per section, `true` (default) / `false`. Toggle with `/model-attach skills|extensions on|off`.",
@@ -458,14 +459,60 @@ export function setSectionEnabled(
   }
 }
 
-/** Read config from disk. Missing file is ok (no rules). */
+/**
+ * Remove line comments (`//`) and block comments so the config file can carry
+ * notes. String literals and escapes are preserved. Anything beyond comments
+ * (trailing commas, unquoted keys) is still invalid JSON.
+ */
+export function stripJsonComments(text: string): string {
+  let out = "";
+  let i = 0;
+  const n = text.length;
+  while (i < n) {
+    const ch = text[i]!;
+    if (ch === '"') {
+      // Copy the entire string literal, honoring escapes.
+      out += ch;
+      i++;
+      while (i < n) {
+        const c = text[i]!;
+        out += c;
+        if (c === "\\") {
+          const next = text[i + 1];
+          if (next !== undefined) {
+            out += next;
+            i++;
+          }
+        } else if (c === '"') break;
+        i++;
+      }
+      i++;
+      continue;
+    }
+    if (ch === "/" && text[i + 1] === "/") {
+      while (i < n && text[i] !== "\n") i++;
+      continue;
+    }
+    if (ch === "/" && text[i + 1] === "*") {
+      i += 2;
+      while (i < n && !(text[i] === "*" && text[i + 1] === "/")) i++;
+      i += 2; // past */ (or past EOF when unterminated)
+      continue;
+    }
+    out += ch;
+    i++;
+  }
+  return out;
+}
+
+/** Read config from disk. Missing file is ok (no rules). Line and block comments are allowed. */
 export function loadModelAttachConfig(agentDir: string): ConfigLoadResult {
   const filePath = modelAttachConfigPath(agentDir);
   try {
     const text = fs.readFileSync(filePath, "utf8");
     let raw: unknown;
     try {
-      raw = JSON.parse(text);
+      raw = JSON.parse(stripJsonComments(text));
     } catch (err) {
       return {
         ok: false,

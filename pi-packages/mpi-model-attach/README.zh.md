@@ -6,7 +6,7 @@
 
 ## 配置
 
-文件：`~/.pi/agent/mpi-model-attach.json`（或 `$PI_CODING_AGENT_DIR`）。
+文件：`~/.pi/agent/mpi-model-attach.json`（或 `$PI_CODING_AGENT_DIR`）。文件里可以写 `//` 行注释和块注释。
 
 包内 `mpi-model-attach.schema.json` 安装在 `<agentDir>/extensions/mpi-model-attach/`。在配置里用 `$schema` 指向它，编辑器可以补全。加载器接受该键，写回时保留。
 
@@ -78,6 +78,7 @@
 - 斜杠补全提示：`[help|skills on|off|extensions on|off]`
 - 配置在 session 启动和 `/reload` 时重载，不是每条 prompt
 - 扩展加载发生在 `session_start`（当前模型），以及 `model_select`（只加新命中的路径）
+- `on` / `off` 重写配置时，文件里的注释会被丢弃
 
 ## 放置
 

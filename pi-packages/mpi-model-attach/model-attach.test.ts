@@ -28,6 +28,7 @@ import {
   resolveExtensionRef,
   ruleMatches,
   setSectionEnabled,
+  stripJsonComments,
   type ModelLike,
 } from "./model-attach-core.js";
 import { createDynamicExtensionLoader } from "./model-attach-loader.js";
@@ -542,6 +543,72 @@ describe("createDynamicExtensionLoader", () => {
     const results = await loader.loadPaths(["/no/such/ext/index.ts"], pi);
     assert.equal(results.length, 1);
     assert.equal(results[0]!.ok, false);
+  });
+});
+
+describe("stripJsonComments / comments in config", () => {
+  test("strips line and block comments, keeps strings intact", () => {
+    const text = [
+      "{",
+      "  // line comment",
+      "  /* block comment */",
+      '  "skills": { /* inline */ "rules": [] },',
+      '  "url": "https://example.com", // not a comment',
+      '  "esc": "a\\"b // still string"',
+      "}",
+    ].join("\n");
+    const stripped = stripJsonComments(text);
+    const parsed = JSON.parse(stripped) as { url: string; esc: string };
+    assert.equal(parsed.url, "https://example.com");
+    assert.equal(parsed.esc, 'a"b // still string');
+    assert.ok(!stripped.includes("line comment"));
+    assert.ok(!stripped.includes("block comment"));
+    assert.ok(!stripped.includes("inline"));
+  });
+
+  test("unterminated block comment strips to EOF", () => {
+    const stripped = stripJsonComments('{"a":1} /* never closed');
+    assert.deepEqual(JSON.parse(stripped), { a: 1 });
+  });
+
+  test("loadModelAttachConfig reads a config with comments", () => {
+    const dir = tmpDir();
+    fs.writeFileSync(
+      path.join(dir, "mpi-model-attach.json"),
+      [
+        "{",
+        "  // vision polyfill for text-only models",
+        '  "skills": {',
+        '    "rules": [',
+        '      { "match": { "missingInput": ["image"] }, "add": ["vision-proxy"] }',
+        "    ]",
+        "  }",
+        "}",
+      ].join("\n"),
+      "utf8",
+    );
+    const loaded = loadModelAttachConfig(dir);
+    assert.equal(loaded.ok, true);
+    if (loaded.ok && loaded.config) {
+      assert.equal(loaded.config.skills?.rules.length, 1);
+      assert.equal(loaded.config.skills?.rules[0]?.add?.[0], "vision-proxy");
+    }
+  });
+
+  test("setSectionEnabled rewrite drops comments", () => {
+    const dir = tmpDir();
+    fs.writeFileSync(
+      path.join(dir, "mpi-model-attach.json"),
+      '{\n  // note\n  "skills": { "rules": [] }\n}\n',
+      "utf8",
+    );
+    const result = setSectionEnabled(dir, "skills", false);
+    assert.equal(result.ok, true);
+    const raw = fs.readFileSync(path.join(dir, "mpi-model-attach.json"), "utf8");
+    assert.ok(!raw.includes("// note"));
+    const parsed = JSON.parse(raw) as { skills: { enabled: boolean; rules: unknown[] } };
+    assert.equal(parsed.skills.enabled, false);
+    assert.equal(parsed.skills.rules.length, 0);
   });
 });
 

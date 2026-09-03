@@ -6,7 +6,7 @@ Adds or removes skills for the current model by rewriting the system prompt `<av
 
 ## Config
 
-File: `~/.pi/agent/mpi-model-attach.json` (or `$PI_CODING_AGENT_DIR`).
+File: `~/.pi/agent/mpi-model-attach.json` (or `$PI_CODING_AGENT_DIR`). Line comments (`//`) and block comments are allowed.
 
 The package ships `mpi-model-attach.schema.json` at `<agentDir>/extensions/mpi-model-attach/`. Put that path in a `$schema` key for editor completion. The loader accepts the key and keeps it on write.
 
@@ -78,6 +78,7 @@ Friendly names only (package directory or entry basename). This drops the path f
 - Slash autocomplete hint: `[help|skills on|off|extensions on|off]`
 - Config reloads on session start and `/reload`, not on every prompt
 - Extension loads run on `session_start` for the current model, and on `model_select` for newly matched paths only
+- Comments in the config are dropped when `on` / `off` rewrites the file
 
 ## Placement
 
