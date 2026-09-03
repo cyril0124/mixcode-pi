@@ -837,9 +837,22 @@ export class MixCodeRuntime {
       commandName !== undefined &&
       !runtimeTab.agentSession.isStreaming &&
       this.getExtensionCommands(sessionId).some((command) => command.name === commandName);
+    // Compaction owns the session while idle (isStreaming=false, isCompacting=true).
+    // Queue into the UI-visible pending list; Ctrl+U can withdraw, and the
+    // compaction_end flush (subscribeRuntimeTab) sends it as a fresh turn.
+    // Extension commands are excluded: queuing would turn them into model text.
+    if (
+      !isIdleExtensionCommand &&
+      (runtimeTab.compactionInFlight || runtimeTab.agentSession.isCompacting)
+    ) {
+      runtimeTab.tab.pendingMessages.push(trimmed);
+      runtimeTab.queuedPromptCount += 1;
+      this.emitChange({ type: "extension_ui_update" }, runtimeTab);
+      return;
+    }
     if (isIdleExtensionCommand) {
-      if (runtimeTab.agentSession.isCompacting) {
-        throw new Error("Cannot prompt while compaction is running");
+      if (runtimeTab.compactionInFlight || runtimeTab.agentSession.isCompacting) {
+        throw new Error("Error: Cannot run this command while compaction is running");
       }
       await runtimeTab.agentSession.prompt(trimmed);
       return;
@@ -857,7 +870,7 @@ export class MixCodeRuntime {
       runtimeTab.postRunWorkingStartedAt = undefined;
       // A fresh prompt is a fresh run: drop any stale SDK continuation marker.
       runtimeTab.sdkRunContinuation = false;
-      if (runtimeTab.agentSession.isCompacting) {
+      if (runtimeTab.compactionInFlight || runtimeTab.agentSession.isCompacting) {
         throw new Error("Cannot prompt while compaction is running");
       }
       // Claim the cross-process turn lock, then branch off the latest on-disk

@@ -585,9 +585,9 @@ test("runtime keeps restored pending messages when they are not runtime-queued",
   }
 });
 
-test("runtime rejects prompt while compaction is running", async () => {
+test("runtime queues prompt during compaction and sends it after", async () => {
   const dir = await fsPromises.mkdtemp(
-    path.join(os.tmpdir(), "mixcode-runtime-compact-prompt-guard-"),
+    path.join(os.tmpdir(), "mixcode-runtime-compact-prompt-queue-"),
   );
   try {
     let releaseCompact!: () => void;
@@ -611,7 +611,8 @@ test("runtime rejects prompt while compaction is running", async () => {
         },
       ],
     });
-    await runtime.createTab(createTab(1, "s1", process.cwd()), {
+    const tab = createTab(1, "s1", process.cwd());
+    await runtime.createTab(tab, {
       systemPrompt: "system",
       thinkingLevel: "medium",
       workdir: process.cwd(),
@@ -627,12 +628,252 @@ test("runtime rejects prompt while compaction is running", async () => {
         }
       });
     });
-    await assert.rejects(
-      () => runtime.prompt("s1", "should be rejected"),
-      /Cannot prompt while compaction is running/,
-    );
+    // Prompt during compaction: queued into pendingMessages, no rejection.
+    await runtime.prompt("s1", "queued during compact");
+    assert.deepEqual(tab.pendingMessages, ["queued during compact"]);
+    assert.equal(runtime.getTab("s1")!.queuedPromptCount, 1);
     releaseCompact();
     await compactPromise;
+    // compaction_end schedules the queue flush; the message becomes a new turn.
+    await waitForRuntime(() =>
+      runtime
+        .getTab("s1")!
+        .session.getBranch()
+        .some(
+          (entry) =>
+            entry.type === "message" &&
+            entry.message.role === "user" &&
+            JSON.stringify(entry.message.content).includes("queued during compact"),
+        ),
+    );
+    await waitForRuntime(() => tab.pendingMessages.length === 0);
+  } finally {
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("runtime rejects extension commands during compaction instead of queuing them", async () => {
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-compact-command-guard-"),
+  );
+  try {
+    let releaseCompact!: () => void;
+    const releaseCompactPromise = new Promise<void>((resolve) => {
+      releaseCompact = resolve;
+    });
+    let commandRan = false;
+    const runtime = new MixCodeRuntime({
+      sessionsRoot: dir,
+      extensionFactories: [
+        (pi) => {
+          pi.registerCommand("compact-smoke", {
+            description: "smoke",
+            handler: async () => {
+              commandRan = true;
+            },
+          });
+          pi.on("session_before_compact", async (event) => {
+            await releaseCompactPromise;
+            return {
+              compaction: {
+                summary: "summary",
+                firstKeptEntryId: event.preparation.firstKeptEntryId,
+                tokensBefore: 1,
+              },
+            };
+          });
+        },
+      ],
+    });
+    const tab = createTab(1, "s1", process.cwd());
+    await runtime.createTab(tab, {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+    await runtime.prompt("s1", "hello");
+    const compactPromise = runtime.compactSession("s1");
+    await new Promise<void>((resolve) => {
+      const unsub = runtime.onChange((event) => {
+        if (event.type === "compaction_start") {
+          unsub();
+          resolve();
+        }
+      });
+    });
+    // Queuing would turn the command into model text; it must reject instead.
+    await assert.rejects(
+      () => runtime.prompt("s1", "/compact-smoke"),
+      /Cannot run this command while compaction is running/,
+    );
+    assert.equal(commandRan, false);
+    assert.equal(tab.pendingMessages.length, 0);
+    releaseCompact();
+    await compactPromise;
+  } finally {
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("runtime prompt queued during compaction can be withdrawn before flush", async () => {
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-compact-prompt-withdraw-"),
+  );
+  try {
+    let releaseCompact!: () => void;
+    const releaseCompactPromise = new Promise<void>((resolve) => {
+      releaseCompact = resolve;
+    });
+    const runtime = new MixCodeRuntime({
+      sessionsRoot: dir,
+      extensionFactories: [
+        (pi) => {
+          pi.on("session_before_compact", async (event) => {
+            await releaseCompactPromise;
+            return {
+              compaction: {
+                summary: "summary",
+                firstKeptEntryId: event.preparation.firstKeptEntryId,
+                tokensBefore: 1,
+              },
+            };
+          });
+        },
+      ],
+    });
+    const tab = createTab(1, "s1", process.cwd());
+    await runtime.createTab(tab, {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+    await runtime.prompt("s1", "hello");
+    const compactPromise = runtime.compactSession("s1");
+    await new Promise<void>((resolve) => {
+      const unsub = runtime.onChange((event) => {
+        if (event.type === "compaction_start") {
+          unsub();
+          resolve();
+        }
+      });
+    });
+    await runtime.prompt("s1", "withdrawn message");
+    assert.deepEqual(tab.pendingMessages, ["withdrawn message"]);
+    // Ctrl+U pops the queued message back into the editor before compact ends.
+    const popped = runtime.popPendingMessage("s1", "steering");
+    assert.equal(popped, "withdrawn message");
+    assert.equal(tab.pendingMessages.length, 0);
+    assert.equal(runtime.getTab("s1")!.queuedPromptCount, 0);
+    releaseCompact();
+    await compactPromise;
+    // Give any (unexpected) flush a chance to run, then assert nothing was sent.
+    await Bun.sleep(50);
+    const sent = runtime
+      .getTab("s1")!
+      .session.getBranch()
+      .some(
+        (entry) =>
+          entry.type === "message" &&
+          entry.message.role === "user" &&
+          JSON.stringify(entry.message.content).includes("withdrawn message"),
+      );
+    assert.equal(sent, false);
+  } finally {
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("compact internal abort does not flush queued messages early", async () => {
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-compact-no-early-flush-"),
+  );
+  try {
+    let releaseCompact!: () => void;
+    const releaseCompactPromise = new Promise<void>((resolve) => {
+      releaseCompact = resolve;
+    });
+    const runtime = new MixCodeRuntime({
+      sessionsRoot: dir,
+      extensionFactories: [
+        (pi) => {
+          pi.on("session_before_compact", async (event) => {
+            await releaseCompactPromise;
+            return {
+              compaction: {
+                summary: "summary",
+                firstKeptEntryId: event.preparation.firstKeptEntryId,
+                tokensBefore: 1,
+              },
+            };
+          });
+        },
+      ],
+    });
+    const tab = createTab(1, "s1", process.cwd());
+    const noFlushTab = await runtime.createTab(tab, {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+    // Shrink the keep-recent window so the single-turn fixture is compactable.
+    noFlushTab.agentSession.settingsManager.applyOverrides({
+      compaction: { reserveTokens: 1, keepRecentTokens: 1 },
+    });
+    await runtime.prompt("s1", "hello");
+    // Let the agent_end flush chain settle before starting compact.
+    await Bun.sleep(50);
+    const compactPromise = runtime.compactSession("s1");
+    await new Promise<void>((resolve) => {
+      const unsub = runtime.onChange((event) => {
+        if (event.type === "compaction_start") {
+          unsub();
+          resolve();
+        }
+      });
+    });
+    // Queue two messages during compaction.
+    await runtime.prompt("s1", "first msg");
+    await runtime.prompt("s1", "second msg");
+    assert.deepEqual(tab.pendingMessages, ["first msg", "second msg"]);
+    // compact() internally calls abort() which fires agent_end. The flush
+    // scheduled by that agent_end must not drain the queue while compact
+    // is still running. Only compaction_end may flush.
+    // Wait long enough for the agent_end flush chain to complete if it were
+    // going to fire prematurely.
+    await Bun.sleep(100);
+    assert.deepEqual(
+      tab.pendingMessages,
+      ["first msg", "second msg"],
+      "messages must still be queued while compact is in progress",
+    );
+    // Withdraw one, then let compact finish.
+    const popped = runtime.popPendingMessage("s1", "steering");
+    assert.equal(popped, "second msg");
+    assert.deepEqual(tab.pendingMessages, ["first msg"]);
+    releaseCompact();
+    await compactPromise;
+    // After compaction_end, the remaining message flushes as a new turn.
+    await waitForRuntime(() =>
+      runtime
+        .getTab("s1")!
+        .session.getBranch()
+        .some(
+          (entry) =>
+            entry.type === "message" &&
+            entry.message.role === "user" &&
+            JSON.stringify(entry.message.content).includes("first msg"),
+        ),
+    );
+    // The withdrawn message must NOT appear.
+    const sentTexts = runtime
+      .getTab("s1")!
+      .session.getBranch()
+      .filter((e) => e.type === "message" && e.message.role === "user")
+      .map((e) => JSON.stringify((e as { message: { content: unknown } }).message.content));
+    assert.ok(
+      !sentTexts.some((t) => t.includes("second msg")),
+      "withdrawn message must not be sent",
+    );
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }

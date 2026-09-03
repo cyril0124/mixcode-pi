@@ -165,7 +165,18 @@ export function popRuntimePendingMessage(
   } else {
     runtimeTab.queuedPromptCount = Math.max(0, runtimeTab.queuedPromptCount - 1);
   }
-  removeQueuedMessages(runtimeTab, kind, [message]);
+  // During compaction the queued messages live only in the UI list (they never
+  // entered the SDK steering queue). removeQueuedMessages would emit a
+  // queue_update with an empty SDK queue, and syncQueueState would then wipe
+  // the remaining pendingMessages. Skip the SDK call when the message is not
+  // actually in the SDK queue.
+  const sdkQueue =
+    kind === "followUp"
+      ? runtimeTab.agentSession.getFollowUpMessages()
+      : runtimeTab.agentSession.getSteeringMessages();
+  if (sdkQueue.includes(message)) {
+    removeQueuedMessages(runtimeTab, kind, [message]);
+  }
   return message;
 }
 

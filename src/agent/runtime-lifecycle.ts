@@ -726,7 +726,15 @@ export function subscribeRuntimeTab(
 ): void {
   runtimeTab.agentSession.subscribe((event: AgentSessionEvent) => {
     context.applyEvent(runtimeTab, event);
-    if (event.type === "agent_end") {
+    // compaction_end also flushes: manual compact has no agent_end, so prompts
+    // queued during compaction would otherwise wait for the next turn to drain.
+    // But compact() internally calls abort() which fires agent_end BEFORE
+    // isCompacting is set. The flush would then race ahead of the compaction
+    // and send queued messages mid-compact. Skip agent_end while a manual
+    // compact owns the session; compaction_end handles the flush instead.
+    if (event.type === "compaction_end") {
+      context.schedulePendingMessageFlush(runtimeTab.tab.sessionId, runtimeTab.agentSession);
+    } else if (event.type === "agent_end" && !runtimeTab.compactionInFlight) {
       context.schedulePendingMessageFlush(runtimeTab.tab.sessionId, runtimeTab.agentSession);
     }
   });
