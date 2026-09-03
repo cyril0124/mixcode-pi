@@ -145,6 +145,12 @@ export function startPeerTabSync(options: StartPeerTabSyncOptions): {
     // No shared file yet: do not close local tabs (bootstrap may still be seeding).
     if (!(await Bun.file(options.openTabsPath).exists())) return;
     const desired = readDesired(options.openTabsPath);
+    // Snapshot local ids in the same synchronous block as the desired read.
+    // Tab creation publishes to open_tabs and pushes to state.tabs atomically
+    // (no await between). loadStatus below yields the event loop, so reading
+    // local after it could pair a just-created local tab with a stale desired
+    // snapshot that lacks it, and the reconciler would close the in-flight tab.
+    const localSnapshot = [...options.getLocalSessionIds()];
 
     let peerHints: ListTabsToReconcileInput["peerHints"] = [];
     try {
@@ -156,7 +162,7 @@ export function startPeerTabSync(options: StartPeerTabSyncOptions): {
     }
 
     const plan = listTabsToReconcile({
-      localSessionIds: options.getLocalSessionIds(),
+      localSessionIds: localSnapshot,
       desiredSessionIds: desired,
       localWorkdir: options.workdir,
       peerHints,

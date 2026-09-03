@@ -309,6 +309,94 @@ test("createAgentTab publishes open_tabs before create finishes so reconcile kee
   }
 });
 
+test("reconcile does not close a tab created during the loadStatus await gap", async () => {
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-peer-sync-gap-"));
+  const openTabsPath = openTabsFile(path.join(dir, "state"));
+  configureOpenTabsPath(openTabsPath);
+  try {
+    const state = createInitialState(dir);
+    const existing = createTab(1, "keep-me", dir, { title: "Agent-01", status: "idle" });
+    state.tabs.push(existing);
+    state.activeTabId = existing.sessionId;
+    writeOpenTabs(openTabsPath, [existing.sessionId]);
+
+    // Gate runtime.createTab so the new tab has no runtime tab registered yet,
+    // so runtime.closeTab throws "Unknown tab session" the way it does for a
+    // real in-flight create.
+    let releaseCreate!: () => void;
+    const createGate = Promise.withResolvers<void>();
+    releaseCreate = createGate.resolve;
+    const runtimeTabs = new Map<string, { tab: { sessionId: string; title: string } }>([
+      [existing.sessionId, { tab: existing }],
+    ]);
+    const runtime = {
+      createTab: async (tab: { sessionId: string; title: string }) => {
+        await createGate.promise;
+        const rt = { tab };
+        runtimeTabs.set(tab.sessionId, rt);
+        return rt as never;
+      },
+      getTab: (id: string) => runtimeTabs.get(id),
+      closeTab: async (id: string) => {
+        if (!runtimeTabs.has(id)) throw new Error(`Unknown tab session: ${id}`);
+        runtimeTabs.delete(id);
+      },
+    };
+
+    const closed: string[] = [];
+    const opened: string[] = [];
+    let createPromise: Promise<{ sessionId: string }> | undefined;
+    const sync = startPeerTabSync({
+      openTabsPath,
+      rootStateDir: path.join(dir, "root"),
+      workdir: dir,
+      pollIntervalMs: 60_000,
+      getLocalSessionIds: () => state.tabs.map((tab) => tab.sessionId),
+      openTab: async (candidate) => {
+        opened.push(candidate.sessionId);
+        state.tabs.push(
+          createTab(state.tabs.length + 1, candidate.sessionId, dir, {
+            title: candidate.title ?? nextAvailableAgentTitle(state.tabs),
+            status: "idle",
+          }),
+        );
+      },
+      closeTab: async (sessionId) => {
+        closed.push(sessionId);
+        await closeExistingAgentTab(state, runtime, sessionId, { publishClose: false });
+      },
+      // readDesired has already run, so open_tabs lacks the new id. During this
+      // await, createAgentTab runs its synchronous publish+push and parks on the
+      // runtime gate, exactly inside the gap between the two snapshots.
+      loadStatus: async () => {
+        createPromise = createAgentTab(state, runtime as never, { title: "batch-tab" });
+        await Bun.sleep(20);
+        return { instances: [] };
+      },
+    });
+
+    await sync.reconcileNow();
+    assert.ok(createPromise, "loadStatus must have started the concurrent create");
+    releaseCreate();
+    const created = await createPromise;
+    await sync.reconcileNow();
+
+    assert.deepEqual(closed, [], "tab created inside the hint-load gap must not be closed");
+    assert.deepEqual(opened, []);
+    assert.equal(
+      state.tabs.some((tab) => tab.sessionId === created.sessionId),
+      true,
+      "created tab must stay in state.tabs",
+    );
+    assert.ok(readOpenTabs(openTabsPath).includes(created.sessionId));
+
+    sync.dispose();
+  } finally {
+    configureOpenTabsPath(undefined);
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("createAgentTab rolls open_tabs back when createTab fails", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-new-session-rollback-"));
   const openTabsPath = openTabsFile(path.join(dir, "state"));
