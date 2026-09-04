@@ -37,7 +37,7 @@ Leave out `skills` or `extensions` if you do not want that half to run.
 
 | Field | Meaning |
 |-------|---------|
-| `model` | Glob on `provider/modelId` (`*`, e.g. `deepseek/*`) |
+| `model` | Glob on `provider/modelId` (`*`, e.g. `deepseek/*`). A list matches when any entry hits.
 | `missingInput` | Every listed modality is absent from `model.input` |
 | `hasInput` | Every listed modality is present |
 

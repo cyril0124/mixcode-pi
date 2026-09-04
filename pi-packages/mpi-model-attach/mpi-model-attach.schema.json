@@ -48,9 +48,11 @@
           "type": "object",
           "properties": {
             "model": {
-              "description": "Glob against `provider/modelId`, e.g. `deepseek/*`.",
-              "type": "string",
-              "minLength": 1
+              "description": "Glob(s) against `provider/modelId`, e.g. `deepseek/*`. A list means any-of.",
+              "anyOf": [
+                { "type": "string", "minLength": 1 },
+                { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1 }
+              ]
             },
             "missingInput": {
               "description": "Every listed modality must be absent from the model's inputs.",

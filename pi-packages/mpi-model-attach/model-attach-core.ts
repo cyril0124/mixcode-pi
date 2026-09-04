@@ -18,8 +18,8 @@ export type ModelLike = {
 };
 
 export type ModelAttachMatch = {
-  /** Glob against `provider/modelId`, e.g. `deepseek/*`. */
-  model?: string;
+  /** Glob against `provider/modelId`, e.g. `deepseek/*`. A list means any-of. */
+  model?: string | string[];
   /** Every listed modality must be absent from model.input. */
   missingInput?: string[];
   /** Every listed modality must be present on model.input. */
@@ -128,7 +128,7 @@ export function formatModelAttachHelp(configPath: string): string {
     '    "enabled": true,',
     '    "rules": [',
     "      {",
-    '        "match": { "model": "deepseek/*" },',
+    '        "match": { "model": ["deepseek/*", "anthropic/*"] },',
     '        "add": ["$HOME/.pi/agent/model-exts/vision-helper", "my-ext"],',
     '        "remove": ["other-ext"]',
     "      }",
@@ -143,7 +143,7 @@ export function formatModelAttachHelp(configPath: string): string {
     "",
     "| Field | Meaning |",
     "|-------|---------|",
-    "| `model` | Glob on `provider/modelId` (`*`), e.g. `deepseek/*` |",
+    "| `model` | Glob on `provider/modelId` (`*`), e.g. `deepseek/*`. A list matches when any entry hits. |",
     "| `missingInput` | Every listed modality is absent from `model.input` |",
     "| `hasInput` | Every listed modality is present on `model.input` |",
     "| `{}` | Matches every model |",
@@ -267,7 +267,8 @@ export function modelKey(model: ModelLike): string {
 
 export function ruleMatches(match: ModelAttachMatch, model: ModelLike): boolean {
   if (match.model !== undefined) {
-    if (!matchGlob(match.model, modelKey(model))) return false;
+    const patterns = Array.isArray(match.model) ? match.model : [match.model];
+    if (!patterns.some((p) => matchGlob(p, modelKey(model)))) return false;
   }
   const inputs = new Set(model.input ?? []);
   if (match.missingInput) {
@@ -336,10 +337,17 @@ function parseSection(
     if (matchExtra) return matchExtra;
     const match: ModelAttachMatch = {};
     if (m.model !== undefined) {
-      if (typeof m.model !== "string" || !m.model.trim()) {
-        return { ok: false, error: `${label}.rules[${i}].match.model must be a non-empty string` };
+      const validString = (v: unknown): v is string => typeof v === "string" && !!v.trim();
+      const okModel =
+        validString(m.model) ||
+        (Array.isArray(m.model) && m.model.length > 0 && m.model.every(validString));
+      if (!okModel) {
+        return {
+          ok: false,
+          error: `${label}.rules[${i}].match.model must be a non-empty string or a non-empty string array`,
+        };
       }
-      match.model = m.model;
+      match.model = m.model as string | string[];
     }
     if (m.missingInput !== undefined) {
       if (!isStringArray(m.missingInput)) {

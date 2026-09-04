@@ -130,6 +130,22 @@ describe("matchGlob / ruleMatches", () => {
     assert.equal(matchGlob("*", "a/b"), true);
   });
 
+  test("model list matches when any entry hits", () => {
+    const match = { model: ["deepseek/*", "jw-proxy-gpt/*"] };
+    assert.equal(ruleMatches(match, noVision), true);
+    assert.equal(
+      ruleMatches(match, { id: "gpt-x", provider: "jw-proxy-gpt", input: ["text"] }),
+      true,
+    );
+    assert.equal(ruleMatches(match, withVision), false);
+  });
+
+  test("model list still ANDs with input conditions", () => {
+    const match = { model: ["deepseek/*", "anthropic/*"], missingInput: ["image"] };
+    assert.equal(ruleMatches(match, noVision), true);
+    assert.equal(ruleMatches(match, withVision), false);
+  });
+
   test("missingInput / hasInput", () => {
     assert.equal(ruleMatches({ missingInput: ["image"] }, noVision), true);
     assert.equal(ruleMatches({ missingInput: ["image"] }, withVision), false);
@@ -204,6 +220,33 @@ describe("parseModelAttachConfig / load / setSectionEnabled", () => {
       parseModelAttachConfig({ skills: { rules: [{ match: { provider: "deepseek" } }] } }).ok,
       false,
     );
+  });
+
+  test("model accepts string or non-empty string array; rejects empty or mixed arrays", () => {
+    const str = parseModelAttachConfig({
+      skills: { rules: [{ match: { model: "deepseek/*" }, add: ["a"] }] },
+    });
+    assert.equal(str.ok, true);
+
+    const list = parseModelAttachConfig({
+      skills: { rules: [{ match: { model: ["a/*", "b/*"] }, add: ["a"] }] },
+    });
+    assert.equal(list.ok, true);
+
+    const emptyList = parseModelAttachConfig({
+      skills: { rules: [{ match: { model: [] }, add: ["a"] }] },
+    });
+    assert.equal(emptyList.ok, false);
+
+    const mixed = parseModelAttachConfig({
+      skills: { rules: [{ match: { model: ["a/*", 1] }, add: ["a"] }] },
+    });
+    assert.equal(mixed.ok, false);
+
+    const blankString = parseModelAttachConfig({
+      skills: { rules: [{ match: { model: "  " }, add: ["a"] }] },
+    });
+    assert.equal(blankString.ok, false);
   });
 
   test("$schema: accepted as string, rejected otherwise, preserved by setSectionEnabled", () => {

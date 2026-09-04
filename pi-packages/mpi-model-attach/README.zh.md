@@ -37,7 +37,7 @@
 
 | 字段 | 含义 |
 |------|------|
-| `model` | 对 `provider/modelId` 的 glob（`*`，如 `deepseek/*`） |
+| `model` | 对 `provider/modelId` 的 glob（`*`，如 `deepseek/*`）。列表任一命中即匹配。
 | `missingInput` | 列出的每个模态都不在 `model.input` 中 |
 | `hasInput` | 列出的每个模态都在 `model.input` 中 |
 
