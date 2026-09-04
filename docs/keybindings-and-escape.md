@@ -41,7 +41,6 @@ MixCode supports custom keybindings configured in `~/.pi/agent/keybindings.json`
 | `"app.interrupt"` | `escape` | Cancel or abort current operation |
 | `"app.clear"` | `ctrl+c` | Clear editor input |
 | `"app.exit"` | `ctrl+q` | Quit MixCode |
-| `"app.thinking.cycle"` | `shift+tab` | Cycle thinking level |
 | `"app.message.followUp"` | `alt+enter` | Queue follow-up message |
 | `"app.clipboard.pasteImage"` | `ctrl+v` (`alt+v`) | Paste image/text from clipboard |
 

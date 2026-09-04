@@ -41,7 +41,6 @@ MixCode 支持通过 `~/.pi/agent/keybindings.json`（或 `$PI_CODING_AGENT_DIR/
 | `"app.interrupt"` | `escape` | 取消 / 中断当前操作 |
 | `"app.clear"` | `ctrl+c` | 清空编辑器输入 |
 | `"app.exit"` | `ctrl+q` | 退出程序 |
-| `"app.thinking.cycle"` | `shift+tab` | 循环切换 Thinking 等级 |
 | `"app.message.followUp"` | `alt+enter` | 加入 Follow-up 队列 |
 | `"app.clipboard.pasteImage"` | `ctrl+v` (`alt+v`) | 从剪贴板粘贴图片/文本 |
 
