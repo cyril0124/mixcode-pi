@@ -13,7 +13,7 @@ For mixcode-pi: report pi package updates and break risks, then upgrade after co
 
 `@earendil-works/pi-agent-core` · `pi-ai` · `pi-coding-agent` · `pi-tui`
 
-Current: root `package.json`. Latest: https://github.com/earendil-works/pi/releases (or user tag). If the network is unavailable, say so; do not invent release notes.
+Current: root `package.json`. Latest: https://github.com/earendil-works/pi/releases (or user tag).
 
 ## Source of truth: `bun pm diff`
 
@@ -26,6 +26,16 @@ bun pm diff @earendil-works/pi-tui@0.83.0 0.84.2 'dist/keys.js'   # scoped to pa
 ```
 
 It prints a summary first — changed files, **new install scripts**, and **new imports of `child_process` / `fs` / `net` / `vm`** — then the diff, with minified files expanded and formatting-only changes dropped. Trailing path patterns scope it.
+
+## Failure modes
+
+| Trigger | First-line fix | If still failing |
+|---|---|---|
+| Network unavailable (releases / registry unreachable) | Say so and stop; do not invent release notes or diffs | Report stays "network unavailable"; user retries later |
+| Already on the target version | Report "already latest" with the current versions; no confirmation line | — |
+| `bun install` fails right after the version bump | `patchedDependencies` keys must match the renamed `patches/*@<target>.patch` filenames exactly; fix names first | Mismatched keys keep failing → re-run `bun patch --commit` per package |
+| Patch hunk conflicts during `bun patch --commit` | Re-apply the hunks by hand on the new dist; the Step-3 probe lists which hunks upstream moved | A hunk with unclear semantics → verify against the Step-3 touch points before committing |
+| `bun pm diff` errors (old bun / registry hiccup) | Upgrade bun or retry; never fabricate the diff | Download both tarballs from npm and diff locally |
 
 ## Steps
 
@@ -54,13 +64,13 @@ Required sections, in order:
 1. **Versions** — current → target for all four packages; release tag/URL.
 2. **Changelog** — notable Features / Fixes / Other as a table (or tables). Summarize; do not paste raw changelog prose.
 3. **User impact** — daily use / extension-dev / no-op. Name the UI surface or workflow and what users can now do or expect. If there is no user-visible impact, say so. Do not describe the code-level cause.
-4. **Break risks** — hard / soft / free against the mixcode touch points in Steps.
+4. **Break risks** — hard / soft / free against the mixcode touch points in Steps. Level criteria: **hard** = MixCode fails typecheck/tests until adapted (removed or renamed exports, changed private-field shapes, patch anchor gone); **soft** = still compiles, but behavior or the patch rebase needs verification; **free** = touch point untouched upstream.
 5. **Upgrade work (preview)** — deps, patch rebase, code fixes, tests.
 6. End with: `Confirm: proceed? (revise / run / run-verify)`
 
 ## Checkpoint
 
-Stop after the report; never recommend waiting or skipping. Continue only when the latest request contains:
+Stop after the report; never recommend waiting or skipping. A trigger phrase ("upgrade pi", "pi-packages-upgrade", ...) only starts the skill — it is never run authorization. Every invocation begins with the report; continue only when the latest request contains:
 
 - `revise`: change target/scope and reprint the full report + confirmation line.
 - `run`: perform the upgrade (step below).
