@@ -31,11 +31,10 @@ It prints a summary first — changed files, **new install scripts**, and **new 
 
 | Trigger | First-line fix | If still failing |
 |---|---|---|
-| Network unavailable (releases / registry unreachable) | Say so and stop; do not invent release notes or diffs | Report stays "network unavailable"; user retries later |
 | Already on the target version | Report "already latest" with the current versions; no confirmation line | — |
 | `bun install` fails right after the version bump | `patchedDependencies` keys must match the renamed `patches/*@<target>.patch` filenames exactly; fix names first | Mismatched keys keep failing → re-run `bun patch --commit` per package |
 | Patch hunk conflicts during `bun patch --commit` | Re-apply the hunks by hand on the new dist; the Step-3 probe lists which hunks upstream moved | A hunk with unclear semantics → verify against the Step-3 touch points before committing |
-| `bun pm diff` errors (old bun / registry hiccup) | Upgrade bun or retry; never fabricate the diff | Download both tarballs from npm and diff locally |
+| `bun pm diff` errors (old bun) | Upgrade bun or retry; never fabricate the diff | Download both tarballs from npm and diff locally |
 
 ## Steps
 
@@ -53,6 +52,8 @@ It prints a summary first — changed files, **new install scripts**, and **new 
    - `pi-models` (`allowModelNetwork`, stream `env`)
    - compaction vs `pendingMessages` (MixCode's own queue)
    - nested pi-tui: `binary-entry` / `runtime-pi-tui-bridge`
+
+   Then scan the same diff for Optimization opportunities: upstream additions that overlap MixCode's patch hunks or local reimplementations of upstream-private functionality.
 4. Print the report, end with the confirmation line, and stop (see *Checkpoint*).
 
 ## Report shape
@@ -65,8 +66,9 @@ Required sections, in order:
 2. **Changelog** — notable Features / Fixes / Other as a table (or tables). Summarize; do not paste raw changelog prose.
 3. **User impact** — daily use / extension-dev / no-op. Name the UI surface or workflow and what users can now do or expect. If there is no user-visible impact, say so. Do not describe the code-level cause.
 4. **Break risks** — hard / soft / free against the mixcode touch points in Steps. Level criteria: **hard** = MixCode fails typecheck/tests until adapted (removed or renamed exports, changed private-field shapes, patch anchor gone); **soft** = still compiles, but behavior or the patch rebase needs verification; **free** = touch point untouched upstream.
-5. **Upgrade work (preview)** — deps, patch rebase, code fixes, tests.
-6. End with: `Confirm: proceed? (revise / run / run-verify)`
+5. **Optimization opportunities** — optional wins the new version enables, each citing the diff: local workarounds MixCode can delete because upstream now provides the capability (name the MixCode file and the upstream replacement); patch hunks that shrink or drop entirely (upstream exported the previously-private API or added the hook the patch was forcing); new upstream features worth wiring into MixCode later. Suggestions only — `run` implements none of them; wiring any in is a separate task the user must request.
+6. **Upgrade work (preview)** — deps, patch rebase, code fixes, tests.
+7. End with: `Confirm: proceed? (revise / run / run-verify)`
 
 ## Checkpoint
 
