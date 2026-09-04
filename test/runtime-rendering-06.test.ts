@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { Type, fauxAssistantMessage } from "@earendil-works/pi-ai";
+import { Type, fauxAssistantMessage, type AssistantMessage } from "@earendil-works/pi-ai";
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
 import { visibleWidth } from "@earendil-works/pi-tui";
-import { syncAssistantBlocks } from "../src/agent/runtime-events.js";
+import { syncAssistantBlocks, updateStreamingAssistant } from "../src/agent/runtime-events.js";
 import { toolExecutionToChatLine } from "../src/agent/runtime-tool-chat.js";
 import {
   createTab,
@@ -152,10 +152,96 @@ test("consecutive thinking blocks render as one Pi thinking section", () => {
     ],
   });
 
-  assert.deepEqual(runtimeTab.chat, [
-    { role: "thinking", text: "first reasoning block\n\nsecond reasoning block" },
-    { role: "assistant", text: "answer" },
-  ]);
+  const [thinkingLine, assistantLine] = runtimeTab.chat;
+  assert.equal(thinkingLine?.role, "thinking");
+  assert.equal(thinkingLine?.text, "first reasoning block\n\nsecond reasoning block");
+  assert.ok(Number.isFinite(thinkingLine?.thinkingStartedAt));
+  assert.deepEqual(assistantLine, { role: "assistant", text: "answer" });
+});
+
+test("live thinking updates carry the timer stamps and message_end freezes them", () => {
+  const runtimeTab = testRuntimeTab({
+    tab: createTab(1, "s1", "/repo"),
+    chat: [],
+    streamingAssistant: undefined,
+  });
+  const message = {
+    ...fauxAssistantMessage(""),
+    content: [{ type: "thinking", thinking: "partial reasoning" }],
+  } satisfies AssistantMessage;
+
+  updateStreamingAssistant(runtimeTab, message);
+  const startedAt = runtimeTab.chat[0]?.thinkingStartedAt;
+  assert.ok(Number.isFinite(startedAt));
+  assert.equal(runtimeTab.chat[0]?.thinkingEndedAt, undefined);
+
+  // Streaming growth replaces the line object in place; stamps must survive.
+  updateStreamingAssistant(runtimeTab, {
+    ...message,
+    content: [{ type: "thinking", thinking: "partial reasoning, now longer" }],
+  } satisfies AssistantMessage);
+  assert.equal(runtimeTab.chat[0]?.thinkingStartedAt, startedAt);
+  assert.equal(runtimeTab.chat[0]?.thinkingEndedAt, undefined);
+
+  updateStreamingAssistant(runtimeTab, message, { final: true });
+  const ended = runtimeTab.chat[0]?.thinkingEndedAt;
+  assert.ok(Number.isFinite(ended));
+  assert.ok(ended! >= startedAt!);
+  assert.equal(runtimeTab.streamingAssistant, undefined);
+});
+
+test("a tool call after thinking freezes that thinking timer mid-message", () => {
+  const runtimeTab = testRuntimeTab({
+    tab: createTab(1, "s1", "/repo"),
+    chat: [],
+    streamingAssistant: undefined,
+    agentSession: {
+      getToolDefinition: () => undefined,
+      settingsManager: SettingsManager.inMemory(),
+    },
+  });
+  const base = fauxAssistantMessage("");
+  updateStreamingAssistant(runtimeTab, {
+    ...base,
+    content: [{ type: "thinking", thinking: "deciding to call a tool" }],
+  } satisfies AssistantMessage);
+  assert.equal(runtimeTab.chat[0]?.thinkingEndedAt, undefined);
+
+  updateStreamingAssistant(runtimeTab, {
+    ...base,
+    content: [
+      { type: "thinking", thinking: "deciding to call a tool" },
+      { type: "toolCall", id: "t1", name: "read", arguments: { path: "/x" } },
+    ],
+  } satisfies AssistantMessage);
+  assert.ok(runtimeTab.chat[0]?.thinkingEndedAt !== undefined);
+  assert.ok(runtimeTab.chat[0]!.thinkingEndedAt! >= runtimeTab.chat[0]!.thinkingStartedAt!);
+});
+
+test("interleaved thinking groups each freeze when a later block appears", () => {
+  const runtimeTab = testRuntimeTab({
+    tab: createTab(1, "s1", "/repo"),
+    chat: [],
+    streamingAssistant: undefined,
+    agentSession: {
+      getToolDefinition: () => undefined,
+      settingsManager: SettingsManager.inMemory(),
+    },
+  });
+  const base = fauxAssistantMessage("");
+  syncAssistantBlocks(runtimeTab, {
+    ...base,
+    content: [
+      { type: "thinking", thinking: "first group" },
+      { type: "text", text: "partial" },
+      { type: "thinking", thinking: "second group" },
+      { type: "toolCall", id: "t1", name: "read", arguments: { path: "/x" } },
+    ],
+  } satisfies AssistantMessage);
+  const first = runtimeTab.chat[0];
+  const second = runtimeTab.chat[2];
+  assert.ok(first?.thinkingEndedAt !== undefined);
+  assert.ok(second?.thinkingEndedAt !== undefined);
 });
 
 test("error system messages show error text without a System label", () => {

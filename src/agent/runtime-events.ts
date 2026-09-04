@@ -364,7 +364,31 @@ export function updateStreamingAssistant(
   }
   applyAssistantUsage(runtimeTab, message.usage);
   if (options.final) {
+    stampThinkingEnd(runtimeTab, streaming.blockIndices);
     runtimeTab.streamingAssistant = undefined;
+  }
+}
+
+/** Freeze the boxed-tail timer on every thinking block of the finished message. */
+function stampThinkingEnd(runtimeTab: RuntimeTab, blockIndices: Map<number, number>): void {
+  const endedAt = Date.now();
+  for (const chatIndex of blockIndices.values()) {
+    const line = runtimeTab.chat[chatIndex];
+    if (line?.role === "thinking" && line.thinkingEndedAt === undefined) {
+      line.thinkingEndedAt = endedAt;
+    }
+  }
+}
+
+/**
+ * A non-thinking block after a thinking group means that group stopped
+ * growing; freeze its timer without waiting for message_end.
+ */
+function stampOpenThinkingEnd(runtimeTab: RuntimeTab, chatIndex: number | undefined): void {
+  if (chatIndex === undefined) return;
+  const line = runtimeTab.chat[chatIndex];
+  if (line?.role === "thinking" && line.thinkingEndedAt === undefined) {
+    line.thinkingEndedAt = Date.now();
   }
 }
 
@@ -380,10 +404,15 @@ export function syncAssistantBlocks(
   const blockIndices = new Map(streaming?.blockIndices ?? []);
   const toolCallIndices = new Map(streaming?.toolCallIndices ?? []);
   let chatIndex = streaming?.chatIndex;
+  // Chat index of the latest thinking group whose block may still be growing;
+  // the first non-thinking block after it freezes its timer.
+  let openThinkingIndex: number | undefined;
   message.content.forEach((block, contentIndex) => {
     if (block.type === "text") {
       const text = block.text;
       if (!text.trim()) return;
+      stampOpenThinkingEnd(runtimeTab, openThinkingIndex);
+      openThinkingIndex = undefined;
       const existing = blockIndices.get(contentIndex);
       if (existing !== undefined && runtimeTab.chat[existing]?.role === "assistant") {
         runtimeTab.chat[existing] = { role: "assistant", text };
@@ -422,17 +451,32 @@ export function syncAssistantBlocks(
       if (!thinking) return;
       const existing = blockIndices.get(contentIndex);
       if (existing !== undefined && runtimeTab.chat[existing]?.role === "thinking") {
-        runtimeTab.chat[existing] = { role: "thinking", text: thinking };
+        const prev = runtimeTab.chat[existing]!;
+        runtimeTab.chat[existing] = {
+          role: "thinking",
+          text: thinking,
+          // In-place replacement must carry the timer stamps.
+          ...(prev.thinkingStartedAt !== undefined
+            ? { thinkingStartedAt: prev.thinkingStartedAt }
+            : {}),
+          ...(prev.thinkingEndedAt !== undefined ? { thinkingEndedAt: prev.thinkingEndedAt } : {}),
+        };
         for (let index = contentIndex; index < end; index++) blockIndices.set(index, existing);
+        openThinkingIndex = existing;
         return;
       }
-      const index = runtimeTab.chat.push({ role: "thinking", text: thinking }) - 1;
+      const index =
+        runtimeTab.chat.push({ role: "thinking", text: thinking, thinkingStartedAt: Date.now() }) -
+        1;
       for (let blockIndex = contentIndex; blockIndex < end; blockIndex++) {
         blockIndices.set(blockIndex, index);
       }
+      openThinkingIndex = index;
       return;
     }
     if (block.type === "toolCall") {
+      stampOpenThinkingEnd(runtimeTab, openThinkingIndex);
+      openThinkingIndex = undefined;
       const title = block.name || "unknown";
       const text = "";
       const existing = toolCallIndices.get(block.id) ?? blockIndices.get(contentIndex);

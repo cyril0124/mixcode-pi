@@ -15,6 +15,7 @@ import type { ChatLine } from "../../agent/runtime.js";
 import type { OversizedAssistantMessageSettings } from "../../core/mixcode-settings.js";
 import type { MermaidRenderingMode, MixCodeTabInfo } from "../../core/types.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
+import { formatDuration } from "./chrome.js";
 import { renderMarkdown } from "./markdown.js";
 import {
   isOversizedAssistantMessageText,
@@ -305,7 +306,12 @@ function renderMessageBlockUncached(
           messageType: "assistant-thinking",
         });
       }
-      return renderHiddenThinkingViewport(text, width, HIDDEN_THINKING_VIEWPORT_ROWS);
+      return renderHiddenThinkingViewport(
+        text,
+        width,
+        HIDDEN_THINKING_VIEWPORT_ROWS,
+        thinkingDurationLabel(line, options),
+      );
     }
     const trimmed = text.trim();
     const oversized = renderOversizedAssistantMessageBlock(
@@ -394,10 +400,10 @@ function chatLineRenderCacheKey(
     if (isOversizedAssistantMessageText(line.text, options.oversizedAssistantMessage)) {
       return undefined;
     }
-    // hideThinking + custom label + boxed style flip the collapsed thinking render.
+    // hideThinking + custom label + boxed style + live timer flip the collapsed thinking render.
     const hideKey =
       role === "thinking" && options.hideThinking
-        ? `1${KEY_SEP}${tab?.extensionUi.hiddenThinkingLabel ?? ""}${KEY_SEP}${options.boxedHiddenThinking ? 1 : 0}`
+        ? `1${KEY_SEP}${tab?.extensionUi.hiddenThinkingLabel ?? ""}${KEY_SEP}${options.boxedHiddenThinking ? 1 : 0}${KEY_SEP}${thinkingTimerCacheKey(line, options)}`
         : "0";
     const mermaidKey = options.mermaidRenderingMode ?? "streaming";
     const transformersKey = markdownTransformersCacheKey(options.markdownTransformers);
@@ -1055,10 +1061,10 @@ function tailVisualRows(
   return { rows: visual, overflow };
 }
 
-function renderThinkingCard(lines: string[], chatWidth: number): string[] {
+function renderThinkingCard(lines: string[], chatWidth: number, duration = ""): string[] {
   const innerWidth = Math.max(1, chatWidth - 2);
   const paint = activeRenderTheme.thinkingText;
-  const label = "─ Thinking ";
+  const label = `─ Thinking${duration} `;
   const fill = Math.max(0, innerWidth - visibleWidth(label));
   const top = paint(`╭${label}${"─".repeat(fill)}╮`);
   const body = lines.map((line) => `${paint("│")}${padLine(line, innerWidth)}${paint("│")}`);
@@ -1066,7 +1072,12 @@ function renderThinkingCard(lines: string[], chatWidth: number): string[] {
   return [top, ...body, bottom].map((line) => padLine(line, chatWidth));
 }
 
-function renderHiddenThinkingViewport(text: string, width: number, maxRows: number): string[] {
+function renderHiddenThinkingViewport(
+  text: string,
+  width: number,
+  maxRows: number,
+  duration = "",
+): string[] {
   const stripped = stripHiddenThinkingPresentation(text);
   if (!stripped) {
     return renderMarkdown(HIDDEN_THINKING_LABEL, width, {
@@ -1087,5 +1098,29 @@ function renderHiddenThinkingViewport(text: string, width: number, maxRows: numb
     }
     return ` ${style(row)}`;
   });
-  return renderThinkingCard(lines, width);
+  return renderThinkingCard(lines, width, duration);
+}
+
+/**
+ * Timer chip for the boxed tail title: ` · 7s` after "Thinking".
+ * Frozen once thinkingEndedAt is stamped; live only while the block streams;
+ * restored history has no stamps and shows nothing.
+ */
+function thinkingDurationLabel(line: ChatLine, options: RenderChatBlockOptions): string {
+  const started = line.thinkingStartedAt;
+  if (started === undefined) return "";
+  if (line.thinkingEndedAt !== undefined) {
+    return ` · ${formatDuration(Math.max(0, Math.floor((line.thinkingEndedAt - started) / 1000)))}`;
+  }
+  if (options.streamingMarkdownCharLimit === undefined) return "";
+  return ` · ${formatDuration(Math.max(0, Math.floor((Date.now() - started) / 1000)))}`;
+}
+
+/** Cache-key twin of thinkingDurationLabel: second-resolution bucket while live. */
+function thinkingTimerCacheKey(line: ChatLine, options: RenderChatBlockOptions): string {
+  const started = line.thinkingStartedAt;
+  if (started === undefined) return "";
+  if (line.thinkingEndedAt !== undefined) return `${started}:${line.thinkingEndedAt}`;
+  if (options.streamingMarkdownCharLimit === undefined) return "";
+  return `live:${Math.floor((Date.now() - started) / 1000)}`;
 }

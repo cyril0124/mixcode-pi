@@ -264,3 +264,64 @@ test("visible thinking is not truncated when hideThinking is off", () => {
   assert.match(visible, /line-00/);
   assert.match(visible, /line-19/);
 });
+
+test("boxed hidden thinking shows a live timer in the title while streaming", () => {
+  const tab = createTab(1, "s1", "/repo");
+  const chat = [
+    {
+      role: "thinking",
+      text: thinkingLines("line").join("\n"),
+      thinkingStartedAt: Date.now() - 5000,
+    },
+  ];
+  const runtimeTab = {
+    chat,
+    streamingAssistant: {
+      chatIndex: 0,
+      blockIndices: new Map([[0, 0]]),
+      toolCallIndices: new Map(),
+    },
+  };
+
+  const hidden = stripAnsi(
+    renderAgentSurface(tab, runtimeTab as never, 100, undefined, undefined, {
+      hideThinking: true,
+      boxedHiddenThinking: true,
+    }).join("\n"),
+  );
+  assert.match(hidden, /Thinking · 5s/);
+});
+
+test("boxed hidden thinking freezes the timer once the message ended", () => {
+  const tab = createTab(1, "s1", "/repo");
+  const chat = [
+    {
+      role: "thinking",
+      text: thinkingLines("line").join("\n"),
+      thinkingStartedAt: 1000,
+      thinkingEndedAt: 1000 + 65_000,
+    },
+  ];
+
+  const hidden = stripAnsi(
+    renderAgentSurface(tab, { chat } as never, 100, undefined, undefined, {
+      hideThinking: true,
+      boxedHiddenThinking: true,
+    }).join("\n"),
+  );
+  assert.match(hidden, /Thinking · 1m 05s/);
+});
+
+test("boxed hidden thinking title has no timer for restored history blocks", () => {
+  const tab = createTab(1, "s1", "/repo");
+  const chat = [{ role: "thinking", text: "restored reasoning" }];
+
+  const hidden = stripAnsi(
+    renderAgentSurface(tab, { chat } as never, 100, undefined, undefined, {
+      hideThinking: true,
+      boxedHiddenThinking: true,
+    }).join("\n"),
+  );
+  assert.match(hidden, /Thinking/);
+  assert.doesNotMatch(hidden, /Thinking ·/);
+});

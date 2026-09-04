@@ -1405,7 +1405,7 @@ export function formatElapsed(startedAt: string | undefined, now: Date): string 
   return formatDuration(elapsedSeconds);
 }
 
-function formatDuration(elapsedSeconds: number): string {
+export function formatDuration(elapsedSeconds: number): string {
   const hours = Math.floor(elapsedSeconds / 3600);
   const minutes = Math.floor((elapsedSeconds % 3600) / 60);
   const seconds = elapsedSeconds % 60;
