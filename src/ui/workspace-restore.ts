@@ -1,5 +1,11 @@
 import { createSessionId, createTab } from "../core/defaults.js";
-import { assertConfiguredOpenTabsReadable, noteTabsReplaced } from "../core/open-tabs-store.js";
+import {
+  assertConfiguredOpenTabsReadable,
+  noteTabClosed,
+  noteTabOpened,
+  noteTabReplaced,
+  noteTabsReplaced,
+} from "../core/open-tabs-store.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { activateTab, clampHomeSelectedTabIndex, closeAgentTab } from "../core/tabs.js";
 import {
@@ -72,14 +78,31 @@ export async function restoreWorkspace(
     }
     const created = createWorkspaceRuntimeTab(state, item, index);
     state.tabs.push(created);
+    // Publish the in-flight tab before the slow switch: the peer reconciler
+    // (2s poll of open_tabs.json) closes any local id missing from the shared
+    // set, which would kill tabs mid-restore. Same convention as /resume:
+    // open the ephemeral id, then adopt the durable id before switching so
+    // open_tabs and state.tabs stay aligned for the whole switch window.
+    noteTabOpened(created.sessionId);
     await runtime.createTab(created, {
       systemPrompt: MIXCODE_SYSTEM_PROMPT,
       thinkingLevel: created.thinkingLevel,
       workdir: created.workdir,
     });
-    const result = await runtime.extensionSwitchSession(created.sessionId, item.sessionPath);
+    const ephemeralId = created.sessionId;
+    if (item.sessionId !== ephemeralId) {
+      noteTabReplaced(ephemeralId, item.sessionId);
+      created.sessionId = item.sessionId;
+    }
+    // The runtime map is still keyed by the ephemeral id until the switch
+    // commits; switch by that key, not by the adopted durable id.
+    const result = await runtime.extensionSwitchSession(ephemeralId, item.sessionPath);
     if (result.cancelled) {
-      await runtime.closeTab(created.sessionId);
+      await runtime.closeTab(ephemeralId);
+      // Withdraw the publication now: a later slow switch would otherwise
+      // leave this id desired-but-not-local and the reconciler would reopen
+      // the cancelled session.
+      noteTabClosed(created.sessionId);
       closeAgentTab(state, created.sessionId);
       missing.push(item.title || item.sessionId);
       continue;

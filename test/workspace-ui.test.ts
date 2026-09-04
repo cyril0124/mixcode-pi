@@ -17,6 +17,7 @@ import {
 } from "./helpers/mixcode.js";
 import { UUIDV7_SESSION_ID_PATTERN } from "./helpers/session-id.js";
 import { restoreWorkspace } from "../src/ui/workspace-restore.js";
+import { configureOpenTabsPath, readOpenTabs } from "../src/core/open-tabs-store.js";
 import { testOverlayHandle } from "./helpers/tui.js";
 
 function stripAnsi(text: string): string {
@@ -106,8 +107,13 @@ function createRuntime(
       sessionFiles[sessionId] = sessionPath;
       return { cancelled: false };
     },
-    getPromptHistory: (sessionId: string) =>
-      promptHistory[sessionFiles[sessionId] ?? sessionId] ?? [],
+    getPromptHistory: (sessionId: string) => {
+      // After a switch commits, the real runtime keys the tab by its durable
+      // id (the file's id), not by the ephemeral id the switch was called
+      // with. Model that: fall back to the switched-to file for this call.
+      const file = sessionFiles[sessionId] ?? switched.find((s) => s.sessionPath)?.sessionPath;
+      return promptHistory[file ?? sessionId] ?? [];
+    },
   } as unknown as MixCodeRuntime;
   return { runtime, created, closed, switched };
 }
@@ -349,8 +355,12 @@ test("restore workspace reopens saved sessions, closes extra tabs, and reports m
     assert.equal(state.tabs.length, 1);
     assert.equal(state.tabs[0]?.title, "plan");
     assert.equal(state.tabs[0]?.workdir, "/repo");
-    assert.deepEqual(created, [state.tabs[0]!.sessionId]);
+    // createTab runs under the ephemeral id; the UI tab adopts the durable
+    // workspace id before the switch (peer-reconcile convention, as /resume).
+    assert.equal(created.length, 1);
+    assert.notEqual(created[0]!, state.tabs[0]!.sessionId);
     assert.match(created[0]!, UUIDV7_SESSION_ID_PATTERN);
+    assert.equal(state.tabs[0]!.sessionId, "old-s1");
     assert.deepEqual(closed, ["extra"]);
     assert.equal(switched.length, 1);
     assert.equal(switched[0]?.sessionPath, existingSessionPath);
@@ -590,4 +600,122 @@ test("workspace overlay shows tab details before constrained-height clipping", (
   const lines = stripAnsi(renderWorkspaceOverlay(view, state, 100).join("\n")).split("\n");
   assert.match(lines.slice(0, 12).join("\n"), /1\. Agent-1/);
   assert.match(lines.join("\n"), /7\. Agent-7/);
+});
+
+/**
+ * The peer reconciler (2s poll) closes any local tab id missing from the
+ * shared open_tabs.json. Restore switches sessions slowly (extension reload),
+ * so an in-flight restored tab must already be published — same convention as
+ * /resume (noteTabOpened + noteTabReplaced before extensionSwitchSession).
+ */
+function gatedRuntime(
+  openTabsPath: string,
+  gates: Array<{ durableId: string; cancelled: boolean }>,
+): {
+  runtime: MixCodeRuntime;
+  releases: Array<() => void>;
+  openTabsAtSwitchStart: string[][];
+} {
+  const releases: Array<() => void> = [];
+  const openTabsAtSwitchStart: string[][] = [];
+  let switchIndex = 0;
+  const runtime = {
+    appendSystemMessage: () => undefined,
+    getTab: () => ({ session: { getSessionFile: () => undefined } }),
+    createTab: async () => ({}),
+    closeTab: async () => undefined,
+    extensionSwitchSession: async () => {
+      const step = gates[switchIndex] ?? { durableId: "", cancelled: false };
+      switchIndex += 1;
+      openTabsAtSwitchStart.push(readOpenTabs(openTabsPath));
+      if (!step.cancelled) {
+        await new Promise<void>((resolve) => releases.push(resolve));
+      }
+      return { cancelled: step.cancelled };
+    },
+    getPromptHistory: () => [],
+  } as unknown as MixCodeRuntime;
+  return { runtime, releases, openTabsAtSwitchStart };
+}
+
+test("restore publishes each restored tab id to open_tabs before its session switch runs", async () => {
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-restore-publish-"));
+  const openTabsPath = path.join(dir, "open_tabs.json");
+  configureOpenTabsPath(openTabsPath);
+  try {
+    const sessionPath = path.join(dir, "durable-1.jsonl");
+    await fsPromises.writeFile(sessionPath, "{}\n", "utf8");
+    const workspace = {
+      name: "main",
+      startupWorkdir: "/repo",
+      updatedAt: "now",
+      tabs: [{ sessionId: "durable-1", sessionPath, title: "plan", workdir: "/repo" }],
+    };
+    const state = createInitialState("/repo");
+    const { runtime, releases, openTabsAtSwitchStart } = gatedRuntime(openTabsPath, [
+      { durableId: "durable-1", cancelled: false },
+    ]);
+    const tui = createOverlayTui();
+
+    const restoring = restoreWorkspace(state, runtime, tui, workspace);
+    await until(() => openTabsAtSwitchStart.length === 1);
+
+    // Mid-switch: the UI tab already carries its durable id and the shared
+    // open-tab set contains it, so the reconciler diff is empty.
+    assert.equal(state.tabs[0]?.sessionId, "durable-1");
+    assert.ok(readOpenTabs(openTabsPath).includes("durable-1"));
+
+    releases[0]!();
+    await restoring;
+    assert.deepEqual(readOpenTabs(openTabsPath), ["durable-1"]);
+    assert.equal(state.tabs[0]?.sessionId, "durable-1");
+  } finally {
+    configureOpenTabsPath(undefined);
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("restore drops a cancelled tab's publication before later switches run", async () => {
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-restore-cancel-"));
+  const openTabsPath = path.join(dir, "open_tabs.json");
+  configureOpenTabsPath(openTabsPath);
+  try {
+    const cancelledPath = path.join(dir, "cancelled.jsonl");
+    const keptPath = path.join(dir, "kept.jsonl");
+    await fsPromises.writeFile(cancelledPath, "{}\n", "utf8");
+    await fsPromises.writeFile(keptPath, "{}\n", "utf8");
+    const workspace = {
+      name: "main",
+      startupWorkdir: "/repo",
+      updatedAt: "now",
+      tabs: [
+        { sessionId: "durable-a", sessionPath: cancelledPath, title: "a", workdir: "/repo" },
+        { sessionId: "durable-b", sessionPath: keptPath, title: "b", workdir: "/repo" },
+      ],
+    };
+    const state = createInitialState("/repo");
+    const { runtime, releases, openTabsAtSwitchStart } = gatedRuntime(openTabsPath, [
+      { durableId: "durable-a", cancelled: true },
+      { durableId: "durable-b", cancelled: false },
+    ]);
+    const tui = createOverlayTui();
+
+    const restoring = restoreWorkspace(state, runtime, tui, workspace);
+    await until(() => openTabsAtSwitchStart.length === 2);
+
+    // While tab b is still switching, tab a's id must already be withdrawn:
+    // otherwise the reconciler sees it desired-but-not-local and reopens the
+    // session the user just watched restore cancel.
+    assert.ok(readOpenTabs(openTabsPath).includes("durable-b"));
+    assert.ok(!readOpenTabs(openTabsPath).includes("durable-a"));
+
+    releases[0]!();
+    await restoring;
+    assert.deepEqual(readOpenTabs(openTabsPath), ["durable-b"]);
+    assert.equal(state.tabs.length, 1);
+    assert.equal(state.tabs[0]?.sessionId, "durable-b");
+  } finally {
+    configureOpenTabsPath(undefined);
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
 });
