@@ -20,7 +20,7 @@ import {
   isOversizedAssistantMessageText,
   renderOversizedAssistantMessageBlock,
 } from "./oversized-assistant-message.js";
-import { box, padLine, renderBackgroundLine, sanitizeTerminalText } from "./primitives.js";
+import { padLine, renderBackgroundLine, sanitizeTerminalText } from "./primitives.js";
 
 /**
  * Parsed skill block from a user message.
@@ -1046,6 +1046,17 @@ function tailVisualRows(
   return { rows: visual, overflow };
 }
 
+function renderThinkingCard(lines: string[], chatWidth: number): string[] {
+  const innerWidth = Math.max(1, chatWidth - 2);
+  const paint = activeRenderTheme.thinkingText;
+  const label = "─ Thinking ";
+  const fill = Math.max(0, innerWidth - visibleWidth(label));
+  const top = paint(`╭${label}${"─".repeat(fill)}╮`);
+  const body = lines.map((line) => `${paint("│")}${padLine(line, innerWidth)}${paint("│")}`);
+  const bottom = paint(`╰${"─".repeat(innerWidth)}╯`);
+  return [top, ...body, bottom].map((line) => padLine(line, chatWidth));
+}
+
 function renderHiddenThinkingViewport(text: string, width: number, maxRows: number): string[] {
   const stripped = stripHiddenThinkingPresentation(text);
   if (!stripped) {
@@ -1067,8 +1078,5 @@ function renderHiddenThinkingViewport(text: string, width: number, maxRows: numb
     }
     return ` ${style(row)}`;
   });
-  return box("Thinking", lines, width, {
-    ...activeRenderTheme,
-    border: activeRenderTheme.borderMuted,
-  });
+  return renderThinkingCard(lines, width);
 }

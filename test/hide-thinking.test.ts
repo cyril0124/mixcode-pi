@@ -151,7 +151,7 @@ test("hidden thinking viewport shows a 3-row tail of that block", () => {
   assert.match(content[1]!, /… line-17/);
   assert.match(content[2]!, /line-18/);
   assert.match(content[3]!, /line-19/);
-  assert.match(content[4]!, /└/);
+  assert.match(content[4]!, /╰/);
   assert.doesNotMatch(hidden, /line-00/);
   assert.doesNotMatch(hidden, /Thinking\.\.\./);
 });
@@ -189,8 +189,8 @@ test("hidden thinking viewport keeps short text without an ellipsis", () => {
   assert.match(hidden, /Thinking/);
   assert.match(hidden, /one/);
   assert.match(hidden, /two/);
-  assert.match(hidden, /┌/);
-  assert.match(hidden, /└/);
+  assert.match(hidden, /╭/);
+  assert.match(hidden, /╰/);
   assert.doesNotMatch(hidden, /…/);
 });
 
