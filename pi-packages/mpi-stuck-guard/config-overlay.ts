@@ -22,6 +22,7 @@ const SECTIONS: readonly { title: string; keys: readonly ConfigKey[] }[] = [
       "knownTimeoutCooldownSeconds",
     ],
   },
+  { title: "Schema hint", keys: ["schemaHintFailureThreshold"] },
 ];
 
 const CONFIG_KEYS: readonly ConfigKey[] = SECTIONS.flatMap((section) => section.keys);
@@ -33,6 +34,7 @@ const LABELS: Record<ConfigKey, string> = {
   streamIdleTimeoutSeconds: "Stream idle timeout (s)",
   streamRetryStartTimeoutSeconds: "Retry start timeout (s)",
   knownTimeoutCooldownSeconds: "Timeout cooldown (s)",
+  schemaHintFailureThreshold: "Hint failure threshold",
 };
 
 const DESCRIPTIONS: Record<ConfigKey, string> = {
@@ -44,6 +46,8 @@ const DESCRIPTIONS: Record<ConfigKey, string> = {
     "First-event wait after a known timeout in this session; 0 disables.",
   knownTimeoutCooldownSeconds:
     "How long this session keeps the retry start window after a timeout.",
+  schemaHintFailureThreshold:
+    "Consecutive validation failures of the same tool before the schema hint fires.",
 };
 
 export interface StuckGuardConfigOverlayOptions {

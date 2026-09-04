@@ -1,10 +1,14 @@
 # mpi-stuck-guard
 
-`mpi-stuck-guard` guards against stuck sessions on two layers: it blocks recursive searches that would never finish, and it watches provider stream liveness, aborts stalled requests, and returns a retryable error to the host retry mechanism.
+`mpi-stuck-guard` guards against stuck sessions on three layers: it blocks recursive searches that would never finish, it watches provider stream liveness, aborts stalled requests, and returns a retryable error to the host retry mechanism, and it steers the model back after repeated parameter-validation failures of the same tool.
 
 ## Search guard
 
 The search guard intercepts `bash`, `grep`, and `find` tool calls before execution and blocks recursive searches rooted at high-cardinality directories (`/`, `/home`, `/etc`, `/usr`, `/var`, `/tmp`, `/opt`, `/nfs`, `~`, and the home parent). Blocked calls return a reason telling the agent to narrow the path to a specific subdirectory. Bash command inspection handles heredocs, comments, quotes, command splitting (`;`, `&&`, `||`, pipes), `sudo`/`env` prefixes, and redirections; it parses `grep`/`rg`/`find`/`fd`/`ag`/`ack` arguments to locate path positionals.
+
+## Schema hint
+
+When the same tool fails parameter validation on `schemaHintFailureThreshold` (default 2) consecutive calls, the guard distills that tool's parameter schema into a compact contract (required fields, per-level field names and types, optional fields marked `(optional)`, `enum`/`anyOf` folded to `a|b`, capped at 15 property lines and 2 nesting levels) and injects it as a hidden steering message so the model re-issues the call with correct arguments. Detection rides on `tool_execution_end` with an error text starting `Validation failed for tool "` (the observable contract of pi-ai's argument validation; validation failures do not fire the `tool_result` extension event). One hint per failure streak: any successful or non-validation call to the tool resets the counter and re-arms the hint; `session_start` clears all counters. A toast (`[stuck-guard] injected <tool> parameter contract hint`) marks each injection. The threshold is read from `mpi-stuck-guard.json` (editable via `/stuck-guard config`) and reloaded on `session_start` / `before_agent_start`.
 
 ## Provider stream watchdog
 
@@ -83,7 +87,8 @@ Config lives at `<agentDir>/mpi-stuck-guard.json`. Missing keys use defaults. Un
   "streamStartTimeoutSeconds": 300,
   "streamIdleTimeoutSeconds": 300,
   "streamRetryStartTimeoutSeconds": 300,
-  "knownTimeoutCooldownSeconds": 60
+  "knownTimeoutCooldownSeconds": 60,
+  "schemaHintFailureThreshold": 2
 }
 ```
 
@@ -95,6 +100,7 @@ Config lives at `<agentDir>/mpi-stuck-guard.json`. Missing keys use defaults. Un
 | `streamIdleTimeoutSeconds` | integer >= 0 | `300` | Maximum gap between provider events; `0` disables it |
 | `streamRetryStartTimeoutSeconds` | integer >= 0 | `300` | First-event window after a known timeout in this session; `0` disables it |
 | `knownTimeoutCooldownSeconds` | integer >= 0 | `60` | How long this session keeps the retry start window; `0` keeps it for the session. Not shared across tabs |
+| `schemaHintFailureThreshold` | integer >= 1 | `2` | Consecutive validation failures of the same tool before the schema hint is injected |
 
 The host still owns retry settings in `settings.json`:
 

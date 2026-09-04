@@ -20,7 +20,7 @@ MixCode 随附位于 `pi-packages/mpi-*` 的第一方内置 Pi 包。启动时�
 | `mpi-diff-viewer` | `/diff [ref]` | 终端内交互式 Diff 查看器，支持 hunk 导航与行级评审注释。 |
 | `mpi-model-attach` | `/model-attach`，`<agentDir>/mpi-model-attach.json` | 按当前模型增删 Skill，并加载额外 Pi 扩展。 |
 | `mpi-length-resume` | 回答被长度截断时自动触发 | 回答因输出长度截断后自动续跑：原生自动压缩完成后、或 run 在接近上下文上限处以 length 结束时，通过隐藏 follow-up 恢复。轮内阈值压缩由 Pi 核心负责。 |
-| `mpi-stuck-guard` | 高基数目录搜索自动拦截；`/stuck-guard`、`/stuck-guard config`、`/stuck-guard stats`、`<agentDir>/mpi-stuck-guard.json` | 防卡死双护栏：拦截对根目录、`~` 等高基数目录的盲目递归搜索，并对 Provider 流做首事件/idle timeout watchdog，支持 retry cooldown、Provider 过滤和当前 session 统计。 |
+| `mpi-stuck-guard` | 高基数目录搜索自动拦截；`/stuck-guard`、`/stuck-guard config`、`/stuck-guard stats`、`<agentDir>/mpi-stuck-guard.json` | 防卡死三护栏：拦截对根目录、`~` 等高基数目录的盲目递归搜索；对 Provider 流做首事件/idle timeout watchdog，支持 retry cooldown、Provider 过滤和当前 session 统计；同一工具反复参数校验失败时注入参数契约提示。 |
 | `mpi-tool-block` | `/tool-block`，`<agentDir>/mpi-tool-block.json` 或当前 session 内存 | 弹出 overlay 勾选要隐藏的 tool，从 active 集合拿掉，模型看不见。 |
 | `mpi-permission` | `/permission`，`$mpi-permission`，`<agentDir>/mpi-permission.json`，`<cwd>/.pi/mpi-permission.json` | 用 allow / ask / deny 通配符规则把关工具调用，并扫描常见 Bash 文件命令的静态路径；含外部目录与重复调用（doom loop）防护；ask 审批支持 once / always / reject（doom_loop 的 ask 仅 once / reject）。`$mpi-permission` 用来写 JSON 策略。详见 [pi-packages/mpi-permission/README.zh.md](../pi-packages/mpi-permission/README.zh.md)。 |
 | `mpi-bash` | 执行 Bash 工具时自动生效、`/bash-logs` | 注入默认超时，前台窗口到期后自动转入后台，命令结束或长时间无输出时自动回报，并用两段 overlay 查看或终止后台命令。 |

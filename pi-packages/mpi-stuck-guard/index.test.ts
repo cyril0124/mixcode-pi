@@ -58,6 +58,7 @@ test("wiring wraps selected providers and restores them when disabled", async ()
     streamIdleTimeoutSeconds: 1,
     streamRetryStartTimeoutSeconds: 1,
     knownTimeoutCooldownSeconds: 1,
+    schemaHintFailureThreshold: 2,
   };
   wireStuckGuard(harness.pi as never, () => ({ ok: true as const, config, path: "test" }));
   await harness.emit("session_start");
@@ -78,6 +79,7 @@ test("wiring reports unknown selected providers", async () => {
       streamIdleTimeoutSeconds: 1,
       streamRetryStartTimeoutSeconds: 1,
       knownTimeoutCooldownSeconds: 1,
+      schemaHintFailureThreshold: 2,
     },
     path: "test",
   }));

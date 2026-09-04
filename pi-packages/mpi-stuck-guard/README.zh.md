@@ -1,6 +1,10 @@
 # mpi-stuck-guard
 
-`mpi-stuck-guard` 在两个层面防卡死：拦截注定跑不完的递归搜索，以及监控 Provider 流活性，中止卡住的请求，并返回可交给宿主 retry 机制的错误。
+`mpi-stuck-guard` 在三个层面防卡死：拦截注定跑不完的递归搜索；监控 Provider 流活性，中止卡住的请求，并返回可交给宿主 retry 机制的错误；以及同一工具反复参数校验失败时，向模型注入参数契约提示帮助其自我纠正。
+
+## 参数契约提示（schema hint）
+
+当同一工具连续 `schemaHintFailureThreshold`（默认 2，可在 `/stuck-guard config` 中修改）次参数校验失败时，守卫将该工具的参数 schema 蒸馏成紧凑契约（required 字段、逐层字段名与类型、`enum`/`anyOf` 折叠为 `a|b`、最多 15 个字段行、最多 2 层嵌套，可选字段标注 `(optional)`），以隐藏的 steer 消息注入，让模型按正确参数重发调用。检测依靠 `tool_execution_end` 事件中错误文本前缀 `Validation failed for tool "`（这是 pi-ai 参数校验的可观测契约；校验失败不会触发 `tool_result` 扩展事件）。每个失败周期只提示一次：该工具任何成功或非校验调用会重置计数并重新武装提示；`session_start` 清空全部计数。每次注入伴随 toast（`[stuck-guard] injected <tool> parameter contract hint`，注入文案为英文）。阈值从 `mpi-stuck-guard.json` 读取，并在 `session_start` / `before_agent_start` 时重载。
 
 ## 搜索拦截（search guard）
 
@@ -83,7 +87,8 @@ timeout 会调用请求级 `AbortController`，并在发出错误前调用 `iter
   "streamStartTimeoutSeconds": 300,
   "streamIdleTimeoutSeconds": 300,
   "streamRetryStartTimeoutSeconds": 300,
-  "knownTimeoutCooldownSeconds": 60
+  "knownTimeoutCooldownSeconds": 60,
+  "schemaHintFailureThreshold": 2
 }
 ```
 
@@ -95,6 +100,7 @@ timeout 会调用请求级 `AbortController`，并在发出错误前调用 `iter
 | `streamIdleTimeoutSeconds` | 整数 >= 0 | `300` | Provider 事件之间最大间隔秒数；`0` 关闭 |
 | `streamRetryStartTimeoutSeconds` | 整数 >= 0 | `300` | 本 session 内已知超时后的首事件窗口；`0` 关闭 |
 | `knownTimeoutCooldownSeconds` | 整数 >= 0 | `60` | 本 session 保持 retry 首事件窗口的时间；`0` 在本 session 内持续。不跨 tab 共享 |
+| `schemaHintFailureThreshold` | 整数 >= 1 | `2` | 同一工具连续参数校验失败多少次后注入参数契约提示 |
 
 宿主仍负责 `settings.json` 中的 retry：
 

@@ -13,6 +13,7 @@ export interface StuckGuardConfig {
   streamIdleTimeoutSeconds: number;
   streamRetryStartTimeoutSeconds: number;
   knownTimeoutCooldownSeconds: number;
+  schemaHintFailureThreshold: number;
 }
 
 export const DEFAULT_STUCK_GUARD_CONFIG: StuckGuardConfig = {
@@ -22,6 +23,7 @@ export const DEFAULT_STUCK_GUARD_CONFIG: StuckGuardConfig = {
   streamIdleTimeoutSeconds: 300,
   streamRetryStartTimeoutSeconds: 300,
   knownTimeoutCooldownSeconds: 60,
+  schemaHintFailureThreshold: 2,
 };
 
 export type StuckGuardConfigLoad =
@@ -39,6 +41,7 @@ const ALLOWED_ROOT_KEYS = new Set<string>([
   ...TIMEOUT_KEYS,
   "streamWatchdogEnabled",
   "providerIds",
+  "schemaHintFailureThreshold",
   "$schema",
 ]);
 
@@ -79,6 +82,13 @@ export function parseStuckGuardConfig(
       return { ok: false, error: `${key} must be an integer >= 0` };
     }
     config[key] = value;
+  }
+  if (root.schemaHintFailureThreshold !== undefined) {
+    const value = root.schemaHintFailureThreshold;
+    if (typeof value !== "number" || !Number.isInteger(value) || value < 1) {
+      return { ok: false, error: "schemaHintFailureThreshold must be an integer >= 1" };
+    }
+    config.schemaHintFailureThreshold = value;
   }
   return { ok: true, config };
 }

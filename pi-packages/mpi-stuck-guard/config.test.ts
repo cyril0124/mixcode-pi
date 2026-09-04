@@ -28,6 +28,14 @@ test("config: invalid provider watchdog values fail loudly", () => {
   assert.ok(!parseStuckGuardConfig({ providerIds: ["", 1] }).ok);
 });
 
+test("config: schema hint threshold validates and overrides the default", () => {
+  const ok = parseStuckGuardConfig({ schemaHintFailureThreshold: 3 });
+  assert.ok(ok.ok && ok.config.schemaHintFailureThreshold === 3);
+  assert.ok(!parseStuckGuardConfig({ schemaHintFailureThreshold: 0 }).ok);
+  assert.ok(!parseStuckGuardConfig({ schemaHintFailureThreshold: 2.5 }).ok);
+  assert.ok(!parseStuckGuardConfig({ schemaHintFailureThreshold: "2" }).ok);
+});
+
 test("config: valid provider watchdog values override defaults", () => {
   const result = parseStuckGuardConfig({
     streamWatchdogEnabled: false,
@@ -45,6 +53,7 @@ test("config: valid provider watchdog values override defaults", () => {
     streamIdleTimeoutSeconds: 7,
     streamRetryStartTimeoutSeconds: 3,
     knownTimeoutCooldownSeconds: 9,
+    schemaHintFailureThreshold: 2,
   });
 });
 

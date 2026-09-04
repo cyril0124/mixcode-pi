@@ -70,7 +70,7 @@ Install community extensions directly through Pi package declarations (`settings
 - **`mpi-tool-display`**: Compact terminal transcript presentation for tools and thinking.
 - **`mpi-model-attach`**: Add or remove skills and load extra extensions for the current model (`/model-attach`).
 - **`mpi-skill-refs`**: `$skill` autocomplete and prompt expansion.
-- **`mpi-stuck-guard`**: Guard against stuck sessions: blocks recursive searches of high-cardinality directories, plus a provider stream watchdog with `/stuck-guard config`, `/stuck-guard stats`, retry cooldowns, and Provider filtering.
+- **`mpi-stuck-guard`**: Guard against stuck sessions: blocks recursive searches of high-cardinality directories; provides a stream watchdog with `/stuck-guard config`, `/stuck-guard stats`, retry cooldowns, and Provider filtering; and steers the model with a parameter-contract hint after repeated tool validation failures.
 - **`mpi-length-resume`**: Auto-continue after length-truncated answers (post-compact and settled-run resume).
 - **`mpi-herdr-report`**: Real-time status reporting to Herdr agent panes (`HERDR_ENV=1`).
 - **`mpi-image-hoist`**: Lift image paths into native multimodal message parts.

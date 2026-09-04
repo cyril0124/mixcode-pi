@@ -2,7 +2,7 @@
   "name": "mpi-stuck-guard",
   "version": "0.1.0",
   "type": "module",
-  "description": "Guard against stuck sessions: block recursive searches of high-cardinality directories, and watch provider streams for first-event and idle timeouts with retryable aborts",
+  "description": "Guard against stuck sessions: block recursive searches of high-cardinality directories, watch provider streams for first-event and idle timeouts with retryable aborts, and steer the model with a distilled parameter-contract hint after repeated tool validation failures",
   "pi": {
     "extensions": [
       "./index.ts"
