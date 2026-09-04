@@ -20,7 +20,7 @@ import {
   isOversizedAssistantMessageText,
   renderOversizedAssistantMessageBlock,
 } from "./oversized-assistant-message.js";
-import { padLine, renderBackgroundLine, sanitizeTerminalText } from "./primitives.js";
+import { box, padLine, renderBackgroundLine, sanitizeTerminalText } from "./primitives.js";
 
 /**
  * Parsed skill block from a user message.
@@ -59,7 +59,7 @@ export const STREAMING_MARKDOWN_CHAR_LIMIT = 8000;
 export interface RenderChatBlockOptions {
   oversizedAssistantMessage?: OversizedAssistantMessageSettings;
   streamingMarkdownCharLimit?: number;
-  /** When true, thinking blocks collapse to a static placeholder. */
+  /** When true, thinking blocks collapse to a boxed 3-row tail (or hiddenThinkingLabel). */
   hideThinking?: boolean;
   /** Pi `markdown.mermaid` mode. Default `streaming`. */
   mermaidRenderingMode?: MermaidRenderingMode;
@@ -74,9 +74,11 @@ export interface RenderChatBlockOptions {
   markdownTransformers?: readonly MarkdownTransformer[];
 }
 
-// Placeholder shown in place of collapsed thinking content, matching Pi's
-// default hiddenThinkingLabel.
+// Fallback when a collapsed thinking block has no remaining text after stripping
+// presentation artifacts. Pi's default hiddenThinkingLabel is the same string.
 export const HIDDEN_THINKING_LABEL = "Thinking...";
+const HIDDEN_THINKING_VIEWPORT_ROWS = 3;
+const HIDDEN_THINKING_LABEL_PREFIX = /^(?:thinking:\s*)+/i;
 
 interface RenderConversationOptions {
   blockOptions?: (line: ChatLine, index: number) => RenderChatBlockOptions | undefined;
@@ -281,17 +283,20 @@ function renderMessageBlockUncached(
   }
   if (line.role === "thinking") {
     if (!text.trim()) return [];
-    // Collapse thinking content to a static placeholder when hidden (Pi parity).
+    // Hidden: extension label, else a boxed 3-row tail.
     if (options.hideThinking) {
-      const label = tab?.extensionUi.hiddenThinkingLabel?.trim() || HIDDEN_THINKING_LABEL;
-      return renderMarkdown(label, width, {
-        color: activeRenderTheme.thinkingText,
-        italic: true,
-        mermaidRenderingMode: options.mermaidRenderingMode,
-        messageType: "assistant-thinking",
-        isStreaming: options.streamingMarkdownCharLimit !== undefined,
-        transformers: options.markdownTransformers,
-      });
+      const label = tab?.extensionUi.hiddenThinkingLabel?.trim();
+      if (label) {
+        return renderMarkdown(label, width, {
+          color: activeRenderTheme.thinkingText,
+          italic: true,
+          mermaidRenderingMode: options.mermaidRenderingMode,
+          messageType: "assistant-thinking",
+          isStreaming: options.streamingMarkdownCharLimit !== undefined,
+          transformers: options.markdownTransformers,
+        });
+      }
+      return renderHiddenThinkingViewport(text, width, HIDDEN_THINKING_VIEWPORT_ROWS);
     }
     const trimmed = text.trim();
     const oversized = renderOversizedAssistantMessageBlock(
@@ -380,7 +385,7 @@ function chatLineRenderCacheKey(
     if (isOversizedAssistantMessageText(line.text, options.oversizedAssistantMessage)) {
       return undefined;
     }
-    // hideThinking + custom label flip the thinking placeholder; include both.
+    // hideThinking + custom label flip the collapsed thinking render.
     const hideKey =
       role === "thinking" && options.hideThinking
         ? `1${KEY_SEP}${tab?.extensionUi.hiddenThinkingLabel ?? ""}`
@@ -1006,4 +1011,64 @@ function renderSystemPlainDump(body: string, width: number): string[] {
 
 function wrapPlainLine(text: string, width: number): string[] {
   return text.split(/\r?\n/).flatMap((line) => wrapTextWithAnsi(line || " ", Math.max(1, width)));
+}
+
+function stripHiddenThinkingPresentation(text: string): string {
+  let current = text.replace(/\x1b\[[0-9;]*m/g, "");
+  while (true) {
+    const withoutLabel = current.replace(HIDDEN_THINKING_LABEL_PREFIX, "").trimStart();
+    if (withoutLabel === current) return current.trim();
+    current = withoutLabel;
+  }
+}
+
+function tailVisualRows(
+  text: string,
+  width: number,
+  maxRows: number,
+): { rows: string[]; overflow: boolean } {
+  const colWidth = Math.max(1, width);
+  const charBudget = maxRows * colWidth;
+  const sourceLines = text.split(/\r?\n/);
+  const visual: string[] = [];
+  let overflow = false;
+  for (let index = sourceLines.length - 1; index >= 0; index--) {
+    const line = sourceLines[index] ?? "";
+    // ponytail: wrap only a tail of each source line; wrapping a 100k-char line is O(n).
+    const piece = line.length > charBudget ? line.slice(-charBudget) : line;
+    if (line.length > charBudget) overflow = true;
+    visual.unshift(...wrapPlainLine(piece || " ", colWidth));
+    if (visual.length >= maxRows) {
+      overflow = overflow || index > 0 || visual.length > maxRows;
+      return { rows: visual.slice(-maxRows), overflow };
+    }
+  }
+  return { rows: visual, overflow };
+}
+
+function renderHiddenThinkingViewport(text: string, width: number, maxRows: number): string[] {
+  const stripped = stripHiddenThinkingPresentation(text);
+  if (!stripped) {
+    return renderMarkdown(HIDDEN_THINKING_LABEL, width, {
+      color: activeRenderTheme.thinkingText,
+      italic: true,
+      messageType: "assistant-thinking",
+    });
+  }
+  const innerWidth = Math.max(1, width - 2);
+  const textWidth = Math.max(1, innerWidth - 1);
+  const { rows, overflow } = tailVisualRows(stripped, textWidth, maxRows);
+  const style = (body: string) => activeRenderTheme.italic(activeRenderTheme.thinkingText(body));
+  const lines = rows.map((row, index) => {
+    if (index === 0 && overflow) {
+      const marker = "\u2026 ";
+      const budget = Math.max(1, textWidth - visibleWidth(marker));
+      return ` ${style(`${marker}${truncateToWidth(row, budget, "", true)}`)}`;
+    }
+    return ` ${style(row)}`;
+  });
+  return box("Thinking", lines, width, {
+    ...activeRenderTheme,
+    border: activeRenderTheme.borderMuted,
+  });
 }

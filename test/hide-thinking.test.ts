@@ -83,7 +83,7 @@ test("/hide-thinking keeps state unchanged when persistence fails", async () => 
   assert.deepEqual(messages, ["Hide thinking failed: settings disk is read-only"]);
 });
 
-test("renderAgentSurface hides thinking content behind a placeholder", () => {
+test("renderAgentSurface keeps short hidden thinking in the tail window", () => {
   const chat = [
     { role: "thinking", text: "secret reasoning trace" },
     { role: "assistant", text: "final answer" },
@@ -100,14 +100,14 @@ test("renderAgentSurface hides thinking content behind a placeholder", () => {
       hideThinking: true,
     }).join("\n"),
   );
-  // Thinking content is gone; a placeholder replaces it; assistant text stays.
-  assert.doesNotMatch(hidden, /secret reasoning trace/);
-  assert.match(hidden, /Thinking\.\.\./);
+  // Short thinking stays visible in the 3-row window; assistant text stays.
+  assert.match(hidden, /secret reasoning trace/);
+  assert.doesNotMatch(hidden, /Thinking\.\.\./);
   assert.match(hidden, /final answer/);
 });
 
 test("hidden thinking placeholder uses extensionUi.hiddenThinkingLabel when set", () => {
-  const chat = [{ role: "thinking", text: "secret reasoning trace" }];
+  const chat = [{ role: "thinking", text: thinkingLines("line").join("\n") }];
   const tab = createTab(1, "s1", "/repo");
   tab.extensionUi.hiddenThinkingLabel = "Reasoning folded";
 
@@ -116,9 +116,8 @@ test("hidden thinking placeholder uses extensionUi.hiddenThinkingLabel when set"
       hideThinking: true,
     }).join("\n"),
   );
-  assert.doesNotMatch(hidden, /secret reasoning trace/);
+  assert.doesNotMatch(hidden, /line-19/);
   assert.match(hidden, /Reasoning folded/);
-  assert.doesNotMatch(hidden, /Thinking\.\.\./);
 
   tab.extensionUi.hiddenThinkingLabel = undefined;
   const restored = stripAnsi(
@@ -126,5 +125,104 @@ test("hidden thinking placeholder uses extensionUi.hiddenThinkingLabel when set"
       hideThinking: true,
     }).join("\n"),
   );
-  assert.match(restored, /Thinking\.\.\./);
+  assert.match(restored, /line-19/);
+  assert.doesNotMatch(restored, /Reasoning folded/);
+});
+
+function thinkingLines(text: string): string[] {
+  return Array.from({ length: 20 }, (_, index) => `${text}-${String(index).padStart(2, "0")}`);
+}
+
+test("hidden thinking viewport shows a 3-row tail of that block", () => {
+  const tab = createTab(1, "s1", "/repo");
+  const chat = [{ role: "thinking", text: thinkingLines("line").join("\n") }];
+
+  const hidden = stripAnsi(
+    renderAgentSurface(tab, { chat } as never, 100, undefined, undefined, {
+      hideThinking: true,
+    }).join("\n"),
+  );
+  const content = hidden
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  assert.equal(content.length, 5);
+  assert.match(content[0]!, /Thinking/);
+  assert.match(content[1]!, /… line-17/);
+  assert.match(content[2]!, /line-18/);
+  assert.match(content[3]!, /line-19/);
+  assert.match(content[4]!, /└/);
+  assert.doesNotMatch(hidden, /line-00/);
+  assert.doesNotMatch(hidden, /Thinking\.\.\./);
+});
+
+test("hidden thinking viewport follows the tail as text grows", () => {
+  const tab = createTab(1, "s1", "/repo");
+  const short = [{ role: "thinking", text: thinkingLines("line").slice(0, 11).join("\n") }];
+  const first = stripAnsi(
+    renderAgentSurface(tab, { chat: short } as never, 100, undefined, undefined, {
+      hideThinking: true,
+    }).join("\n"),
+  );
+  assert.match(first, /line-10/);
+  assert.doesNotMatch(first, /line-19/);
+
+  const long = [{ role: "thinking", text: thinkingLines("line").join("\n") }];
+  const second = stripAnsi(
+    renderAgentSurface(tab, { chat: long } as never, 100, undefined, undefined, {
+      hideThinking: true,
+    }).join("\n"),
+  );
+  assert.match(second, /line-19/);
+  assert.doesNotMatch(second, /line-10/);
+});
+
+test("hidden thinking viewport keeps short text without an ellipsis", () => {
+  const tab = createTab(1, "s1", "/repo");
+  const chat = [{ role: "thinking", text: "one\ntwo" }];
+
+  const hidden = stripAnsi(
+    renderAgentSurface(tab, { chat } as never, 100, undefined, undefined, {
+      hideThinking: true,
+    }).join("\n"),
+  );
+  assert.match(hidden, /Thinking/);
+  assert.match(hidden, /one/);
+  assert.match(hidden, /two/);
+  assert.match(hidden, /┌/);
+  assert.match(hidden, /└/);
+  assert.doesNotMatch(hidden, /…/);
+});
+
+test("hidden thinking viewport of a long body is 3 rows and drops the head", () => {
+  const tab = createTab(1, "s1", "/repo");
+  const chat = [
+    {
+      role: "thinking",
+      text: `HEAD-UNIQUE\n${"x".repeat(100_000)}\nTAIL-UNIQUE`,
+    },
+  ];
+
+  const hidden = stripAnsi(
+    renderAgentSurface(tab, { chat } as never, 40, undefined, undefined, {
+      hideThinking: true,
+    }).join("\n"),
+  );
+  const content = hidden
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  assert.equal(content.length, 5);
+  assert.match(hidden, /Thinking/);
+  assert.match(hidden, /TAIL-UNIQUE/);
+  assert.doesNotMatch(hidden, /HEAD-UNIQUE/);
+});
+
+test("visible thinking is not truncated when hideThinking is off", () => {
+  const tab = createTab(1, "s1", "/repo");
+  const chat = [{ role: "thinking", text: thinkingLines("line").join("\n") }];
+
+  const visible = stripAnsi(renderAgentSurface(tab, { chat } as never, 100).join("\n"));
+  assert.match(visible, /line-00/);
+  assert.match(visible, /line-19/);
 });

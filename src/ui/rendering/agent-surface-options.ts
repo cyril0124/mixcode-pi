@@ -6,7 +6,7 @@ import { STREAMING_MARKDOWN_CHAR_LIMIT, type RenderChatBlockOptions } from "./ch
 
 export interface AgentSurfaceRenderOptions {
   oversizedAssistantMessage?: OversizedAssistantMessageSettings;
-  /** When true, thinking blocks collapse to a static placeholder. */
+  /** When true, thinking blocks collapse to a boxed 3-row tail (or hiddenThinkingLabel). */
   hideThinking?: boolean;
   /** Pi `markdown.mermaid` mode. Default `streaming`. */
   mermaidRenderingMode?: MermaidRenderingMode;

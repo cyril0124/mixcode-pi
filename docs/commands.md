@@ -39,7 +39,7 @@ Commands operate across three distinct persistence tiers:
 | `/toggle-zen-mode` | - | Session | Toggles tab bar visibility for distraction-free view. |
 | `/toggle-inline-widgets` | - | Session | Toggles inline widget rendering in the chat scroll area vs above the editor. |
 | `/toggle-hidden-messages` | - | Session | Reveals or hides internal custom extension messages. |
-| `/hide-thinking` | - | `[global]` | Toggles whether thinking blocks are hidden behind placeholders. |
+| `/hide-thinking` | - | `[global]` | Toggles whether thinking blocks collapse to a boxed 3-row tail. |
 | `/settings` | - | Global | Opens interactive settings overlay for themes, icons, and UI preferences. |
 | `/login` | `[provider]` | Global | Configures provider authentication. Without an argument, select subscription or API key first; an exact provider id or name opens that provider directly. Credentials are shared with Pi through `<agentDir>/auth.json`. |
 | `/logout` | - | Global | Removes a credential saved by `/login`; environment variables and `models.json` authentication remain unchanged. |
