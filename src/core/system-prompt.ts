@@ -123,9 +123,14 @@ export function buildMixCodeSystemPromptSections(options: MixCodeSystemPromptPar
     }
     sections.push({ name: "Project context (frame)", text: "</project_context>\n" });
   }
-  const customPromptHasRead = !selectedTools || selectedTools.includes("read");
-  if (customPromptHasRead && skills && skills.length > 0) {
-    sections.push({ name: "Skills", text: formatSkillsForPrompt(skills) });
+  // Mirror upstream's assembler (#8552): the skills section needs a tool that
+  // can read skill files — `read` first, falling back to `bash`, and the
+  // instruction line names whichever tool won.
+  const skillFileReadTool: "read" | "bash" | undefined = !selectedTools
+    ? "read"
+    : (["read", "bash"] as const).find((tool) => selectedTools.includes(tool));
+  if (skillFileReadTool && skills && skills.length > 0) {
+    sections.push({ name: "Skills", text: formatSkillsForPrompt(skills, skillFileReadTool) });
   }
   sections.push({
     name: "Environment (date & cwd)",

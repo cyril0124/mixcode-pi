@@ -14,6 +14,7 @@ export function testOverlayHandle(hide: () => void = () => undefined): OverlayHa
     focus: () => undefined,
     unfocus: () => undefined,
     isFocused: () => false,
+    getBounds: () => undefined,
   };
 }
 

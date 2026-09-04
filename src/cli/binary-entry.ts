@@ -196,6 +196,9 @@ import stuckGuardStats from "../../pi-packages/mpi-stuck-guard/stats.ts" with { 
 import stuckGuardStatsOverlay from "../../pi-packages/mpi-stuck-guard/stats-overlay.ts" with {
   type: "text",
 };
+import stuckGuardSchemaHint from "../../pi-packages/mpi-stuck-guard/schema-hint.ts" with {
+  type: "text",
+};
 import stuckGuardSchemaJson from "../../pi-packages/mpi-stuck-guard/mpi-stuck-guard.schema.json" with {
   type: "text",
 };
@@ -626,6 +629,7 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
       "stats.ts": stuckGuardStats,
       "stats-overlay.ts": stuckGuardStatsOverlay,
       "mpi-stuck-guard.schema.json": stuckGuardSchemaJson,
+      "schema-hint.ts": stuckGuardSchemaHint,
       "package.json": stuckGuardPackageJson,
     },
     "mpi-ctl": {

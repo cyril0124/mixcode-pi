@@ -1,11 +1,11 @@
 diff --git a/dist/core/agent-session.d.ts b/dist/core/agent-session.d.ts
-index 8c7cfec6fc0ec004f17c08c52a58c354b28b3978..5925247624895c9fb0db8141ad71f83fe38a9611 100644
+index 89f96e8769496a952cbf29efded4dd52b7eaad97..0bc6f515500c464e33d9a9c4201cc7acaa31890c 100644
 --- a/dist/core/agent-session.d.ts
 +++ b/dist/core/agent-session.d.ts
 @@ -436,6 +436,29 @@ export declare class AgentSession {
-         steering: string[];
-         followUp: string[];
-     };
+     /** Get pending steering messages (read-only) */
+     getSteeringMessages(): readonly string[];
+     /** Get pending follow-up messages (read-only) */
 +    /**
 +     * MIXCODE_QUEUE_DEQUEUE: remove specific queued messages, matched by exact
 +     * text (last occurrence first), from both the session text mirror and the
@@ -29,11 +29,11 @@ index 8c7cfec6fc0ec004f17c08c52a58c354b28b3978..5925247624895c9fb0db8141ad71f83f
 +        prompt: string;
 +        options: import("./system-prompt.ts").BuildSystemPromptOptions;
 +    }): void;
-     /** Number of pending messages (includes both steering and follow-up) */
-     get pendingMessageCount(): number;
-     /** Get pending steering messages (read-only) */
+     getFollowUpMessages(): readonly string[];
+     get resourceLoader(): ResourceLoader;
+     /**
 diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js
-index fd82b71cf332715f185d07459429f04ed7491ce9..b84b5293f3c4b52408c54869105d871790ae66af 100644
+index 66e874efd252470d00d3cdaad2e2b4b6121de15b..d82a1a4afc668c8b52c24896857ca70b443f1fd3 100644
 --- a/dist/core/agent-session.js
 +++ b/dist/core/agent-session.js
 @@ -764,8 +764,24 @@ export class AgentSession {
@@ -105,7 +105,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..b84b5293f3c4b52408c54869105d8717
      /** Number of pending messages (includes both steering and follow-up) */
      get pendingMessageCount() {
          return this._steeringMessages.length + this._followUpMessages.length;
-@@ -2102,13 +2155,29 @@ export class AgentSession {
+@@ -2109,13 +2162,29 @@ export class AgentSession {
          const excludedToolNames = this._excludedToolNames;
          const isAllowedTool = (name) => (!allowedToolNames || allowedToolNames.has(name)) && !excludedToolNames?.has(name);
          const registeredTools = this._extensionRunner.getAllRegisteredTools();
@@ -136,7 +136,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..b84b5293f3c4b52408c54869105d8717
          const definitionRegistry = new Map(Array.from(this._baseToolDefinitions.entries())
              .filter(([name]) => isAllowedTool(name))
              .map(([name, definition]) => [
-@@ -2118,7 +2187,7 @@ export class AgentSession {
+@@ -2125,7 +2194,7 @@ export class AgentSession {
                  sourceInfo: createSyntheticSourceInfo(`<builtin:${name}>`, { source: "builtin" }),
              },
          ]));
@@ -145,7 +145,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..b84b5293f3c4b52408c54869105d8717
              definitionRegistry.set(tool.definition.name, {
                  definition: tool.definition,
                  sourceInfo: tool.sourceInfo,
-@@ -2138,7 +2207,7 @@ export class AgentSession {
+@@ -2145,7 +2214,7 @@ export class AgentSession {
          })
              .filter((entry) => entry !== undefined));
          const runner = this._extensionRunner;
@@ -154,7 +154,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..b84b5293f3c4b52408c54869105d8717
          const wrappedBuiltInTools = wrapRegisteredTools(Array.from(this._baseToolDefinitions.values())
              .filter((definition) => isAllowedTool(definition.name))
              .map((definition) => ({
-@@ -2820,4 +2889,53 @@ export class AgentSession {
+@@ -2828,4 +2897,53 @@ export class AgentSession {
          return this._extensionRunner;
      }
  }
@@ -210,7 +210,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..b84b5293f3c4b52408c54869105d8717
  //# sourceMappingURL=agent-session.js.map
 \ No newline at end of file
 diff --git a/dist/core/extensions/loader.js b/dist/core/extensions/loader.js
-index bb022d43f66ca443fb2ba21bf998ded56a0ebf79..3b54072947a1d85720ad1ba1fb50b2b13558a96f 100644
+index e8e8859ae1e64ef0cdc50b0d31e2927d1fa0082f..3eb03b98630f19ca1078917971788bc9b087661d 100644
 --- a/dist/core/extensions/loader.js
 +++ b/dist/core/extensions/loader.js
 @@ -54,6 +54,20 @@ const VIRTUAL_MODULES = {
@@ -234,7 +234,7 @@ index bb022d43f66ca443fb2ba21bf998ded56a0ebf79..3b54072947a1d85720ad1ba1fb50b2b1
  const require = createRequire(import.meta.url);
  const isNodeSeaBinary = ("sea" in process.features && process.features.sea === true) ||
      process.getBuiltinModule("node:sea")?.isSea() === true;
-@@ -116,8 +130,18 @@ function getAliases() {
+@@ -115,8 +129,18 @@ function getAliases() {
  let extensionCacheCwd;
  let extensionCacheGeneration = 0;
  const extensionCache = new Map();
@@ -253,7 +253,7 @@ index bb022d43f66ca443fb2ba21bf998ded56a0ebf79..3b54072947a1d85720ad1ba1fb50b2b1
      extensionCacheCwd = undefined;
      extensionCacheGeneration++;
  }
-@@ -413,7 +437,22 @@ async function loadExtensionModule(extensionPath, cacheToken) {
+@@ -412,7 +436,22 @@ async function loadExtensionModule(extensionPath, cacheToken) {
          if (cachedFactory) {
              return cachedFactory;
          }
@@ -403,7 +403,7 @@ index 71b4603911b786ce6f2e4caee128ea7c391161f3..186d36be1c8dccb1718845e6193f6bc8
  //# sourceMappingURL=keybindings.js.map
 \ No newline at end of file
 diff --git a/dist/core/session-manager.d.ts b/dist/core/session-manager.d.ts
-index 8cdfbdec42f696b8cd6b762a92180a81ec142433..e28fb07e339f41d5d99e7b8c2e172cc346eb5525 100644
+index a8d14157e590b439bbe83bacb24d4449d9ea54cb..136448b5de1cae30f0e139df0f4b27a934cd88c6 100644
 --- a/dist/core/session-manager.d.ts
 +++ b/dist/core/session-manager.d.ts
 @@ -165,6 +165,8 @@ export declare function buildContextEntries(entries: SessionEntry[], leafId?: st
@@ -416,7 +416,7 @@ index 8cdfbdec42f696b8cd6b762a92180a81ec142433..e28fb07e339f41d5d99e7b8c2e172cc3
  export declare function loadEntriesFromFile(filePath: string): FileEntry[];
  /** Exported for testing */
 diff --git a/dist/core/session-manager.js b/dist/core/session-manager.js
-index f887c04976596f8956bc04c16ca59c4030e09f92..3b81023f1f79c6faeec7445cec85951693bd9d05 100644
+index fbb784f771553c21e993cf82200a80a854261437..bc8876f429c4a2cb8415f3baf9f7c1d535646f74 100644
 --- a/dist/core/session-manager.js
 +++ b/dist/core/session-manager.js
 @@ -239,7 +239,7 @@ export function buildSessionContext(entries, leafId, byId) {
@@ -429,13 +429,13 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..3b81023f1f79c6faeec7445cec859516
      const resolvedAgentDir = resolvePath(agentDir);
      const safePath = `--${resolvedCwd.replace(/^[/\\]/, "").replace(/[/\\:]/g, "-")}--`;
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index 3e9241dc237322f9ba64aac399f4eda31ac4715c..dfbef8a44f99d4f485541d54573ac4f6faf3b174 100644
+index e2b640b661a7712fa3f86ed5ecb494b98a6f9e4d..3f4fe9dd55e0b1e7350a7e277c45abbd47b7d951 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
 @@ -26,11 +26,44 @@ export { hasTrustRequiringProjectResources, type ProjectTrustDecision, ProjectTr
  export { type MainOptions, main } from "./main.ts";
  export { InteractiveMode, type InteractiveModeOptions, type JsonAgentSessionEvent, type ModelInfo, type PrintModeOptions, RpcClient, type RpcClientOptions, type RpcCommand, type RpcEventListener, type RpcExtensionUIRequest, type RpcExtensionUIResponse, type RpcResponse, type RpcSessionState, runPrintMode, runRpcMode, } from "./modes/index.ts";
- export { ArminComponent, AssistantMessageComponent, BashExecutionComponent, BorderedLoader, BranchSummaryMessageComponent, CompactionSummaryMessageComponent, CustomEditor, CustomMessageComponent, DynamicBorder, ExtensionEditorComponent, ExtensionInputComponent, ExtensionSelectorComponent, FooterComponent, keyHint, keyText, LoginDialogComponent, ModelSelectorComponent, OAuthSelectorComponent, type RenderDiffOptions, rawKeyHint, renderDiff, SessionSelectorComponent, type SettingsCallbacks, type SettingsConfig, SettingsSelectorComponent, ShowImagesSelectorComponent, SkillInvocationMessageComponent, ThemeSelectorComponent, ThinkingSelectorComponent, ToolExecutionComponent, type ToolExecutionOptions, TreeSelectorComponent, truncateToVisualLines, UserMessageComponent, UserMessageSelectorComponent, type VisualTruncateResult, } from "./modes/interactive/components/index.ts";
+ export { ArminComponent, AssistantMessageComponent, BashExecutionComponent, BorderedLoader, BranchSummaryMessageComponent, CompactionSummaryMessageComponent, CustomEditor, type CustomEditorOptions, CustomMessageComponent, DynamicBorder, ExtensionEditorComponent, ExtensionInputComponent, ExtensionSelectorComponent, FooterComponent, keyHint, keyText, LoginDialogComponent, ModelSelectorComponent, OAuthSelectorComponent, type RenderDiffOptions, rawKeyHint, renderDiff, SessionSelectorComponent, type SettingsCallbacks, type SettingsConfig, SettingsSelectorComponent, ShowImagesSelectorComponent, SkillInvocationMessageComponent, ThemeSelectorComponent, ThinkingSelectorComponent, ToolExecutionComponent, type ToolExecutionOptions, TreeSelectorComponent, truncateToVisualLines, UserMessageComponent, UserMessageSelectorComponent, type VisualTruncateResult, } from "./modes/interactive/components/index.ts";
 -export { getLanguageFromPath, getMarkdownTheme, getSelectListTheme, getSettingsListTheme, highlightCode, initTheme, Theme, type ThemeColor, } from "./modes/interactive/theme/theme.ts";
 +export {
 +    Theme,

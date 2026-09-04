@@ -57,20 +57,28 @@ test("appendSystemPrompt lands in its own section", () => {
   assert.equal(appendSection.text, "\n\nAPPEND-MARKER");
 });
 
-test("skills section is gated on the read tool like Pi's assembler", () => {
+test("skills section is gated on a file-reading tool like Pi's assembler", () => {
   const withRead = buildMixCodeSystemPromptSections({
     ...richOptions,
     selectedTools: ["read", "edit"],
   });
   assert.ok(withRead.sections.some((s) => s.name === "Skills"));
+  assert.match(withRead.prompt, /Use the read tool to load a skill's file/);
 
-  const withoutRead = buildMixCodeSystemPromptSections({
+  const withBashOnly = buildMixCodeSystemPromptSections({
     ...richOptions,
     selectedTools: ["bash", "edit"],
   });
-  assert.ok(!withoutRead.sections.some((s) => s.name === "Skills"));
-  assert.doesNotMatch(withoutRead.prompt, /<available_skills>/);
-  assert.equal(withoutRead.sections.map((s) => s.text).join(""), withoutRead.prompt);
+  assert.ok(withBashOnly.sections.some((s) => s.name === "Skills"));
+  assert.match(withBashOnly.prompt, /Use bash to load a skill's file/);
+
+  const withoutFileTool = buildMixCodeSystemPromptSections({
+    ...richOptions,
+    selectedTools: ["edit", "write"],
+  });
+  assert.ok(!withoutFileTool.sections.some((s) => s.name === "Skills"));
+  assert.doesNotMatch(withoutFileTool.prompt, /<available_skills>/);
+  assert.equal(withoutFileTool.sections.map((s) => s.text).join(""), withoutFileTool.prompt);
 });
 
 test("all-disabled skills keep join equality with an empty Skills section", () => {
