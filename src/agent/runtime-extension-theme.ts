@@ -30,10 +30,6 @@ const MIXCODE_EXTENSION_KEYBINDING_DEFINITIONS = {
   "app.interrupt": { defaultKeys: "escape", description: "Cancel or abort" },
   "app.clear": { defaultKeys: "ctrl+c", description: "Clear editor input" },
   "app.exit": { defaultKeys: "ctrl+q", description: "Quit MixCode" },
-  "app.suspend": {
-    defaultKeys: process.platform === "win32" ? [] : "ctrl+z",
-    description: "Suspend to background",
-  },
   "app.thinking.cycle": { defaultKeys: "shift+tab", description: "Cycle thinking level" },
   "app.model.cycleForward": { defaultKeys: "ctrl+p", description: "Open command palette" },
   "app.model.cycleBackward": { defaultKeys: "ctrl+t", description: "Open tab jump" },
@@ -77,7 +73,6 @@ const MIXCODE_SHORTCUT_BINDING_IDS = [
   "app.interrupt",
   "app.clear",
   "app.exit",
-  "app.suspend",
   "app.thinking.cycle",
   "app.model.cycleForward",
   "app.model.cycleBackward",
