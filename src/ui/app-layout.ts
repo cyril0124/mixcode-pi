@@ -248,6 +248,7 @@ export class MixCodeRoot implements Component {
       mermaidRenderingMode: this.state.mermaidRenderingMode ?? ("streaming" as const),
       showImages: this.state.showImages !== false,
       imageWidthCells: this.state.imageWidthCells ?? 60,
+      boxedHiddenThinking: this.state.ui?.boxedHiddenThinking === true,
     };
   }
 

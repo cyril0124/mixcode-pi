@@ -1,6 +1,10 @@
 import { type ThinkingLevel, uuidv7 } from "@earendil-works/pi-agent-core";
 import { createTreeSelectorState } from "./tree-selector.js";
-import { DEFAULT_ICON_MODE, DEFAULT_OVERSIZED_ASSISTANT_MESSAGE } from "./mixcode-settings.js";
+import {
+  DEFAULT_BOXED_HIDDEN_THINKING,
+  DEFAULT_ICON_MODE,
+  DEFAULT_OVERSIZED_ASSISTANT_MESSAGE,
+} from "./mixcode-settings.js";
 import {
   HOME_TAB_ID,
   type MixCodeModelRef,
@@ -36,6 +40,7 @@ export function createInitialState(
       oversizedAssistantMessage: { ...DEFAULT_OVERSIZED_ASSISTANT_MESSAGE },
       icons: { mode: DEFAULT_ICON_MODE },
       inlineWidgets: false,
+      boxedHiddenThinking: DEFAULT_BOXED_HIDDEN_THINKING,
     },
     activeTabId: HOME_TAB_ID,
     recentAgentTabIds: [],

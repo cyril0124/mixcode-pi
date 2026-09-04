@@ -18,6 +18,7 @@ The file uses JSONC syntax: regular JSON plus comments and trailing commas. If t
   "ui": {
     "icons": { "mode": "nerd" },
     "inlineWidgets": false,
+    "boxedHiddenThinking": false,
     "oversizedAssistantMessage": {
       "enabled": true,
       "maxLines": 5000,
@@ -35,6 +36,7 @@ The file uses JSONC syntax: regular JSON plus comments and trailing commas. If t
 | `theme` | theme id string | unset → runtime default | Explicit UI theme id. Built-ins (`mixcode-dark`, `claude-warm`, `tokyo-night`, `terminal`, `catppuccin`, `kanagawa`, `rose-pine`), Pi themes (`dark`/`light`), and any theme discovered by Pi (`~/.pi/agent/themes`, packages). Ids are exact; there are no MixCode aliases. Editable via `/settings`. |
 | `ui.icons.mode` | `auto` \| `nerd` \| `ascii` | `nerd` | Glyph set for input-meta icons, context meter, zen status dots, and extension-manager status. `auto` picks nerd glyphs on known Nerd Font terminals, otherwise ascii. Editable via `/settings` as "Icon mode". |
 | `ui.inlineWidgets` | boolean | `false` | Default for new tabs and process start: render `setWidget` above/below chrome in the chat tail. Changing it via `/settings` also applies to all open tabs immediately. Per-tab `/toggle-inline-widgets` is still session-only and is not written to `mixcode_state.json`. Editable via `/settings` as "Inline widgets". |
+| `ui.boxedHiddenThinking` | boolean | `false` | With Pi `hideThinkingBlock` on: render each hidden thinking block as a boxed 3-row tail that follows the stream instead of the `Thinking...` placeholder. A `setHiddenThinkingLabel` override still replaces the whole block. Editable via `/settings` as "Boxed hidden thinking". |
 | `ui.oversizedAssistantMessage.enabled` | boolean | `true` | Fold oversized assistant/thinking provider output in the TUI while keeping full content in the session; use `/transcript` to inspect the full content. |
 | `ui.oversizedAssistantMessage.maxLines` | positive integer | `5000` | Fold assistant/thinking output above this line count. |
 | `ui.oversizedAssistantMessage.maxBytes` | positive integer | `131072` | Fold assistant/thinking output above this UTF-8 byte size. |
@@ -67,6 +69,7 @@ Image display, Mermaid rendering, code-block indent, cache-miss notices, and the
 - Legacy `ui.renderMermaid` is ignored (use Pi `markdown.mermaid`).
 - `ui.icons.mode`: must be one of `auto`, `nerd`, `ascii`; invalid values are reported as settings errors.
 - `ui.inlineWidgets`: must be a boolean; invalid values are reported as settings errors.
+- `ui.boxedHiddenThinking`: must be a boolean; invalid values are reported as settings errors.
 - `ui.oversizedAssistantMessage.enabled`: must be a boolean.
 - `ui.oversizedAssistantMessage.maxLines` and `.maxBytes`: must be positive integers.
 - Invalid `ui.oversizedAssistantMessage` values are reported as settings errors.

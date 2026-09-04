@@ -73,6 +73,7 @@ interface ConversationCache {
   toolsExpanded: boolean;
   oversizedPolicyKey: string;
   hideThinking: boolean;
+  boxedHiddenThinking: boolean;
   hiddenThinkingLabel: string;
   mermaidRenderingMode: string;
   showImages: boolean;
@@ -627,6 +628,7 @@ function getCachedConversationLines(
   const toolsExpanded = tab.extensionUi.toolsExpanded ?? false;
   const policyKey = oversizedPolicyKey(options.oversizedAssistantMessage);
   const hideThinking = options.hideThinking ?? false;
+  const boxedHiddenThinking = options.boxedHiddenThinking === true;
   const hiddenThinkingLabel = tab.extensionUi.hiddenThinkingLabel ?? "";
   const mermaidRenderingMode = options.mermaidRenderingMode ?? "streaming";
   const showImages = options.showImages !== false;
@@ -644,6 +646,7 @@ function getCachedConversationLines(
     cached.toolsExpanded === toolsExpanded &&
     cached.oversizedPolicyKey === policyKey &&
     cached.hideThinking === hideThinking &&
+    cached.boxedHiddenThinking === boxedHiddenThinking &&
     cached.hiddenThinkingLabel === hiddenThinkingLabel &&
     cached.mermaidRenderingMode === mermaidRenderingMode &&
     cached.showImages === showImages &&
@@ -665,6 +668,7 @@ function getCachedConversationLines(
     toolsExpanded,
     oversizedPolicyKey: policyKey,
     hideThinking,
+    boxedHiddenThinking,
     hiddenThinkingLabel,
     mermaidRenderingMode,
     showImages,

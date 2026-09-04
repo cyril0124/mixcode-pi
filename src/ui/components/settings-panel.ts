@@ -8,6 +8,7 @@ import { matchesKey, truncateToWidth, visibleWidth, type Component } from "@eare
 import type { SettingsManager } from "@earendil-works/pi-coding-agent";
 import { homeDir } from "../../core/paths.js";
 import {
+  DEFAULT_BOXED_HIDDEN_THINKING,
   DEFAULT_ICON_MODE,
   DEFAULT_INLINE_WIDGETS,
   DEFAULT_OVERSIZED_ASSISTANT_MESSAGE,
@@ -354,6 +355,30 @@ const ITEMS: SettingItem[] = [
       if (ctx.state.ui) ctx.state.ui.inlineWidgets = enabled;
     },
   },
+  {
+    kind: "boolean",
+    label: "boxedHiddenThinking",
+    section: "mixcode",
+    defaultValue: DEFAULT_BOXED_HIDDEN_THINKING,
+    getValue: ({ mixcodeRaw }) => mixcodeRaw.ui?.boxedHiddenThinking,
+    setValue: async (ctx, v) => {
+      const next: RawMixCodeSettings = { ...ctx.mixcodeRaw };
+      if (v === undefined) {
+        if (next.ui) {
+          const ui = { ...next.ui };
+          delete ui.boxedHiddenThinking;
+          if (Object.keys(ui).length > 0) next.ui = ui;
+          else delete next.ui;
+        }
+      } else {
+        next.ui = { ...next.ui, boxedHiddenThinking: v };
+      }
+      await writeRawMixCodeSettings(ctx.mixcodeFile, next);
+      replaceRaw(ctx.mixcodeRaw, next);
+      if (ctx.state.ui) ctx.state.ui.boxedHiddenThinking = v === true;
+      for (const tab of ctx.state.tabs) clearConversationCache(tab.sessionId);
+    },
+  },
 ];
 
 function replaceRaw(target: RawMixCodeSettings, next: RawMixCodeSettings): void {
@@ -523,6 +548,7 @@ function applyLiveEffects(panel: SettingsPanel): void {
     },
     icons: { mode: raw.ui?.icons?.mode ?? DEFAULT_ICON_MODE },
     inlineWidgets: raw.ui?.inlineWidgets === true,
+    boxedHiddenThinking: raw.ui?.boxedHiddenThinking === true,
   };
   for (const tab of state.tabs) {
     tab.inlineWidgets = state.ui.inlineWidgets;
@@ -547,6 +573,7 @@ const ITEM_LABELS: Record<string, string> = {
   "markdown.mermaid": "Mermaid diagrams",
   "icons.mode": "Icon mode",
   inlineWidgets: "Inline widgets",
+  boxedHiddenThinking: "Boxed hidden thinking",
   "oversized.enabled": "Collapse oversized messages",
   "oversized.maxLines": "Oversized max lines",
   "oversized.maxBytes": "Oversized max bytes",

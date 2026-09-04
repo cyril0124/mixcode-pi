@@ -59,8 +59,10 @@ export const STREAMING_MARKDOWN_CHAR_LIMIT = 8000;
 export interface RenderChatBlockOptions {
   oversizedAssistantMessage?: OversizedAssistantMessageSettings;
   streamingMarkdownCharLimit?: number;
-  /** When true, thinking blocks collapse to a boxed 3-row tail (or hiddenThinkingLabel). */
+  /** When true, thinking blocks collapse to a hidden form (label or placeholder). */
   hideThinking?: boolean;
+  /** With hideThinking: render a boxed 3-row tail instead of the placeholder. */
+  boxedHiddenThinking?: boolean;
   /** Pi `markdown.mermaid` mode. Default `streaming`. */
   mermaidRenderingMode?: MermaidRenderingMode;
   /** When false, user-message image blocks are hidden. Default true (Pi showImages). */
@@ -283,7 +285,7 @@ function renderMessageBlockUncached(
   }
   if (line.role === "thinking") {
     if (!text.trim()) return [];
-    // Hidden: extension label, else a boxed 3-row tail.
+    // Hidden: extension label, else boxed 3-row tail (opt-in) or placeholder.
     if (options.hideThinking) {
       const label = tab?.extensionUi.hiddenThinkingLabel?.trim();
       if (label) {
@@ -294,6 +296,13 @@ function renderMessageBlockUncached(
           messageType: "assistant-thinking",
           isStreaming: options.streamingMarkdownCharLimit !== undefined,
           transformers: options.markdownTransformers,
+        });
+      }
+      if (!options.boxedHiddenThinking) {
+        return renderMarkdown(HIDDEN_THINKING_LABEL, width, {
+          color: activeRenderTheme.thinkingText,
+          italic: true,
+          messageType: "assistant-thinking",
         });
       }
       return renderHiddenThinkingViewport(text, width, HIDDEN_THINKING_VIEWPORT_ROWS);
@@ -385,10 +394,10 @@ function chatLineRenderCacheKey(
     if (isOversizedAssistantMessageText(line.text, options.oversizedAssistantMessage)) {
       return undefined;
     }
-    // hideThinking + custom label flip the collapsed thinking render.
+    // hideThinking + custom label + boxed style flip the collapsed thinking render.
     const hideKey =
       role === "thinking" && options.hideThinking
-        ? `1${KEY_SEP}${tab?.extensionUi.hiddenThinkingLabel ?? ""}`
+        ? `1${KEY_SEP}${tab?.extensionUi.hiddenThinkingLabel ?? ""}${KEY_SEP}${options.boxedHiddenThinking ? 1 : 0}`
         : "0";
     const mermaidKey = options.mermaidRenderingMode ?? "streaming";
     const transformersKey = markdownTransformersCacheKey(options.markdownTransformers);

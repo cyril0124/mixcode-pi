@@ -6,8 +6,10 @@ import { STREAMING_MARKDOWN_CHAR_LIMIT, type RenderChatBlockOptions } from "./ch
 
 export interface AgentSurfaceRenderOptions {
   oversizedAssistantMessage?: OversizedAssistantMessageSettings;
-  /** When true, thinking blocks collapse to a boxed 3-row tail (or hiddenThinkingLabel). */
+  /** When true, thinking blocks collapse to a hidden form (label or placeholder). */
   hideThinking?: boolean;
+  /** With hideThinking: render a boxed 3-row tail instead of the placeholder. */
+  boxedHiddenThinking?: boolean;
   /** Pi `markdown.mermaid` mode. Default `streaming`. */
   mermaidRenderingMode?: MermaidRenderingMode;
   /** When false, hide user/tool image strips. Default true. */
@@ -24,7 +26,10 @@ export function chatBlockRenderOptions(
   const result: RenderChatBlockOptions = {};
   const policy = options.oversizedAssistantMessage;
   if (policy) result.oversizedAssistantMessage = policy;
-  if (options.hideThinking) result.hideThinking = true;
+  if (options.hideThinking) {
+    result.hideThinking = true;
+    result.boxedHiddenThinking = options.boxedHiddenThinking === true;
+  }
   if (options.mermaidRenderingMode && options.mermaidRenderingMode !== "streaming") {
     result.mermaidRenderingMode = options.mermaidRenderingMode;
   }

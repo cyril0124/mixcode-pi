@@ -98,11 +98,30 @@ test("renderAgentSurface keeps short hidden thinking in the tail window", () => 
   const hidden = stripAnsi(
     renderAgentSurface(createTab(2, "s2", "/repo"), { chat } as never, 100, undefined, undefined, {
       hideThinking: true,
+      boxedHiddenThinking: true,
     }).join("\n"),
   );
   // Short thinking stays visible in the 3-row window; assistant text stays.
   assert.match(hidden, /secret reasoning trace/);
   assert.doesNotMatch(hidden, /Thinking\.\.\./);
+  assert.match(hidden, /final answer/);
+});
+
+test("hidden thinking defaults to the Thinking... placeholder without the boxed setting", () => {
+  const chat = [
+    { role: "thinking", text: thinkingLines("line").join("\n") },
+    { role: "assistant", text: "final answer" },
+  ];
+
+  const hidden = stripAnsi(
+    renderAgentSurface(createTab(1, "s1", "/repo"), { chat } as never, 100, undefined, undefined, {
+      hideThinking: true,
+      boxedHiddenThinking: false,
+    }).join("\n"),
+  );
+  assert.match(hidden, /Thinking\.\.\./);
+  assert.doesNotMatch(hidden, /line-19/);
+  assert.doesNotMatch(hidden, /╭/);
   assert.match(hidden, /final answer/);
 });
 
@@ -114,6 +133,7 @@ test("hidden thinking placeholder uses extensionUi.hiddenThinkingLabel when set"
   const hidden = stripAnsi(
     renderAgentSurface(tab, { chat } as never, 100, undefined, undefined, {
       hideThinking: true,
+      boxedHiddenThinking: true,
     }).join("\n"),
   );
   assert.doesNotMatch(hidden, /line-19/);
@@ -123,10 +143,23 @@ test("hidden thinking placeholder uses extensionUi.hiddenThinkingLabel when set"
   const restored = stripAnsi(
     renderAgentSurface(tab, { chat } as never, 100, undefined, undefined, {
       hideThinking: true,
+      boxedHiddenThinking: true,
     }).join("\n"),
   );
   assert.match(restored, /line-19/);
   assert.doesNotMatch(restored, /Reasoning folded/);
+
+  // Label also wins in default placeholder mode.
+  tab.extensionUi.hiddenThinkingLabel = "Reasoning folded";
+  const plain = stripAnsi(
+    renderAgentSurface(tab, { chat } as never, 100, undefined, undefined, {
+      hideThinking: true,
+      boxedHiddenThinking: false,
+    }).join("\n"),
+  );
+  assert.match(plain, /Reasoning folded/);
+  assert.doesNotMatch(plain, /line-19/);
+  assert.doesNotMatch(plain, /Thinking\.\.\./);
 });
 
 function thinkingLines(text: string): string[] {
@@ -140,6 +173,7 @@ test("hidden thinking viewport shows a 3-row tail of that block", () => {
   const hidden = stripAnsi(
     renderAgentSurface(tab, { chat } as never, 100, undefined, undefined, {
       hideThinking: true,
+      boxedHiddenThinking: true,
     }).join("\n"),
   );
   const content = hidden
@@ -162,6 +196,7 @@ test("hidden thinking viewport follows the tail as text grows", () => {
   const first = stripAnsi(
     renderAgentSurface(tab, { chat: short } as never, 100, undefined, undefined, {
       hideThinking: true,
+      boxedHiddenThinking: true,
     }).join("\n"),
   );
   assert.match(first, /line-10/);
@@ -171,6 +206,7 @@ test("hidden thinking viewport follows the tail as text grows", () => {
   const second = stripAnsi(
     renderAgentSurface(tab, { chat: long } as never, 100, undefined, undefined, {
       hideThinking: true,
+      boxedHiddenThinking: true,
     }).join("\n"),
   );
   assert.match(second, /line-19/);
@@ -184,6 +220,7 @@ test("hidden thinking viewport keeps short text without an ellipsis", () => {
   const hidden = stripAnsi(
     renderAgentSurface(tab, { chat } as never, 100, undefined, undefined, {
       hideThinking: true,
+      boxedHiddenThinking: true,
     }).join("\n"),
   );
   assert.match(hidden, /Thinking/);
@@ -206,6 +243,7 @@ test("hidden thinking viewport of a long body is 3 rows and drops the head", () 
   const hidden = stripAnsi(
     renderAgentSurface(tab, { chat } as never, 40, undefined, undefined, {
       hideThinking: true,
+      boxedHiddenThinking: true,
     }).join("\n"),
   );
   const content = hidden
