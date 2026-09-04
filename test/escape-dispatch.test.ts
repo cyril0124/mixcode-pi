@@ -247,6 +247,51 @@ test("queued-message flush wins over double-escape stop", () => {
   assert.equal(tab.pendingEscapeArmedAt, undefined, "double-escape stop is not armed");
 });
 
+test("escape during compaction does not flush the queued message", () => {
+  // Compaction owns the queue until compaction_end; flush mid-compaction would
+  // hit "Cannot submit a prompt while compaction is in progress". Esc must arm
+  // the compaction interrupt instead.
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo", {
+    status: "running",
+    pendingMessages: ["queued during compaction"],
+  });
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  let flushed = 0;
+  let aborts = 0;
+  const runtime = testRuntime({
+    getTab: () =>
+      testRuntimeTab({
+        queuedPromptCount: 1,
+        compactionInFlight: true,
+        agentSession: {
+          isStreaming: false,
+          isCompacting: true,
+          getSteeringMessages: () => ["queued during compaction"],
+        },
+      }),
+    abortTab: () => {
+      aborts++;
+      return true;
+    },
+    flushPendingMessage: () => {
+      flushed++;
+      return Promise.resolve();
+    },
+  });
+
+  const first = handleMixCodeKeyInput(state, ESC, silentTui(), undefined, runtime);
+  assert.deepEqual(first, { consume: true });
+  assert.equal(flushed, 0, "no flush while compaction is running");
+  assert.ok(tab.pendingEscapeArmedAt !== undefined, "compaction interrupt is armed");
+  assert.match(tab.toast?.message ?? "", /Esc again: stop/);
+
+  const second = handleMixCodeKeyInput(state, ESC, silentTui(), undefined, runtime);
+  assert.deepEqual(second, { consume: true });
+  assert.equal(aborts, 1, "second Esc aborts the compaction");
+});
+
 test("queued-message flush uses AgentSession streaming state", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo", {

@@ -766,7 +766,8 @@ function renderQueuePreviewInner(tab: MixCodeTabInfo, width: number): string[] {
         tab.pendingMessages,
         width,
         maxQueue,
-        true,
+        // Compaction swallows the queue until compaction_end; Esc cannot flush then.
+        tab.activeCompactionReason === undefined,
         dualQueues ? "Ctrl+U,S->edit" : "Ctrl+U->edit",
       ),
     );

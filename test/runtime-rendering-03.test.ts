@@ -27,6 +27,20 @@ test("queue preview shows count, shortcuts, and latest messages", () => {
   assert.match(one, /Ctrl\+U->edit {2}Esc->send now/);
   assert.match(one, /first queued message/);
 
+  // While compaction is running the queue waits for compaction_end; the box
+  // must not advertise Esc->send now.
+  const compacting = stripAnsi(
+    renderQueuePreview(
+      createTab(1, "s1", "/repo", {
+        activeCompactionReason: "manual",
+        pendingMessages: ["queued during compaction"],
+      }),
+      80,
+    ).join("\n"),
+  );
+  assert.match(compacting, /Steer \(1\)/);
+  assert.doesNotMatch(compacting, /Esc->send now/);
+
   const multi = stripAnsi(
     renderQueuePreview(
       createTab(2, "s2", "/repo", { pendingMessages: ["1", "2", "3", "4", "5", "6"] }),

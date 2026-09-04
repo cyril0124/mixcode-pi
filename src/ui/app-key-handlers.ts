@@ -105,6 +105,9 @@ export function handleQueuedFlushKey(
   if (hasAnyOverlay(tui) || isEditorAutocompleteOpen()) return false;
   if (tabIsWaitingForInput(active)) return false;
   const runtimeTab = runtime?.getTab(active.sessionId);
+  // Compaction owns the queue until compaction_end; prompt() refuses mid-compaction.
+  // Fall through so Esc arms the compaction interrupt.
+  if (runtimeTab?.agentSession?.isCompacting || runtimeTab?.compactionInFlight) return false;
   const runtimeQueuedCount = runtimeQueuedMessageCount(runtimeTab);
   if (active.pendingMessages.length === 0 && runtimeQueuedCount === 0) return false;
   const streaming =
