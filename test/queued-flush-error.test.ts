@@ -18,8 +18,12 @@ test("scheduleRuntimePendingMessageFlush surfaces flush failure through onError 
     (sessionId, error) => errors.push({ sessionId, error }),
   );
 
-  // Let the waitForIdle().then(flush).catch(onError) microtask chain settle.
-  await Bun.sleep(20);
+  // The chain settles through waitForIdle plus a setImmediate claim window
+  // (waitOutPostAbortCompactAndResume); under CI CPU load those macrotasks can
+  // outlast a fixed sleep, so poll for the surfaced error instead.
+  for (let waited = 0; errors.length === 0 && waited < 2000; waited += 10) {
+    await Bun.sleep(10);
+  }
 
   assert.equal(errors.length, 1);
   assert.equal(errors[0]?.sessionId, "s1");

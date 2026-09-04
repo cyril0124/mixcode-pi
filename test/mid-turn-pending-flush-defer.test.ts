@@ -126,6 +126,10 @@ test("pending flush still runs when no compact or resume follows agent_end", asy
     },
   );
 
-  await Bun.sleep(50);
+  // Same setImmediate claim window as queued-flush-error; poll past it
+  // instead of racing a fixed timer under CI CPU load.
+  for (let waited = 0; flushes.length === 0 && waited < 2000; waited += 10) {
+    await Bun.sleep(10);
+  }
   assert.deepEqual(flushes, [2]);
 });
