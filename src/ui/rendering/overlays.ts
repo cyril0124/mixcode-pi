@@ -1,4 +1,4 @@
-import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { stripTerminalSequences, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import pkg from "../../../package.json" with { type: "json" };
 import {
   fuzzyMatchAllPositions,
@@ -17,11 +17,11 @@ import type { MixCodeState } from "../../core/types.js";
 import { homeVisibleTabIndices } from "../../core/tabs.js";
 import { tabIsWaitingForInput } from "../../core/tab-state.js";
 import { type MixCodeTheme, themeForId } from "../themes.js";
-import { exactContextUsageText, formatElapsed, tabStatusGlyph } from "./chrome.js";
+import { compactWorkdir, exactContextUsageText, formatElapsed, tabStatusGlyph } from "./chrome.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
 import { highlightRanges } from "./highlight.js";
-import { centerLine } from "./layout.js";
-import { overlayPanel, padLine, renderBoxTop } from "./primitives.js";
+import { joinColumns } from "./layout.js";
+import { overlayPanel, padLine } from "./primitives.js";
 import { applyToastOverlay } from "../components/toast-overlay.js";
 import { halfScreenRows, windowStart } from "./scroll-window.js";
 
@@ -50,102 +50,107 @@ function renderHomeInner(
   maxRows: number | undefined,
   chatForTab: ((sessionId: string) => readonly ChatLine[] | undefined) | undefined,
 ): string[] {
-  const logo = [
-    "███╗   ███╗██╗██╗  ██╗ ██████╗ ██████╗ ██████╗ ███████╗",
-    "████╗ ████║██║╚██╗██╔╝██╔════╝██╔═══██╗██╔══██╗██╔════╝",
-    "██╔████╔██║██║ ╚███╔╝ ██║     ██║   ██║██║  ██║█████╗  ",
-    "██║╚██╔╝██║██║ ██╔██╗ ██║     ██║   ██║██║  ██║██╔══╝  ",
-    "██║ ╚═╝ ██║██║██╔╝ ██╗╚██████╗╚██████╔╝██████╔╝███████╗",
-    "╚═╝     ╚═╝╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝",
+  const height = maxRows === undefined ? undefined : Math.max(0, Math.floor(maxRows));
+  const inset = width >= 80 ? 3 : width >= 4 ? 1 : 0;
+  const bodyWidth = Math.max(0, width - inset * 2);
+  const brand = `${activeRenderTheme.accent(activeRenderTheme.bold("MixCode"))} ${activeRenderTheme.dim("/ HOME")}`;
+  const workdir = process.env.MIXCODE_DISPLAY_WORKDIR?.trim() || state.workdir;
+  const busy = state.tabs.filter(
+    (tab) => tab.status === "running" || tab.status === "thinking",
+  ).length;
+  const waiting = state.tabs.filter(tabIsWaitingForInput).length;
+  const activity = [
+    busy ? activeRenderTheme.accent(`${busy} working`) : "",
+    waiting ? activeRenderTheme.warning(`${waiting} input`) : "",
+  ]
+    .filter(Boolean)
+    .join(activeRenderTheme.dim("  ·  "));
+  const header = [
+    ...(height === undefined || height >= 18 ? [""] : []),
+    homeLineEnds(brand, activeRenderTheme.dim(`v${pkg.version}`), bodyWidth),
+    homeLineEnds(
+      activeRenderTheme.dim(
+        compactWorkdir(
+          singleLinePreview(workdir),
+          Math.max(0, bodyWidth - visibleWidth(activity) - (activity ? 2 : 0)),
+        ),
+      ),
+      activity,
+      bodyWidth,
+    ),
+    activeRenderTheme.borderMuted("─".repeat(bodyWidth)),
+    ...(height === undefined || height >= 18 ? [""] : []),
   ];
-  const bodyWidth = Math.max(1, width - 6);
-  const updateRows = renderPackageUpdateNotice(state.packageUpdates, bodyWidth);
-  // Hide the wordmark when it would dominate the Home viewport.
-  const LOGO_ROWS = logo.length + 2; // logo lines + blank before + blank after
-  const logoWidth = logo[0]?.length ?? 0;
-  const showLogo =
-    logoWidth / Math.max(1, width) <= LOGO_MAX_WIDTH_RATIO &&
-    (maxRows === undefined ||
-      (LOGO_ROWS + updateRows.length) / Math.max(1, maxRows) <= LOGO_MAX_HEIGHT_RATIO);
-  const logoLines = showLogo
-    ? [
-        "",
-        ...logo.map((line) => centerLine(activeRenderTheme.accent(line), Math.max(1, width - 2))),
-        "",
-      ]
-    : [""];
-  const staticBodyRows = logoLines.length + updateRows.length;
-  // configPanelBox adds a leading spacer, top border, and bottom border around body rows.
-  const maxAgentRows =
-    maxRows === undefined ? undefined : Math.max(0, maxRows - 3 - staticBodyRows);
-  const agentTableRows = renderAgentViewTable(state, bodyWidth, maxAgentRows, chatForTab);
-  const lines = [
-    ...logoLines,
-    ...updateRows.map((line) => `  ${line}`),
-    ...agentTableRows.map((line) => `  ${line}`),
-  ];
-  const framed = fitConfigRows(
-    configPanelBox("", lines, width, [`v${pkg.version}`]),
-    maxRows,
-    width,
+  const updates = renderPackageUpdateNotice(state.packageUpdates, bodyWidth);
+  // Reserve space for the selected agent and navigation even with many update notices.
+  const headerBudget =
+    height === undefined ? header.length + updates.length : Math.max(0, height - 4);
+  const top = [...header, ...updates].slice(0, headerBudget);
+  if (
+    updates.length > 0 &&
+    header.length + updates.length > headerBudget &&
+    top.length > header.length
+  ) {
+    top[top.length - 1] = activeRenderTheme.warning(
+      "… more package updates · pi update --extensions",
+    );
+  }
+  const body = renderAgentViewTable(
+    state,
+    bodyWidth,
+    height === undefined ? undefined : height - top.length,
+    chatForTab,
   );
-  // Home has no agent surface — paint the selected agent tab's toast here so
-  // pushToast(getActiveTab()) remains visible while activeTabId is home.
+  const lines = [...top, ...body].map((line) =>
+    padLine(`${" ".repeat(inset)}${padLine(line, bodyWidth)}`, width),
+  );
   const selected = state.tabs[state.homeSelectedTabIndex];
-  if (!selected) return framed;
-  const height =
-    maxRows === undefined ? framed.length : Math.max(framed.length, Math.floor(maxRows));
-  return applyToastOverlay(framed, activeToast(selected), width, height, activeRenderTheme);
+  // Home has no agent surface; the selected agent still owns its transient notices.
+  return selected
+    ? applyToastOverlay(
+        lines,
+        activeToast(selected),
+        width,
+        height ?? lines.length,
+        activeRenderTheme,
+      )
+    : lines;
 }
 
-function fitConfigRows(lines: string[], maxRows: number | undefined, width: number): string[] {
-  if (maxRows === undefined) return lines;
-  const limit = Math.max(0, Math.floor(maxRows));
-  if (lines.length >= limit) return lines.slice(0, limit);
-  const innerWidth = Math.max(0, width - 2);
-  const blank = `${activeRenderTheme.borderMuted("│")}${padLine("", innerWidth)}${activeRenderTheme.borderMuted("│")}`;
-  const fill = limit - lines.length;
-  if (lines.length === 0) return Array.from({ length: limit }, () => padLine("", width));
-  return [
-    ...lines.slice(0, -1),
-    ...Array.from({ length: fill }, () => blank),
-    lines[lines.length - 1]!,
-  ];
-}
-
-function configPanelBox(
-  title: string,
-  lines: string[],
-  width: number,
-  meta: string[] = [],
-): string[] {
-  const innerWidth = Math.max(0, width - 2);
-  const top = renderBoxTop(
-    title,
-    meta,
-    innerWidth,
-    {
-      ...activeRenderTheme,
-      border: activeRenderTheme.borderMuted,
-    },
-    true,
-  );
-  const body = lines.map(
-    (line) =>
-      `${activeRenderTheme.borderMuted("│")}${padLine(line, innerWidth)}${activeRenderTheme.borderMuted("│")}`,
-  );
-  const bottom = `${activeRenderTheme.borderMuted("╰")}${activeRenderTheme.borderMuted("─".repeat(innerWidth))}${activeRenderTheme.borderMuted("╯")}`;
-  return [padLine("", width), top, ...body, bottom];
+/** Keep trailing metadata aligned without letting it displace the leading label. */
+function homeLineEnds(left: string, right: string, width: number): string {
+  if (!right || visibleWidth(right) + 4 > width) return padLine(left, width);
+  const leftWidth = Math.max(0, width - visibleWidth(right) - 2);
+  return `${padLine(truncateToWidth(left, leftWidth, "…"), leftWidth)}  ${right}`;
 }
 
 const AGENT_CARD_HEIGHT = 4;
-const LOGO_MAX_WIDTH_RATIO = 0.85;
-const LOGO_MAX_HEIGHT_RATIO = 0.3;
 const PREVIEW_HEIGHT_PERCENT = 15;
 const MIN_PREVIEW_ROWS = 4;
 const DEFAULT_PREVIEW_ROWS = 6;
 const AGENT_VIEW_SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 const AGENT_VIEW_SPINNER_INTERVAL_MS = 80;
+const HOME_PREVIEW_TEXT_LIMIT = 16_384;
+
+// Plain-text caches follow tab/message lifetimes and retain only the current viewport shape.
+const homeSummaryCache = new WeakMap<
+  MixCodeState["tabs"][number],
+  {
+    source: string;
+    width: number;
+    text: string;
+  }
+>();
+const homeTailCache = new WeakMap<
+  ChatLine,
+  {
+    source: string;
+    width: number;
+    rows: number;
+    lines: string[];
+    clipped: boolean;
+  }
+>();
 
 function renderAgentViewTable(
   state: MixCodeState,
@@ -154,146 +159,123 @@ function renderAgentViewTable(
   chatForTab: ((sessionId: string) => readonly ChatLine[] | undefined) | undefined,
 ): string[] {
   const budget = maxRows === undefined ? undefined : Math.max(0, Math.floor(maxRows));
-  const heading = state.homeNonIdleOnly
-    ? `${activeRenderTheme.bold(" Agents  · ")}${activeRenderTheme.selectedBg(" non-idle ")}`
-    : activeRenderTheme.bold(" Agents");
-  const filterHint = state.homeNonIdleOnly ? "Ctrl+F: all" : "Ctrl+F: non-idle";
-  const hint = activeRenderTheme.dim(
-    `  ↑/↓: select  →: attach  Enter: send  Tab: cycle tabs  ${filterHint}`,
-  );
-  if (state.tabs.length === 0) {
-    return fitAgentRows(
-      [
-        "",
-        activeRenderTheme.bold(" Agents"),
-        activeRenderTheme.dim("  No agent sessions. Use the command palette to start one."),
-      ],
-      budget,
-    );
-  }
-
   const visible = homeVisibleTabIndices(state);
+  const heading = `${activeRenderTheme.bold("Agents")} ${activeRenderTheme.dim(String(visible.length))}${state.homeNonIdleOnly ? `  ${activeRenderTheme.selectedBg(" non-idle ")}` : ""}`;
+  const hints = [
+    "↑/↓: select",
+    "→: attach",
+    "Enter: send",
+    "Tab: cycle tabs",
+    state.homeNonIdleOnly ? "Ctrl+F: all" : "Ctrl+F: non-idle",
+  ];
+  let hint = hints.join("  ");
+  while (visibleWidth(hint) > width && hints.length > 2) {
+    hints.splice(Math.max(2, hints.length - 2), 1);
+    hint = hints.join("  ");
+  }
+  const finish = (lines: string[]): string[] => {
+    const content = budget === undefined ? lines : lines.slice(0, Math.max(0, budget - 1));
+    if (budget !== undefined) while (content.length < budget - 1) content.push("");
+    if (budget !== 0) content.push(activeRenderTheme.dim(hint));
+    return content;
+  };
+  const emptyMessage = activeRenderTheme.dim(
+    state.tabs.length === 0 ? "No agent sessions." : "No non-idle agents.",
+  );
+  // In tiny viewports the selected agent takes precedence over section chrome and hints.
+  if (budget !== undefined && budget < 4) {
+    if (budget === 0) return [];
+    const rows =
+      visible.length === 0
+        ? [emptyMessage]
+        : renderAgentRoster(state, width, Math.max(1, budget - 1), chatForTab);
+    return budget === 1 ? rows.slice(0, 1) : finish(rows);
+  }
+  const rule = activeRenderTheme.borderMuted("─".repeat(width));
   if (visible.length === 0) {
-    return fitAgentRows(
-      [
-        "",
-        activeRenderTheme.bold(heading),
-        activeRenderTheme.dim("  No non-idle agents. Ctrl+F to show all."),
-        hint,
-      ],
-      budget,
+    return finish([heading, rule, emptyMessage]);
+  }
+  const selectedIndex = visible.includes(state.homeSelectedTabIndex)
+    ? state.homeSelectedTabIndex
+    : visible[0]!;
+  const selectedTab = state.tabs[selectedIndex]!;
+  const bodyRows = budget === undefined ? undefined : Math.max(0, budget - 3);
+  // Split only when both the roster and a readable conversation fit the viewport.
+  if (width >= 114 && (budget === undefined || budget >= 18)) {
+    const listWidth = Math.floor((width - 3) * 0.44);
+    const previewWidth = width - listWidth - 3;
+    const roster = renderAgentRoster(state, listWidth, bodyRows, chatForTab);
+    const detailRows = bodyRows ?? Math.max(roster.length, 12);
+    const left = [heading, activeRenderTheme.borderMuted("─".repeat(listWidth)), ...roster];
+    const right = [
+      homeLineEnds(
+        activeRenderTheme.bold("Conversation"),
+        formatTabStatusChip(selectedTab),
+        previewWidth,
+      ),
+      activeRenderTheme.borderMuted("─".repeat(previewWidth)),
+      ...renderConversationPreview(selectedTab, previewWidth, detailRows, chatForTab),
+    ];
+    const height = Math.max(left.length, right.length);
+    while (right.length < height) right.push("");
+    return finish(
+      joinColumns(
+        left,
+        right.map((line) => `${activeRenderTheme.borderMuted("│")} ${line}`),
+        listWidth,
+        previewWidth + 2,
+      ),
     );
   }
-
-  const lines: string[] = [];
-  pushAgentRows(lines, ["", activeRenderTheme.bold(heading)], budget);
-  const selectedIndex = Math.min(state.homeSelectedTabIndex, state.tabs.length - 1);
-  const selectedVisiblePos = Math.max(0, visible.indexOf(selectedIndex));
-  const now = Date.now();
-  let previewRows = previewSlotRows(budget);
-  const reservedBottom = previewRows + 1;
-  const availableForCards =
-    budget === undefined ? undefined : Math.max(0, budget - lines.length - reservedBottom);
-  const totalCards = visible.length;
-  const fitsAllCards =
-    availableForCards === undefined || totalCards * AGENT_CARD_HEIGHT <= availableForCards;
-  const markerReserve =
-    !fitsAllCards && availableForCards !== undefined && availableForCards >= AGENT_CARD_HEIGHT
-      ? 2
-      : 0;
-  const maxCards =
-    availableForCards === undefined
-      ? totalCards
-      : Math.max(0, Math.floor((availableForCards - markerReserve) / AGENT_CARD_HEIGHT));
-  const cardBudget =
-    budget === undefined ? undefined : Math.max(lines.length, budget - reservedBottom);
-  const { start, end } = agentCardWindow(totalCards, selectedVisiblePos, maxCards);
-  const showAbove = maxCards > 0 && start > 0;
-  const showBelow = maxCards > 0 && end < totalCards;
-  const listBudget =
-    cardBudget === undefined
-      ? undefined
-      : Math.max(0, cardBudget - (showAbove ? 1 : 0) - (showBelow ? 1 : 0));
-  if (showAbove) {
-    pushAgentRows(lines, [agentWindowMarker("↑ older above", width)], cardBudget);
-  }
-  if (maxCards === 0 && availableForCards !== undefined && availableForCards > 0) {
-    const fallbackIndex = visible[selectedVisiblePos] ?? visible[0]!;
-    pushAgentRows(
-      lines,
-      renderAgentCard(state.tabs[fallbackIndex]!, width, true, now, chatForTab),
-      cardBudget,
-    );
-  } else {
-    for (let i = start; i < end; i++) {
-      const tabIndex = visible[i]!;
-      const card = renderAgentCard(
-        state.tabs[tabIndex]!,
+  const previewRows = previewSlotRows(bodyRows);
+  const rosterRows = bodyRows === undefined ? undefined : Math.max(0, bodyRows - previewRows);
+  const lines = [heading, rule, ...renderAgentRoster(state, width, rosterRows, chatForTab)];
+  if (previewRows > 0) {
+    lines.push(
+      ...renderPreviewPanel(
+        selectedTab,
         width,
-        tabIndex === selectedIndex,
-        now,
+        budget === undefined ? previewRows : budget - 1 - lines.length,
         chatForTab,
-      );
-      if (listBudget !== undefined && lines.length + card.length > listBudget) break;
-      lines.push(...card);
-    }
+      ),
+    );
   }
-  if (showBelow) {
-    pushAgentRows(lines, [agentWindowMarker("↓ newer below", width)], cardBudget);
-  }
-
-  const selectedTab = state.tabs[selectedIndex];
-  if (budget !== undefined) {
-    const hintAt = Math.max(0, budget - 1);
-    if (previewRows > 0) {
-      previewRows += Math.max(0, hintAt - previewRows - lines.length);
-    } else {
-      while (lines.length < hintAt) lines.push("");
-    }
-  }
-  if (selectedTab && previewRows > 0) {
-    pushAgentRows(lines, renderPreviewPanel(selectedTab, width, previewRows, chatForTab), budget);
-  }
-  pushAgentRows(lines, [hint], budget);
-  if (budget !== undefined) {
-    while (lines.length < budget) lines.push("");
-  }
-  return lines;
+  return finish(lines);
 }
 
-/** Preview is a bottom-pinned percent slot; hide it when that slot would be tiny. */
+function renderAgentRoster(
+  state: MixCodeState,
+  width: number,
+  budget: number | undefined,
+  chatForTab: ((sessionId: string) => readonly ChatLine[] | undefined) | undefined,
+): string[] {
+  if (budget === 0) return [];
+  const visible = homeVisibleTabIndices(state);
+  const selectedPosition = Math.max(0, visible.indexOf(state.homeSelectedTabIndex));
+  const windowed = budget !== undefined && visible.length * AGENT_CARD_HEIGHT > budget;
+  const markers = windowed && budget >= AGENT_CARD_HEIGHT + 2;
+  const count =
+    budget === undefined
+      ? visible.length
+      : Math.max(1, Math.floor((budget - (markers ? 2 : 0)) / AGENT_CARD_HEIGHT));
+  const start = windowStart(selectedPosition, visible.length, count);
+  const end = Math.min(visible.length, start + count);
+  const lines: string[] = [];
+  if (markers && start > 0) lines.push(activeRenderTheme.dim("↑ older above"));
+  const now = Date.now();
+  for (let index = start; index < end; index++) {
+    const tab = state.tabs[visible[index]!]!;
+    lines.push(...renderAgentCard(tab, width, index === selectedPosition, now, chatForTab));
+  }
+  if (markers && end < visible.length) lines.push(activeRenderTheme.dim("↓ newer below"));
+  return budget === undefined ? lines : lines.slice(0, budget);
+}
+
+/** Compact screens give rows to the roster before allocating a message preview. */
 function previewSlotRows(budget: number | undefined): number {
   if (budget === undefined) return DEFAULT_PREVIEW_ROWS;
   const slot = Math.floor((budget * PREVIEW_HEIGHT_PERCENT) / 100);
-  if (slot < MIN_PREVIEW_ROWS) return 0;
-  if (budget < AGENT_CARD_HEIGHT + 1 + slot) return 0;
-  return slot;
-}
-
-function pushAgentRows(lines: string[], rows: string[], budget: number | undefined): void {
-  const remaining = budget === undefined ? rows.length : Math.max(0, budget - lines.length);
-  lines.push(...rows.slice(0, remaining));
-}
-
-function fitAgentRows(lines: string[], budget: number | undefined): string[] {
-  if (budget === undefined) return lines;
-  return lines.slice(0, budget);
-}
-
-function agentWindowMarker(label: string, width: number): string {
-  return activeRenderTheme.dim(padLine(`  ${label}`, width));
-}
-
-function agentCardWindow(
-  total: number,
-  selectedIndex: number,
-  visibleCount: number,
-): { start: number; end: number } {
-  if (visibleCount <= 0) return { start: selectedIndex, end: selectedIndex };
-  const count = Math.min(total, visibleCount);
-  const half = Math.floor(count / 2);
-  const start = Math.min(Math.max(0, selectedIndex - half), Math.max(0, total - count));
-  return { start, end: start + count };
+  return slot >= MIN_PREVIEW_ROWS && budget >= AGENT_CARD_HEIGHT + slot ? slot : 0;
 }
 
 function renderAgentCard(
@@ -303,36 +285,31 @@ function renderAgentCard(
   now: number,
   chatForTab: ((sessionId: string) => readonly ChatLine[] | undefined) | undefined,
 ): string[] {
-  const border = selected ? activeRenderTheme.accent : activeRenderTheme.borderMuted;
-  const innerWidth = Math.max(0, width - 2);
-  const marker = selected ? "› " : "";
+  const marker = selected ? activeRenderTheme.accent("› ") : "  ";
   const status = formatTabStatusChip(tab);
   const spinner = formatAgentSpinner(tab, now);
-  const statusGroup = spinner ? `${spinner} ${status}` : status;
-  const titleBudget = Math.max(
-    1,
-    innerWidth - visibleWidth(marker) - 2 - visibleWidth(statusGroup) - 3,
+  // Keep room for an eight-column agent identifier before allocating the status label.
+  const statusGroup = truncateToWidth(
+    spinner ? `${spinner} ${status}` : status,
+    Math.max(0, width - 14),
+    "…",
   );
-  const titleSegment = formatAgentCardTitleSegment(
+  const titleBudget = Math.max(1, width - visibleWidth(statusGroup) - 6);
+  const title = formatAgentCardTitleSegment(
     tab,
-    `${tabStatusGlyph(tab)} ${truncateToWidth(tab.title, titleBudget, "...")}`,
+    `${tabStatusGlyph(tab)} ${truncateToWidth(singleLinePreview(tab.title), titleBudget, "…")}`,
   );
-  const title = `${marker}${titleSegment}`;
-  const titleFill = Math.max(0, innerWidth - visibleWidth(title) - visibleWidth(statusGroup) - 2);
-  const top = `${border("┌")}${title} ${border("─".repeat(titleFill))} ${statusGroup}${border("┐")}`;
-  const meta = truncateToWidth(` ${formatAgentCardMeta(tab, new Date(now))}`, innerWidth, "...");
-  const preview = truncateToWidth(
-    ` ⎿ ${latestAssistantPreview(chatForTab?.(tab.sessionId) ?? [])}`,
-    innerWidth,
-    "...",
-  );
-  const lines = [
-    top,
-    `${border("│")}${padLine(meta, innerWidth)}${border("│")}`,
-    `${border("│")}${activeRenderTheme.dim(padLine(preview, innerWidth))}${border("│")}`,
-    `${border("└")}${border("─".repeat(innerWidth))}${border("┘")}`,
+  const rows = [
+    homeLineEnds(`${marker}${title}`, statusGroup, width),
+    padLine(`  ${formatAgentCardMeta(tab, new Date(now))}`, width),
+    activeRenderTheme.dim(
+      padLine(
+        `  ⎿ ${latestAssistantPreview(tab, chatForTab?.(tab.sessionId) ?? [], Math.max(0, width - 4))}`,
+        width,
+      ),
+    ),
   ];
-  return selected ? lines.map((line) => activeRenderTheme.selectedBg(padLine(line, width))) : lines;
+  return [...rows.map((line) => (selected ? activeRenderTheme.selectedBg(line) : line)), ""];
 }
 
 function renderPreviewPanel(
@@ -345,42 +322,109 @@ function renderPreviewPanel(
   const innerWidth = Math.max(0, width - 2);
   const divider = `${activeRenderTheme.borderMuted("─".repeat(width))}`;
   if (maxRows === 1) return [divider];
-  const messages = previewPanelMessages(chatForTab?.(tab.sessionId) ?? []);
+  const messages = previewPanelMessages(chatForTab?.(tab.sessionId) ?? [], maxRows - 1);
   if (messages.length === 0) {
     return [divider, activeRenderTheme.dim("  No messages yet")].slice(0, maxRows);
   }
-  const recent = messages.slice(-(maxRows - 1));
-  const lines = recent.map((msg) => {
+  const lines = messages.map((msg) => {
     const prefix = ` ${activeRenderTheme.dim(`${msg.role}:`)} `;
     const prefixWidth = visibleWidth(prefix);
     const textBudget = Math.max(1, innerWidth - prefixWidth);
     const text =
       msg.role === "tools"
         ? formatToolCallPreview(msg.count, textBudget)
-        : truncateToWidth(singleLinePreview(msg.text), textBudget, "...");
+        : truncateToWidth(singleLinePreview(msg.message.text), textBudget, "...");
     return `${prefix}${msg.role === "tools" ? activeRenderTheme.dim(text) : text}`;
   });
   return [divider, ...lines];
 }
 
-type PreviewPanelMessage =
-  | { role: "user" | "assistant"; text: string }
-  | { role: "tools"; count: number };
-
-function previewPanelMessages(messages: readonly ChatLine[]): PreviewPanelMessage[] {
-  const rows: PreviewPanelMessage[] = [];
-  for (const message of messages) {
-    if (message.role === "tool") {
-      const previous = rows[rows.length - 1];
-      if (previous?.role === "tools") previous.count += 1;
-      else rows.push({ role: "tools", count: 1 });
-      continue;
-    }
-    if (message.role === "user" || message.role === "assistant") {
-      rows.push({ role: message.role, text: message.text });
+function renderConversationPreview(
+  tab: MixCodeState["tabs"][number],
+  width: number,
+  maxRows: number,
+  chatForTab: ((sessionId: string) => readonly ChatLine[] | undefined) | undefined,
+): string[] {
+  const workdir = process.env.MIXCODE_DISPLAY_WORKDIR?.trim() || tab.workdir;
+  const heading = [
+    activeRenderTheme.bold(truncateToWidth(singleLinePreview(tab.title), width, "…")),
+    activeRenderTheme.dim(compactWorkdir(singleLinePreview(workdir), width)),
+    "",
+  ];
+  const available = Math.max(0, maxRows - heading.length);
+  const messages = previewPanelMessages(chatForTab?.(tab.sessionId) ?? [], available + 1);
+  const content: string[] = [];
+  // Collect from the tail so offscreen messages never enter wrapping or width caches.
+  for (let index = messages.length - 1; index >= 0 && content.length <= available; index--) {
+    const message = messages[index]!;
+    if (content.length > 0) content.push("");
+    const role = message.role === "user" ? activeRenderTheme.accent : activeRenderTheme.dim;
+    const prefix = `${role(`${message.role}:`)} `;
+    const indent = visibleWidth(prefix);
+    const body =
+      message.role === "tools"
+        ? {
+            lines: [activeRenderTheme.dim(formatToolCallPreview(message.count, width - indent))],
+            clipped: false,
+          }
+        : wrappedPreviewTail(message.message, Math.max(1, width - indent), available + 1);
+    for (let row = body.lines.length - 1; row >= 0 && content.length <= available; row--) {
+      content.push(`${row === 0 ? prefix : " ".repeat(indent)}${body.lines[row]}`);
     }
   }
-  return rows;
+  content.reverse();
+  if (content.length === 0) content.push(activeRenderTheme.dim("No messages yet"));
+  // One extra row distinguishes a complete preview from clipped history.
+  const tail =
+    content.length > available && available > 1
+      ? [activeRenderTheme.dim("↑ earlier messages"), ...content.slice(-(available - 1))]
+      : available === 0
+        ? []
+        : content;
+  return [...heading, ...tail].slice(0, maxRows);
+}
+
+function wrappedPreviewTail(message: ChatLine, width: number, rows: number) {
+  const cached = homeTailCache.get(message);
+  if (cached?.source === message.text && cached.width === width && cached.rows === rows)
+    return cached;
+  const wrapped = Bun.wrapAnsi(singleLinePreview(message.text), width, { hard: true }).split("\n");
+  const value = {
+    source: message.text,
+    width,
+    rows,
+    lines: wrapped.slice(-rows),
+    clipped: message.text.length > HOME_PREVIEW_TEXT_LIMIT || wrapped.length > rows,
+  };
+  homeTailCache.set(message, value);
+  return value;
+}
+
+type PreviewPanelMessage =
+  | { role: "user" | "assistant"; message: ChatLine }
+  | { role: "tools"; count: number };
+
+function previewPanelMessages(
+  messages: readonly ChatLine[],
+  maxMessages: number,
+): PreviewPanelMessage[] {
+  const rows: PreviewPanelMessage[] = [];
+  for (let index = messages.length - 1; index >= 0; index--) {
+    const message = messages[index]!;
+    if (message.role !== "tool" && message.role !== "user" && message.role !== "assistant")
+      continue;
+    const previous = rows.at(-1);
+    // Finish a tool group even when it is the oldest visible row; its count must be exact.
+    if (message.role === "tool" && previous?.role === "tools") {
+      previous.count += 1;
+      continue;
+    }
+    if (rows.length >= maxMessages) break;
+    rows.push(
+      message.role === "tool" ? { role: "tools", count: 1 } : { role: message.role, message },
+    );
+  }
+  return rows.reverse();
 }
 
 function formatToolCallPreview(count: number, width: number): string {
@@ -460,7 +504,11 @@ function formatTabUpdated(tab: MixCodeState["tabs"][number], now = new Date()): 
   return `${Math.floor(secs / 86400)}d ago`;
 }
 
-function latestAssistantPreview(chat: readonly ChatLine[]): string {
+function latestAssistantPreview(
+  tab: MixCodeState["tabs"][number],
+  chat: readonly ChatLine[],
+  width: number,
+): string {
   // Prefer assistant, then bash/system so Home cards don't stay stuck on
   // "No output yet" after bash or error-only turns.
   const picks: Array<(line: ChatLine) => boolean> = [
@@ -470,35 +518,38 @@ function latestAssistantPreview(chat: readonly ChatLine[]): string {
     (line) => line.role === "user",
   ];
   for (const pred of picks) {
-    const latest = [...chat].reverse().find(pred);
-    const text = singleLinePreview(latest?.text);
-    if (text) return text;
+    const latest = chat.findLast(pred);
+    if (!latest) continue;
+    const cached = homeSummaryCache.get(tab);
+    if (cached?.source === latest.text && cached.width === width) return cached.text;
+    const text = singleLinePreview(latest.text);
+    if (!text) continue;
+    // Clip before adding the non-ASCII tree glyph or ANSI styling so full outputs
+    // never enter Pi's decorated-line width cache.
+    const preview = truncateToWidth(text, width);
+    homeSummaryCache.set(tab, { source: latest.text, width, text: preview });
+    return preview;
   }
   return "No output yet";
 }
 
 function singleLinePreview(text: string | undefined): string {
-  return (text ?? "").replace(/\s+/g, " ").trim();
+  const source = text ?? "";
+  const bounded =
+    source.length > HOME_PREVIEW_TEXT_LIMIT ? source.slice(-HOME_PREVIEW_TEXT_LIMIT) : source;
+  const plain = stripTerminalSequences(bounded).trim();
+  // Avoid rebuilding already-normalized large strings on every streaming update.
+  return /[^\S ]| {2}/u.test(plain) ? plain.replace(/\s+/g, " ") : plain;
 }
 
 function renderPackageUpdateNotice(packages: string[], width: number): string[] {
   if (!packages.length) return [];
-  const innerWidth = Math.max(0, width - 2);
-  const title = activeRenderTheme.bold(activeRenderTheme.toolTitle("Package Updates Available"));
-  const action = activeRenderTheme.accent("pi update --extensions");
-  const lines = [
-    title,
-    `${activeRenderTheme.dim("Package updates are available. Run ")}${action}`,
-    activeRenderTheme.dim("Packages:"),
-    ...packages.map((pkg) => `- ${pkg}`),
-  ];
   return [
-    `${activeRenderTheme.toolTitle("┌")}${activeRenderTheme.toolTitle("─".repeat(innerWidth))}${activeRenderTheme.toolTitle("┐")}`,
-    ...lines.map((line) => {
-      const body = truncateToWidth(` ${line}`, innerWidth, "...");
-      return `${activeRenderTheme.toolTitle("│")}${padLine(body, innerWidth)}${activeRenderTheme.toolTitle("│")}`;
-    }),
-    `${activeRenderTheme.toolTitle("└")}${activeRenderTheme.toolTitle("─".repeat(innerWidth))}${activeRenderTheme.toolTitle("┘")}`,
+    activeRenderTheme.warning(activeRenderTheme.bold("Package Updates Available")),
+    activeRenderTheme.dim("pi update --extensions"),
+    ...packages.map((name) =>
+      activeRenderTheme.dim(truncateToWidth(`- ${singleLinePreview(name)}`, width, "…")),
+    ),
     "",
   ];
 }
