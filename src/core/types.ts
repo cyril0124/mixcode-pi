@@ -371,9 +371,10 @@ export interface MixCodeState {
   disabledModels: string[];
   /**
    * Non-persisted app-level toggle for thinking-block visibility, mirroring
-   * Pi's `hideThinkingBlock`. When true, each thinking block collapses to a
-   * boxed 3-row tail of that block (or `hiddenThinkingLabel` when an extension
-   * sets one). Initialized from Pi's SettingsManager at bootstrap; toggled by
+   * Pi's `hideThinkingBlock`. When true, each thinking block renders as a
+   * placeholder, or a 3-row tail with a left rail when `ui.boxedHiddenThinking`
+   * is enabled. An extension's `hiddenThinkingLabel` replaces either form.
+   * Initialized from Pi's SettingsManager at bootstrap; toggled by
    * /hide-thinking, which also writes the value back through the runtime so it
    * survives restarts.
    */

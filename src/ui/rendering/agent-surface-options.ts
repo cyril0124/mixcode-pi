@@ -8,7 +8,7 @@ export interface AgentSurfaceRenderOptions {
   oversizedAssistantMessage?: OversizedAssistantMessageSettings;
   /** When true, thinking blocks collapse to a hidden form (label or placeholder). */
   hideThinking?: boolean;
-  /** With hideThinking: render a boxed 3-row tail instead of the placeholder. */
+  /** With hideThinking: render a 3-row tail with a left rail instead of the placeholder. */
   boxedHiddenThinking?: boolean;
   /** Pi `markdown.mermaid` mode. Default `streaming`. */
   mermaidRenderingMode?: MermaidRenderingMode;

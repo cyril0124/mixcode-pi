@@ -573,7 +573,7 @@ const ITEM_LABELS: Record<string, string> = {
   "markdown.mermaid": "Mermaid diagrams",
   "icons.mode": "Icon mode",
   inlineWidgets: "Inline widgets",
-  boxedHiddenThinking: "Boxed hidden thinking",
+  boxedHiddenThinking: "Thinking tail preview",
   "oversized.enabled": "Collapse oversized messages",
   "oversized.maxLines": "Oversized max lines",
   "oversized.maxBytes": "Oversized max bytes",

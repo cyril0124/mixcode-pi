@@ -369,7 +369,7 @@ export function updateStreamingAssistant(
   }
 }
 
-/** Freeze the boxed-tail timer on every thinking block of the finished message. */
+/** Freeze the thinking-tail timer on every thinking block of the finished message. */
 function stampThinkingEnd(runtimeTab: RuntimeTab, blockIndices: Map<number, number>): void {
   const endedAt = Date.now();
   for (const chatIndex of blockIndices.values()) {
