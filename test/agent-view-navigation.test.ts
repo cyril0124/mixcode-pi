@@ -298,7 +298,7 @@ test("Home Ctrl+F toggles non-idle filter and walks only matching agents", () =>
       return text.includes("non-idle") && !text.includes("Ctrl+F");
     }) ?? "";
   assert.match(chipLine, /\x1b\[48;/);
-  assert.match(filtered, /Agents {2}· /);
+  assert.match(filtered, /Agents 2\s+non-idle/);
   assert.match(filtered, /non-idle/);
   assert.match(filtered, /Busy/);
   assert.match(filtered, /Done/);
@@ -869,24 +869,29 @@ test("Home Up/Down does NOT consume when no tabs exist", () => {
 
 // --- renderHome shows Agent View table ---
 
-test("renderHome shows the app version on the Home panel border", async () => {
+test("renderHome shows the app version in the Home masthead", async () => {
   const pkg = (await import("../package.json", { with: { type: "json" } })).default;
   const state = createInitialState("/repo");
   state.activeTabId = "home";
 
-  // Wide terminal (logo shown) and narrow terminal (logo hidden) both show it.
+  // Wide and narrow terminals both retain the version.
   assert.ok(stripAnsi(renderHome(state, 100).join("\n")).includes(`v${pkg.version}`));
   assert.ok(stripAnsi(renderHome(state, 50).join("\n")).includes(`v${pkg.version}`));
 });
 
-test("renderHome hides the MIXCODE logo when it would dominate the Home viewport", () => {
+test("renderHome keeps a compact brand masthead at every viewport size", () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"));
-  const banner = /███╗ {3}███╗/;
-
-  assert.match(stripAnsi(renderHome(state, 100, undefined, 0, 40).join("\n")), banner);
-  assert.doesNotMatch(stripAnsi(renderHome(state, 100, undefined, 0, 20).join("\n")), banner);
-  assert.doesNotMatch(stripAnsi(renderHome(state, 50).join("\n")), banner);
+  for (const [width, height] of [
+    [100, 40],
+    [100, 20],
+    [50, 20],
+  ]) {
+    const lines = renderHome(state, width!, undefined, 0, height!).map(stripAnsi);
+    assert.match(lines.slice(0, 3).join("\n"), /MixCode.*HOME/);
+    assert.match(lines.slice(0, 8).join("\n"), /Agent-01/);
+    assert.doesNotMatch(lines.join("\n"), /███/);
+  }
 });
 
 test("renderHome paints the selected agent toast", () => {
@@ -1141,10 +1146,10 @@ test("renderHome pins the message preview above the hint when the viewport is ta
   assert.ok(!/┘\s*\n(?:\s*│\s*│\s*\n)+\s*─/.test(output));
 });
 
-test("renderHome does not leave a blank gap between windowed cards and preview", () => {
+test("renderHome keeps one separator row between windowed agents and preview", () => {
   const state = createInitialState("/repo");
   const chats: Record<string, ChatLine[]> = {};
-  for (let i = 1; i <= 8; i++) {
+  for (let i = 1; i <= 12; i++) {
     state.tabs.push(createTab(i, `s${i}`, "/repo", { title: `Agent-${i}` }));
     chats[`s${i}`] = [{ role: "assistant", text: `message ${i}` }];
   }
@@ -1156,11 +1161,11 @@ test("renderHome does not leave a blank gap between windowed cards and preview",
   const newer = lines.findIndex((line) => line.includes("newer below"));
   const older = lines.findIndex((line) => line.includes("older above"));
   const preview = lines.findIndex((line) => line.includes("assistant: message"));
-  const listEnd = Math.max(newer, ...lines.map((line, index) => (line.includes("┘") ? index : -1)));
+  const lastOutput = lines.findLastIndex((line) => line.includes("⎿"));
   assert.ok(older >= 0 || newer >= 0);
-  assert.ok(preview > listEnd);
-  const gap = lines.slice(listEnd + 1, preview).filter((line) => line === "│" || line === "");
-  assert.equal(gap.length, 0);
+  assert.ok(preview > lastOutput);
+  const gap = lines.slice(lastOutput + 1, preview).filter((line) => line === "");
+  assert.equal(gap.length, 1);
 });
 
 test("renderHome shows compact preview for all cards including selected", () => {
@@ -1232,15 +1237,15 @@ test("renderHome uses the same 4-row card for selected and unselected agents", (
   assert.match(plainLines[selected]!, /\[idle\]/);
   assert.match(plainLines[selected + 1]!, /faux-1 · 21k\/200k · [0-5]s ago/);
   assert.match(plainLines[selected + 2]!, /⎿ First output/);
-  assert.match(plainLines[selected + 3]!, /┘/);
+  assert.equal(plainLines[selected + 3]!.trim(), "");
   assert.match(rendered[selected]!, /\x1b\[48;/);
 
-  const unselected = plainLines.findIndex((line) => line.includes("Second") && line.includes("┌"));
+  const unselected = plainLines.findIndex((line) => line.includes("- Second"));
   assert.ok(unselected >= 0);
   assert.match(plainLines[unselected]!, /\[idle\]/);
   assert.match(plainLines[unselected + 1]!, /grok-4\.6 · 8k\/500k/);
   assert.match(plainLines[unselected + 2]!, /⎿ Second output/);
-  assert.match(plainLines[unselected + 3]!, /┘/);
+  assert.equal(plainLines[unselected + 3]!.trim(), "");
   assert.doesNotMatch(rendered[unselected]!, /\x1b\[48;/);
 });
 

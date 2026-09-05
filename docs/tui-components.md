@@ -87,6 +87,14 @@ Covers:
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
+## Home
+
+`renderHome()` in `src/ui/rendering/overlays.ts` owns Home layout. The masthead shows the app version, working directory, and live working/input counts. The agent roster uses four rows per item: title/status, model/context/recency, latest output, and a separator row. Only the selected item's content receives the selection background.
+
+At 120 terminal columns or more, with at least 18 rows available below the masthead, the roster and selected conversation appear side by side. Shorter or narrower viewports stack them; the message preview appears only when its 15% row allocation is at least four rows. The roster windows around the selection, and the navigation row stays at the bottom. With fewer than four Home rows, the selected agent replaces section headings; a single remaining row shows the agent rather than navigation hints. Narrow status labels yield space to an eight-column agent identifier. Wide previews use Bun's native `wrapAnsi` on plain text, group consecutive tool calls by count, and mark earlier content when the newest output exceeds the available rows. Message collection scans backward only as far as the visible groups require. Roster summaries are clipped before adding ANSI styling or the tree glyph, so full outputs do not enter Pi's decorated-line width cache. Plain summaries and viewport-sized wrapped tails are weakly cached by tab/message ownership; text edits, width changes, and tail row-budget changes invalidate the relevant entry. Theme colors are applied outside these caches.
+
+Home uses the active theme's semantic colors. Layout does not change agent selection, message submission, or draft ownership. Interaction contracts: [Home keys](keybindings-and-escape.md) and [mouse support](mouse-support.md).
+
 ## Ownership Boundaries
 
 ```text
