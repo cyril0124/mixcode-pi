@@ -265,32 +265,84 @@ test("visible thinking is not truncated when hideThinking is off", () => {
   assert.match(visible, /line-19/);
 });
 
-test("boxed hidden thinking shows a live timer in the title while streaming", () => {
+test("boxed hidden thinking refreshes subsecond timing without new text and freezes on completion", (t) => {
+  let now = 1000;
+  t.mock.method(Date, "now", () => now);
   const tab = createTab(1, "s1", "/repo");
-  const chat = [
-    {
-      role: "thinking",
-      text: thinkingLines("line").join("\n"),
-      thinkingStartedAt: Date.now() - 5000,
-    },
-  ];
+  tab.status = "thinking";
+  const line = {
+    role: "thinking",
+    text: thinkingLines("line").join("\n"),
+    thinkingStartedAt: 1000,
+    thinkingEndedAt: undefined as number | undefined,
+  };
   const runtimeTab = {
-    chat,
+    chat: [line],
     streamingAssistant: {
       chatIndex: 0,
       blockIndices: new Map([[0, 0]]),
       toolCallIndices: new Map(),
     },
   };
+  const render = () =>
+    stripAnsi(
+      renderAgentSurface(tab, runtimeTab as never, 100, undefined, undefined, {
+        hideThinking: true,
+        boxedHiddenThinking: true,
+      }).join("\n"),
+    );
 
-  const hidden = stripAnsi(
-    renderAgentSurface(tab, runtimeTab as never, 100, undefined, undefined, {
-      hideThinking: true,
-      boxedHiddenThinking: true,
-    }).join("\n"),
-  );
-  assert.match(hidden, /Thinking · 5s/);
+  for (const [elapsed, label] of [
+    [0, "0ms"],
+    [320, "320ms"],
+    [999, "999ms"],
+    [1000, "1.0s"],
+    [1420, "1.4s"],
+    [1520, "1.5s"],
+    [59_999, "59.9s"],
+    [60_000, "1m 00s"],
+  ] as const) {
+    now = 1000 + elapsed;
+    assert.ok(render().includes(`Thinking · ${label} `), `elapsed ${elapsed}`);
+  }
+
+  now = 2420;
+  assert.match(render(), /Thinking · 1\.4s /);
+  line.thinkingEndedAt = now;
+  assert.match(render(), /Thinking · 1\.42s /);
+  now += 10_000;
+  assert.match(render(), /Thinking · 1\.42s /);
 });
+
+for (const [elapsed, label] of [
+  [0, "0ms"],
+  [320, "320ms"],
+  [999, "999ms"],
+  [1000, "1.00s"],
+  [1426, "1.43s"],
+  [59_998, "59.99s"],
+  [60_000, "1m 00s"],
+  [3_661_000, "1h 01m 01s"],
+] as const) {
+  test(`boxed hidden thinking freezes ${elapsed}ms as ${label}`, () => {
+    const tab = createTab(1, `finished-${elapsed}`, "/repo");
+    const chat = [
+      {
+        role: "thinking",
+        text: "reasoning",
+        thinkingStartedAt: 1000,
+        thinkingEndedAt: 1000 + elapsed,
+      },
+    ];
+    const hidden = stripAnsi(
+      renderAgentSurface(tab, { chat } as never, 100, undefined, undefined, {
+        hideThinking: true,
+        boxedHiddenThinking: true,
+      }).join("\n"),
+    );
+    assert.ok(hidden.includes(`Thinking · ${label} `));
+  });
+}
 
 test("boxed hidden thinking freezes the timer once the message ended", () => {
   const tab = createTab(1, "s1", "/repo");

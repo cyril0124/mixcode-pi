@@ -403,7 +403,7 @@ function chatLineRenderCacheKey(
     // hideThinking + custom label + boxed style + live timer flip the collapsed thinking render.
     const hideKey =
       role === "thinking" && options.hideThinking
-        ? `1${KEY_SEP}${tab?.extensionUi.hiddenThinkingLabel ?? ""}${KEY_SEP}${options.boxedHiddenThinking ? 1 : 0}${KEY_SEP}${thinkingTimerCacheKey(line, options)}`
+        ? `1${KEY_SEP}${tab?.extensionUi.hiddenThinkingLabel ?? ""}${KEY_SEP}${options.boxedHiddenThinking ? 1 : 0}${KEY_SEP}${thinkingDurationLabel(line, options)}`
         : "0";
     const mermaidKey = options.mermaidRenderingMode ?? "streaming";
     const transformersKey = markdownTransformersCacheKey(options.markdownTransformers);
@@ -1102,25 +1102,23 @@ function renderHiddenThinkingViewport(
 }
 
 /**
- * Timer chip for the boxed tail title: ` · 7s` after "Thinking".
- * Frozen once thinkingEndedAt is stamped; live only while the block streams;
- * restored history has no stamps and shows nothing.
+ * Boxed-tail timer: milliseconds below 1s, tenths while live, hundredths when
+ * frozen, and whole-second minute/hour labels from 60s. Live seconds truncate
+ * to 100ms buckets; the label also keys the render cache. Unstamped history
+ * and non-streaming blocks without an end stamp have no timer.
  */
 function thinkingDurationLabel(line: ChatLine, options: RenderChatBlockOptions): string {
   const started = line.thinkingStartedAt;
   if (started === undefined) return "";
-  if (line.thinkingEndedAt !== undefined) {
-    return ` · ${formatDuration(Math.max(0, Math.floor((line.thinkingEndedAt - started) / 1000)))}`;
+  const ended = line.thinkingEndedAt;
+  if (ended === undefined && options.streamingMarkdownCharLimit === undefined) return "";
+  const elapsed = Math.max(0, (ended ?? Date.now()) - started);
+  if (elapsed < 1000) return ` · ${elapsed}ms`;
+  if (elapsed < 60_000) {
+    if (ended === undefined) return ` · ${(Math.floor(elapsed / 100) / 10).toFixed(1)}s`;
+    // Clamp below the minute boundary so hundredths rounding cannot print 60.00s.
+    const seconds = Math.min(elapsed, 59_994) / 1000;
+    return ` · ${seconds.toFixed(2)}s`;
   }
-  if (options.streamingMarkdownCharLimit === undefined) return "";
-  return ` · ${formatDuration(Math.max(0, Math.floor((Date.now() - started) / 1000)))}`;
-}
-
-/** Cache-key twin of thinkingDurationLabel: second-resolution bucket while live. */
-function thinkingTimerCacheKey(line: ChatLine, options: RenderChatBlockOptions): string {
-  const started = line.thinkingStartedAt;
-  if (started === undefined) return "";
-  if (line.thinkingEndedAt !== undefined) return `${started}:${line.thinkingEndedAt}`;
-  if (options.streamingMarkdownCharLimit === undefined) return "";
-  return `live:${Math.floor((Date.now() - started) / 1000)}`;
+  return ` · ${formatDuration(Math.floor(elapsed / 1000))}`;
 }
