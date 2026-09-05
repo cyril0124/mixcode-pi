@@ -1,4 +1,4 @@
-import { truncateToWidth } from "@earendil-works/pi-tui";
+import { compositeTuiLine, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import type { ChatLine, RuntimeTab } from "../../agent/runtime.js";
 import {
   captureScrollableChatSelection,
@@ -170,6 +170,7 @@ function renderAgentSurfaceInner(
   maxHeight: number | undefined,
   options: AgentSurfaceRenderOptions,
 ): string[] {
+  tab.chatJumpToLatestHitRegion = undefined;
   const surfaceWidth = maxHeight === undefined || width < 2 ? width : width - 1;
   const mainWidth = surfaceWidth;
 
@@ -230,6 +231,11 @@ function renderAgentSurfaceInner(
   applyPendingScrollUserDelta(tab);
   if (tab.chatScrollOffset > maxOffset) tab.chatScrollOffset = maxOffset;
   const fitted = fitScrolledLinesWithInfo(lines, maxHeight, surfaceWidth, tab.chatScrollOffset);
+  // The shared pager substitutes boundary rows. Chat keeps the original bottom
+  // row so the floating jump label can cover only its own cells, not the whole row.
+  if (fitted.lines.length > 0 && fitted.end < fitted.total) {
+    fitted.lines[fitted.lines.length - 1] = lines[fitted.end - 1]!;
+  }
   rememberScrollFreezeAnchor(tab, fitted.lines, surfaceWidth, fitted.height);
   const highlighted = highlightVisibleChatLines(fitted.lines, tab, surfaceWidth, fitted.height);
   const hasNewContent =
@@ -397,7 +403,7 @@ function renderAgentSurfaceAnchored(
     Math.max(0, total - visible.length),
     anchorIndex * BLOCK_HEIGHT_FALLBACK + windowStart,
   );
-  const decorated = decorateWindow(visible, start, total, viewport, mainWidth);
+  const decorated = decorateWindow(visible, start, viewport, mainWidth);
   const fitted: ScrolledLinesResult = {
     lines: highlightVisibleChatLines(decorated, tab, surfaceWidth, viewport),
     total,
@@ -591,7 +597,7 @@ function renderAgentSurfaceWindowed(
   const start = linesAboveBuffer + windowStart;
 
   rememberChatBlockScrollAnchor(tab, blockLayouts, windowStart, visible, surfaceWidth, viewport);
-  const decorated = decorateWindow(visible, start, total, viewport, mainWidth);
+  const decorated = decorateWindow(visible, start, viewport, mainWidth);
 
   const fitted: ScrolledLinesResult = {
     lines: highlightVisibleChatLines(decorated, tab, surfaceWidth, viewport),
@@ -724,12 +730,36 @@ function appendChatScrollbar(
       scrollable: result.scrollable,
     };
   }
-  if (!result.scrollable || width < 2 || result.lines.length === 0)
-    return result.lines.map((line) => padLine(line, width));
   const contentWidth = Math.max(1, width - 1);
-  const bar = chatScrollbar(result);
+  const bar = result.scrollable ? chatScrollbar(result) : [];
   const lastIndex = result.lines.length - 1;
+  const showJump =
+    tab && width > 1 && (result.end < result.total || tab.chatScrollAnchorEntryId !== undefined);
   return result.lines.map((line, index) => {
+    // Paint after selection capture and freeze anchoring; the label is UI, not transcript text.
+    if (showJump && index === lastIndex) {
+      const label = truncateToWidth(
+        ` ↓ Jump to latest${tab.vimMode ? " · G" : ""} `,
+        contentWidth,
+        "",
+      );
+      const labelWidth = visibleWidth(label);
+      const column = Math.floor((contentWidth - labelWidth) / 2);
+      const composed = compositeTuiLine(
+        line,
+        activeRenderTheme.selectedBg(activeRenderTheme.text(label)),
+        column,
+        labelWidth,
+        contentWidth,
+      );
+      // Pi returns image rows unchanged; text padding would strip their graphics payload.
+      if (composed === line) return line;
+      if (labelWidth > 0) {
+        tab.chatJumpToLatestHitRegion = { row: index, column, width: labelWidth };
+        line = composed;
+      }
+    }
+    if (!result.scrollable || width < 2) return padLine(line, width);
     let barChar = bar[index] ?? "│";
     if (hasNewContent && index === lastIndex) {
       barChar = activeRenderTheme.accent("↓");

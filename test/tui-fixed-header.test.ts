@@ -214,7 +214,7 @@ test("MixCodeRoot applies chat scroll offset while keeping top rows fixed", () =
   assert.match(stripAnsi(lines[1] ?? ""), /^\u2500+$/);
   assert.match(lines.join("\n"), /message-0/);
   assert.doesNotMatch(lines.join("\n"), /message-39/);
-  assert.match(lines.join("\n"), /newer below/);
+  assert.match(lines.join("\n"), /Jump to latest/);
 });
 
 test("MixCodeRoot preserves full output when viewport rows are unavailable", () => {

@@ -84,6 +84,7 @@ export class MixCodeRoot implements Component {
 
   render(width: number): string[] {
     const active = getActiveTab(this.state);
+    if (active) active.chatJumpToLatestHitRegion = undefined;
     const theme = themeForId(this.state.theme);
     const viewportRows = this.getViewportRows?.();
     const limit = viewportRows ? Math.max(0, viewportRows - this.getReservedRows()) : undefined;

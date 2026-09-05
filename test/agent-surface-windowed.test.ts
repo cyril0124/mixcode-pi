@@ -114,7 +114,7 @@ test("windowed renderer shows mid-scroll content with both boundary markers", ()
   const lines = renderAgentSurface(tab, { chat } as never, WIDTH, HEIGHT);
   const text = lines.map(stripAnsi).join("\n");
   assert.match(text, /↑ older above/);
-  assert.match(text, /↓ newer below/);
+  assert.match(text, /Jump to latest/);
   // Newest message should NOT be visible when scrolled mid.
   assert.doesNotMatch(text, /system-199/);
   assert.equal(lines.length, HEIGHT);
@@ -129,7 +129,7 @@ test("windowed renderer reaches top of chat when scrollOffset is the home sentin
   assert.match(text, /assistant-0\b/);
   // Newest message must NOT be visible.
   assert.doesNotMatch(text, /system-199/);
-  assert.match(text, /↓ newer below/);
+  assert.match(text, /Jump to latest/);
   assert.equal(lines.length, HEIGHT);
   // The renderer must clamp the sentinel to a reasonable maximum, not leave
   // the user stuck above the content with subsequent scrolls feeling dead.
@@ -684,7 +684,7 @@ test("running windowed renderer reaches the first user message with home sentine
 
   assert.match(text, /first user message/);
   assert.doesNotMatch(text, /active streaming tail/);
-  assert.match(text, /↓ newer below/);
+  assert.match(text, /Jump to latest/);
   assert.equal(lines.length, HEIGHT);
   assert.ok(tab.chatScrollOffset < 1_000_000);
 });
