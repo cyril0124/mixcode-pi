@@ -61,7 +61,7 @@ Tab 标题类变量仅注入到 **Agent bash 工具** 子进程环境中（与 P
 
 | 变量 | 设置方 | 含义 |
 | --- | --- | --- |
-| `MIXCODE_DISPLAY_MODEL` | 用户 / 环境 | 覆盖底部元数据栏中显示的 provider/model 字符串（例如 `custom-model`）。 |
+| `MIXCODE_DISPLAY_MODEL` | 用户 / 环境 | 覆盖底部元数据栏和 Home 标签页 agent 卡片中显示的 provider/model 字符串（例如 `custom-model`）。 |
 | `MIXCODE_DISPLAY_THINKING` | 用户 / 环境 | 覆盖底部元数据栏中显示的 thinking 级别文本（例如 `High`、`DeepThinking`）。 |
 | `MIXCODE_DISPLAY_WORKDIR` | 用户 / 环境 | 覆盖底部元数据栏以及 Home 卡片中显示的工作目录路径（例如 `/virtual/demo`）。 |
 

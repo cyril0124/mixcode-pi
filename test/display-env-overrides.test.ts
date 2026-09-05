@@ -1,8 +1,9 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it } from "node:test";
-import { createTab } from "../src/core/defaults.js";
+import { createInitialState, createTab } from "../src/core/defaults.js";
 import { renderInputMeta } from "../src/ui/rendering/chrome.js";
+import { renderHome } from "../src/ui/rendering/overlays.js";
 
 function stripAnsi(text: string): string {
   return text.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "");
@@ -51,6 +52,26 @@ describe("Display environment overrides", () => {
     const text = stripAnsi(renderInputMeta(tab, 120, 0, undefined, true, "nerd").join("\n"));
     assert.match(text, /custom-model/);
     assert.doesNotMatch(text, /claude-3-7-sonnet/);
+  });
+
+  it("overrides Home agent-card model with MIXCODE_DISPLAY_MODEL", () => {
+    process.env.MIXCODE_DISPLAY_MODEL = "custom-model";
+    const tab = createTab(1, "s1", "/original/path/to/project", {
+      model: {
+        provider: "anthropic",
+        modelId: "claude-3-7-sonnet",
+        displayName: "anthropic/claude-3-7-sonnet",
+        contextWindow: 200_000,
+      },
+      thinkingLevel: "medium",
+    });
+    const state = createInitialState("/original/path/to/project");
+    state.tabs.push(tab);
+    state.homeSelectedTabIndex = 0;
+    const lines = renderHome(state, 100).map(stripAnsi);
+    const card = lines.join("\n");
+    assert.match(card, /custom-model/);
+    assert.doesNotMatch(card, /claude-3-7-sonnet/);
   });
 
   it("overrides displayed thinking text with MIXCODE_DISPLAY_THINKING", () => {

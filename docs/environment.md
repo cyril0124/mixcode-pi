@@ -61,7 +61,7 @@ Variables to override display metadata in the TUI (e.g. for screen recordings, d
 
 | Variable | Set by | Meaning |
 | --- | --- | --- |
-| `MIXCODE_DISPLAY_MODEL` | User / Environment | Overrides the provider/model string shown in the bottom metadata bar (e.g. `custom-model`). |
+| `MIXCODE_DISPLAY_MODEL` | User / Environment | Overrides the provider/model string shown in the bottom metadata bar and Home tab agent cards (e.g. `custom-model`). |
 | `MIXCODE_DISPLAY_THINKING` | User / Environment | Overrides the thinking level text shown in the bottom metadata bar (e.g. `High`, `DeepThinking`). |
 | `MIXCODE_DISPLAY_WORKDIR` | User / Environment | Overrides the displayed workdir path in the bottom metadata bar and Home tab cards (e.g. `/virtual/demo`). |
 

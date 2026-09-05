@@ -483,7 +483,12 @@ function formatTabStatusChip(tab: MixCodeState["tabs"][number]): string {
 }
 
 function formatAgentCardMeta(tab: MixCodeState["tabs"][number], now = new Date()): string {
-  const model = tab.model.modelId.split("/").pop() || tab.model.modelId;
+  // MIXCODE_DISPLAY_MODEL masks the card model the same way the bottom meta
+  // bar is masked, so demos/GIFs hide the real provider across every surface.
+  const model =
+    process.env.MIXCODE_DISPLAY_MODEL?.trim() ||
+    tab.model.modelId.split("/").pop() ||
+    tab.model.modelId;
   const context = activeRenderTheme.dim(exactContextUsageText(tab));
   const updated = formatTabUpdated(tab, now);
   return updated ? `${model} · ${context} · ${updated}` : `${model} · ${context}`;
