@@ -1063,10 +1063,10 @@ function tailVisualRows(
 
 function renderThinkingCard(lines: string[], chatWidth: number, duration = ""): string[] {
   const innerWidth = Math.max(1, chatWidth - 2);
-  const paint = activeRenderTheme.thinkingText;
-  const label = `─ Thinking${duration} `;
-  const fill = Math.max(0, innerWidth - visibleWidth(label));
-  const top = paint(`╭${label}${"─".repeat(fill)}╮`);
+  const paint = activeRenderTheme.borderMuted;
+  const label = ` Thinking${duration} `;
+  const fill = Math.max(0, innerWidth - 1 - visibleWidth(label));
+  const top = `${paint("╭─")}${activeRenderTheme.thinkingText(label)}${paint(`${"─".repeat(fill)}╮`)}`;
   const body = lines.map((line) => `${paint("│")}${padLine(line, innerWidth)}${paint("│")}`);
   const bottom = paint(`╰${"─".repeat(innerWidth)}╯`);
   return [top, ...body, bottom].map((line) => padLine(line, chatWidth));
@@ -1087,9 +1087,9 @@ function renderHiddenThinkingViewport(
     });
   }
   const innerWidth = Math.max(1, width - 2);
-  const textWidth = Math.max(1, innerWidth - 1);
+  const textWidth = Math.max(1, innerWidth - 2);
   const { rows, overflow } = tailVisualRows(stripped, textWidth, maxRows);
-  const style = (body: string) => activeRenderTheme.italic(activeRenderTheme.thinkingText(body));
+  const style = activeRenderTheme.thinkingText;
   const lines = rows.map((row, index) => {
     if (index === 0 && overflow) {
       const marker = "\u2026 ";

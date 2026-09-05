@@ -5,6 +5,9 @@ import type { MixCodeRuntime } from "../src/agent/runtime.js";
 import { handleSubmittedInput } from "../src/ui/app-submit.js";
 import type { OverlayTui } from "../src/ui/app-types.js";
 import { renderAgentSurface } from "../src/ui/rendering/agent-surface.js";
+import { renderChatBlock } from "../src/ui/rendering/chat.js";
+import { MIXCODE_DARK_THEME } from "../src/ui/themes.js";
+import { visibleWidth } from "@earendil-works/pi-tui";
 
 function stripAnsi(text: string): string {
   return text.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "");
@@ -160,6 +163,35 @@ test("hidden thinking placeholder uses extensionUi.hiddenThinkingLabel when set"
   assert.match(plain, /Reasoning folded/);
   assert.doesNotMatch(plain, /line-19/);
   assert.doesNotMatch(plain, /Thinking\.\.\./);
+});
+
+test("boxed hidden thinking separates muted borders from upright thinking text", () => {
+  const theme = MIXCODE_DARK_THEME;
+  const lines = renderChatBlock({ role: "thinking", text: "reasoning" }, 40, undefined, theme, {
+    hideThinking: true,
+    boxedHiddenThinking: true,
+  });
+  assert.ok(lines[0]!.includes(theme.borderMuted("╭─")));
+  assert.ok(lines[0]!.includes(theme.thinkingText(" Thinking ")));
+  assert.ok(lines[1]!.includes(theme.thinkingText("reasoning")));
+  assert.ok(lines[1]!.includes(theme.borderMuted("│")));
+  assert.ok(lines[2]!.includes(theme.borderMuted(`╰${"─".repeat(38)}╯`)));
+  assert.doesNotMatch(lines.join("\n"), /\x1b\[3m/);
+});
+
+test("boxed hidden thinking reserves both gutters when wrapping ASCII and full-width text", () => {
+  for (const width of [20, 40, 100]) {
+    for (const text of ["x".repeat(1000), "中文".repeat(500)]) {
+      const lines = renderChatBlock({ role: "thinking", text }, width, undefined, undefined, {
+        hideThinking: true,
+        boxedHiddenThinking: true,
+      }).map(stripAnsi);
+      assert.equal(lines.length, 5);
+      for (const line of lines) assert.equal(visibleWidth(line), width);
+      for (const line of lines.slice(1, -1)) assert.match(line, /^│ .* │$/u);
+      assert.match(lines[1]!, /^│ … /u);
+    }
+  }
 });
 
 function thinkingLines(text: string): string[] {
