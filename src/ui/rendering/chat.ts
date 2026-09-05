@@ -62,7 +62,7 @@ export interface RenderChatBlockOptions {
   streamingMarkdownCharLimit?: number;
   /** When true, thinking blocks collapse to a hidden form (label or placeholder). */
   hideThinking?: boolean;
-  /** With hideThinking: render a boxed 3-row tail instead of the placeholder. */
+  /** With hideThinking: render a 3-row tail with a left rail instead of the placeholder. */
   boxedHiddenThinking?: boolean;
   /** Pi `markdown.mermaid` mode. Default `streaming`. */
   mermaidRenderingMode?: MermaidRenderingMode;
@@ -286,7 +286,7 @@ function renderMessageBlockUncached(
   }
   if (line.role === "thinking") {
     if (!text.trim()) return [];
-    // Hidden: extension label, else boxed 3-row tail (opt-in) or placeholder.
+    // Hidden: extension label, else 3-row tail (opt-in) or placeholder.
     if (options.hideThinking) {
       const label = tab?.extensionUi.hiddenThinkingLabel?.trim();
       if (label) {
@@ -1061,15 +1061,11 @@ function tailVisualRows(
   return { rows: visual, overflow };
 }
 
-function renderThinkingCard(lines: string[], chatWidth: number, duration = ""): string[] {
-  const innerWidth = Math.max(1, chatWidth - 2);
-  const paint = activeRenderTheme.borderMuted;
-  const label = ` Thinking${duration} `;
-  const fill = Math.max(0, innerWidth - 1 - visibleWidth(label));
-  const top = `${paint("╭─")}${activeRenderTheme.thinkingText(label)}${paint(`${"─".repeat(fill)}╮`)}`;
-  const body = lines.map((line) => `${paint("│")}${padLine(line, innerWidth)}${paint("│")}`);
-  const bottom = paint(`╰${"─".repeat(innerWidth)}╯`);
-  return [top, ...body, bottom].map((line) => padLine(line, chatWidth));
+function renderThinkingRail(lines: string[], width: number, duration = ""): string[] {
+  const title = `  ${activeRenderTheme.text("Thinking")}`;
+  const header = withRightClock(title, duration, Math.max(0, width - 1), true);
+  const body = lines.map((line) => `  ${activeRenderTheme.borderMuted("│")}${line}`);
+  return [header, ...body].map((line) => padLine(line, width));
 }
 
 function renderHiddenThinkingViewport(
@@ -1086,8 +1082,8 @@ function renderHiddenThinkingViewport(
       messageType: "assistant-thinking",
     });
   }
-  const innerWidth = Math.max(1, width - 2);
-  const textWidth = Math.max(1, innerWidth - 2);
+  // Reserve two columns of indent, the rail, and one space on each side of the text.
+  const textWidth = Math.max(1, width - 5);
   const { rows, overflow } = tailVisualRows(stripped, textWidth, maxRows);
   const style = activeRenderTheme.thinkingText;
   const lines = rows.map((row, index) => {
@@ -1098,12 +1094,12 @@ function renderHiddenThinkingViewport(
     }
     return ` ${style(row)}`;
   });
-  return renderThinkingCard(lines, width, duration);
+  return renderThinkingRail(lines, width, duration);
 }
 
 /**
- * Boxed-tail timer: milliseconds below 1s, tenths while live, hundredths when
- * frozen, and whole-second minute/hour labels from 60s. Live seconds truncate
+ * Thinking-tail timer: milliseconds below 1s, tenths for live and frozen
+ * seconds, and whole-second minute/hour labels from 60s. Seconds truncate
  * to 100ms buckets; the label also keys the render cache. Unstamped history
  * and non-streaming blocks without an end stamp have no timer.
  */
@@ -1113,12 +1109,7 @@ function thinkingDurationLabel(line: ChatLine, options: RenderChatBlockOptions):
   const ended = line.thinkingEndedAt;
   if (ended === undefined && options.streamingMarkdownCharLimit === undefined) return "";
   const elapsed = Math.max(0, (ended ?? Date.now()) - started);
-  if (elapsed < 1000) return ` · ${elapsed}ms`;
-  if (elapsed < 60_000) {
-    if (ended === undefined) return ` · ${(Math.floor(elapsed / 100) / 10).toFixed(1)}s`;
-    // Clamp below the minute boundary so hundredths rounding cannot print 60.00s.
-    const seconds = Math.min(elapsed, 59_994) / 1000;
-    return ` · ${seconds.toFixed(2)}s`;
-  }
-  return ` · ${formatDuration(Math.floor(elapsed / 1000))}`;
+  if (elapsed < 1000) return `${elapsed}ms`;
+  if (elapsed < 60_000) return `${(Math.floor(elapsed / 100) / 10).toFixed(1)}s`;
+  return formatDuration(Math.floor(elapsed / 1000));
 }

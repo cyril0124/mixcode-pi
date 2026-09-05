@@ -77,9 +77,9 @@ export interface ChatLine {
   entryId?: string;
   /** Epoch ms when a user message was sent; used for right-side clock render. */
   timestamp?: number;
-  /** Epoch ms when a live thinking block first appeared; starts the boxed-tail timer. */
+  /** Epoch ms when a live thinking block first appeared; starts the thinking-tail timer. */
   thinkingStartedAt?: number;
-  /** Epoch ms stamped when thinking stops growing (later block or message end); freezes the boxed-tail timer. */
+  /** Epoch ms stamped when thinking stops growing (later block or message end); freezes the thinking-tail timer. */
   thinkingEndedAt?: number;
   /** Image blocks from a user message (Pi content array); rendered under the text body. */
   images?: ImageContent[];

@@ -379,7 +379,7 @@ test("settings panel toggles boxedHiddenThinking live and persists to disk", asy
       mixcodeFile,
       piSettingsFile: path.join(dir, "settings.json"),
     });
-    selectSettingsItemByLabel(panel, "Boxed hidden thinking");
+    selectSettingsItemByLabel(panel, "Thinking tail preview");
 
     panel.handleInput("\r");
     await Bun.sleep(30);

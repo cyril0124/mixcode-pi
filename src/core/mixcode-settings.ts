@@ -18,7 +18,7 @@ export interface RawMixCodeSettings {
     icons?: { mode?: IconMode };
     /** Default for new tabs: show setWidget chrome in the chat tail. */
     inlineWidgets?: boolean;
-    /** When hidden thinking renders as a boxed 3-row tail instead of a placeholder. */
+    /** When hidden thinking renders as a 3-row tail with a left rail instead of a placeholder. */
     boxedHiddenThinking?: boolean;
   };
   /** Provider ids disabled for selection/use (global). */

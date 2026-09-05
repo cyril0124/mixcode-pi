@@ -165,31 +165,50 @@ test("hidden thinking placeholder uses extensionUi.hiddenThinkingLabel when set"
   assert.doesNotMatch(plain, /Thinking\.\.\./);
 });
 
-test("boxed hidden thinking separates muted borders from upright thinking text", () => {
+test("hidden thinking rail separates its title, muted rail, and upright body", () => {
   const theme = MIXCODE_DARK_THEME;
   const lines = renderChatBlock({ role: "thinking", text: "reasoning" }, 40, undefined, theme, {
     hideThinking: true,
     boxedHiddenThinking: true,
   });
-  assert.ok(lines[0]!.includes(theme.borderMuted("╭─")));
-  assert.ok(lines[0]!.includes(theme.thinkingText(" Thinking ")));
+  assert.equal(lines.length, 2);
+  assert.ok(lines[0]!.includes(theme.text("Thinking")));
   assert.ok(lines[1]!.includes(theme.thinkingText("reasoning")));
   assert.ok(lines[1]!.includes(theme.borderMuted("│")));
-  assert.ok(lines[2]!.includes(theme.borderMuted(`╰${"─".repeat(38)}╯`)));
   assert.doesNotMatch(lines.join("\n"), /\x1b\[3m/);
+  assert.doesNotMatch(stripAnsi(lines.join("\n")), /[╭╮╰╯─]/u);
 });
 
-test("boxed hidden thinking reserves both gutters when wrapping ASCII and full-width text", () => {
+test("hidden thinking rail keeps its indent and right gutter when wrapping ASCII and full-width text", () => {
   for (const width of [20, 40, 100]) {
     for (const text of ["x".repeat(1000), "中文".repeat(500)]) {
       const lines = renderChatBlock({ role: "thinking", text }, width, undefined, undefined, {
         hideThinking: true,
         boxedHiddenThinking: true,
       }).map(stripAnsi);
-      assert.equal(lines.length, 5);
+      assert.equal(lines.length, 4);
       for (const line of lines) assert.equal(visibleWidth(line), width);
-      for (const line of lines.slice(1, -1)) assert.match(line, /^│ .* │$/u);
-      assert.match(lines[1]!, /^│ … /u);
+      for (const line of lines.slice(1)) assert.match(line, /^ {2}│ [^│]* $/u);
+      assert.match(lines[1]!, /^ {2}│ … /u);
+    }
+  }
+});
+
+test("hidden thinking rail right-aligns the dimmed duration without exceeding narrow widths", () => {
+  const theme = MIXCODE_DARK_THEME;
+  for (const width of [1, 8, 20, 40, 100]) {
+    const lines = renderChatBlock(
+      { role: "thinking", text: "reasoning", thinkingStartedAt: 1000, thinkingEndedAt: 2420 },
+      width,
+      undefined,
+      theme,
+      { hideThinking: true, boxedHiddenThinking: true },
+    );
+    for (const line of lines) assert.equal(visibleWidth(line), width);
+    if (width >= 20) {
+      const header = stripAnsi(lines[0]!);
+      assert.match(header, /^ {2}Thinking\s+1\.4s $/u);
+      assert.ok(lines[0]!.includes(theme.dim(" 1.4s")));
     }
   }
 });
@@ -212,12 +231,12 @@ test("hidden thinking viewport shows a 3-row tail of that block", () => {
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean);
-  assert.equal(content.length, 5);
+  assert.equal(content.length, 4);
   assert.match(content[0]!, /Thinking/);
   assert.match(content[1]!, /… line-17/);
   assert.match(content[2]!, /line-18/);
   assert.match(content[3]!, /line-19/);
-  assert.match(content[4]!, /╰/);
+  assert.doesNotMatch(hidden, /[╭╮╰╯─]/u);
   assert.doesNotMatch(hidden, /line-00/);
   assert.doesNotMatch(hidden, /Thinking\.\.\./);
 });
@@ -258,8 +277,9 @@ test("hidden thinking viewport keeps short text without an ellipsis", () => {
   assert.match(hidden, /Thinking/);
   assert.match(hidden, /one/);
   assert.match(hidden, /two/);
-  assert.match(hidden, /╭/);
-  assert.match(hidden, /╰/);
+  assert.match(hidden, / {2}│ one/);
+  assert.match(hidden, / {2}│ two/);
+  assert.doesNotMatch(hidden, /[╭╮╰╯─]/u);
   assert.doesNotMatch(hidden, /…/);
 });
 
@@ -282,7 +302,7 @@ test("hidden thinking viewport of a long body is 3 rows and drops the head", () 
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean);
-  assert.equal(content.length, 5);
+  assert.equal(content.length, 4);
   assert.match(hidden, /Thinking/);
   assert.match(hidden, /TAIL-UNIQUE/);
   assert.doesNotMatch(hidden, /HEAD-UNIQUE/);
@@ -335,24 +355,24 @@ test("boxed hidden thinking refreshes subsecond timing without new text and free
     [60_000, "1m 00s"],
   ] as const) {
     now = 1000 + elapsed;
-    assert.ok(render().includes(`Thinking · ${label} `), `elapsed ${elapsed}`);
+    assert.ok(render().split("\n")[0]!.trimEnd().endsWith(` ${label}`), `elapsed ${elapsed}`);
   }
 
   now = 2420;
-  assert.match(render(), /Thinking · 1\.4s /);
+  assert.match(render(), /Thinking +1\.4s /);
   line.thinkingEndedAt = now;
-  assert.match(render(), /Thinking · 1\.42s /);
+  assert.match(render(), /Thinking +1\.4s /);
   now += 10_000;
-  assert.match(render(), /Thinking · 1\.42s /);
+  assert.match(render(), /Thinking +1\.4s /);
 });
 
 for (const [elapsed, label] of [
   [0, "0ms"],
   [320, "320ms"],
   [999, "999ms"],
-  [1000, "1.00s"],
-  [1426, "1.43s"],
-  [59_998, "59.99s"],
+  [1000, "1.0s"],
+  [1426, "1.4s"],
+  [59_998, "59.9s"],
   [60_000, "1m 00s"],
   [3_661_000, "1h 01m 01s"],
 ] as const) {
@@ -372,7 +392,7 @@ for (const [elapsed, label] of [
         boxedHiddenThinking: true,
       }).join("\n"),
     );
-    assert.ok(hidden.includes(`Thinking · ${label} `));
+    assert.ok(hidden.split("\n")[0]!.trimEnd().endsWith(` ${label}`));
   });
 }
 
@@ -393,7 +413,7 @@ test("boxed hidden thinking freezes the timer once the message ended", () => {
       boxedHiddenThinking: true,
     }).join("\n"),
   );
-  assert.match(hidden, /Thinking · 1m 05s/);
+  assert.match(hidden, /Thinking +1m 05s/);
 });
 
 test("boxed hidden thinking title has no timer for restored history blocks", () => {
@@ -407,5 +427,5 @@ test("boxed hidden thinking title has no timer for restored history blocks", () 
     }).join("\n"),
   );
   assert.match(hidden, /Thinking/);
-  assert.doesNotMatch(hidden, /Thinking ·/);
+  assert.equal(hidden.split("\n")[0]!.trim(), "Thinking");
 });
