@@ -93,10 +93,7 @@ export function formatStallNotice(options: StallDetails & { logPath: string }): 
     xmlElement("elapsed", elapsed),
     xmlElement("log_path", options.logPath),
     xmlElement("output", output),
-    xmlElement(
-      "logs_hint",
-      `Use /bash-logs or tail -n 50 ${options.logPath} to inspect recent output.`,
-    ),
+    xmlElement("logs_hint", `Use tail -n 50 ${options.logPath} to inspect recent output.`),
     xmlElement("stop_hint", `Use kill -- -${options.id} to stop the whole process group.`),
     xmlElement(
       "action_hint",

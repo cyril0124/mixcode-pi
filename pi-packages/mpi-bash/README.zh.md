@@ -53,7 +53,7 @@ Bash 执行策略：默认超时、前台窗口、到期自动转后台、结束
   <exit_code>0</exit_code>
   <log_path>/tmp/mpi-bash-109-1.log</log_path>
   <output truncated="false">Build complete.</output>
-  <logs_hint>Use /bash-logs or read /tmp/mpi-bash-109-1.log for the complete output.</logs_hint>
+  <logs_hint>Read /tmp/mpi-bash-109-1.log for the complete output.</logs_hint>
 </bash_completion>
 ```
 
@@ -66,7 +66,7 @@ Bash 执行策略：默认超时、前台窗口、到期自动转后台、结束
   <exit_code>2</exit_code>
   <log_path>/tmp/mpi-bash-108-1.log</log_path>
   <output truncated="false">FAILED tests/retry.rs</output>
-  <logs_hint>Use /bash-logs or read /tmp/mpi-bash-108-1.log for the complete output.</logs_hint>
+  <logs_hint>Read /tmp/mpi-bash-108-1.log for the complete output.</logs_hint>
 </bash_completion>
 ```
 
@@ -78,7 +78,7 @@ Bash 执行策略：默认超时、前台窗口、到期自动转后台、结束
   <command>pytest -k slow</command>
   <log_path>/tmp/mpi-bash-107-1.log</log_path>
   <output truncated="false"></output>
-  <logs_hint>Use /bash-logs or read /tmp/mpi-bash-107-1.log for the complete output.</logs_hint>
+  <logs_hint>Read /tmp/mpi-bash-107-1.log for the complete output.</logs_hint>
 </bash_completion>
 ```
 
@@ -134,7 +134,7 @@ Bash 执行策略：默认超时、前台窗口、到期自动转后台、结束
   <elapsed>8m14s</elapsed>
   <log_path>/tmp/mpi-bash-1258366-1.log</log_path>
   <output>Compiling serde v1.0.219</output>
-  <logs_hint>Use /bash-logs or tail -n 50 /tmp/mpi-bash-1258366-1.log to inspect recent output.</logs_hint>
+  <logs_hint>Use tail -n 50 /tmp/mpi-bash-1258366-1.log to inspect recent output.</logs_hint>
   <stop_hint>Use kill -- -1258366 to stop the whole process group.</stop_hint>
   <action_hint>Ignore this event if long periods without output are expected for this command.</action_hint>
 </bash_stall>

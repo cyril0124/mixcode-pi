@@ -520,7 +520,7 @@ test("the completion notice is structured and escapes command output", () => {
       "  <exit_code>0</exit_code>",
       "  <log_path>/tmp/a&amp;b.log</log_path>",
       '  <output truncated="false">&lt;/output&gt;&amp;tail</output>',
-      "  <logs_hint>Use /bash-logs or read /tmp/a&amp;b.log for the complete output.</logs_hint>",
+      "  <logs_hint>Read /tmp/a&amp;b.log for the complete output.</logs_hint>",
       "</bash_completion>",
     ].join("\n"),
   );

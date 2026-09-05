@@ -141,7 +141,7 @@ export function formatCompletionNotice(run: {
       "logs_hint",
       run.logError
         ? `The complete log is unavailable because writing ${run.logPath} failed.`
-        : `Use /bash-logs or read ${run.logPath} for the complete output.`,
+        : `Read ${run.logPath} for the complete output.`,
     ),
   );
   lines.push("</bash_completion>");

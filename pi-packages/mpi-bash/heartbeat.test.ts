@@ -50,7 +50,7 @@ test("the stall notice is structured and escapes command output", () => {
       "  <elapsed>2m02s</elapsed>",
       "  <log_path>/tmp/a&amp;b.log</log_path>",
       "  <output>waiting\n&lt;/output&gt;&amp;</output>",
-      "  <logs_hint>Use /bash-logs or tail -n 50 /tmp/a&amp;b.log to inspect recent output.</logs_hint>",
+      "  <logs_hint>Use tail -n 50 /tmp/a&amp;b.log to inspect recent output.</logs_hint>",
       "  <stop_hint>Use kill -- -42 to stop the whole process group.</stop_hint>",
       "  <action_hint>Ignore this event if long periods without output are expected for this command.</action_hint>",
       "</bash_stall>",

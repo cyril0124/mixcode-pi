@@ -53,7 +53,7 @@ A successful command sets `outcome="success"`.
   <exit_code>0</exit_code>
   <log_path>/tmp/mpi-bash-109-1.log</log_path>
   <output truncated="false">Build complete.</output>
-  <logs_hint>Use /bash-logs or read /tmp/mpi-bash-109-1.log for the complete output.</logs_hint>
+  <logs_hint>Read /tmp/mpi-bash-109-1.log for the complete output.</logs_hint>
 </bash_completion>
 ```
 
@@ -66,7 +66,7 @@ A non-zero exit sets `outcome="failure"`.
   <exit_code>2</exit_code>
   <log_path>/tmp/mpi-bash-108-1.log</log_path>
   <output truncated="false">FAILED tests/retry.rs</output>
-  <logs_hint>Use /bash-logs or read /tmp/mpi-bash-108-1.log for the complete output.</logs_hint>
+  <logs_hint>Read /tmp/mpi-bash-108-1.log for the complete output.</logs_hint>
 </bash_completion>
 ```
 
@@ -78,7 +78,7 @@ A background command killed by its timeout sets `outcome="timeout"`.
   <command>pytest -k slow</command>
   <log_path>/tmp/mpi-bash-107-1.log</log_path>
   <output truncated="false"></output>
-  <logs_hint>Use /bash-logs or read /tmp/mpi-bash-107-1.log for the complete output.</logs_hint>
+  <logs_hint>Read /tmp/mpi-bash-107-1.log for the complete output.</logs_hint>
 </bash_completion>
 ```
 
@@ -134,7 +134,7 @@ The model receives `<bash_stall>`. It includes the job ID, command, silence dura
   <elapsed>8m14s</elapsed>
   <log_path>/tmp/mpi-bash-1258366-1.log</log_path>
   <output>Compiling serde v1.0.219</output>
-  <logs_hint>Use /bash-logs or tail -n 50 /tmp/mpi-bash-1258366-1.log to inspect recent output.</logs_hint>
+  <logs_hint>Use tail -n 50 /tmp/mpi-bash-1258366-1.log to inspect recent output.</logs_hint>
   <stop_hint>Use kill -- -1258366 to stop the whole process group.</stop_hint>
   <action_hint>Ignore this event if long periods without output are expected for this command.</action_hint>
 </bash_stall>
