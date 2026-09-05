@@ -132,3 +132,5 @@ MixCodeRuntime
 - `/import <jsonl-path> [cwdOverride]` 的 MixCode 等价实现
 
 AGENTS / project context / system prompt 走 Pi resource loader 链路，不再靠 prompt injection 拼 workdir instructions。
+
+当 `ctx.switchSession()`、会话选择器恢复或 `/import` 的目标工作目录不同时，替换会话会重建绑定 cwd 的 services。在 `session_start` 和 `withSession` 执行前，扩展 `ctx.cwd`、工具相对路径、项目配置和项目资源均使用目标会话的 cwd。导入时显式指定的 cwd override 为有效目标目录。同目录替换复用 services 并重新加载扩展，不与其他存活标签共享 services。取消切换不会加载目标项目的扩展。

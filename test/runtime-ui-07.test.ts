@@ -4,7 +4,8 @@ import * as fsPromises from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import { test } from "node:test";
-import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
+import { SessionManager, type ExtensionFactory } from "@earendil-works/pi-coding-agent";
+import { fauxAssistantMessage } from "@earendil-works/pi-ai";
 import { Text, TuiMainScreen, type Terminal } from "@earendil-works/pi-tui";
 import {
   MIXCODE_FAUX_MODEL,
@@ -321,5 +322,177 @@ test("runtime extension session actions expose cancellation and boundary errors"
     assert.equal(runtime.getTab("s1"), runtimeTab);
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
+async function createCwdProject(root: string, name: string, outputPad: number): Promise<string> {
+  const cwd = path.join(root, name);
+  await Bun.write(path.join(cwd, "marker.txt"), name);
+  await Bun.write(path.join(cwd, "AGENTS.md"), `Project context: ${name}_ONLY_CONTEXT`);
+  await Bun.write(path.join(cwd, ".pi/settings.json"), JSON.stringify({ outputPad }));
+  await Bun.write(path.join(cwd, ".pi/prompts", `${name}-prompt.md`), `${name} prompt`);
+  await Bun.write(
+    path.join(cwd, ".pi/extensions/project.ts"),
+    `export default (pi) => pi.registerCommand("${name}-only", { handler: async () => {} });`,
+  );
+  return cwd;
+}
+
+function createCwdSession(cwd: string, sessionDir: string) {
+  const target = SessionManager.create(cwd, sessionDir);
+  target.appendModelChange(MIXCODE_FAUX_MODEL.provider, MIXCODE_FAUX_MODEL.id);
+  target.appendThinkingLevelChange("off");
+  target.appendSessionInfo("Target session");
+  target.appendMessage({ role: "user", content: "Target history", timestamp: Date.now() });
+  target.appendMessage(fauxAssistantMessage("Stored response"));
+  return target;
+}
+
+for (const operation of ["switch", "import", "import-override"] as const) {
+  test(`${operation} binds extension contexts, resources, and relative tools to the target cwd`, async () => {
+    const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-session-cwd-"));
+    const events: Array<{ event: string; cwd: string; sessionCwd: string }> = [];
+    const extension: ExtensionFactory = (pi) => {
+      pi.on("session_start", (event, ctx) => {
+        events.push({
+          event: `start:${event.reason}`,
+          cwd: ctx.cwd,
+          sessionCwd: ctx.sessionManager.getCwd(),
+        });
+      });
+      pi.on("session_shutdown", (_event, ctx) => {
+        events.push({ event: "shutdown", cwd: ctx.cwd, sessionCwd: ctx.sessionManager.getCwd() });
+      });
+      pi.registerCommand("switch-cwd", {
+        handler: async (args, ctx) => {
+          await ctx.switchSession(args, {
+            withSession: async (replacement) => {
+              events.push({
+                event: "withSession",
+                cwd: replacement.cwd,
+                sessionCwd: replacement.sessionManager.getCwd(),
+              });
+            },
+          });
+        },
+      });
+    };
+    const runtime = new MixCodeRuntime({
+      sessionsRoot: path.join(root, "sessions"),
+      agentDir: path.join(root, "agent"),
+      extensionFactories: [extension],
+    });
+    try {
+      const sourceCwd = await createCwdProject(root, "source", 1);
+      const targetCwd = await createCwdProject(root, "target", 0);
+      const stored = createCwdSession(
+        operation === "import-override" ? sourceCwd : targetCwd,
+        path.join(root, "external-sessions"),
+      );
+      const targetFile = stored.getSessionFile()!;
+      const source = await runtime.createTab(createTab(1, "source", sourceCwd), {
+        workdir: sourceCwd,
+        systemPrompt: "Session cwd test",
+        model: MIXCODE_FAUX_MODEL,
+        thinkingLevel: "medium",
+      });
+      if (operation === "switch") {
+        await runtime.prompt(source.tab.sessionId, `/switch-cwd ${targetFile}`);
+      } else {
+        await runtime.importFromJsonl(
+          source.tab.sessionId,
+          targetFile,
+          operation === "import-override" ? targetCwd : undefined,
+        );
+      }
+      const replacement = runtime.getTab(stored.getSessionId())!;
+      assert.ok(replacement);
+      assert.deepEqual(events, [
+        { event: "start:startup", cwd: sourceCwd, sessionCwd: sourceCwd },
+        { event: "shutdown", cwd: sourceCwd, sessionCwd: sourceCwd },
+        { event: "start:resume", cwd: targetCwd, sessionCwd: targetCwd },
+        ...(operation === "switch"
+          ? [{ event: "withSession", cwd: targetCwd, sessionCwd: targetCwd }]
+          : []),
+      ]);
+      assert.equal(replacement.tab.workdir, targetCwd);
+      assert.equal(replacement.services.settingsManager.getOutputPad(), 0);
+      const commandNames = runtime
+        .getExtensionCommands(replacement.tab.sessionId)
+        .map((command) => command.name);
+      assert.ok(commandNames.includes("target-only"));
+      assert.ok(commandNames.includes("switch-cwd"));
+      assert.equal(commandNames.includes("source-only"), false);
+      assert.deepEqual(
+        replacement.services.resourceLoader.getPrompts().prompts.map((prompt) => prompt.name),
+        ["target-prompt"],
+      );
+      assert.match(replacement.agentSession.systemPrompt, /target_ONLY_CONTEXT/);
+      assert.doesNotMatch(replacement.agentSession.systemPrompt, /source_ONLY_CONTEXT/);
+      assert.ok(
+        replacement.chat.some((line) => line.role === "user" && line.text === "Target history"),
+      );
+      assert.equal(replacement.tab.title, "Target session");
+      assert.equal(replacement.agentSession.model?.id, MIXCODE_FAUX_MODEL.id);
+      const tools = replacement.agentSession.agent.state.tools;
+      const read = tools.find((tool) => tool.name === "read")!;
+      const write = tools.find((tool) => tool.name === "write")!;
+      const bash = tools.find((tool) => tool.name === "bash")!;
+      assert.deepEqual((await read.execute("cwd-read", { path: "marker.txt" })).content, [
+        { type: "text", text: "target" },
+      ]);
+      await write.execute("cwd-write", { path: "marker.txt", content: "changed in target" });
+      assert.equal(await Bun.file(path.join(targetCwd, "marker.txt")).text(), "changed in target");
+      assert.equal(await Bun.file(path.join(sourceCwd, "marker.txt")).text(), "source");
+      const shellResult = await bash.execute("cwd-bash", { command: "pwd" });
+      assert.deepEqual(shellResult.content, [{ type: "text", text: `${targetCwd}\n` }]);
+    } finally {
+      await runtime.closeAllTabs();
+      await fsPromises.rm(root, { recursive: true, force: true });
+    }
+  });
+}
+
+test("cancelled cross-directory resume keeps source resources and never loads target extensions", async () => {
+  const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-session-cwd-cancel-"));
+  const runtime = new MixCodeRuntime({
+    sessionsRoot: path.join(root, "sessions"),
+    agentDir: path.join(root, "agent"),
+    extensionFactories: [
+      (pi) => {
+        pi.on("session_before_switch", () => ({ cancel: true }));
+      },
+    ],
+  });
+  try {
+    const sourceCwd = await createCwdProject(root, "source", 1);
+    const targetCwd = await createCwdProject(root, "target", 0);
+    const loadedMarker = path.join(root, "target-loaded");
+    await Bun.write(
+      path.join(targetCwd, ".pi/extensions/project.ts"),
+      `import * as fs from "node:fs"; export default () => fs.writeFileSync(${JSON.stringify(loadedMarker)}, "loaded");`,
+    );
+    const stored = createCwdSession(targetCwd, path.join(root, "external-sessions"));
+    await runtime.createTab(createTab(1, "source", sourceCwd), {
+      workdir: sourceCwd,
+      systemPrompt: "Session cwd test",
+      model: MIXCODE_FAUX_MODEL,
+    });
+    assert.deepEqual(await runtime.extensionSwitchSession("source", stored.getSessionFile()!), {
+      cancelled: true,
+    });
+    assert.equal(await Bun.file(loadedMarker).exists(), false);
+    const read = runtime
+      .getTab("source")!
+      .agentSession.agent.state.tools.find((tool) => tool.name === "read")!;
+    assert.deepEqual((await read.execute("source-read", { path: "marker.txt" })).content, [
+      { type: "text", text: "source" },
+    ]);
+    assert.ok(
+      runtime.getExtensionCommands("source").some((command) => command.name === "source-only"),
+    );
+  } finally {
+    await runtime.closeAllTabs();
+    await fsPromises.rm(root, { recursive: true, force: true });
   }
 });

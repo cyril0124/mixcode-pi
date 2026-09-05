@@ -132,3 +132,5 @@ Supported:
 - `/import <jsonl-path> [cwdOverride]` equivalent in MixCode
 
 System prompts, AGENTS, and project context flow directly through the Pi resource loader pipeline.
+
+When `ctx.switchSession()`, session-selector resume, or `/import` targets a different working directory, the replacement session rebuilds its cwd-bound services. Extension `ctx.cwd`, relative tool paths, project settings, and project resources use the target session's cwd before `session_start` and `withSession` run. An import's explicit cwd override is the effective target. Same-directory replacements reuse services and reload extensions; they do not share services with another live tab. A cancelled switch does not load the target project's extensions.

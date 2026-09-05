@@ -79,7 +79,9 @@ export type RuntimeTabConfig = Omit<AgentRuntimeConfig, "sessionId" | "model" | 
    * Services carried over from the session this one replaces. Legal only within
    * one tab, after the previous session has been shut down (`/clear`, `/new`,
    * resume, entry fork). Two live sessions must never share a services object:
-   * it carries one extension EventBus and one SettingsManager.
+   * it carries one extension EventBus and one SettingsManager. Its cwd must
+   * match the replacement session's cwd; cross-directory replacements rebuild
+   * services so tools, project settings, and resources bind to the target.
    */
   reuseServices?: AgentSessionServices;
   /** Keep an explicit caller title instead of restoring the opened session name. */
@@ -431,8 +433,10 @@ async function replaceRuntimeTabSessionUnlocked(
       thinkingLevel: runtimeTab.tab.thinkingLevel,
       workdir: sessionManager.getCwd(),
       model,
-      // Reload-on-reuse keeps a fresh extension runtime after dispose (see above).
-      reuseServices: previousServices,
+      // Reuse only cwd-bound services for the same directory. Reused loaders
+      // reload above; cross-directory replacements load target resources once.
+      reuseServices:
+        previousServices.cwd === sessionManager.getCwd() ? previousServices : undefined,
       sessionStartEvent: { type: "session_start", reason, previousSessionFile },
       getTabTitle: () => runtimeTab.tab.title,
     },
