@@ -5,16 +5,12 @@ import {
   getKeybindings,
   isKeyRelease,
   matchesKey,
+  type OverlayBounds,
   type OverlayHandle,
   type OverlayOptions,
-  resolveOverlayLayout,
   type TUI as TuiType,
 } from "@earendil-works/pi-tui";
-import {
-  type ChatSelectionState,
-  type ChatSurfaceBounds,
-  highlightChatSelectionLine,
-} from "../core/chat-selection.js";
+import { type ChatSelectionState, highlightChatSelectionLine } from "../core/chat-selection.js";
 import {
   editTextInExternalEditor,
   resolveAvailableExternalEditor,
@@ -150,8 +146,6 @@ export interface ActiveNotice {
   text: string;
   title: string;
   danger?: boolean;
-  /** 1-based screen bounds matching chat/input selection coordinates. */
-  bounds?: ChatSurfaceBounds;
   selection?: ChatSelectionState;
   /** Last rendered panel lines (ANSI ok); selection extracts plain text. */
   renderedLines: string[];
@@ -293,6 +287,15 @@ export function hasAppOverlay(tui: OverlayTui): boolean {
 
 export function appOverlayComponent(tui: OverlayTui): Component | undefined {
   return activeAppOverlays.get(tui)?.component;
+}
+
+/**
+ * Compositor-rendered rectangle (0-based, maxHeight-clamped) of the tracked
+ * app overlay, or undefined before its first render / after hide. Notice
+ * overlays included: nonCapturing does not affect visibility, only input.
+ */
+export function getAppOverlayBounds(tui: OverlayTui): OverlayBounds | undefined {
+  return activeAppOverlays.get(tui)?.handle.getBounds();
 }
 
 export function hasCapturingAppOverlay(tui: OverlayTui): boolean {
@@ -444,15 +447,6 @@ function showNoticeOverlay(tui: OverlayTui, text: string, options: NoticeOptions
       (width) => {
         const theme = getCurrentUiTheme();
         const lines = renderNoticePanel(merged, width, theme, options);
-        const termWidth = Math.max(1, process.stdout.columns || 80);
-        const termHeight = Math.max(1, process.stdout.rows || 24);
-        const layout = resolveOverlayLayout(overlayOptions, lines.length, termWidth, termHeight);
-        notice.bounds = {
-          top: layout.row + 1,
-          left: layout.col + 1,
-          width: layout.width,
-          height: lines.length,
-        };
         notice.renderedLines = lines;
         if (!notice.selection) return lines;
         return lines.map((line, row) =>
@@ -479,19 +473,11 @@ function showNoticeOverlay(tui: OverlayTui, text: string, options: NoticeOptions
     // Resolve the live UI theme at render time. The TUI compositor invokes this
     // callback outside any renderWithTheme scope, so reading activeRenderTheme
     // here would always yield the module default and ignore the user's theme.
+    // Screen bounds come from the compositor handle at mouse-event time
+    // (getAppOverlayBounds), not from manual geometry here.
     (width) => {
       const theme = getCurrentUiTheme();
       const lines = renderNoticePanel(text, width, theme, options);
-      const termWidth = Math.max(1, process.stdout.columns || 80);
-      const termHeight = Math.max(1, process.stdout.rows || 24);
-      const layout = resolveOverlayLayout(overlayOptions, lines.length, termWidth, termHeight);
-      // pi-tui layout row/col are 0-based; MixCode mouse selection uses 1-based.
-      notice.bounds = {
-        top: layout.row + 1,
-        left: layout.col + 1,
-        width: layout.width,
-        height: lines.length,
-      };
       notice.renderedLines = lines;
       if (!notice.selection) return lines;
       return lines.map((line, row) =>

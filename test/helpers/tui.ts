@@ -1,12 +1,16 @@
-import type { OverlayHandle } from "@earendil-works/pi-tui";
+import type { OverlayBounds, OverlayHandle } from "@earendil-works/pi-tui";
 import type { OverlayTui } from "../../src/ui/app-types.js";
 
 /**
  * Complete OverlayHandle stub. Production code (src/agent/runtime.ts) calls
  * isFocused()/isHidden()/focus() on stored handles, so a `{ hide }`-only
- * literal is not a valid stand-in.
+ * literal is not a valid stand-in. `bounds` stubs the compositor's rendered
+ * rectangle (0-based) for hit-testing paths; default reports "not rendered".
  */
-export function testOverlayHandle(hide: () => void = () => undefined): OverlayHandle {
+export function testOverlayHandle(
+  hide: () => void = () => undefined,
+  bounds?: OverlayBounds | (() => OverlayBounds | undefined),
+): OverlayHandle {
   return {
     hide,
     setHidden: () => undefined,
@@ -14,7 +18,7 @@ export function testOverlayHandle(hide: () => void = () => undefined): OverlayHa
     focus: () => undefined,
     unfocus: () => undefined,
     isFocused: () => false,
-    getBounds: () => undefined,
+    getBounds: () => (typeof bounds === "function" ? bounds() : bounds),
   };
 }
 

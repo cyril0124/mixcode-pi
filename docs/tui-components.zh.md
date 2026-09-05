@@ -101,7 +101,7 @@
 │  Box / Spacer / Text / TruncateText          chrome (header/tab/status)                          │
 │  SettingsList (when fits)                    Settings Panel                                      │
 │  keybindings / autocomplete APIs             Command Palette / Tab Jump                          │
-│  showOverlay anchors / resolveOverlayLayout  Toast / Floating Panel                              │
+│  showOverlay anchors / getBounds             Toast / Floating Panel                              │
 │                                              Picker / Tree / Session / Fork                      │
 │                                              Workspace Overlay                                   │
 │                                              只读文本查看器                                      │

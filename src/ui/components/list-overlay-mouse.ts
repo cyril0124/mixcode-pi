@@ -1,6 +1,5 @@
-import { type OverlayOptions, resolveOverlayLayout } from "@earendil-works/pi-tui";
+import type { OverlayBounds } from "@earendil-works/pi-tui";
 import { parseSgrMouseInput, type SgrMouseInput } from "../../core/mouse.js";
-import { defaultOverlayOptions } from "../app-overlays.js";
 
 /** Geometry shared by center list overlays (Tab Jump, Command Palette, …). */
 export interface ListOverlayPlan {
@@ -19,28 +18,28 @@ export interface ListOverlayMouseHandlers {
   reshow: () => void;
   /** Overlay open gate; when false, hit-test returns undefined. */
   isOpen?: () => boolean;
-  options?: OverlayOptions;
+  /**
+   * Compositor-rendered overlay rectangle (0-based, maxHeight already clamped
+   * by pi-tui). Undefined until the overlay's first render.
+   */
+  bounds: () => OverlayBounds | undefined;
 }
 
 /** Map a screen click onto a visible list-overlay entry index, or undefined. */
 export function hitTestListOverlay(
   plan: ListOverlayPlan,
   mouse: Pick<SgrMouseInput, "x" | "y">,
-  options: OverlayOptions = defaultOverlayOptions(),
-  termWidth = process.stdout.columns || 80,
-  termHeight = process.stdout.rows || 24,
+  bounds: OverlayBounds,
 ): number | undefined {
   if (plan.empty) return undefined;
-  // Body lines + top/bottom box borders — matches overlayPanel output height.
-  const overlayHeight = plan.bodyLineCount + 2;
-  const layout = resolveOverlayLayout(options, overlayHeight, termWidth, termHeight);
-  const effectiveHeight =
-    layout.maxHeight !== undefined ? Math.min(overlayHeight, layout.maxHeight) : overlayHeight;
-  // mouse is 1-based; pi-tui layout row/col are 0-based.
-  if (mouse.x < layout.col + 1 || mouse.x > layout.col + layout.width) return undefined;
-  const lineIndex = mouse.y - (layout.row + 1);
-  if (lineIndex < 0 || lineIndex >= effectiveHeight) return undefined;
-  const bodyLine = lineIndex - 1; // line 0 is the top border
+  // mouse is 1-based; compositor bounds row/col are 0-based.
+  if (mouse.x < bounds.col + 1 || mouse.x > bounds.col + bounds.width) return undefined;
+  const lineIndex = mouse.y - (bounds.row + 1);
+  // Rendered body rows are lineIndex 1..height-2; line 0 is the top border,
+  // height-1 the bottom border, and anything past height was sliced by the
+  // compositor's maxHeight clamp even if the plan still lists an entry there.
+  if (lineIndex < 1 || lineIndex > bounds.height - 2) return undefined;
+  const bodyLine = lineIndex - 1;
   return plan.entryBodyLines.find((hit) => hit.bodyLine === bodyLine)?.entryIndex;
 }
 
@@ -48,12 +47,7 @@ export function hitTestListOverlay(
  * Wheel moves selection; click accepts the row under the cursor.
  * Returns false when `data` is not SGR mouse (so key handlers can continue).
  */
-export function handleListOverlayMouse(
-  data: string,
-  handlers: ListOverlayMouseHandlers,
-  termWidth = process.stdout.columns || 80,
-  termHeight = process.stdout.rows || 24,
-): boolean {
+export function handleListOverlayMouse(data: string, handlers: ListOverlayMouseHandlers): boolean {
   const mouse = parseSgrMouseInput(data);
   if (!mouse) return false;
   if (handlers.isOpen && !handlers.isOpen()) return true;
@@ -63,13 +57,9 @@ export function handleListOverlayMouse(
     return true;
   }
   if (mouse.button === 0 && !mouse.release && !mouse.motion) {
-    const entryIndex = hitTestListOverlay(
-      handlers.plan(),
-      mouse,
-      handlers.options ?? defaultOverlayOptions(),
-      termWidth,
-      termHeight,
-    );
+    const bounds = handlers.bounds();
+    if (!bounds) return true; // not rendered yet — nothing visible to click
+    const entryIndex = hitTestListOverlay(handlers.plan(), mouse, bounds);
     if (entryIndex !== undefined) handlers.onAccept(entryIndex);
     return true;
   }

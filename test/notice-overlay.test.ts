@@ -9,11 +9,12 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { resolveOverlayLayout, visibleWidth } from "@earendil-works/pi-tui";
+import { TuiMainScreen, visibleWidth, type Terminal } from "@earendil-works/pi-tui";
 import {
   closeAppOverlay,
   copyActiveNoticeText,
   getActiveNotice,
+  getAppOverlayBounds,
   hasActiveNotice,
   hasAppOverlay,
   hasCapturingAppOverlay,
@@ -78,14 +79,14 @@ test("showNoticeTextOverlay tracks active notice and clears on close", () => {
   const tui = testTui({
     showOverlay: (component, options) => {
       component.render(typeof options?.width === "number" ? options.width : 40);
-      return testOverlayHandle();
+      return testOverlayHandle(undefined, { row: 20, col: 20, width: 40, height: 4 });
     },
     hasOverlay: () => true,
   });
   showNoticeTextOverlay(tui, "hello notice body");
   assert.equal(hasActiveNotice(), true);
   assert.equal(getActiveNotice()?.text, "hello notice body");
-  assert.ok(getActiveNotice()?.bounds, "bounds should be set after first render");
+  assert.ok(getAppOverlayBounds(tui), "bounds should be set after first render");
   assert.ok((getActiveNotice()?.renderedLines.length ?? 0) > 0);
   closeAppOverlay(tui);
   assert.equal(hasActiveNotice(), false);
@@ -124,17 +125,63 @@ test("copyActiveNoticeText copies full body via injected writer", async () => {
   closeAppOverlay(tui);
 });
 
-test("resolveOverlayLayout places bottom-center notice within terminal", () => {
-  const layout = resolveOverlayLayout(
-    { anchor: "bottom-center", width: 40, maxHeight: 12, margin: 1, offsetY: -4 },
-    8,
-    100,
-    40,
+// Fixed-size silent terminal so the real compositor's rendered bounds are
+// deterministic (same stub pattern as test/runtime-ui-11.test.ts).
+function silentTerminal(columns: number, rows: number): Terminal {
+  return {
+    start: () => undefined,
+    stop: () => undefined,
+    drainInput: async () => undefined,
+    write: () => undefined,
+    get columns() {
+      return columns;
+    },
+    get rows() {
+      return rows;
+    },
+    get kittyProtocolActive() {
+      return false;
+    },
+    moveBy: () => undefined,
+    hideCursor: () => undefined,
+    showCursor: () => undefined,
+    clearLine: () => undefined,
+    clearFromCursor: () => undefined,
+    clearScreen: () => undefined,
+    setTitle: () => undefined,
+    setProgress: () => undefined,
+  };
+}
+
+test("compositor bounds place bottom-center notice within terminal", async () => {
+  const tui = new TuiMainScreen(silentTerminal(100, 40));
+  const options = {
+    anchor: "bottom-center" as const,
+    width: 40,
+    maxHeight: 12,
+    margin: 1,
+    offsetY: -4,
+  };
+  const handle = tui.showOverlay(
+    {
+      render: () => ["a".repeat(40), ...Array.from({ length: 7 }, () => "b".repeat(40))],
+      invalidate: () => undefined,
+    },
+    options,
   );
-  assert.equal(layout.width, 40);
-  assert.ok(layout.row >= 1, "row respects top margin");
-  assert.ok(layout.col >= 1, "col respects left margin");
-  assert.ok(layout.row + 8 <= 39, "panel stays above bottom margin after offset clamp");
+  tui.requestRender();
+  const deadline = Date.now() + 2000;
+  while (handle.getBounds() === undefined && Date.now() < deadline) {
+    await Bun.sleep(10);
+  }
+  const bounds = handle.getBounds();
+  tui.stop();
+  assert.ok(bounds, "bounds set after first composite");
+  assert.equal(bounds.width, 40);
+  assert.equal(bounds.height, 8);
+  assert.ok(bounds.row >= 1, "row respects top margin");
+  assert.ok(bounds.col >= 1, "col respects left margin");
+  assert.ok(bounds.row + 8 <= 39, "panel stays above bottom margin after offset clamp");
 });
 
 test("closeAppOverlay only hides tracked app handles, never hideOverlay stack top", () => {

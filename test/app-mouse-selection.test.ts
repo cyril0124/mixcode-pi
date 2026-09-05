@@ -15,12 +15,15 @@ import {
   handleMouseInput,
   handleTabJumpMouse,
 } from "../src/ui/app-mouse.js";
-import { resolveOverlayLayout } from "@earendil-works/pi-tui";
-import { hitTestListOverlay } from "../src/ui/components/list-overlay-mouse.js";
+import type { OverlayBounds } from "@earendil-works/pi-tui";
+import {
+  hitTestListOverlay,
+  type ListOverlayPlan,
+} from "../src/ui/components/list-overlay-mouse.js";
 import {
   closeAppOverlay,
-  defaultOverlayOptions,
   getActiveNotice,
+  getAppOverlayBounds,
   hasAnyOverlay,
   showLinesOverlay,
   showNoticeTextOverlay,
@@ -332,6 +335,10 @@ test("handleMouseInput drags and copies btw-style editor visible body", async ()
 test("handleMouseInput drags and copies active Notice panel text", async () => {
   const { state, tab, tui } = setup();
   const copied: string[] = [];
+  // One tui for showing and routing: compositor bounds are read from the
+  // handle tracked on the same instance mouse events are routed with.
+  // 0-based rect {row:9,col:0} ≡ 1-based {top:10,left:1} used by SGR coords.
+  const noticeBounds: OverlayBounds = { row: 9, col: 0, width: 20, height: 3 };
   const noticeTui = {
     requestRender: tui.requestRender,
     showOverlay: (
@@ -339,32 +346,40 @@ test("handleMouseInput drags and copies active Notice panel text", async () => {
       options: { width?: number },
     ) => {
       component.render(typeof options.width === "number" ? options.width : 40);
-      return testOverlayHandle();
+      return testOverlayHandle(() => undefined, noticeBounds);
     },
     hasOverlay: () => true,
   };
   showNoticeTextOverlay(noticeTui, "hello notice body");
+  assert.ok(getActiveNotice(), "notice tracked");
+  assert.ok(getAppOverlayBounds(noticeTui), "notice bounds required for selection");
+
+  // Force deterministic rendered content; bounds come from the handle stub.
   const notice = getActiveNotice();
-  assert.ok(notice?.bounds, "notice bounds required for selection");
-
-  // Force a known rectangle so SGR coordinates map cleanly in the unit test.
-  notice.bounds = { top: 10, left: 1, width: 20, height: 3 };
-  notice.renderedLines = ["hello notice body", "second line here", "c/y copy · Esc close"];
+  notice!.renderedLines = ["hello notice body", "second line here", "c/y copy · Esc close"];
 
   assert.equal(
-    handleMouseInput(state, tab, "\x1b[<0;7;10M", tui, undefined, undefined, async (text) => {
+    handleMouseInput(state, tab, "\x1b[<0;7;10M", noticeTui, undefined, undefined, async (text) => {
       copied.push(text);
     }),
     true,
   );
   assert.equal(
-    handleMouseInput(state, tab, "\x1b[<32;7;11M", tui, undefined, undefined, async (text) => {
-      copied.push(text);
-    }),
+    handleMouseInput(
+      state,
+      tab,
+      "\x1b[<32;7;11M",
+      noticeTui,
+      undefined,
+      undefined,
+      async (text) => {
+        copied.push(text);
+      },
+    ),
     true,
   );
   assert.equal(
-    handleMouseInput(state, tab, "\x1b[<0;7;11m", tui, undefined, undefined, async (text) => {
+    handleMouseInput(state, tab, "\x1b[<0;7;11m", noticeTui, undefined, undefined, async (text) => {
       copied.push(text);
     }),
     true,
@@ -466,13 +481,18 @@ test("Command Palette wheel moves selection and click runs the row", () => {
 
   const ran: string[] = [];
   let overlayOpen = false;
+  // Deterministic compositor rect for the stubbed handle: every body row
+  // clickable (height = body + 2 borders), matching what the real compositor
+  // would report after clamping to maxHeight.
+  const plan = planCommandPaletteList(state);
+  const bounds: OverlayBounds = { row: 5, col: 10, width: 60, height: plan.bodyLineCount + 2 };
   const tui = {
     requestRender: () => undefined,
     showOverlay: () => {
       overlayOpen = true;
       return testOverlayHandle(() => {
         overlayOpen = false;
-      });
+      }, bounds);
     },
     hasOverlay: () => overlayOpen,
   };
@@ -490,29 +510,12 @@ test("Command Palette wheel moves selection and click runs the row", () => {
   assert.equal(handleCommandPaletteMouse(state, "\x1b[<64;10;10M", tui, actions), true);
   assert.equal(state.commandPalette.selectedIndex, start);
 
-  const termWidth = process.stdout.columns || 80;
-  const termHeight = process.stdout.rows || 24;
-  const plan = planCommandPaletteList(state);
   const target = plan.entryBodyLines.find((hit) => hit.entryIndex === 1);
   assert.ok(target);
-  const layout = resolveOverlayLayout(
-    defaultOverlayOptions(),
-    plan.bodyLineCount + 2,
-    termWidth,
-    termHeight,
-  );
-  const y = layout.row + 1 + target.bodyLine + 1;
-  const x = layout.col + 2;
-  assert.equal(
-    hitTestListOverlay(
-      planCommandPaletteList(state, []),
-      { x, y },
-      undefined,
-      termWidth,
-      termHeight,
-    ),
-    1,
-  );
+  // 1-based SGR y = 0-based row + top border + bodyLine + 1.
+  const y = bounds.row + 1 + target.bodyLine + 1;
+  const x = bounds.col + 2;
+  assert.equal(hitTestListOverlay(planCommandPaletteList(state, []), { x, y }, bounds), 1);
 
   const expected = plan.entries[1]!.command;
   assert.equal(handleCommandPaletteMouse(state, `\x1b[<0;${x};${y}M`, tui, actions), true);
@@ -533,13 +536,16 @@ test("Tab Jump wheel moves selection and click jumps to the row", () => {
   assert.equal(state.tabJumpIndex, 1); // Home=0, s1=1
 
   let overlayOpen = false;
+  // Deterministic compositor rect for the stubbed handle.
+  const plan = planTabJumpList(state);
+  const bounds: OverlayBounds = { row: 4, col: 8, width: 50, height: plan.bodyLineCount + 2 };
   const tui = {
     requestRender: () => undefined,
     showOverlay: () => {
       overlayOpen = true;
       return testOverlayHandle(() => {
         overlayOpen = false;
-      });
+      }, bounds);
     },
     hasOverlay: () => overlayOpen,
   };
@@ -554,30 +560,34 @@ test("Tab Jump wheel moves selection and click jumps to the row", () => {
   assert.equal(handleTabJumpMouse(state, "\x1b[<64;10;10M", tui), true);
   assert.equal(state.tabJumpIndex, 1);
 
-  // Match handleTabJumpMouse defaults (process.stdout, with the same fallbacks).
-  const termWidth = process.stdout.columns || 80;
-  const termHeight = process.stdout.rows || 24;
-  const plan = planTabJumpList(state);
-  const layout = resolveOverlayLayout(
-    defaultOverlayOptions(),
-    plan.bodyLineCount + 2,
-    termWidth,
-    termHeight,
-  );
   const target = plan.entryBodyLines.find((hit) => hit.entryIndex === 3); // s3
   assert.ok(target);
-  // screen y is 1-based: layout.row (0-based) + top border + bodyLine + 1
-  const y = layout.row + 1 + target.bodyLine + 1;
-  const x = layout.col + 2;
-  assert.equal(
-    hitTestListOverlay(planTabJumpList(state), { x, y }, undefined, termWidth, termHeight),
-    3,
-  );
+  // screen y is 1-based: bounds.row (0-based) + top border + bodyLine + 1
+  const y = bounds.row + 1 + target.bodyLine + 1;
+  const x = bounds.col + 2;
+  assert.equal(hitTestListOverlay(planTabJumpList(state), { x, y }, bounds), 3);
 
   assert.equal(handleTabJumpMouse(state, `\x1b[<0;${x};${y}M`, tui), true);
   assert.equal(state.tabJumpOpen, false);
   assert.equal(state.activeTabId, "s3");
   assert.equal(overlayOpen, false);
+});
+
+test("hitTestListOverlay respects compositor-clamped bounds height", () => {
+  const plan: ListOverlayPlan = {
+    empty: false,
+    bodyLineCount: 5,
+    entryBodyLines: [0, 1, 2, 3, 4].map((bodyLine) => ({ bodyLine, entryIndex: bodyLine })),
+  };
+  // Compositor already sliced to 4 lines: top border + 2 body rows + bottom border.
+  const bounds: OverlayBounds = { row: 2, col: 4, width: 40, height: 4 };
+  assert.equal(hitTestListOverlay(plan, { x: 10, y: 2 + 1 + 0 + 1 }, bounds), 0);
+  assert.equal(hitTestListOverlay(plan, { x: 10, y: 2 + 1 + 1 + 1 }, bounds), 1);
+  // Entry 2 exists in the plan but its row was sliced away by maxHeight.
+  assert.equal(hitTestListOverlay(plan, { x: 10, y: 2 + 1 + 2 + 1 }, bounds), undefined);
+  // Above the top border / outside the rendered rectangle.
+  assert.equal(hitTestListOverlay(plan, { x: 10, y: 2 }, bounds), undefined);
+  assert.equal(hitTestListOverlay(plan, { x: 3, y: 4 }, bounds), undefined);
 });
 
 test("re-clicking the active tab opens Tab Jump", () => {

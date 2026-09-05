@@ -32,6 +32,7 @@ import { HOME_TAB_ID, type MixCodeState } from "../core/types.js";
 import {
   closeAppOverlay,
   getActiveNotice,
+  getAppOverlayBounds,
   hasActiveNotice,
   errorMessage,
   hasAnyOverlay,
@@ -242,6 +243,7 @@ export function handleTabJumpMouse(state: MixCodeState, data: string, tui: Overl
   return handleListOverlayMouse(data, {
     isOpen: () => state.tabJumpOpen,
     plan: () => planTabJumpList(state),
+    bounds: () => getAppOverlayBounds(tui),
     onMove: (delta) => moveTabJumpSelection(state, delta),
     onAccept: (entryIndex) => {
       state.tabJumpIndex = entryIndex;
@@ -264,6 +266,7 @@ export function handleCommandPaletteMouse(
   return handleListOverlayMouse(data, {
     isOpen: () => state.commandPaletteOpen,
     plan: () => planCommandPaletteList(state, extensionCommands),
+    bounds: () => getAppOverlayBounds(tui),
     onMove: (delta) => moveCommandPaletteSelection(state, delta, extensionCommands),
     onAccept: (entryIndex) => {
       state.commandPalette.selectedIndex = entryIndex;
@@ -431,19 +434,29 @@ function handleNoticeSelectionMouse(
   tui: OverlayTui,
   copyToClipboard: ClipboardWriter,
 ): boolean {
-  const notice = getActiveNotice();
-  if (!notice?.bounds) return false;
+  if (!hasActiveNotice()) return false;
+  // Compositor bounds are 0-based; chat selection coordinates are 1-based.
+  const overlayBounds = getAppOverlayBounds(tui);
+  if (!overlayBounds) return false;
+  const bounds: MixCodeState["tabs"][number]["chatSurfaceBounds"] = {
+    top: overlayBounds.row + 1,
+    left: overlayBounds.col + 1,
+    width: overlayBounds.width,
+    height: overlayBounds.height,
+  };
   return handleTextSelectionMouse({
     active,
     mouse,
     tui,
     copyToClipboard,
-    bounds: notice.bounds,
-    getSelection: () => notice.selection,
+    bounds,
+    getSelection: () => getActiveNotice()?.selection,
     setSelection: (selection) => {
+      const notice = getActiveNotice();
+      if (!notice) return;
       setActiveNoticeSelection(selection);
     },
-    getLines: () => notice.renderedLines,
+    getLines: () => getActiveNotice()?.renderedLines ?? [],
     selectText: selectedNoticeText,
   });
 }
