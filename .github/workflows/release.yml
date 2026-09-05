@@ -15,15 +15,16 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: oven-sh/setup-bun@v2
+        id: bun
         with:
-          bun-version: 1.4.0
+          bun-version: 1.4.1
 
       # Key covers patches/**; no restore-keys. See regression.yml.
       - name: Cache bun install cache
         uses: actions/cache@v4
         with:
           path: ~/.bun/install/cache
-          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock', 'patches/**') }}
+          key: bun-${{ runner.os }}-${{ steps.bun.outputs.bun-version }}-${{ hashFiles('bun.lock', 'patches/**') }}
 
       # release.sh runs bun install (applies patchedDependencies) and cross-compiles all
       # default targets (linux x64/arm64, darwin arm64/x64) on this runner.

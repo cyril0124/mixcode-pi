@@ -159,6 +159,8 @@ bun run install:global       # 从当前源码全局软链 `mpi`
 - `./install.sh` 编译为单个独立二进制文件（`bun build --compile`），运行时无需 `node_modules`。
 - `bun run install:global` 从当前本地仓库软链，基于 Bun 运行时执行 TypeScript 入口。
 
+发布构建使用 [release workflow](.github/workflows/release.yml) 固定的 Bun 版本。`./release.sh` 按冻结的锁文件安装依赖，优先使用缓存，并下载缺失的包。目标平台和输出选项见 `./release.sh --help`。
+
 ---
 
 ## 启动参数
