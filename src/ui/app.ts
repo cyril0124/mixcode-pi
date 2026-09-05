@@ -135,6 +135,7 @@ export function createMixCodeTui(
   // Tabs without a title leave the current title untouched (Pi: persists until
   // overwritten).
   const stopExtensionTitleSync = onActiveTabChange((tabId) => {
+    main.dispose();
     const title = state.tabs.find((tab) => tab.sessionId === tabId)?.extensionUi.title;
     if (title !== undefined) tui.terminal.setTitle(title);
     syncOwnedAppOverlay(state, tui);
@@ -160,6 +161,7 @@ export function createMixCodeTui(
     // Custom input skins only (setEditorComponent), not temporary dialog overrides.
     () => editorSlot?.getEditorComponent() !== undefined,
     () => editorSlot?.hasInputComponent() === true,
+    tui,
   );
   // settings.json editorPaddingX / autocompleteMaxVisible, explicit keys only.
   // Unset keeps MixCode 1 / 8; SettingsManager getters would inject 0 / 5.
@@ -462,7 +464,10 @@ export function createMixCodeTui(
   // the redraw/title bindings, and nothing re-creates them on tui.start().
   // While paused, background requestRender calls are no-ops inside pi-tui, so
   // redraw timers may keep running without painting over the editor.
-  tui.pause = originalStop;
+  tui.pause = () => {
+    main.dispose();
+    originalStop();
+  };
   tui.resume = () => {
     originalStart();
     tui.renderNow(true);

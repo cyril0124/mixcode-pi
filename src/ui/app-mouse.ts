@@ -13,10 +13,13 @@ import {
 } from "../core/chat-selection.js";
 import { copyToClipboard as writeClipboard } from "@earendil-works/pi-coding-agent";
 import { parseSgrMouseInput, type SgrMouseInput } from "../core/mouse.js";
+import { chatScrollbarFor } from "./chat-scrollbar.js";
+import { clearScrollFreeze } from "./rendering/agent-surface-scroll.js";
 import {
   acceptCommandPaletteSelection,
   acceptTabJumpSelection,
   clearChatScrollAnchor,
+  isOverlayActive,
   closeActiveOverlay,
   moveCommandPaletteSelection,
   moveTabJumpSelection,
@@ -184,6 +187,7 @@ export function handleMouseInput(
 ): boolean {
   const mouse = parseSgrMouseInput(data);
   if (!mouse) return false;
+  if (handleChatScrollbarMouseInput(state, active, data, tui)) return true;
   if (handleChromeMouse(state, active, mouse, tui)) return true;
   if (!active) return false;
   if (mouse.wheel && active.extensionUi.waitingForInputs.length > 0) {
@@ -195,8 +199,6 @@ export function handleMouseInput(
   // to wheel/input/chat paths so Notice does not freeze the rest of the UI.
   if (handleNoticeSelectionMouse(active, mouse, tui, copyToClipboard)) return true;
   if (hasAnyOverlay(tui) && !hasActiveNotice()) return false;
-  // Clicking the chat scrollbar gutter jumps scroll position (before text selection).
-  if (handleChatScrollbarMouse(state, active, mouse, tui)) return true;
   if (handleInputSelectionMouse(active, mouse, tui, copyToClipboard)) return true;
   // While an extension dialog/custom UI owns input, keep the side panel visible
   // but do not let panel selection/scroll steal clicks or drags from the modal.
@@ -291,43 +293,82 @@ export function handleCommandPaletteMouse(
   });
 }
 
-/**
- * Click on the rightmost chat gutter (scrollbar track/thumb) maps y → chatScrollOffset.
- * offset 0 = bottom (newest); maxOffset = top (oldest). Matches fitScrolledLinesWithInfo.
- */
-function handleChatScrollbarMouse(
+/** Scrollbar capture precedes text selection; mouse coordinates are 1-based. */
+export function handleChatScrollbarMouseInput(
   state: MixCodeState,
-  active: MixCodeState["tabs"][number],
-  mouse: SgrMouseInput,
+  active: ActiveTab | undefined,
+  data: string,
   tui: OverlayTui,
 ): boolean {
-  if (state.activeTabId === HOME_TAB_ID) return false;
-  if (mouse.wheel || mouse.release || mouse.button !== 0) return false;
-  const bounds = active.chatSurfaceBounds;
-  const metrics = active.lastChatScrollMetrics;
+  if (!active) return false;
+  const scrollbar = chatScrollbarFor(active);
   if (
-    !bounds ||
-    !metrics?.scrollable ||
-    metrics.viewport <= 0 ||
-    metrics.total <= metrics.viewport
+    state.activeTabId === HOME_TAB_ID ||
+    isOverlayActive(state) ||
+    active.extensionUi.waitingForInputs.length > 0 ||
+    (hasAnyOverlay(tui) && !hasActiveNotice())
   ) {
+    scrollbar.reset();
     return false;
   }
-  // Scrollbar is painted in the last column of the full chat surface (bounds.width is content).
-  const barCol = bounds.left + bounds.width;
-  if (mouse.x !== barCol) return false;
-  if (mouse.y < bounds.top || mouse.y >= bounds.top + bounds.height) return false;
+  const mouse = parseSgrMouseInput(data);
+  const bounds = active.chatSurfaceBounds;
+  const geometry = scrollbar.geometry;
+  if (!mouse || !bounds || !geometry) return false;
+  const notice = hasActiveNotice() ? getAppOverlayBounds(tui) : undefined;
+  if (
+    notice &&
+    mouse.x > notice.col &&
+    mouse.x <= notice.col + notice.width &&
+    mouse.y > notice.row &&
+    mouse.y <= notice.row + notice.height
+  ) {
+    scrollbar.reset();
+    return false;
+  }
+  scrollbar.requestRender = () => tui.requestRender();
+  const row = mouse.y - bounds.top;
+  const onTrack =
+    mouse.x === bounds.left + geometry.column && row >= 0 && row < geometry.trackHeight;
+  const scrollToPointer = (grabOffset: number): void => {
+    const travel = geometry.trackHeight - geometry.thumbHeight;
+    const thumbTop = Math.max(0, Math.min(travel, row - grabOffset));
+    const start = travel === 0 ? 0 : Math.round((thumbTop / travel) * geometry.maxScrollTop);
+    // A pointer seek is absolute, not a delta relative to a frozen/anchored message.
+    clearChatScrollAnchor(active);
+    clearScrollFreeze(active);
+    active.chatScrollOffset = geometry.maxScrollTop - start;
+    tui.requestRender();
+  };
 
-  const viewport = metrics.viewport;
-  const maxOffset = Math.max(0, metrics.total - viewport);
-  const rowInBar = Math.min(viewport - 1, Math.max(0, mouse.y - bounds.top));
-  // Thumb top fraction maps start; start = total - viewport - offset (approx).
-  // Clicking top of track → older (high offset); bottom → newer (offset 0).
-  const fraction = viewport <= 1 ? 0 : rowInBar / (viewport - 1);
-  const nextOffset = Math.round((1 - fraction) * maxOffset);
-  clearChatScrollAnchor(active);
-  active.chatScrollOffset = Math.min(1_000_000, Math.max(0, nextOffset));
-  tui.requestRender();
+  if (scrollbar.grabOffset !== undefined) {
+    if (mouse.release) {
+      scrollbar.grabOffset = undefined;
+      scrollbar.hover(onTrack);
+      tui.requestRender();
+      return true;
+    }
+    if (mouse.motion && mouse.button === 0) {
+      scrollToPointer(scrollbar.grabOffset);
+      return true;
+    }
+  }
+  if (active.chatSelection?.dragging) return false;
+  // Button 3 + motion is an unpressed pointer move (SGR raw button 35).
+  if (mouse.motion && mouse.button === 3) {
+    scrollbar.hover(onTrack);
+    return onTrack;
+  }
+  if (mouse.wheel || mouse.release || mouse.motion || mouse.button !== 0 || !onTrack) return false;
+
+  stopChatSelectionAutoScroll();
+  active.chatSelection = undefined;
+  active.inputSelection = undefined;
+  active.panelSelection = undefined;
+  scrollbar.hover(true);
+  const onThumb = row >= geometry.thumbTop && row < geometry.thumbTop + geometry.thumbHeight;
+  scrollbar.grabOffset = onThumb ? row - geometry.thumbTop : Math.floor(geometry.thumbHeight / 2);
+  if (!onThumb) scrollToPointer(scrollbar.grabOffset);
   return true;
 }
 

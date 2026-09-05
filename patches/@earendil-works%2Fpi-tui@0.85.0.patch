@@ -1,8 +1,16 @@
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index 1460dd1160f1d8ccf9abf201844f7d9f01bc0fde..07a53c1b37f20a6c3beb456590b04fb84568b1c9 100644
+index 1460dd1160f1d8ccf9abf201844f7d9f01bc0fde..50b697f7b8597f0e54d3ccc35d3a368b897f792c 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
-@@ -28,5 +28,5 @@ export { allocateImageId, type CellDimensions, calculateImageRows, deleteAllKitt
+@@ -20,6 +20,7 @@ export type { EditorComponent } from "./editor-component.ts";
+ export { type FuzzyMatch, fuzzyFilter, fuzzyMatch } from "./fuzzy.ts";
+ export { getKeybindings, type Keybinding, type KeybindingConflict, type KeybindingDefinition, type KeybindingDefinitions, type Keybindings, type KeybindingsConfig, KeybindingsManager, setKeybindings, TUI_KEYBINDINGS, } from "./keybindings.ts";
+ export { decodeKittyPrintable, isKeyRelease, isKeyRepeat, isKittyProtocolActive, Key, type KeyEventType, type KeyId, matchesKey, parseKey, setKittyProtocolActive, } from "./keys.ts";
++export { calculateScrollbarGeometry, paintScrollbarCell, type ScrollbarGeometry } from "./layout.ts";
+ export { type RenderLatexOptions, renderLatex } from "./latex.ts";
+ export { StdinBuffer, type StdinBufferEventMap, type StdinBufferOptions } from "./stdin-buffer.ts";
+ export { ProcessTerminal, type Terminal } from "./terminal.ts";
+@@ -28,5 +29,5 @@ export { allocateImageId, type CellDimensions, calculateImageRows, deleteAllKitt
  export { type Component, Container, CURSOR_MARKER, compositeTuiLine, type Focusable, isFocusable, isViewportTUI, type OverlayAnchor, type OverlayBounds, type OverlayHandle, type OverlayMargin, type OverlayOptions, type OverlayUnfocusOptions, type SizeValue, type TUI, type TuiInputListener, type TuiInputListenerResult, type TuiMode, type TuiMouseButton, type TuiMouseEvent, type TuiMouseEventResult, type TuiMouseEventType, type TuiStopOptions, type ViewportTUI, } from "./tui.ts";
  export { TuiAltScreen, type TuiAltScreenOptions } from "./tui-alt-screen.ts";
  export { TuiMainScreen, type TuiMainScreenRenderState } from "./tui-main-screen.ts";
@@ -11,10 +19,18 @@ index 1460dd1160f1d8ccf9abf201844f7d9f01bc0fde..07a53c1b37f20a6c3beb456590b04fb8
  //# sourceMappingURL=index.d.ts.map
 \ No newline at end of file
 diff --git a/dist/index.js b/dist/index.js
-index 2a039acd70bda559eb9397a5b6d1c1e533a4e634..8a1004ee6e40768b13485b5f5cb990f2c2dd0d6f 100644
+index 2a039acd70bda559eb9397a5b6d1c1e533a4e634..6a5fd40878188edab7f5a170e38e84407b98c4f6 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -39,5 +39,5 @@ export { Container, CURSOR_MARKER, compositeTuiLine, isFocusable, isViewportTUI,
+@@ -25,6 +25,7 @@ export { fuzzyFilter, fuzzyMatch } from "./fuzzy.js";
+ export { getKeybindings, KeybindingsManager, setKeybindings, TUI_KEYBINDINGS, } from "./keybindings.js";
+ // Keyboard input handling
+ export { decodeKittyPrintable, isKeyRelease, isKeyRepeat, isKittyProtocolActive, Key, matchesKey, parseKey, setKittyProtocolActive, } from "./keys.js";
++export { calculateScrollbarGeometry, paintScrollbarCell } from "./layout.js";
+ // LaTeX rendering
+ export { renderLatex } from "./latex.js";
+ // Input buffering for batch splitting
+@@ -39,5 +40,5 @@ export { Container, CURSOR_MARKER, compositeTuiLine, isFocusable, isViewportTUI,
  export { TuiAltScreen } from "./tui-alt-screen.js";
  export { TuiMainScreen } from "./tui-main-screen.js";
  // Utilities
@@ -96,6 +112,88 @@ index 46faf595f6b007838c42fabfe2689aeb8ac7433c..134345c4d9ade944b73dd8d617cfae54
      const kitty = parseKittySequence(data);
      if (kitty) {
          return formatParsedKey(kitty.codepoint, kitty.modifier, kitty.baseLayoutKey);
+diff --git a/dist/layout.d.ts b/dist/layout.d.ts
+index 92b48297a2a60b14201401a26b52cb7b196a82ea..38fe9b73b8ef653ec08e609fc097a0883dd8004f 100644
+--- a/dist/layout.d.ts
++++ b/dist/layout.d.ts
+@@ -33,6 +33,24 @@ export interface ScrollbarGeometry {
+     thumbHeight: number;
+     maxScrollTop: number;
+ }
++/**
++ * Calculate geometry in terminal cells without layout, visibility, or clipping checks.
++ * Heights must be nonnegative integers; scrollTop must be within 0..max(0, contentHeight - trackHeight).
++ * Nonpositive track heights return undefined; empty or fitting content fills the track.
++ */
++export declare function calculateScrollbarGeometry(options: {
++    column: number;
++    trackTop: number;
++    trackHeight: number;
++    contentHeight: number;
++    scrollTop: number;
++}): ScrollbarGeometry | undefined;
++/**
++ * Replace a zero-based terminal column with a one-cell styled replacement, slicing to totalWidth.
++ * Clear the replaced grapheme and its link; preserve neighboring styles and optionally its background.
++ * Pad missing cells with spaces. Image protocol lines are returned unchanged.
++ */
++export declare function paintScrollbarCell(line: string, column: number, totalWidth: number, replacement: string, preserveTargetBackground: boolean): string;
+ export declare function getScrollbarGeometry(box: LayoutBox, includeHiddenAuto?: boolean): ScrollbarGeometry | undefined;
+ export declare function renderLayoutFrame(root: Component, width: number, height: number, requestRender: () => void): LayoutFrame;
+ /** Return the visual hit path from the deepest component to the layout root. */
+diff --git a/dist/layout.js b/dist/layout.js
+index 99485d8881b299a8a2e5dff990515ae132836daf..63ef8b10b34ab8b467ba4e6a573172fd9c80cb6b 100644
+--- a/dist/layout.js
++++ b/dist/layout.js
+@@ -156,7 +156,7 @@ function layoutComponent(context, component, x, y, width, height, clip) {
+     }
+     return box;
+ }
+-function replaceScrollbarCell(line, column, totalWidth, replacement, preserveTargetBackground) {
++export function paintScrollbarCell(line, column, totalWidth, replacement, preserveTargetBackground) {
+     if (isImageLine(line))
+         return line;
+     const graphemeRange = getGraphemeCellRange(line, column);
+@@ -188,19 +188,24 @@ export function getScrollbarGeometry(box, includeHiddenAuto = false) {
+     const canRevealHiddenAuto = includeHiddenAuto && box.scrollView.scrollbar === "auto" && contentHeight > trackHeight;
+     if (!box.scrollView.isScrollbarVisible && !canRevealHiddenAuto)
+         return undefined;
++    const column = box.rect.x + box.rect.width - 1;
++    if (column < box.clip.x || column >= box.clip.x + box.clip.width)
++        return undefined;
++    return calculateScrollbarGeometry({ column, trackTop: box.rect.y, trackHeight, contentHeight, scrollTop: box.scrollView.scrollTop });
++}
++export function calculateScrollbarGeometry({ column, trackTop, trackHeight, contentHeight, scrollTop }) {
++    if (trackHeight <= 0)
++        return undefined;
+     const minThumbHeight = Math.min(2, trackHeight);
+     const thumbHeight = Math.max(minThumbHeight, Math.min(trackHeight, Math.round((trackHeight * trackHeight) / contentHeight)));
+     const maxScrollTop = Math.max(0, contentHeight - trackHeight);
+     const maxThumbTop = trackHeight - thumbHeight;
+-    const thumbOffset = maxScrollTop === 0 ? 0 : Math.round((box.scrollView.scrollTop / maxScrollTop) * maxThumbTop);
+-    const column = box.rect.x + box.rect.width - 1;
+-    if (column < box.clip.x || column >= box.clip.x + box.clip.width)
+-        return undefined;
++    const thumbOffset = maxScrollTop === 0 ? 0 : Math.round((scrollTop / maxScrollTop) * maxThumbTop);
+     return {
+         column,
+-        trackTop: box.rect.y,
++        trackTop,
+         trackHeight,
+-        thumbTop: box.rect.y + thumbOffset,
++        thumbTop: trackTop + thumbOffset,
+         thumbHeight,
+         maxScrollTop,
+     };
+@@ -217,7 +222,7 @@ function paintScrollbar(box, screen, totalWidth) {
+         const replacement = isThumb
+             ? box.scrollView.scrollbarThumbStyle(box.scrollView.isScrollbarActive ? "█" : "┃")
+             : box.scrollView.scrollbarTrackStyle("│");
+-        screen[row] = replaceScrollbarCell(screen[row] ?? "", geometry.column, totalWidth, replacement, box.scrollView.scrollbar !== "always");
++        screen[row] = paintScrollbarCell(screen[row] ?? "", geometry.column, totalWidth, replacement, box.scrollView.scrollbar !== "always");
+     }
+ }
+ function paintBox(box, screen, totalWidth) {
 diff --git a/dist/tui.js b/dist/tui.js
 index 887f5e8bd3c3ba9b467f9f6c6b5eb4af8a63f7f3..61d9bab9cd3e7a77036763e09e0f80385dc23702 100644
 --- a/dist/tui.js

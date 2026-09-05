@@ -28,7 +28,12 @@ import {
   showLinesOverlay,
   showNoticeTextOverlay,
 } from "../src/ui/app-overlays.js";
-import { planCommandPaletteList, planTabJumpList } from "../src/ui/rendering.js";
+import {
+  planCommandPaletteList,
+  planTabJumpList,
+  renderAgentSurface,
+} from "../src/ui/rendering.js";
+import type { RuntimeTab } from "../src/agent/runtime.js";
 
 function setup() {
   const state = createInitialState("/repo");
@@ -706,39 +711,36 @@ test("chat drag-select is blocked while a modal overlay is open", async () => {
   assert.equal(tab.chatSelection, undefined);
 });
 
-test("handleMouseInput maps chat scrollbar gutter clicks to chatScrollOffset", () => {
+test("handleMouseInput seeks to the ends and middle of the rendered chat scrollbar", () => {
   const { state, tab, tui } = setup();
-  // content width 20 → scrollbar at col left+width = 21
   tab.chatSurfaceBounds = { top: 5, left: 1, width: 20, height: 10 };
-  tab.lastChatScrollMetrics = {
-    total: 100,
-    viewport: 10,
-    start: 0,
-    end: 10,
-    scrollable: true,
-  };
-  tab.chatScrollOffset = 0;
+  const runtimeTab = {
+    chat: Array.from({ length: 30 }, (_, index) => ({
+      role: "assistant",
+      text: `message-${index}`,
+    })),
+  } as RuntimeTab;
+  const render = () => renderAgentSurface(tab, runtimeTab, 21, 10);
+  render();
   tab.chatScrollAnchorEntryId = "anchor";
+  const click = (y: number) => {
+    assert.equal(handleMouseInput(state, tab, `\x1b[<0;21;${y}M`, tui), true);
+    render();
+    handleMouseInput(state, tab, `\x1b[<0;21;${y}m`, tui);
+  };
 
-  // Click top of track (y=5) → oldest → high offset
-  assert.equal(handleMouseInput(state, tab, "\x1b[<0;21;5M", tui), true);
-  assert.equal(tab.chatScrollOffset, 90);
+  click(5);
+  assert.equal(tab.lastChatScrollMetrics!.start, 0);
   assert.equal(tab.chatScrollAnchorEntryId, undefined);
-
-  // Click bottom of track (y=14 = top+height-1) → newest → offset 0
-  assert.equal(handleMouseInput(state, tab, "\x1b[<0;21;14M", tui), true);
+  const topOffset = tab.chatScrollOffset;
+  click(14);
   assert.equal(tab.chatScrollOffset, 0);
+  click(9);
+  assert.ok(tab.chatScrollOffset > 0 && tab.chatScrollOffset < topOffset);
 
-  // Click mid (y=9.5 ~ row index 4.5 → 4) fraction 4/9 → offset round(5/9*90)=50
-  assert.equal(handleMouseInput(state, tab, "\x1b[<0;21;9M", tui), true);
-  assert.equal(tab.chatScrollOffset, Math.round((1 - 4 / 9) * 90));
-
-  // Outside gutter column is not handled by scrollbar path (selection may still eat it)
-  tab.chatScrollOffset = 12;
-  const handled = handleMouseInput(state, tab, "\x1b[<0;10;7M", tui);
-  // content click may be selection; offset must not jump via scrollbar
-  assert.equal(tab.chatScrollOffset, 12);
-  void handled;
+  const offset = tab.chatScrollOffset;
+  handleMouseInput(state, tab, "\x1b[<0;10;7M", tui);
+  assert.equal(tab.chatScrollOffset, offset);
 });
 
 test("handleMouseInput ignores scrollbar click when chat is not scrollable", () => {

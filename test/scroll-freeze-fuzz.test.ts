@@ -7,15 +7,12 @@
 // streaming block only appends below the anchor.
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { sliceByColumn, stripTerminalSequences as stripAnsi } from "@earendil-works/pi-tui";
 import { createTab, scrollChat, type ChatLine, type RuntimeTab } from "./helpers/mixcode.js";
 import { renderAgentSurface } from "../src/ui/rendering/agent-surface.js";
 
 const WIDTH = 96;
 const HEIGHT = 24;
-
-function stripAnsi(value: string): string {
-  return value.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "");
-}
 
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
@@ -72,7 +69,8 @@ function buildStreamingLines(rand: () => number): string[] {
 
 function topContentLine(rendered: string[]): string | undefined {
   for (const line of rendered) {
-    const text = stripAnsi(line).trim();
+    // The gutter reflects scroll extent, which can change while the content anchor stays fixed.
+    const text = stripAnsi(sliceByColumn(line, 0, WIDTH - 1)).trim();
     if (!text) continue;
     if (text.startsWith("↑") || text.startsWith("↓")) continue;
     return text;

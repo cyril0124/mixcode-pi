@@ -1,7 +1,7 @@
 import type { Terminal } from "@earendil-works/pi-tui";
 
-export const MOUSE_REPORTING_ENABLE = "\x1b[?1000h\x1b[?1002h\x1b[?1006h";
-export const MOUSE_REPORTING_DISABLE = "\x1b[?1006l\x1b[?1002l\x1b[?1000l";
+export const MOUSE_REPORTING_ENABLE = "\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h";
+export const MOUSE_REPORTING_DISABLE = "\x1b[?1006l\x1b[?1003l\x1b[?1002l\x1b[?1000l";
 export const AUTOWRAP_DISABLE = "\x1b[?7l";
 export const AUTOWRAP_ENABLE = "\x1b[?7h";
 

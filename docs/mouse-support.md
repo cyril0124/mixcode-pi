@@ -47,6 +47,16 @@ MixCode computes exact hit regions (`MouseHitRegion`) during frame rendering to 
 | Workdir Badge in Meta Bar | Opens the `/workdir` directory navigation picker. |
 | Chat Scrollbar Rail & Thumb | Jumps or drags the conversation viewport directly. |
 
+## Chat Scrollbar
+
+The main chat keeps its Pi-style scrollbar visible whenever content overflows, in normal, Zen, and split-panel layouts. The track is `│`; hovering or dragging expands the thumb from `┃` to `█`. Leaving the track restores the thin thumb without hiding it. Content that fits has no scrollbar.
+
+Clicking the track centers the thumb at the pointer, clamped at either end. Pressing the thumb retains the grab position; dragging continues outside the track until release. Tab changes, modal takeovers, resizing, and terminal teardown cancel capture. The existing new-content arrow remains visible while reading above a running response.
+
+The chat reserves a one-column gutter, keeping the scrollbar out of text and selection coordinates. Long transcripts retain windowed rendering and estimated total heights. Third-party Pi themes use `scrollbarTrack` and `scrollbarThumb`; built-in MixCode themes use their muted and text foregrounds. Scrollbar interaction state lives in `src/ui/chat-scrollbar.ts`; geometry and cell painting use exported Pi helpers from the `pi-tui` patch.
+
+`src/ui/terminal.ts` enables all-motion tracking (`1003`) with SGR coordinates (`1006`) and disables it on stop or input drain. Passive pointer movement outside the chat track does not trigger a MixCode repaint or alter keyboard chords. Side-panel scrolling remains independent.
+
 ## 2. Interactive Overlay Clicking & Scrolling
 
 Modal overlays support direct mouse navigation:

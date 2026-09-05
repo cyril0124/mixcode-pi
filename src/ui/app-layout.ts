@@ -32,6 +32,10 @@ import {
   zenStatusMarkers,
 } from "./rendering.js";
 import { renderFloatingPanelOverlay } from "./components/floating-panel.js";
+import { chatScrollbarFor, type ChatScrollbar } from "./chat-scrollbar.js";
+import { isOverlayActive } from "../core/overlays.js";
+import { hasActiveNotice, hasAnyOverlay } from "./app-overlays.js";
+import type { OverlayTui } from "./app-types.js";
 import { themeForId, type MixCodeTheme } from "./themes.js";
 
 const WORKING_GAP_ROWS = 1;
@@ -78,12 +82,34 @@ export class MixCodeRoot implements Component {
     private readonly hasCustomEditor: () => boolean = () => false,
     /** True when setInputComponent currently owns the input slot. */
     private readonly hasInputComponent: () => boolean = () => false,
+    private readonly tui?: OverlayTui,
   ) {}
+
+  private scrollbar?: ChatScrollbar;
+
+  dispose(): void {
+    this.scrollbar?.reset();
+    this.scrollbar = undefined;
+  }
 
   invalidate(): void {}
 
   render(width: number): string[] {
     const active = getActiveTab(this.state);
+    const scrollbar =
+      active && this.state.activeTabId !== HOME_TAB_ID ? chatScrollbarFor(active) : undefined;
+    if (scrollbar !== this.scrollbar) this.scrollbar?.reset();
+    this.scrollbar = scrollbar;
+    if (scrollbar) {
+      scrollbar.requestRender = this.tui ? () => this.tui!.requestRender() : undefined;
+      if (
+        isOverlayActive(this.state) ||
+        this.hasInputComponent() ||
+        active!.extensionUi.waitingForInputs.length > 0 ||
+        (this.tui && hasAnyOverlay(this.tui) && !hasActiveNotice())
+      )
+        scrollbar.reset();
+    }
     const theme = themeForId(this.state.theme);
     const viewportRows = this.getViewportRows?.();
     const limit = viewportRows ? Math.max(0, viewportRows - this.getReservedRows()) : undefined;
@@ -156,6 +182,7 @@ export class MixCodeRoot implements Component {
       theme,
     );
     if (!viewportRows || limit === undefined) {
+      this.scrollbar?.reset();
       const middle = renderAgentSurface(active, runtimeTab, width, undefined, theme, {
         oversizedAssistantMessage: this.oversizedAssistantMessagePolicy(),
         hideThinking: this.state.hideThinkingBlock ?? false,
@@ -163,9 +190,15 @@ export class MixCodeRoot implements Component {
       });
       return [...top, ...contentGap, ...middle];
     }
-    if (top.length >= limit) return top.slice(0, limit);
+    if (top.length >= limit) {
+      this.scrollbar?.reset();
+      return top.slice(0, limit);
+    }
     const fixedTop = [...top, ...contentGap];
-    if (fixedTop.length >= limit) return fixedTop.slice(0, limit);
+    if (fixedTop.length >= limit) {
+      this.scrollbar?.reset();
+      return fixedTop.slice(0, limit);
+    }
     const middleHeight = Math.max(0, limit - fixedTop.length);
     const middle = this.renderMiddle(
       active,
@@ -295,6 +328,7 @@ export class MixCodeLayoutRoot implements Component {
   }
 
   dispose(): void {
+    this.main.dispose();
     this.stopWorkingLoader();
   }
 

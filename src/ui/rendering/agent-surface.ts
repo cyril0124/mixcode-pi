@@ -1,4 +1,5 @@
 import { truncateToWidth } from "@earendil-works/pi-tui";
+import { chatScrollbarFor } from "../chat-scrollbar.js";
 import type { ChatLine, RuntimeTab } from "../../agent/runtime.js";
 import {
   captureScrollableChatSelection,
@@ -39,7 +40,7 @@ import { renderExtensionHeader, renderExtensionWidgets } from "./chrome.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
 import { renderHeaderKeyHints } from "../components/header-hints.js";
 import { fitScrolledLinesWithInfo, type ScrolledLinesResult } from "./layout.js";
-import { box, padLine } from "./primitives.js";
+import { box } from "./primitives.js";
 import { applyToastOverlay } from "../components/toast-overlay.js";
 
 // Above this many chat blocks we switch from "render everything, then slice"
@@ -713,42 +714,16 @@ function appendChatScrollbar(
   result: ScrolledLinesResult,
   width: number,
   hasNewContent = false,
-  tab?: MixCodeTabInfo,
+  tab: MixCodeTabInfo,
 ): string[] {
-  if (tab) {
-    tab.lastChatScrollMetrics = {
-      total: result.total,
-      viewport: result.height,
-      start: result.start,
-      end: result.end,
-      scrollable: result.scrollable,
-    };
-  }
-  if (!result.scrollable || width < 2 || result.lines.length === 0)
-    return result.lines.map((line) => padLine(line, width));
-  const contentWidth = Math.max(1, width - 1);
-  const bar = chatScrollbar(result);
-  const lastIndex = result.lines.length - 1;
-  return result.lines.map((line, index) => {
-    let barChar = bar[index] ?? "│";
-    if (hasNewContent && index === lastIndex) {
-      barChar = activeRenderTheme.accent("↓");
-      return `${padLine(line, contentWidth)}${barChar}`;
-    }
-    return `${padLine(line, contentWidth)}${activeRenderTheme.borderMuted(barChar)}`;
-  });
-}
-
-function chatScrollbar(result: ScrolledLinesResult): string[] {
-  const height = result.lines.length;
-  if (height <= 0) return [];
-  const thumbSize = Math.max(1, Math.min(height, Math.ceil((height / result.total) * height)));
-  const maxThumbTop = Math.max(0, height - thumbSize);
-  const maxStart = Math.max(1, result.total - result.height);
-  const thumbTop = Math.round((result.start / maxStart) * maxThumbTop);
-  return Array.from({ length: height }, (_, index) =>
-    index >= thumbTop && index < thumbTop + thumbSize ? "█" : "│",
-  );
+  tab.lastChatScrollMetrics = {
+    total: result.total,
+    viewport: result.height,
+    start: result.start,
+    end: result.end,
+    scrollable: result.scrollable,
+  };
+  return chatScrollbarFor(tab).render(result, width, activeRenderTheme, hasNewContent);
 }
 
 export function renderQueuePreview(

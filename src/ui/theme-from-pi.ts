@@ -8,6 +8,8 @@ export interface MixCodeTheme {
   text: (text: string) => string;
   dim: (text: string) => string;
   muted: (text: string) => string;
+  scrollbarTrack: (text: string) => string;
+  scrollbarThumb: (text: string) => string;
   accent: (text: string) => string;
   error: (text: string) => string;
   warning: (text: string) => string;
@@ -64,6 +66,8 @@ export function mixCodeThemeFromPi(theme: Theme): MixCodeTheme {
     text: fg("text"),
     dim: fg("dim"),
     muted: fg("muted"),
+    scrollbarTrack: fg("scrollbarTrack"),
+    scrollbarThumb: fg("scrollbarThumb"),
     accent: fg("accent"),
     error: fg("error"),
     warning: fg("warning"),

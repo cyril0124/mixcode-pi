@@ -1,3 +1,6 @@
+import { parseSgrMouseInput } from "../core/mouse.js";
+import { chatScrollbarFor } from "./chat-scrollbar.js";
+import { handleChatScrollbarMouseInput } from "./app-mouse.js";
 import { isKeyRelease, matchesKey } from "@earendil-works/pi-tui";
 import { MIXCODE_EXTENSION_KEYBINDINGS_MANAGER } from "../agent/runtime.js";
 import { copyToClipboard } from "@earendil-works/pi-coding-agent";
@@ -140,6 +143,25 @@ export function handleMixCodeKeyInput(
   workspaceOptions: WorkspaceKeyOptions = {},
 ): KeyResult {
   const active = getActiveTab(state);
+  const inputTakeover = editorActions?.hasInputComponent?.() === true;
+  if (inputTakeover && active) chatScrollbarFor(active).reset();
+  if (!inputTakeover && handleChatScrollbarMouseInput(state, active, data, tui)) {
+    return { consume: true };
+  }
+  const mouse = parseSgrMouseInput(data);
+  // All-motion reporting must not feed passive movement into keyboard chords,
+  // paste detection, or the editor's per-input repaint path.
+  if (mouse?.motion && mouse.button === 3 && !mouse.wheel) {
+    if (inputTakeover) {
+      editorActions?.forwardToInputComponent?.(data);
+      return { consume: true };
+    }
+    return hasAnyOverlay(tui) ||
+      isOverlayActive(state) ||
+      active?.extensionUi.waitingForInputs.length
+      ? undefined
+      : { consume: true };
+  }
   if (isKeyRelease(data)) {
     // Pi input listeners receive raw releases; app controls do not. Releases
     // stay suppressed in the same states as presses so a handler never sees
