@@ -177,6 +177,8 @@ export interface MixCodeTabInfo {
   chatSurfaceBounds?: ChatSurfaceBounds;
   /** Non-persisted: active application-level text selection in the Agent message surface. */
   chatSelection?: ChatSelectionState;
+  /** Non-persisted: visible jump label bounds, zero-based within the chat surface. */
+  chatJumpToLatestHitRegion?: { row: number; column: number; width: number };
   /** Non-persisted: raw rendered Agent message rows before selection highlighting. */
   lastRenderedChatLines?: string[];
   /** Non-persisted: last chat scroll metrics for scrollbar and edge-drag mapping. */

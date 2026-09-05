@@ -46,6 +46,13 @@ MixCode computes exact hit regions (`MouseHitRegion`) during frame rendering to 
 | Thinking Badge in Meta Bar | Opens the `/thinking` effort level picker. |
 | Workdir Badge in Meta Bar | Opens the `/workdir` directory navigation picker. |
 | Chat Scrollbar Rail & Thumb | Jumps or drags the conversation viewport directly. |
+| Jump to latest | Returns the active chat to its end and resumes automatic following. |
+
+### Jump to Latest
+
+When the chat is scrolled away from its end or pinned to a message, a centered jump label floats over the original bottom chat row. A primary-button press on the label returns to the end; the label disappears while new output follows automatically. Vim mode also shows the `G` shortcut. Outside Vim mode, `End` retains its editor line-end behavior.
+
+Only the label's character cells are overlaid: the original text remains visible on both sides, and no row is reserved, cleared, or added. The scrollbar column is excluded and the label is clipped to the chat width. Image rows are left intact. The label is not included in copied transcript text. Modal overlays keep input priority; mouse motion, release, secondary clicks, and an active text-selection drag do not activate the label. The right-hand widget panel keeps its independent scrolling.
 
 ## 2. Interactive Overlay Clicking & Scrolling
 
