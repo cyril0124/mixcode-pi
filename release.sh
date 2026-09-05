@@ -110,7 +110,7 @@ cd "$REPO_DIR"
 info "bun $(bun --version)"
 info "Installing dependencies..."
 # bun install applies patchedDependencies; a failed patch aborts here.
-bun install --frozen-lockfile
+bun install --frozen-lockfile --prefer-offline
 
 mkdir -p "$OUT_DIR"
 OUT_DIR="$(cd "$OUT_DIR" && pwd)"

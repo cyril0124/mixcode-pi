@@ -159,6 +159,8 @@ bun run install:global       # global `mpi` linked from this repo
 - `./install.sh` compiles a single standalone binary (`bun build --compile`); no `node_modules` needed at runtime.
 - `bun run install:global` runs from this repository via the linked Bun runtime.
 
+For release builds, use the Bun version pinned in the [release workflow](.github/workflows/release.yml). `./release.sh` installs from the frozen lockfile, prefers cached packages, and downloads missing packages. Run `./release.sh --help` for target and output options.
+
 ---
 
 ## Usage

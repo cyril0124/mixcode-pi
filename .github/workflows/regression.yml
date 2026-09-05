@@ -17,8 +17,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: oven-sh/setup-bun@v2
+        id: bun
         with:
-          bun-version: 1.4.0
+          bun-version: 1.4.1
 
       # Key covers patches/** so a patch change busts the install cache.
       # No restore-keys: a partial hit would restore a mismatched lock/patch pair.
@@ -26,12 +27,12 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.bun/install/cache
-          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock', 'patches/**') }}
+          key: bun-${{ runner.os }}-${{ steps.bun.outputs.bun-version }}-${{ hashFiles('bun.lock', 'patches/**') }}
 
       # bun install applies patchedDependencies; postinstall only runs the
       # non-TTY extension installer and never fails the parent install.
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --frozen-lockfile --prefer-offline
 
       # Tests need fd on PATH for Pi @ file completion (Bun.which("fd") and
       # ensureTool("fd")); apt's fd-find ships the binary as fdfind, so link
