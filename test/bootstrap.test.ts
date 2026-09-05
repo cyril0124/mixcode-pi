@@ -645,27 +645,33 @@ test("bootstrap stores default UI state under Pi agent and sessions in Pi SDK di
   }
 });
 
-test("bootstrap initializes hideThinkingBlock from Pi settings.json", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-bootstrap-hide-thinking-"));
-  try {
-    const agentDir = path.join(dir, "agent");
-    await fsPromises.mkdir(agentDir, { recursive: true });
-    await fsPromises.writeFile(
-      path.join(agentDir, "settings.json"),
-      JSON.stringify({ hideThinkingBlock: true }),
-      "utf8",
+for (const configured of [undefined, false, true]) {
+  test(`bootstrap defaults to thinking preview and respects hideThinkingBlock=${configured}`, async () => {
+    const dir = await fsPromises.mkdtemp(
+      path.join(os.tmpdir(), "mixcode-bootstrap-hide-thinking-"),
     );
-    const boot = await bootstrapMixCode({
-      workdir: dir,
-      stateDir: path.join(dir, "state"),
-      agentDir,
-      modelConfigPath: path.join(dir, "missing.jsonc"),
-    });
-    assert.equal(boot.state.hideThinkingBlock, true);
-  } finally {
-    await fsPromises.rm(dir, { recursive: true, force: true });
-  }
-});
+    try {
+      const agentDir = path.join(dir, "agent");
+      await fsPromises.mkdir(agentDir, { recursive: true });
+      await fsPromises.writeFile(
+        path.join(agentDir, "settings.json"),
+        JSON.stringify({ hideThinkingBlock: configured }),
+        "utf8",
+      );
+      const boot = await bootstrapMixCode({
+        workdir: dir,
+        stateDir: path.join(dir, "state"),
+        agentDir,
+        modelConfigPath: path.join(dir, "missing.jsonc"),
+      });
+      await boot.tabsReady;
+      assert.equal(boot.state.hideThinkingBlock, configured ?? true);
+      assert.equal(boot.state.ui?.boxedHiddenThinking, true);
+    } finally {
+      await fsPromises.rm(dir, { recursive: true, force: true });
+    }
+  });
+}
 
 test("bootstrap surfaces invalid persisted state errors", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-bootstrap-invalid-state-"));

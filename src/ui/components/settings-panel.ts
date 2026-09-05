@@ -9,11 +9,13 @@ import type { SettingsManager } from "@earendil-works/pi-coding-agent";
 import { homeDir } from "../../core/paths.js";
 import {
   DEFAULT_BOXED_HIDDEN_THINKING,
+  DEFAULT_HIDE_THINKING_BLOCK,
   DEFAULT_ICON_MODE,
   DEFAULT_INLINE_WIDGETS,
   DEFAULT_OVERSIZED_ASSISTANT_MESSAGE,
   ICON_MODES,
   loadRawMixCodeSettings,
+  resolveHideThinkingBlock,
   writeRawMixCodeSettings,
   type IconMode,
   type RawMixCodeSettings,
@@ -92,7 +94,7 @@ const ITEMS: SettingItem[] = [
     kind: "boolean",
     label: "hideThinkingBlock",
     section: "pi",
-    defaultValue: false,
+    defaultValue: DEFAULT_HIDE_THINKING_BLOCK,
     getValue: ({ settingsManager }) => settingsManager.getGlobalSettings().hideThinkingBlock,
     setValue: async ({ settingsManager, setHideThinkingBlock }, v) => {
       // Production uses the runtime method so persistence errors are surfaced.
@@ -375,7 +377,7 @@ const ITEMS: SettingItem[] = [
       }
       await writeRawMixCodeSettings(ctx.mixcodeFile, next);
       replaceRaw(ctx.mixcodeRaw, next);
-      if (ctx.state.ui) ctx.state.ui.boxedHiddenThinking = v === true;
+      if (ctx.state.ui) ctx.state.ui.boxedHiddenThinking = v ?? DEFAULT_BOXED_HIDDEN_THINKING;
       for (const tab of ctx.state.tabs) clearConversationCache(tab.sessionId);
     },
   },
@@ -532,7 +534,7 @@ function refreshSettingsPanel(panel: SettingsPanel): void {
 function applyLiveEffects(panel: SettingsPanel): void {
   const state = panel.deps.state;
   const sm = panel.deps.settingsManager;
-  state.hideThinkingBlock = sm.getHideThinkingBlock();
+  state.hideThinkingBlock = resolveHideThinkingBlock(sm);
   state.showImages = sm.getShowImages();
   state.imageWidthCells = sm.getImageWidthCells();
   state.mermaidRenderingMode = sm.getMermaidRenderingMode();
@@ -548,7 +550,7 @@ function applyLiveEffects(panel: SettingsPanel): void {
     },
     icons: { mode: raw.ui?.icons?.mode ?? DEFAULT_ICON_MODE },
     inlineWidgets: raw.ui?.inlineWidgets === true,
-    boxedHiddenThinking: raw.ui?.boxedHiddenThinking === true,
+    boxedHiddenThinking: raw.ui?.boxedHiddenThinking ?? DEFAULT_BOXED_HIDDEN_THINKING,
   };
   for (const tab of state.tabs) {
     tab.inlineWidgets = state.ui.inlineWidgets;

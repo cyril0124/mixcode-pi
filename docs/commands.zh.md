@@ -39,7 +39,7 @@ MixCode 在 `src/core/commands.ts` 中注册了内置本地 Slash 命令。这�
 | `/toggle-zen-mode` | - | Session | 开启 / 关闭顶部 Tab 栏的 Zen 专注模式。 |
 | `/toggle-inline-widgets` | - | Session | 切换扩展组件是在 Chat 消息流内联渲染还是固定在编辑器上方。 |
 | `/toggle-hidden-messages` | - | Session | 显示 / 隐藏扩展内部自定义生成的隐藏消息。 |
-| `/hide-thinking` | - | `[global]` | 切换是否隐藏 Thinking 块。隐藏时显示 `Thinking...`（或 `setHiddenThinkingLabel` 覆盖）；要显示 3 行尾部预览，需在 [mixcode_settings.json](mixcode-settings.zh.md) 中设置 `ui.boxedHiddenThinking`。 |
+| `/hide-thinking` | - | `[global]` | 切换完整思考与配置的预览。默认预览和 `Thinking...` 占位符选项见[设置说明](mixcode-settings.zh.md)。 |
 | `/settings` | - | Global | 打开全局主题、图标与 UI 偏好设置面板。 |
 | `/login` | `[provider]` | Global | 配置 provider 鉴权。无参数时先选择订阅登录或 API Key；传入精确的 provider id 或名称时直接进入该 provider。凭证通过 `<agentDir>/auth.json` 与 Pi 共享。 |
 | `/logout` | - | Global | 移除 `/login` 保存的凭证；环境变量与 `models.json` 鉴权配置保持不变。 |

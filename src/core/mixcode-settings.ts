@@ -1,3 +1,5 @@
+import type { SettingsManager } from "@earendil-works/pi-coding-agent";
+
 export const MIXCODE_SETTINGS_FILENAME = "mixcode_settings.json";
 
 export const ICON_MODES = ["auto", "nerd", "ascii"] as const;
@@ -43,7 +45,17 @@ export interface MixCodeUiSettings {
 }
 
 export const DEFAULT_INLINE_WIDGETS = false;
-export const DEFAULT_BOXED_HIDDEN_THINKING = false;
+export const DEFAULT_BOXED_HIDDEN_THINKING = true;
+export const DEFAULT_HIDE_THINKING_BLOCK = true;
+
+/** Resolve Pi project/global visibility without persisting MixCode's default. */
+export function resolveHideThinkingBlock(settingsManager: SettingsManager): boolean {
+  return (
+    settingsManager.getProjectSettings().hideThinkingBlock ??
+    settingsManager.getGlobalSettings().hideThinkingBlock ??
+    DEFAULT_HIDE_THINKING_BLOCK
+  );
+}
 
 export interface OversizedAssistantMessageSettings {
   enabled: boolean;

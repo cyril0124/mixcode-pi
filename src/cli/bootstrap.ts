@@ -26,7 +26,11 @@ import {
   saveExtensionManagerConfig,
 } from "../core/extension-manager.js";
 import { listSessionsInBackground } from "../core/session-catalog.js";
-import { MIXCODE_SETTINGS_FILENAME, loadMixCodeSettings } from "../core/mixcode-settings.js";
+import {
+  MIXCODE_SETTINGS_FILENAME,
+  loadMixCodeSettings,
+  resolveHideThinkingBlock,
+} from "../core/mixcode-settings.js";
 import { setMarkdownCodeBlockIndent } from "../ui/rendering/markdown.js";
 import { setTheme } from "../ui/themes.js";
 import {
@@ -136,7 +140,7 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
   setTheme(state, mixCodeSettings.theme ?? state.theme);
   // Thinking-block visibility follows Pi's native hideThinkingBlock setting
   // (global/project scoped) rather than MixCode's own persisted state.
-  state.hideThinkingBlock = settingsManager.getHideThinkingBlock();
+  state.hideThinkingBlock = resolveHideThinkingBlock(settingsManager);
   // Image / mermaid rendering follow Pi SettingsManager (settings.json).
   state.showImages = settingsManager.getShowImages();
   state.imageWidthCells = settingsManager.getImageWidthCells();

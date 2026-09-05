@@ -2,6 +2,7 @@ import { type ThinkingLevel, uuidv7 } from "@earendil-works/pi-agent-core";
 import { createTreeSelectorState } from "./tree-selector.js";
 import {
   DEFAULT_BOXED_HIDDEN_THINKING,
+  DEFAULT_HIDE_THINKING_BLOCK,
   DEFAULT_ICON_MODE,
   DEFAULT_OVERSIZED_ASSISTANT_MESSAGE,
 } from "./mixcode-settings.js";
@@ -36,6 +37,7 @@ export function createInitialState(
   return {
     workdir,
     tabs: [],
+    hideThinkingBlock: DEFAULT_HIDE_THINKING_BLOCK,
     ui: {
       oversizedAssistantMessage: { ...DEFAULT_OVERSIZED_ASSISTANT_MESSAGE },
       icons: { mode: DEFAULT_ICON_MODE },

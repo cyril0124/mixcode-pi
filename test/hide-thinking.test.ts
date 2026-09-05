@@ -17,7 +17,7 @@ test("/hide-thinking toggles state, persists via runtime, and toasts", async () 
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"));
   state.activeTabId = "s1";
-  assert.equal(state.hideThinkingBlock ?? false, false);
+  assert.equal(state.hideThinkingBlock, true);
 
   const persisted: boolean[] = [];
   const runtime = {
@@ -26,17 +26,17 @@ test("/hide-thinking toggles state, persists via runtime, and toasts", async () 
   } as unknown as MixCodeRuntime;
   const tui = { requestRender: () => undefined } as unknown as OverlayTui;
 
-  // Toggle on.
-  await handleSubmittedInput(state, runtime, "/hide-thinking", tui);
-  assert.equal(state.hideThinkingBlock, true);
-  assert.deepEqual(persisted, [true]);
-  assert.match(state.tabs[0]?.toast?.message ?? "", /hidden/i);
-
-  // Toggle off.
+  // Expand the default preview.
   await handleSubmittedInput(state, runtime, "/hide-thinking", tui);
   assert.equal(state.hideThinkingBlock, false);
-  assert.deepEqual(persisted, [true, false]);
+  assert.deepEqual(persisted, [false]);
   assert.match(state.tabs[0]?.toast?.message ?? "", /visible/i);
+
+  // Restore the preview.
+  await handleSubmittedInput(state, runtime, "/hide-thinking", tui);
+  assert.equal(state.hideThinkingBlock, true);
+  assert.deepEqual(persisted, [false, true]);
+  assert.match(state.tabs[0]?.toast?.message ?? "", /hidden/i);
 });
 
 test("/hide-thinking from Home pushes toast on the selected agent", async () => {
@@ -61,8 +61,8 @@ test("/hide-thinking from Home pushes toast on the selected agent", async () => 
     state.tabs[0],
   );
 
-  assert.equal(state.hideThinkingBlock, true);
-  assert.match(state.tabs[0]?.toast?.message ?? "", /Thinking blocks: hidden/i);
+  assert.equal(state.hideThinkingBlock, false);
+  assert.match(state.tabs[0]?.toast?.message ?? "", /Thinking blocks: visible/i);
 });
 
 test("/hide-thinking keeps state unchanged when persistence fails", async () => {
@@ -81,7 +81,7 @@ test("/hide-thinking keeps state unchanged when persistence fails", async () => 
 
   await handleSubmittedInput(state, runtime, "/hide-thinking", tui);
 
-  assert.equal(state.hideThinkingBlock ?? false, false);
+  assert.equal(state.hideThinkingBlock, true);
   assert.equal(state.tabs[0]?.toast, undefined);
   assert.deepEqual(messages, ["Hide thinking failed: settings disk is read-only"]);
 });

@@ -65,7 +65,7 @@ test("mixcode settings defaults, oversized policy, and ignored unknown keys", as
         oversizedAssistantMessage: { enabled: true, maxLines: 5000, maxBytes: 128 * 1024 },
         icons: { mode: "nerd" },
         inlineWidgets: false,
-        boxedHiddenThinking: false,
+        boxedHiddenThinking: true,
       },
       disabledProviders: [],
       disabledModels: [],
@@ -89,7 +89,7 @@ test("mixcode settings defaults, oversized policy, and ignored unknown keys", as
         oversizedAssistantMessage: { enabled: false, maxLines: 42, maxBytes: 2048 },
         icons: { mode: "ascii" },
         inlineWidgets: false,
-        boxedHiddenThinking: false,
+        boxedHiddenThinking: true,
       },
       disabledProviders: [],
       disabledModels: [],
@@ -121,7 +121,7 @@ test("mixcode settings accept jsonc comments and trailing commas", async () => {
         oversizedAssistantMessage: { enabled: true, maxLines: 256, maxBytes: 128 * 1024 },
         icons: { mode: "nerd" },
         inlineWidgets: false,
-        boxedHiddenThinking: false,
+        boxedHiddenThinking: true,
       },
       disabledProviders: [],
       disabledModels: [],
@@ -168,7 +168,7 @@ test("legacy ui.renderMermaid in mixcode_settings is ignored", async () => {
         oversizedAssistantMessage: { enabled: true, maxLines: 5000, maxBytes: 128 * 1024 },
         icons: { mode: "nerd" },
         inlineWidgets: false,
-        boxedHiddenThinking: false,
+        boxedHiddenThinking: true,
       },
       disabledProviders: [],
       disabledModels: [],
@@ -213,6 +213,8 @@ test("settings panel cycles icons.mode and persists it", async () => {
 
     assert.equal(panel.mixcodeRaw.ui?.icons?.mode, "ascii");
     assert.equal(state.ui?.icons?.mode, "ascii");
+    assert.equal(state.hideThinkingBlock, true);
+    assert.equal(state.ui?.boxedHiddenThinking, true);
     assert.deepEqual(JSON.parse(await fsPromises.readFile(mixcodeFile, "utf8")), {
       ui: { icons: { mode: "ascii" } },
     });
@@ -243,7 +245,8 @@ test("settings panel restores Pi values when persistence fails", async () => {
 
   assert.match(panel.editError ?? "", /settings disk is read-only/);
   assert.equal(settingsManager.getHideThinkingBlock(), false);
-  assert.equal(state.hideThinkingBlock ?? false, false);
+  assert.equal(state.hideThinkingBlock, true);
+  assert.equal(state.ui?.boxedHiddenThinking, true);
 });
 
 test("settings panel surfaces write failures without applying the new value", async () => {
@@ -352,9 +355,13 @@ test("mixcode settings load ui.boxedHiddenThinking and reject non-booleans", asy
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-boxed-thinking-settings-"));
   try {
     const file = path.join(dir, "mixcode_settings.json");
-    assert.equal((await loadMixCodeSettings(file)).ui.boxedHiddenThinking, false);
-    await fsPromises.writeFile(file, JSON.stringify({ ui: { boxedHiddenThinking: true } }), "utf8");
     assert.equal((await loadMixCodeSettings(file)).ui.boxedHiddenThinking, true);
+    await fsPromises.writeFile(
+      file,
+      JSON.stringify({ ui: { boxedHiddenThinking: false } }),
+      "utf8",
+    );
+    assert.equal((await loadMixCodeSettings(file)).ui.boxedHiddenThinking, false);
     await fsPromises.writeFile(
       file,
       JSON.stringify({ ui: { boxedHiddenThinking: "yes" } }),
@@ -386,9 +393,9 @@ test("settings panel toggles boxedHiddenThinking live and persists to disk", asy
 
     assert.equal(
       JSON.parse(await fsPromises.readFile(mixcodeFile, "utf8")).ui.boxedHiddenThinking,
-      true,
+      false,
     );
-    assert.equal(state.ui?.boxedHiddenThinking, true);
+    assert.equal(state.ui?.boxedHiddenThinking, false);
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }
