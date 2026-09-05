@@ -46,6 +46,7 @@ export function chatHome(tab: MixCodeTabInfo): boolean {
 export function chatEnd(tab: MixCodeTabInfo): boolean {
   clearChatScrollAnchor(tab);
   tab.chatScrollOffset = 0;
+  tab.chatJumpToLatestHitRegion = undefined;
   return true;
 }
 

@@ -72,25 +72,20 @@ export class ChatScrollbar {
     this.geometry = geometry;
     // A dedicated gutter keeps the scrollbar out of chat text and selection.
     return result.lines.map((line, row) => {
-      let rendered = padLine(line, width);
+      if (width < 2) return padLine(line, width);
+      let cell = " ";
       if (geometry) {
         const thumb = row >= geometry.thumbTop && row < geometry.thumbTop + geometry.thumbHeight;
-        const cell = thumb
+        cell = thumb
           ? theme.scrollbarThumb(this.active ? "\u2588" : "\u2503")
           : theme.scrollbarTrack("\u2502");
-        rendered = paintScrollbarCell(rendered, geometry.column, width, cell, true);
       }
       // Preserve the existing unread-stream cue at the bottom of the gutter.
       if (geometry && hasNewContent && row === result.lines.length - 1) {
-        rendered = paintScrollbarCell(
-          rendered,
-          geometry.column,
-          width,
-          theme.accent("\u2193"),
-          true,
-        );
+        cell = theme.accent("\u2193");
       }
-      return rendered;
+      // Pi pads missing cells and leaves image protocol lines unchanged.
+      return paintScrollbarCell(line, width - 1, width, cell, true);
     });
   }
 }

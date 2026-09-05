@@ -96,6 +96,7 @@ export class MixCodeRoot implements Component {
 
   render(width: number): string[] {
     const active = getActiveTab(this.state);
+    if (active) active.chatJumpToLatestHitRegion = undefined;
     const scrollbar =
       active && this.state.activeTabId !== HOME_TAB_ID ? chatScrollbarFor(active) : undefined;
     if (scrollbar !== this.scrollbar) this.scrollbar?.reset();

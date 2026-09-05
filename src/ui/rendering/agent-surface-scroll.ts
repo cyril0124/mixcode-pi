@@ -352,14 +352,10 @@ export function estimateTotalHeight(
   return total;
 }
 
-/**
- * Apply the same boundary markers fitScrolledLinesWithInfo applies (↑ older
- * above / ↓ newer below) so the windowed output is visually identical.
- */
+/** Keep the older-content marker; leave the bottom row intact for the floating jump label. */
 export function decorateWindow(
   visible: string[],
   start: number,
-  total: number,
   viewport: number,
   width: number,
 ): string[] {
@@ -368,9 +364,6 @@ export function decorateWindow(
   if (viewport <= 1) return out;
   if (start > 0) {
     out[0] = padLine(activeRenderTheme.dim("↑ older above"), width);
-  }
-  if (start + visible.length < total) {
-    out[out.length - 1] = padLine(activeRenderTheme.dim("↓ newer below"), width);
   }
   return out;
 }

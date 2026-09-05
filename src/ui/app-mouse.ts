@@ -18,6 +18,7 @@ import { clearScrollFreeze } from "./rendering/agent-surface-scroll.js";
 import {
   acceptCommandPaletteSelection,
   acceptTabJumpSelection,
+  chatEnd,
   clearChatScrollAnchor,
   isOverlayActive,
   closeActiveOverlay,
@@ -161,7 +162,40 @@ export function handleChatSelectionMouseInput(
 ): boolean {
   const mouse = parseSgrMouseInput(data);
   if (!mouse || !active || state.activeTabId === HOME_TAB_ID) return false;
+  if (handleChatJumpToLatestMouse(active, mouse, tui)) return true;
   return handleChatSelectionMouse(active, mouse, tui, copyToClipboard);
+}
+
+function handleChatJumpToLatestMouse(
+  active: ActiveTab,
+  mouse: SgrMouseInput,
+  tui: OverlayTui,
+): boolean {
+  if (
+    mouse.button !== 0 ||
+    mouse.release ||
+    mouse.motion ||
+    mouse.wheel ||
+    active.chatSelection?.dragging ||
+    active.inputSelection?.dragging ||
+    active.panelSelection?.dragging ||
+    active.extensionUi.waitingForInputs.length > 0 ||
+    (hasAnyOverlay(tui) && !hasActiveNotice())
+  )
+    return false;
+  const region = active.chatJumpToLatestHitRegion;
+  const bounds = active.chatSurfaceBounds;
+  if (
+    !region ||
+    !bounds ||
+    mouse.y !== bounds.top + region.row ||
+    mouse.x < bounds.left + region.column ||
+    mouse.x >= bounds.left + region.column + region.width
+  )
+    return false;
+  chatEnd(active);
+  tui.requestRender();
+  return true;
 }
 
 export function handleInputSelectionMouseInput(

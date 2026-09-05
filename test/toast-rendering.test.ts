@@ -1,11 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { visibleWidth } from "@earendil-works/pi-tui";
+import { stripTerminalSequences as stripAnsi, visibleWidth } from "@earendil-works/pi-tui";
 import { createTab, pushToast, renderAgentSurface } from "./helpers/mixcode.js";
 import { applyToastOverlay } from "../src/ui/components/toast-overlay.js";
 import { themeForId } from "../src/ui/themes.js";
-
-const stripAnsi = (text: string) => text.replace(/\x1b\[[0-9;]*m/g, "");
 
 test("pushToast stores explicit toast type with message", () => {
   const tab = createTab(1, "s1", "/repo");
