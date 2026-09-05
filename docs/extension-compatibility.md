@@ -134,3 +134,15 @@ Supported:
 System prompts, AGENTS, and project context flow directly through the Pi resource loader pipeline.
 
 When `ctx.switchSession()`, session-selector resume, or `/import` targets a different working directory, the replacement session rebuilds its cwd-bound services. Extension `ctx.cwd`, relative tool paths, project settings, and project resources use the target session's cwd before `session_start` and `withSession` run. An import's explicit cwd override is the effective target. Same-directory replacements reuse services and reload extensions; they do not share services with another live tab. A cancelled switch does not load the target project's extensions.
+
+### Active tools
+
+MixCode initializes host-owned tools from `defaultTools` or Pi's defaults before
+`session_start`. Extensions can then select active tools with `pi.setActiveTools()`,
+including `[]`. The host preserves that selection after startup, clear, session
+replacement, reload, and workdir changes.
+
+Extension tool overrides follow Pi's activation rules. Extensions can dynamically
+register tools and change the active set. Selections are session-local and are not
+written to settings. Reapply the policy in `session_start` whenever the session or
+extension runtime is recreated.
