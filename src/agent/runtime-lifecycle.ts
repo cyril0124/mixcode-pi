@@ -226,7 +226,6 @@ async function createRuntimeTabWithServices(
     const restoredChat = entriesToChatLines(runtimeTab.session.getBranch(), runtimeTab);
     runtimeTab.chat = restoredChat;
     await bindRuntimeExtensions(runtimeTab, context);
-    activateMixCodeTools(agentSession);
     applyMixCodeSystemPrompt(agentSession, cachedSearchTools);
     refreshStartupHeader(runtimeTab);
     syncContextUsage(runtimeTab);
@@ -482,7 +481,6 @@ async function replaceRuntimeTabSessionUnlocked(
   }
   context.tabs.delete(previousSessionId);
   context.tabs.set(runtimeTab.tab.sessionId, runtimeTab);
-  activateMixCodeTools(created.session);
   applyMixCodeSystemPrompt(created.session, cachedSearchTools);
   applyRuntimeTabModel(runtimeTab, created.session.agent.state.model);
   runtimeTab.tab.thinkingLevel = created.session.agent.state.thinkingLevel;
@@ -658,7 +656,6 @@ export async function reloadRuntimeTabWithFreshServices(
   activateMixCodeTools(agentSession);
   runtimeTab.chat = entriesToChatLines(runtimeTab.session.getBranch(), runtimeTab);
   await bindRuntimeExtensions(runtimeTab, context);
-  activateMixCodeTools(agentSession);
   // Pi refreshes the same loadedResourcesContainer on session_start and /reload;
   // the tab-level header is the MixCode analogue, so recompute it here too.
   refreshStartupHeader(runtimeTab);

@@ -132,3 +132,13 @@ MixCodeRuntime
 - `/import <jsonl-path> [cwdOverride]` 的 MixCode 等价实现
 
 AGENTS / project context / system prompt 走 Pi resource loader 链路，不再靠 prompt injection 拼 workdir instructions。
+
+### 活动工具
+
+MixCode 在 `session_start` 之前按 `defaultTools` 或 Pi 默认值初始化宿主工具。
+扩展随后可以通过 `pi.setActiveTools()` 选择活动工具，包括空集合 `[]`。
+宿主在启动、clear、会话替换、reload 和工作目录切换之后保留这一选择。
+
+扩展覆盖的工具遵循 Pi 的启用规则。扩展可以动态注册工具，也可以主动改变活动集合。
+工具选择仅在当前会话生效，不写入 settings。会话或扩展运行时重建时，
+扩展应在 `session_start` 重新应用自己的策略。

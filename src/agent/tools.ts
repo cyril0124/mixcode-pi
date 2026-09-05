@@ -15,15 +15,13 @@ export const PI_BUILTIN_TOOL_NAMES = [
 const PI_DEFAULT_ACTIVE_TOOL_NAMES = ["read", "bash", "edit", "write"];
 
 /**
- * Ensure MixCode's default active tool set without re-creating bare builtins.
+ * Initialize host-owned tools from defaultTools before binding extensions.
+ * Call before session_start; later calls overwrite extension selections,
+ * including empty sets. Updates active tools and rebuilds the system prompt
+ * in memory using Pi's registered tool implementations and ownership rules.
  *
- * AgentSession already registers builtins via _buildRuntime → wrapRegisteredTools
- * (ExtensionContext for PI_SESSION_ID / model / …). Extension registerTool() also
- * calls refreshTools(). Re-creating createXxxTool() here used to drop that wrap.
- * Ownership is pi's refresh order (extension definitions overwrite builtins by name).
- *
- * The baseline is pi's `defaultTools` setting when configured, so a narrowed list (e.g.
- * one without `write`) stays narrowed; an unset setting keeps pi's built-in default set.
+ * An unset defaultTools uses Pi's default built-in set. A configured list,
+ * including [], restricts host-owned built-ins without disabling extension overrides.
  */
 export function activateMixCodeTools(agentSession: AgentSession): void {
   const allTools = agentSession.getAllTools();
