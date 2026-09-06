@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createInitialState, createTab } from "../src/core/defaults.js";
-import type { MixCodeRuntime } from "../src/agent/runtime.js";
+import type { ChatLine, MixCodeRuntime } from "../src/agent/runtime.js";
 import { handleSubmittedInput } from "../src/ui/app-submit.js";
 import type { OverlayTui } from "../src/ui/app-types.js";
 import { renderAgentSurface } from "../src/ui/rendering/agent-surface.js";
@@ -239,6 +239,43 @@ test("hidden thinking viewport shows a 3-row tail of that block", () => {
   assert.doesNotMatch(hidden, /[╭╮╰╯─]/u);
   assert.doesNotMatch(hidden, /line-00/);
   assert.doesNotMatch(hidden, /Thinking\.\.\./);
+});
+
+test("boxed thinking removes presentation labels from merged paragraphs without changing expanded text", () => {
+  const line: ChatLine = {
+    role: "thinking",
+    text:
+      "\u001b[36mThinking:\u001b[0m First paragraph.\n\n**Forcing native chunk repaints**\n\n" +
+      "\u001b[36mThinking:\u001b[0m Thinking: **Checking hidden cursor positioning.**",
+  };
+  const boxed = stripAnsi(
+    renderChatBlock(line, 100, undefined, undefined, {
+      hideThinking: true,
+      boxedHiddenThinking: true,
+    }).join("\n"),
+  );
+  assert.doesNotMatch(boxed, /Thinking:/);
+  assert.match(boxed, /Forcing native chunk repaints/);
+  assert.match(boxed, /Checking hidden cursor positioning/);
+  const expanded = stripAnsi(renderChatBlock(line, 100).join("\n"));
+  assert.match(expanded, /Thinking:/);
+  assert.match(expanded, /First paragraph/);
+});
+
+test("boxed thinking preserves inline labels, measurements, and paragraph spacing", () => {
+  const boxed = renderChatBlock(
+    {
+      role: "thinking",
+      text: "Thinking: 38m cable needed\n\nConsider Thinking: as a literal label",
+    },
+    100,
+    undefined,
+    undefined,
+    { hideThinking: true, boxedHiddenThinking: true },
+  ).map(stripAnsi);
+  assert.match(boxed[1]!, /38m cable needed/);
+  assert.equal(boxed[2]!.trim(), "│");
+  assert.match(boxed[3]!, /Consider Thinking: as a literal label/);
 });
 
 test("hidden thinking viewport follows the tail as text grows", () => {

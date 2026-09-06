@@ -81,7 +81,8 @@ export interface RenderChatBlockOptions {
 // presentation artifacts. Pi's default hiddenThinkingLabel is the same string.
 export const HIDDEN_THINKING_LABEL = "Thinking...";
 const HIDDEN_THINKING_VIEWPORT_ROWS = 3;
-const HIDDEN_THINKING_LABEL_PREFIX = /^(?:thinking:\s*)+/i;
+// Consecutive provider blocks are joined with a blank line; each can carry a label.
+const HIDDEN_THINKING_LABEL_PREFIX = /(^|(?:\r?\n){2})[^\S\r\n]*(?:thinking:\s*)+/gi;
 
 interface RenderConversationOptions {
   blockOptions?: (line: ChatLine, index: number) => RenderChatBlockOptions | undefined;
@@ -1031,7 +1032,7 @@ function wrapPlainLine(text: string, width: number): string[] {
 function stripHiddenThinkingPresentation(text: string): string {
   let current = text.replace(/\x1b\[[0-9;]*m/g, "");
   while (true) {
-    const withoutLabel = current.replace(HIDDEN_THINKING_LABEL_PREFIX, "").trimStart();
+    const withoutLabel = current.replace(HIDDEN_THINKING_LABEL_PREFIX, "$1").trimStart();
     if (withoutLabel === current) return current.trim();
     current = withoutLabel;
   }
