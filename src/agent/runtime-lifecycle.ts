@@ -29,6 +29,7 @@ import {
   extensionManagerEntriesFromResult,
   filterDisabledExtensions,
 } from "../core/extension-manager.js";
+import { assertConfiguredOpenTabsReadable, noteTabReplaced } from "../core/open-tabs-store.js";
 import { mixcodeScopedModels } from "../core/pi-models.js";
 import { preferDistExtensionEntries } from "../core/prefer-dist-extension-entries.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
@@ -58,6 +59,7 @@ import { refreshStartupHeader } from "./runtime-startup-header.js";
 
 import {
   bindRuntimeSessionCore,
+  materializeSessionFile,
   reopenSessionInWorkdir,
   resetExtensionHostState,
   setExtensionManagerEntriesForServices,
@@ -111,6 +113,8 @@ export interface RuntimeLifecycleContext {
   tabs: Map<string, RuntimeTab>;
   getExtensionUiHost: () => ExtensionCustomUiHost | undefined;
   emitChange: (event: RuntimeEvent, runtimeTab: RuntimeTab) => void;
+  /** Synchronous host notification inside the identity commit, before withSession. */
+  onSessionReplaced: (previousSessionId: string, runtimeTab: RuntimeTab) => void;
   applyEvent: (runtimeTab: RuntimeTab, event: RuntimeEvent) => void;
   schedulePendingMessageFlush: (
     sessionId: string,
@@ -405,11 +409,12 @@ async function replaceRuntimeTabSessionUnlocked(
   if (runtimeTab.agentSession.isStreaming) {
     throw new Error(`Cannot replace a session while the agent is streaming: ${reason}`);
   }
-  // Prefer the tabs-map key (by object identity). Resume may pre-rename
-  // tab.sessionId for open_tabs/peer reconcile before switch commits, so the
-  // map key can still be the ephemeral id while tab.sessionId is already the
-  // durable one — using tab.sessionId here would delete the wrong map entry.
+  assertConfiguredOpenTabsReadable();
   const previousSessionId = mapKeyForRuntimeTab(context.tabs, runtimeTab);
+  const previousSession = runtimeTab.session;
+  const previousModel = { ...runtimeTab.agentSession.agent.state.model };
+  const previousThinkingLevel = runtimeTab.agentSession.thinkingLevel;
+  const previousTitle = runtimeTab.tab.title;
   const previousSessionFile = runtimeTab.session.getSessionFile();
   const targetSessionFile = sessionManager.getSessionFile() ?? undefined;
   const model = context.resolveModelFromSession(sessionManager, runtimeTab.tab.model);
@@ -441,6 +446,8 @@ async function replaceRuntimeTabSessionUnlocked(
     },
     context,
   );
+  // Publish a discoverable session before exposing its ID to peer instances.
+  materializeSessionFile(sessionManager);
   bindRuntimeSessionCore(runtimeTab, {
     agentSession: created.session,
     services: created.services,
@@ -469,8 +476,59 @@ async function replaceRuntimeTabSessionUnlocked(
   await bindRuntimeExtensions(runtimeTab, context);
   const sessionStartStatus = runtimeTab.tab.status;
   const sessionStartWorkingStartedAt = runtimeTab.tab.workingStartedAt;
-  // Only now commit the identity switch: update the tab's sessionId,
-  // remove the old key from the tabs map, and register under the new key.
+  // Shared membership, runtime identity, and host focus commit without yielding.
+  // A failed shared write must not expose the new identity or call withSession.
+  try {
+    noteTabReplaced(previousSessionId, sessionManager.getSessionId());
+  } catch (publicationError) {
+    // The old runner has shut down, so restoring only its ID would route input
+    // into the uncommitted new session. Rebind the actual source before failing.
+    try {
+      await runtimeTab.agentSession.abort();
+      await shutdownRuntimeTab(
+        runtimeTab,
+        { type: "session_shutdown", reason: "quit" },
+        context.getExtensionUiHost(),
+      );
+      const restored = await createAgentSessionForReplacement(
+        previousSession,
+        {
+          systemPrompt: MIXCODE_SYSTEM_PROMPT,
+          workdir: previousSession.getCwd(),
+          model: previousModel,
+          thinkingLevel: previousThinkingLevel,
+          reuseServices: previousServices,
+          sessionStartEvent: {
+            type: "session_start",
+            reason: "resume",
+            previousSessionFile: targetSessionFile,
+          },
+          getTabTitle: () => runtimeTab.tab.title,
+        },
+        context,
+      );
+      bindRuntimeSessionCore(runtimeTab, {
+        agentSession: restored.session,
+        services: restored.services,
+      });
+      runtimeTab.session = previousSession;
+      resetTabForNewSession(runtimeTab.tab, previousSessionId);
+      runtimeTab.tab.workdir = previousSession.getCwd();
+      runtimeTab.tab.title = previousSession.getSessionName() ?? previousTitle;
+      runtimeTab.chat = entriesToChatLines(previousSession.getBranch(), runtimeTab);
+      await bindRuntimeExtensions(runtimeTab, context);
+      applyRuntimeTabModel(runtimeTab, restored.session.agent.state.model);
+      runtimeTab.tab.thinkingLevel = restored.session.thinkingLevel;
+      refreshStartupHeader(runtimeTab);
+      context.emitChange({ type: "extension_ui_update" }, runtimeTab);
+    } catch (restorationError) {
+      throw new AggregateError(
+        [publicationError, restorationError],
+        "Session identity publication failed and source restoration failed",
+      );
+    }
+    throw publicationError;
+  }
   resetTabForNewSession(runtimeTab.tab, sessionManager.getSessionId());
   if (created.session.isStreaming) {
     runtimeTab.tab.status = sessionStartStatus === "thinking" ? "thinking" : "running";
@@ -485,6 +543,7 @@ async function replaceRuntimeTabSessionUnlocked(
   }
   context.tabs.delete(previousSessionId);
   context.tabs.set(runtimeTab.tab.sessionId, runtimeTab);
+  context.onSessionReplaced(previousSessionId, runtimeTab);
   applyMixCodeSystemPrompt(created.session, cachedSearchTools);
   applyRuntimeTabModel(runtimeTab, created.session.agent.state.model);
   runtimeTab.tab.thinkingLevel = created.session.agent.state.thinkingLevel;

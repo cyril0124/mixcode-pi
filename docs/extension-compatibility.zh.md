@@ -135,6 +135,10 @@ AGENTS / project context / system prompt 走 Pi resource loader 链路，不再�
 
 当 `ctx.switchSession()`、会话选择器恢复或 `/import` 的目标工作目录不同时，替换会话会重建绑定 cwd 的 services。在 `session_start` 和 `withSession` 执行前，扩展 `ctx.cwd`、工具相对路径、项目配置和项目资源均使用目标会话的 cwd。导入时显式指定的 cwd override 为有效目标目录。同目录替换复用 services 并重新加载扩展，不与其他存活标签共享 services。取消切换不会加载目标项目的扩展。
 
+### 会话身份
+
+会话替换在 `withSession` 之前更新 Tab 身份，后续消息提交到该会话。发布、焦点、取消和失败行为见[会话替换](workspace-and-tabs.zh.md#会话替换)。
+
 ### 活动工具
 
 MixCode 在 `session_start` 之前按 `defaultTools` 或 Pi 默认值初始化宿主工具。

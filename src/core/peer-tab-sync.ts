@@ -7,7 +7,7 @@
 // events. Instance registry is only used here for optional title lookup.
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { loadLiveInstanceStatus, type LoadInstanceStatusOptions } from "./instance-registry.js";
+import { type LoadInstanceStatusOptions, loadLiveInstanceStatus } from "./instance-registry.js";
 import { readOpenTabs } from "./open-tabs-store.js";
 
 export interface PeerTabCandidate {
@@ -42,21 +42,7 @@ export function listTabsToReconcile(input: ListTabsToReconcileInput): TabReconci
     ...new Set([...input.desiredSessionIds].map(String).filter((id) => id.trim())),
   ];
   const desired = new Set(desiredOrder);
-  const localWorkdir = normalizeWorkdir(input.localWorkdir);
-  const hints = new Map<string, PeerTabCandidate>();
-  for (const peer of input.peerHints ?? []) {
-    if (normalizeWorkdir(peer.workdir) !== localWorkdir) continue;
-    for (const tab of peer.tabs) {
-      if (normalizeWorkdir(tab.workdir) !== localWorkdir) continue;
-      if (!hints.has(tab.sessionId)) {
-        hints.set(tab.sessionId, {
-          sessionId: tab.sessionId,
-          title: tab.title,
-          workdir: tab.workdir,
-        });
-      }
-    }
-  }
+  const hints = peerHintsBySession(input.peerHints, input.localWorkdir);
 
   const toOpen: PeerTabCandidate[] = [];
   for (const sessionId of desired) {
@@ -72,6 +58,26 @@ export function listTabsToReconcile(input: ListTabsToReconcileInput): TabReconci
     if (!desired.has(sessionId)) toClose.push(sessionId);
   }
   return { toOpen, toClose, desiredOrder };
+}
+
+function peerHintsBySession(
+  peers: ListTabsToReconcileInput["peerHints"],
+  workdir: string,
+): Map<string, PeerTabCandidate> {
+  const localWorkdir = normalizeWorkdir(workdir);
+  const hints = new Map<string, PeerTabCandidate>();
+  for (const peer of peers ?? []) {
+    if (normalizeWorkdir(peer.workdir) !== localWorkdir) continue;
+    for (const tab of peer.tabs) {
+      if (normalizeWorkdir(tab.workdir) !== localWorkdir || hints.has(tab.sessionId)) continue;
+      hints.set(tab.sessionId, {
+        sessionId: tab.sessionId,
+        title: tab.title,
+        workdir: tab.workdir,
+      });
+    }
+  }
+  return hints;
 }
 
 export interface StartPeerTabSyncOptions {
@@ -144,13 +150,6 @@ export function startPeerTabSync(options: StartPeerTabSyncOptions): {
   const runOnce = async (): Promise<void> => {
     // No shared file yet: do not close local tabs (bootstrap may still be seeding).
     if (!(await Bun.file(options.openTabsPath).exists())) return;
-    const desired = readDesired(options.openTabsPath);
-    // Snapshot local ids in the same synchronous block as the desired read.
-    // Tab creation publishes to open_tabs and pushes to state.tabs atomically
-    // (no await between). loadStatus below yields the event loop, so reading
-    // local after it could pair a just-created local tab with a stale desired
-    // snapshot that lacks it, and the reconciler would close the in-flight tab.
-    const localSnapshot = [...options.getLocalSessionIds()];
 
     let peerHints: ListTabsToReconcileInput["peerHints"] = [];
     try {
@@ -161,28 +160,39 @@ export function startPeerTabSync(options: StartPeerTabSyncOptions): {
       options.onError?.(error);
     }
 
-    const plan = listTabsToReconcile({
-      localSessionIds: localSnapshot,
-      desiredSessionIds: desired,
-      localWorkdir: options.workdir,
-      peerHints,
-    });
-
-    for (const candidate of plan.toOpen) {
+    // Hints are advisory and loaded once; do not rebuild their index per mutation.
+    const hints = peerHintsBySession(peerHints, options.workdir);
+    // Each operation/id is attempted once per pass, including failures. A later
+    // poll can retry it without an immediate retry loop blocking reconciliation.
+    const attemptedOpens = new Set<string>();
+    const attemptedCloses = new Set<string>();
+    let plan: TabReconcilePlan;
+    for (;;) {
       if (disposed) return;
-      const local = new Set(options.getLocalSessionIds());
-      if (local.has(candidate.sessionId)) continue;
-      try {
-        await options.openTab(candidate);
-      } catch (error) {
-        options.onError?.(error);
+      // Keep desired/local reads synchronous after every await. Local publishing
+      // and tab membership changes must not be paired with a stale desired set.
+      const desired = readDesired(options.openTabsPath);
+      const localSnapshot = [...options.getLocalSessionIds()];
+      plan = listTabsToReconcile({
+        localSessionIds: localSnapshot,
+        desiredSessionIds: desired,
+        localWorkdir: options.workdir,
+      });
+
+      const candidate = plan.toOpen.find((tab) => !attemptedOpens.has(tab.sessionId));
+      if (candidate) {
+        attemptedOpens.add(candidate.sessionId);
+        try {
+          await options.openTab(hints.get(candidate.sessionId) ?? candidate);
+        } catch (error) {
+          options.onError?.(error);
+        }
+        continue;
       }
-    }
 
-    for (const sessionId of plan.toClose) {
-      if (disposed) return;
-      const local = new Set(options.getLocalSessionIds());
-      if (!local.has(sessionId)) continue;
+      const sessionId = plan.toClose.find((id) => !attemptedCloses.has(id));
+      if (sessionId === undefined) break;
+      attemptedCloses.add(sessionId);
       try {
         await options.closeTab(sessionId);
       } catch (error) {

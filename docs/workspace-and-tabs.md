@@ -71,6 +71,16 @@ A named record without a `tabs` array is invalid. `loadWorkspaces()` throws `Inv
 
 ## Multi-Instance Tab Synchronization
 
+### Session replacement
+
+Extension `ctx.newSession()`, `ctx.switchSession()`, `ctx.fork()`, and `/import` replace the current tab's session through one runtime commit. The target JSONL exists before publication. Before `withSession` runs, the host synchronously updates `open_tabs.json`, the runtime ID, and the initiating instance's focus mapping. The tab keeps its position, and recent-tab references follow the new ID. A background replacement leaves Home or another tab focused.
+
+Cancellation leaves the source session and shared membership unchanged. An unreadable shared snapshot rejects replacement before source shutdown.
+
+If publication fails after replacement preparation, the host shuts down the uncommitted runtime, rebinds the source session, and reports the publication error. If rebinding also fails, it reports both errors in an `AggregateError`. Neither session file is deleted. A `withSession` failure occurs after commit: the replacement remains active with any messages the callback has already added.
+
+The session selector creates a temporary tab, then uses this commit. `/clear` publishes its replacement ID before switching sessions. Peers reconcile the shared list every 2 seconds.
+
 MixCode coordinates open tabs across multiple terminal processes or tmux panes using an atomic lock over `open_tabs.json`.
 
 ```text

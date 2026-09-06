@@ -194,6 +194,17 @@ export class MixCodeRuntime {
       tabs: this.tabs,
       getExtensionUiHost: () => this.extensionUiHost,
       emitChange: (event, runtimeTab) => this.emitChange(event, runtimeTab),
+      onSessionReplaced: (previousSessionId, runtimeTab) => {
+        this.sync.replace(previousSessionId, runtimeTab);
+        this.emitChange(
+          {
+            type: "session_replaced",
+            previousSessionId,
+            sessionId: runtimeTab.tab.sessionId,
+          },
+          runtimeTab,
+        );
+      },
       applyEvent: (runtimeTab, event) => this.applyEvent(runtimeTab, event),
       schedulePendingMessageFlush: (sessionId, agentSession) =>
         this.schedulePendingMessageFlush(sessionId, agentSession),
@@ -1522,25 +1533,7 @@ export class MixCodeRuntime {
     sessionManager: SessionManager,
     reason: SessionReplacementReason,
   ): Promise<RuntimeTab> {
-    // Map key by identity: UI may pre-rename tab.sessionId for open_tabs before
-    // replace commits (resume race). Sync still tracks the pre-replace file key.
-    let previousSessionId = runtimeTab.tab.sessionId;
-    for (const [key, value] of this.tabs) {
-      if (value === runtimeTab) {
-        previousSessionId = key;
-        break;
-      }
-    }
-    const replaced = await replaceRuntimeTabSession(
-      runtimeTab,
-      sessionManager,
-      reason,
-      this.lifecycleContext(),
-    );
-    // new/resume/fork swap the tab to a different session id + file: retrack.
-    this.sync.unregister(previousSessionId);
-    this.sync.register(replaced);
-    return replaced;
+    return replaceRuntimeTabSession(runtimeTab, sessionManager, reason, this.lifecycleContext());
   }
 
   /**

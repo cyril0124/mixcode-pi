@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import * as fsPromises from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { test } from "node:test";
+import { test, type TestContext } from "node:test";
 import {
   SessionManager,
   SessionSelectorComponent,
@@ -13,8 +13,11 @@ import {
   createInitialState,
   createTab,
   handleSubmittedInput,
-  type MixCodeRuntime,
+  MIXCODE_FAUX_MODEL,
+  MixCodeRuntime,
+  modelToRef,
 } from "./helpers/mixcode.js";
+import { materializeSessionFile } from "../src/agent/runtime-session.js";
 import { applyMixCodeKeybindings } from "../src/agent/runtime-pi-tui-bridge.js";
 import { handleMixCodeKeyInput } from "../src/ui/app-input.js";
 import {
@@ -165,19 +168,69 @@ function makeResumeByIdRuntime(
   return { runtime, switched, systemMessages };
 }
 
-test("/resume N:<tab-name> resumes the exact session name", async () => {
-  const state = createInitialState("/repo");
-  state.tabs.push(createTab(1, "s1", "/repo"));
-  state.activeTabId = "s1";
-  const tui = { requestRender: () => undefined, showOverlay: () => ({ hide: () => undefined }) };
-  const { runtime, switched } = makeResumeByIdRuntime();
+async function createResumeFixture(t: TestContext, fromHome = false) {
+  const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-resume-selector-"));
+  const sessionsRoot = path.join(root, "sessions");
+  const runtime = new MixCodeRuntime({ sessionsRoot, agentDir: path.join(root, "agent") });
+  t.after(async () => {
+    try {
+      await runtime.closeAllTabs();
+    } finally {
+      await fsPromises.rm(root, { recursive: true, force: true });
+    }
+  });
+  const state = createInitialState(root);
+  state.model = modelToRef(MIXCODE_FAUX_MODEL);
+  const target = SessionManager.create(root, sessionsRoot);
+  target.newSession({ id: "session-a" });
+  target.appendModelChange(MIXCODE_FAUX_MODEL.provider, MIXCODE_FAUX_MODEL.id);
+  target.appendSessionInfo("My Session");
+  target.appendMessage({ role: "user", content: "Target history", timestamp: Date.now() });
+  materializeSessionFile(target);
+  const targetPath = target.getSessionFile()!;
+  if (!fromHome) {
+    const source = createTab(1, "s1", root, { title: "Source", model: state.model });
+    state.tabs.push(source);
+    state.activeTabId = source.sessionId;
+    await runtime.createTab(source, {
+      workdir: root,
+      systemPrompt: "test",
+      model: MIXCODE_FAUX_MODEL,
+    });
+  }
+  // Resume finishes after handleSubmittedInput returns; observe its public completion callback.
+  const completion = Promise.withResolvers<void>();
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: (component: { render: (width: number) => string[] }) => {
+      completion.reject(new Error(component.render(100).join("\n")));
+      return { hide: () => undefined };
+    },
+  };
+  return { state, runtime, targetPath, tui, completion };
+}
 
-  await handleSubmittedInput(state, runtime, "/resume N:My Session", tui as never);
-  await Bun.sleep(30);
+test("/resume N:<tab-name> resumes the exact session name", async (t) => {
+  const { state, runtime, targetPath, tui, completion } = await createResumeFixture(t);
+  const source = runtime.getTab("s1")!;
+  const sourcePath = source.session.getSessionFile();
 
-  assert.equal(switched.length, 1);
-  assert.equal(switched[0]!.path, "/sessions/session-a.jsonl");
+  await handleSubmittedInput(state, runtime, "/resume N:My Session", tui as never, () => {
+    completion.resolve();
+  });
+  await completion.promise;
+
+  assert.equal(runtime.listTabs().length, 2);
+  assert.equal(state.tabs.length, 2);
+  assert.equal(runtime.getTab("session-a")?.session.getSessionFile(), targetPath);
+  assert.equal(runtime.getTab("session-a")?.session.getSessionName(), "My Session");
   assert.equal(state.tabs.find((tab) => tab.sessionId === "session-a")?.title, "My Session");
+  assert.equal(state.activeTabId, "session-a");
+  assert.equal(state.sessionSelector.open, false);
+  assert.equal(runtime.getTab("s1"), source);
+  assert.equal(source.session.getSessionFile(), sourcePath);
+  assert.notEqual(sourcePath, targetPath);
+  assert.equal(source.tab.title, "Source");
 });
 
 test("/resume N:<tab-name> matches an open tab title", async () => {
@@ -245,37 +298,52 @@ test("/resume N:<tab-name> prefers a current-folder match", async () => {
   assert.equal(switched[0]!.path, "/sessions/session-a.jsonl");
 });
 
-test("/resume <session-id> resumes the session directly without opening the selector", async () => {
-  const state = createInitialState("/repo");
-  state.tabs.push(createTab(1, "s1", "/repo"));
-  state.activeTabId = "s1";
-  const tui = { requestRender: () => undefined, showOverlay: () => ({ hide: () => undefined }) };
-  const { runtime, switched } = makeResumeByIdRuntime();
+test("/resume <session-id> resumes the session directly without opening the selector", async (t) => {
+  const { state, runtime, targetPath, tui, completion } = await createResumeFixture(t);
+  const source = runtime.getTab("s1")!;
+  const sourcePath = source.session.getSessionFile();
 
-  await handleSubmittedInput(state, runtime, "/resume session-a", tui as never);
-  await Bun.sleep(30);
+  await handleSubmittedInput(state, runtime, "/resume session-a", tui as never, () => {
+    completion.resolve();
+  });
+  await completion.promise;
 
   assert.equal(state.sessionSelector.open, false);
-  assert.equal(switched.length, 1);
-  assert.equal(switched[0]!.path, "/sessions/session-a.jsonl");
-  const resumed = state.tabs.find((t) => t.sessionId === "session-a");
+  assert.equal(runtime.listTabs().length, 2);
+  assert.equal(state.tabs.length, 2);
+  assert.equal(runtime.getTab("session-a")?.session.getSessionFile(), targetPath);
+  assert.equal(runtime.getTab("session-a")?.session.getSessionName(), "My Session");
+  const resumed = state.tabs.find((tab) => tab.sessionId === "session-a");
   assert.ok(resumed);
   assert.equal(resumed.title, "My Session");
   assert.equal(state.activeTabId, "session-a");
+  assert.equal(runtime.getTab("s1"), source);
+  assert.equal(source.session.getSessionFile(), sourcePath);
+  assert.notEqual(sourcePath, targetPath);
+  assert.notEqual(resumed, source.tab);
+  assert.equal(source.tab.title, "Source");
 });
 
-test("/resume <session-id> works from Home with no open tabs", async () => {
-  const state = createInitialState("/repo"); // activeTabId = home, tabs empty
-  const tui = { requestRender: () => undefined, showOverlay: () => ({ hide: () => undefined }) };
-  const { runtime, switched } = makeResumeByIdRuntime();
+test("/resume <session-id> works from Home with no open tabs", async (t) => {
+  const { state, runtime, targetPath, tui, completion } = await createResumeFixture(t, true);
+  assert.equal(state.activeTabId, "home");
+  assert.equal(state.tabs.length, 0);
+  assert.equal(runtime.listTabs().length, 0);
 
-  await handleSubmittedInput(state, runtime, "/resume session-a", tui as never);
-  await Bun.sleep(30);
+  await handleSubmittedInput(state, runtime, "/resume session-a", tui as never, () => {
+    completion.resolve();
+  });
+  await completion.promise;
 
-  assert.equal(switched.length, 1);
-  const resumed = state.tabs.find((t) => t.sessionId === "session-a");
+  assert.equal(runtime.listTabs().length, 1);
+  assert.equal(state.tabs.length, 1);
+  assert.equal(runtime.getTab("session-a")?.session.getSessionFile(), targetPath);
+  assert.equal(runtime.getTab("session-a")?.session.getSessionName(), "My Session");
+  const resumed = state.tabs.find((tab) => tab.sessionId === "session-a");
   assert.ok(resumed);
+  assert.equal(resumed.title, "My Session");
   assert.equal(state.activeTabId, "session-a");
+  assert.equal(state.sessionSelector.open, false);
 });
 
 test("/resume <unknown-id> from Home fails loud via error overlay", async () => {
@@ -640,7 +708,6 @@ test("resumeSelectedSession opens a new tab and switches to the target session",
     tui as never,
     "/sessions/session-a.jsonl",
     "My Session",
-    "session-a",
     "/sessions/current.jsonl",
     runtime as never,
   );
@@ -686,7 +753,6 @@ test("resumeSelectedSession focuses an already-open tab instead of creating anot
     tui as never,
     "/sessions/session-b.jsonl",
     "Two",
-    "session-b",
     null,
     runtime as never,
   );

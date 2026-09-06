@@ -135,6 +135,10 @@ System prompts, AGENTS, and project context flow directly through the Pi resourc
 
 When `ctx.switchSession()`, session-selector resume, or `/import` targets a different working directory, the replacement session rebuilds its cwd-bound services. Extension `ctx.cwd`, relative tool paths, project settings, and project resources use the target session's cwd before `session_start` and `withSession` run. An import's explicit cwd override is the effective target. Same-directory replacements reuse services and reload extensions; they do not share services with another live tab. A cancelled switch does not load the target project's extensions.
 
+### Session identity
+
+Session replacement updates tab identity before `withSession`; subsequent prompts target that session. See [Session replacement](workspace-and-tabs.md#session-replacement) for publication, focus, cancellation, and failure behavior.
+
 ### Active tools
 
 MixCode initializes host-owned tools from `defaultTools` or Pi's defaults before

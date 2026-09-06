@@ -257,7 +257,6 @@ const handleResume: LocalCommandHandler = async ({
       tui,
       target.path,
       target.name,
-      target.id,
       currentSessionPath,
       runtime as unknown as MixCodeKeyRuntime,
       onStateChanged,

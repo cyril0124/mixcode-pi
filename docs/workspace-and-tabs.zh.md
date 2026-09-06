@@ -71,6 +71,16 @@ Tab 用 `mpi status` / `mpi ctl` 向同伴发 Prompt（同一 TUI，或通过 `-
 
 ## 多实例 Tab 状态同步
 
+### 会话替换
+
+扩展 `ctx.newSession()`、`ctx.switchSession()`、`ctx.fork()` 和 `/import` 通过同一个 runtime 提交点替换当前 Tab 的会话。发布前目标 JSONL 已存在。在 `withSession` 执行前，宿主同步更新 `open_tabs.json`、runtime ID 和发起实例的焦点映射。Tab 保留原位置，最近访问记录跟随新 ID。后台替换不改变 Home 或其他 Tab 的焦点。
+
+取消操作不改变原会话和共享成员。共享快照不可读时，在原会话 shutdown 前拒绝替换。
+
+如果准备新会话后发布失败，宿主会关闭未提交的 runtime，重新绑定原会话，并报告发布错误。重新绑定也失败时，用 `AggregateError` 报告两个错误。两个会话文件均不删除。`withSession` 出错发生在提交之后：新会话保持活动状态，保留回调已经写入的消息。
+
+会话选择器创建临时 Tab 后使用该提交点。`/clear` 在切换会话前发布目标 ID。各实例每 2 秒按共享清单对账一次。
+
 MixCode 通过对 `open_tabs.json` 的原子文件锁协调多个终端实例或 tmux 窗格间的 Tab 集合变更：
 
 ```text

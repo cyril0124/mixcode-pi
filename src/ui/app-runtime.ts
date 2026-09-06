@@ -1,6 +1,7 @@
 import type { AutocompleteProvider, TUI as TuiType } from "@earendil-works/pi-tui";
 import type { MixCodeRuntime } from "../agent/runtime.js";
-import { getActiveTab } from "../core/tabs.js";
+import { activateTab, getActiveTab } from "../core/tabs.js";
+import { clearConversationCache } from "./rendering/agent-surface.js";
 import { HOME_TAB_ID, type MixCodeState } from "../core/types.js";
 import { addPromptHistory } from "./app-editor.js";
 import type { RuntimeChangeSource } from "./app-types.js";
@@ -134,6 +135,29 @@ export function bindRuntimeRendering(
   const previousInteractionCount = new Map<string, number>();
   return runtime.onChange((event, runtimeTab) => {
     const sessionId = runtimeTab.tab.sessionId;
+    if (event.type === "session_replaced") {
+      previousStatus.delete(event.previousSessionId);
+      previousInteractionCount.delete(event.previousSessionId);
+      clearConversationCache(event.previousSessionId);
+      clearConversationCache(event.sessionId);
+      if (state) {
+        state.recentAgentTabIds = [
+          ...new Set(
+            (state.recentAgentTabIds ?? []).map((id) =>
+              id === event.previousSessionId ? event.sessionId : id,
+            ),
+          ),
+        ];
+        // A background replacement must not steal focus from Home or another tab.
+        if (
+          state.activeTabId === event.previousSessionId &&
+          event.previousSessionId !== event.sessionId
+        ) {
+          activateTab(state, event.sessionId);
+        }
+        void onStateChanged?.(state);
+      }
+    }
     const before = previousStatus.get(sessionId);
     if (shouldRingCompletionBell(event, runtimeTab.tab, before)) {
       tui.terminal?.write("\x07");

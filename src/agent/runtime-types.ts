@@ -36,7 +36,10 @@ export type MixCodeStreamFn = (
   context: Context,
   options?: SimpleStreamOptions,
 ) => ReturnType<typeof mixcodeFauxStream> | Promise<ReturnType<typeof mixcodeFauxStream>>;
-export type RuntimeEvent = AgentSessionEvent | { type: "extension_ui_update" };
+export type RuntimeEvent =
+  | AgentSessionEvent
+  | { type: "extension_ui_update" }
+  | { type: "session_replaced"; previousSessionId: string; sessionId: string };
 /** Extension-facing ModelRegistry facade methods used by MixCode runtime/UI. */
 export type RuntimeModelRegistry = Pick<
   ModelRegistry,
