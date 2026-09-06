@@ -9,9 +9,14 @@ import {
   resolvePiTheme,
   themeForId,
 } from "../src/ui/themes.js";
+import { createInitialState, createTab } from "../src/core/defaults.js";
+import { renderTabBar } from "../src/ui/rendering/chrome.js";
 import { mixCodeThemeFromPi } from "../src/ui/theme-from-pi.js";
 
-function sampleTheme(name: string): Theme {
+function sampleTheme(
+  name: string,
+  overrides: Partial<ConstructorParameters<typeof Theme>[0]> = {},
+): Theme {
   return new Theme(
     {
       accent: "#112233",
@@ -60,6 +65,7 @@ function sampleTheme(name: string): Theme {
       thinkingXhigh: "#a0a0a0",
       thinkingMax: "#b0b0b0",
       bashMode: "#00ff88",
+      ...overrides,
     },
     {
       selectedBg: "#1a2a3a",
@@ -104,6 +110,60 @@ test("mixCodeThemeFromPi maps Pi tokens onto Pi-named MixCode fields", () => {
   assert.equal(typeof adapted.userMessageBg, "function");
   assert.ok(adapted.toolPendingBg.start !== undefined);
   assert.ok(adapted.customMessageBg.start !== undefined);
+});
+
+test("default status colors survive tab styling and restore the title foreground", () => {
+  const theme = mixCodeThemeFromPi(
+    sampleTheme("default-status", {
+      warning: "",
+      error: "",
+      success: "",
+      toolTitle: "",
+      text: "#ff00ff",
+    }),
+  );
+  const foregroundAt = (line: string, offset: number) =>
+    [...line.slice(0, offset).matchAll(/\x1b\[(39|38;[0-9;]+)m/g)].at(-1)?.[1];
+  for (const active of [false, true]) {
+    for (const phase of [0, 600, 2400]) {
+      for (const [status, glyph] of [
+        ["running", "●"],
+        ["error", "x"],
+        ["done", "✓"],
+        ["idle", "?"],
+      ] as const) {
+        const state = createInitialState("/repo");
+        const tab = createTab(1, "worker", "/repo", {
+          title: "Worker",
+          status,
+          activatedAt: Date.now() - phase,
+        });
+        if (status === "idle") tab.extensionUi.waitingForInputs = [{ id: "q", kind: "custom" }];
+        state.tabs.push(tab);
+        state.activeTabId = active ? tab.sessionId : "home";
+        const line = renderTabBar(state, 100, theme)[0]!;
+        // Locate the status in plain text first: Home may contain the ASCII error glyph.
+        const plain = line.replace(/\x1b\[[0-9;]*m/g, "");
+        assert.ok(plain.includes(`${glyph} Worker`));
+        const titleOffset = line.indexOf("Worker");
+        const glyphOffset = line.lastIndexOf(glyph, titleOffset < 0 ? line.length : titleOffset);
+        assert.equal(
+          foregroundAt(line, glyphOffset),
+          "39",
+          `${status}, active=${active}, phase=${phase}`,
+        );
+        if (!active || phase === 2400) {
+          const expected =
+            status === "done" ? "39" : active ? "38;2;255;0;255" : "38;2;136;136;136";
+          assert.equal(
+            foregroundAt(line, titleOffset),
+            expected,
+            "status color must not leak into title",
+          );
+        }
+      }
+    }
+  }
 });
 
 test("themeForId caches third-party adapters", () => {

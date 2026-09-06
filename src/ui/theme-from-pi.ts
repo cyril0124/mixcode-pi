@@ -43,6 +43,28 @@ export interface MixCodeTheme {
   italic: (text: string) => string;
 }
 
+/** Derive tab paints from existing theme tokens without changing the source palette. */
+export function withTabStyles(
+  theme: Omit<
+    MixCodeTheme,
+    "tab" | "activeTab" | "recentTab" | "olderRecentTab" | "homeTab" | "homeTabActive"
+  >,
+): MixCodeTheme {
+  const ordinaryBg = (text: string) =>
+    `${theme.toolPendingBg.start}${text}${theme.toolPendingBg.end}`;
+  const activeTab = (text: string) => theme.selectedBg(theme.bold(theme.text(text)));
+  const recentTab = (text: string) => ordinaryBg(theme.text(text));
+  return {
+    ...theme,
+    tab: (text) => ordinaryBg(theme.muted(text)),
+    activeTab,
+    recentTab,
+    olderRecentTab: recentTab,
+    homeTab: (text) => ordinaryBg(theme.accent(text)),
+    homeTabActive: activeTab,
+  };
+}
+
 /** Build MixCode TUI chrome colors from a Pi Theme via fixed token mapping. */
 export function mixCodeThemeFromPi(theme: Theme): MixCodeTheme {
   const bgStart = (color: Parameters<Theme["getBgAnsi"]>[0]) => theme.getBgAnsi(color);
@@ -59,7 +81,7 @@ export function mixCodeThemeFromPi(theme: Theme): MixCodeTheme {
     (text: string): string =>
       theme.fg(color, text);
 
-  return {
+  return withTabStyles({
     name: theme.name ?? "theme",
     border: fg("border"),
     borderMuted: fg("borderMuted"),
@@ -85,12 +107,6 @@ export function mixCodeThemeFromPi(theme: Theme): MixCodeTheme {
     toolErrorBg: { start: bgStart("toolErrorBg"), end: "\x1b[49m" },
     systemBackground: { start: bgStart("toolPendingBg"), end: "\x1b[49m" },
     customMessageBg: { start: bgStart("customMessageBg"), end: "\x1b[49m" },
-    tab: (text) => theme.bg("toolPendingBg", theme.fg("muted", text)),
-    activeTab: (text) => theme.bg("selectedBg", theme.fg("borderAccent", text)),
-    recentTab: (text) => theme.bg("customMessageBg", theme.fg("text", text)),
-    olderRecentTab: (text) => theme.bg("toolPendingBg", theme.fg("accent", text)),
-    homeTab: (text) => theme.bg("selectedBg", theme.fg("accent", text)),
-    homeTabActive: (text) => theme.bg("selectedBg", theme.fg("borderAccent", text)),
     workingFg: fg("warning"),
     waitingFg: fg("toolTitle"),
     doneFg: fg("success"),
@@ -100,5 +116,5 @@ export function mixCodeThemeFromPi(theme: Theme): MixCodeTheme {
     toolTitle: fg("toolTitle"),
     bold: (text) => theme.bold(text),
     italic: (text) => theme.italic(text),
-  };
+  });
 }

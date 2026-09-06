@@ -20,12 +20,12 @@ test("getActiveTab does not silently fall back for an unknown session", () => {
   assert.equal(getActiveTab(state), undefined);
 });
 
-test("activateTab clears /mark-done badge so ! does not stick after focus", () => {
+test("activateTab clears the /mark-done checkmark after focus", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo", { status: "done", unreadDone: true });
   state.tabs.push(tab);
   state.activeTabId = "home";
-  assert.equal(tabStatusGlyph(tab), "!");
+  assert.equal(tabStatusGlyph(tab), "✓");
 
   activateTab(state, tab.sessionId);
 

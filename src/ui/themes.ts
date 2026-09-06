@@ -9,7 +9,7 @@ import {
   setRegisteredThemes,
   Theme,
 } from "./pi-theme-api.js";
-import { mixCodeThemeFromPi, type MixCodeTheme } from "./theme-from-pi.js";
+import { mixCodeThemeFromPi, type MixCodeTheme, withTabStyles } from "./theme-from-pi.js";
 
 export type { MixCodeTheme } from "./theme-from-pi.js";
 
@@ -25,13 +25,6 @@ const rgb = (hex: string) => {
   const g = Number.parseInt(value.slice(2, 4), 16);
   const b = Number.parseInt(value.slice(4, 6), 16);
   return (text: string) => `\x1b[38;2;${r};${g};${b}m${text}\x1b[39m`;
-};
-const bgRgb = (hex: string) => {
-  const value = hex.replace(/^#/, "");
-  const r = Number.parseInt(value.slice(0, 2), 16);
-  const g = Number.parseInt(value.slice(2, 4), 16);
-  const b = Number.parseInt(value.slice(4, 6), 16);
-  return (text: string) => `\x1b[48;2;${r};${g};${b}m${text}\x1b[49m`;
 };
 const bgPair = (hex: string) => {
   const value = hex.replace(/^#/, "");
@@ -187,7 +180,7 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-export const MIXCODE_DARK_THEME: MixCodeTheme = {
+export const MIXCODE_DARK_THEME: MixCodeTheme = withTabStyles({
   name: "pi-dark",
   border: rgb("#5f87ff"),
   borderMuted: rgb("#505050"),
@@ -219,12 +212,6 @@ export const MIXCODE_DARK_THEME: MixCodeTheme = {
   toolErrorBg: bgPair("#3c2828"),
   systemBackground: bgPair("#232321"),
   customMessageBg: bgPair("#2d2838"),
-  tab: (text: string) => `${bgRgb("#282832")(rgb("#808080")(text))}`,
-  activeTab: (text: string) => `${bgRgb("#2f6b66")(rgb("#e8fffc")(text))}`,
-  recentTab: (text: string) => `${bgRgb("#3a5552")(rgb("#d4e8e6")(text))}`,
-  olderRecentTab: (text: string) => `${bgRgb("#323a42")(rgb("#b0b8c0")(text))}`,
-  homeTab: (text: string) => `${bgRgb("#5f87ff")(rgb("#18181e")(text))}`,
-  homeTabActive: (text: string) => `${bgRgb("#3a3a4a")(rgb("#8abeb7")(text))}`,
   workingFg: rgb("#e6b422"),
   waitingFg: rgb("#f0c674"),
   doneFg: rgb("#b5bd68"),
@@ -234,9 +221,9 @@ export const MIXCODE_DARK_THEME: MixCodeTheme = {
   toolTitle: rgb("#d4a656"),
   bold: (text: string) => `\x1b[1m${text}\x1b[22m`,
   italic: (text: string) => `\x1b[3m${text}\x1b[23m`,
-};
+});
 
-export const CLAUDE_WARM_THEME: MixCodeTheme = {
+export const CLAUDE_WARM_THEME: MixCodeTheme = withTabStyles({
   name: "claude-warm",
   border: rgb("#4d4c48"),
   borderMuted: rgb("#3d3d3a"),
@@ -268,12 +255,6 @@ export const CLAUDE_WARM_THEME: MixCodeTheme = {
   toolErrorBg: bgPair("#34211e"),
   systemBackground: bgPair("#232321"),
   customMessageBg: bgPair("#2d2538"),
-  tab: (text: string) => `${bgRgb("#232321")(rgb("#87867f")(text))}`,
-  activeTab: (text: string) => `${bgRgb("#8a6230")(rgb("#fff6e0")(text))}`,
-  recentTab: (text: string) => `${bgRgb("#5a4a2e")(rgb("#f5ead0")(text))}`,
-  olderRecentTab: (text: string) => `${bgRgb("#3a3530")(rgb("#d0c8c0")(text))}`,
-  homeTab: (text: string) => `${bgRgb("#d97757")(rgb("#141413")(text))}`,
-  homeTabActive: (text: string) => `${bgRgb("#a63d20")(rgb("#ffe8dc")(text))}`,
   workingFg: rgb("#f0c674"),
   waitingFg: rgb("#e6b422"),
   doneFg: rgb("#8fa87a"),
@@ -283,9 +264,9 @@ export const CLAUDE_WARM_THEME: MixCodeTheme = {
   toolTitle: rgb("#d6b25e"),
   bold: (text: string) => `\x1b[1m${text}\x1b[22m`,
   italic: (text: string) => `\x1b[3m${text}\x1b[23m`,
-};
+});
 
-export const TOKYO_NIGHT_THEME: MixCodeTheme = {
+export const TOKYO_NIGHT_THEME: MixCodeTheme = withTabStyles({
   name: "tokyo-night",
   border: rgb("#7aa2f7"),
   borderMuted: rgb("#3b4261"),
@@ -317,12 +298,6 @@ export const TOKYO_NIGHT_THEME: MixCodeTheme = {
   toolErrorBg: bgPair("#3a202c"),
   systemBackground: bgPair("#202436"),
   customMessageBg: bgPair("#29243d"),
-  tab: (text: string) => `${bgRgb("#24283b")(rgb("#737aa2")(text))}`,
-  activeTab: (text: string) => `${bgRgb("#1a5a6e")(rgb("#dff6ff")(text))}`,
-  recentTab: (text: string) => `${bgRgb("#2a4a55")(rgb("#c8eaf5")(text))}`,
-  olderRecentTab: (text: string) => `${bgRgb("#2a3048")(rgb("#a9b1d6")(text))}`,
-  homeTab: (text: string) => `${bgRgb("#7aa2f7")(rgb("#1a1b26")(text))}`,
-  homeTabActive: (text: string) => `${bgRgb("#2f4175")(rgb("#7dcfff")(text))}`,
   workingFg: rgb("#e0af68"),
   waitingFg: rgb("#ff9e64"),
   doneFg: rgb("#9ece6a"),
@@ -332,9 +307,9 @@ export const TOKYO_NIGHT_THEME: MixCodeTheme = {
   toolTitle: rgb("#ff9e64"),
   bold: (text: string) => `\x1b[1m${text}\x1b[22m`,
   italic: (text: string) => `\x1b[3m${text}\x1b[23m`,
-};
+});
 
-export const TERMINAL_THEME: MixCodeTheme = {
+export const TERMINAL_THEME: MixCodeTheme = withTabStyles({
   name: "terminal",
   border: ansiBlue,
   borderMuted: dim,
@@ -359,12 +334,6 @@ export const TERMINAL_THEME: MixCodeTheme = {
   toolErrorBg: { start: "", end: "" },
   systemBackground: { start: "", end: "" },
   customMessageBg: { start: "", end: "" },
-  tab: dim,
-  activeTab: (text: string) => `\x1b[1m\x1b[7m${text}\x1b[27m\x1b[22m`,
-  recentTab: (text: string) => `\x1b[7m${text}\x1b[27m`,
-  olderRecentTab: (text: string) => `\x1b[4m${text}\x1b[24m`,
-  homeTab: (text: string) => `\x1b[7m${text}\x1b[27m`,
-  homeTabActive: (text: string) => `\x1b[1m\x1b[7m${text}\x1b[27m\x1b[22m`,
   workingFg: ansiYellow,
   waitingFg: ansiYellow,
   doneFg: ansiGreen,
@@ -374,9 +343,9 @@ export const TERMINAL_THEME: MixCodeTheme = {
   toolTitle: ansiYellow,
   bold: (text: string) => `\x1b[1m${text}\x1b[22m`,
   italic: (text: string) => `\x1b[3m${text}\x1b[23m`,
-};
+});
 
-export const CATPPUCCIN_THEME: MixCodeTheme = {
+export const CATPPUCCIN_THEME: MixCodeTheme = withTabStyles({
   name: "catppuccin",
   border: rgb("#89b4fa"),
   borderMuted: rgb("#45475a"),
@@ -408,12 +377,6 @@ export const CATPPUCCIN_THEME: MixCodeTheme = {
   toolErrorBg: bgPair("#3a2228"),
   systemBackground: bgPair("#181825"),
   customMessageBg: bgPair("#2a2438"),
-  tab: (text: string) => `${bgRgb("#313244")(rgb("#6c7086")(text))}`,
-  activeTab: (text: string) => `${bgRgb("#2d6b63")(rgb("#e8fffc")(text))}`,
-  recentTab: (text: string) => `${bgRgb("#3a5552")(rgb("#cdd6f4")(text))}`,
-  olderRecentTab: (text: string) => `${bgRgb("#313244")(rgb("#a6adc8")(text))}`,
-  homeTab: (text: string) => `${bgRgb("#89b4fa")(rgb("#1e1e2e")(text))}`,
-  homeTabActive: (text: string) => `${bgRgb("#45475a")(rgb("#89b4fa")(text))}`,
   workingFg: rgb("#f9e2af"),
   waitingFg: rgb("#fab387"),
   doneFg: rgb("#a6e3a1"),
@@ -423,9 +386,9 @@ export const CATPPUCCIN_THEME: MixCodeTheme = {
   toolTitle: rgb("#fab387"),
   bold: (text: string) => `\x1b[1m${text}\x1b[22m`,
   italic: (text: string) => `\x1b[3m${text}\x1b[23m`,
-};
+});
 
-export const KANAGAWA_THEME: MixCodeTheme = {
+export const KANAGAWA_THEME: MixCodeTheme = withTabStyles({
   name: "kanagawa",
   border: rgb("#7E9CD8"),
   borderMuted: rgb("#2A2A37"),
@@ -457,12 +420,6 @@ export const KANAGAWA_THEME: MixCodeTheme = {
   toolErrorBg: bgPair("#3a2228"),
   systemBackground: bgPair("#16161D"),
   customMessageBg: bgPair("#2a2438"),
-  tab: (text: string) => `${bgRgb("#2A2A37")(rgb("#727169")(text))}`,
-  activeTab: (text: string) => `${bgRgb("#3d6b64")(rgb("#e8f5f2")(text))}`,
-  recentTab: (text: string) => `${bgRgb("#3a4a46")(rgb("#DCD7BA")(text))}`,
-  olderRecentTab: (text: string) => `${bgRgb("#2A2A37")(rgb("#C8C4A9")(text))}`,
-  homeTab: (text: string) => `${bgRgb("#7E9CD8")(rgb("#1F1F28")(text))}`,
-  homeTabActive: (text: string) => `${bgRgb("#363646")(rgb("#7E9CD8")(text))}`,
   workingFg: rgb("#E6C384"),
   waitingFg: rgb("#FFA066"),
   doneFg: rgb("#98BB6C"),
@@ -472,9 +429,9 @@ export const KANAGAWA_THEME: MixCodeTheme = {
   toolTitle: rgb("#E6C384"),
   bold: (text: string) => `\x1b[1m${text}\x1b[22m`,
   italic: (text: string) => `\x1b[3m${text}\x1b[23m`,
-};
+});
 
-export const ROSE_PINE_THEME: MixCodeTheme = {
+export const ROSE_PINE_THEME: MixCodeTheme = withTabStyles({
   name: "rose-pine",
   border: rgb("#c4a7e7"),
   borderMuted: rgb("#26233a"),
@@ -506,12 +463,6 @@ export const ROSE_PINE_THEME: MixCodeTheme = {
   toolErrorBg: bgPair("#3a2228"),
   systemBackground: bgPair("#1f1d2e"),
   customMessageBg: bgPair("#2a2438"),
-  tab: (text: string) => `${bgRgb("#26233a")(rgb("#6e6a86")(text))}`,
-  activeTab: (text: string) => `${bgRgb("#2a5860")(rgb("#e0f4f6")(text))}`,
-  recentTab: (text: string) => `${bgRgb("#2a4448")(rgb("#e0def4")(text))}`,
-  olderRecentTab: (text: string) => `${bgRgb("#26233a")(rgb("#908caa")(text))}`,
-  homeTab: (text: string) => `${bgRgb("#c4a7e7")(rgb("#191724")(text))}`,
-  homeTabActive: (text: string) => `${bgRgb("#403d52")(rgb("#c4a7e7")(text))}`,
   workingFg: rgb("#f6c177"),
   waitingFg: rgb("#ea9a97"),
   doneFg: rgb("#9ccfd8"),
@@ -521,7 +472,7 @@ export const ROSE_PINE_THEME: MixCodeTheme = {
   toolTitle: rgb("#f6c177"),
   bold: (text: string) => `\x1b[1m${text}\x1b[22m`,
   italic: (text: string) => `\x1b[3m${text}\x1b[23m`,
-};
+});
 
 export const MIXCODE_EXTENSION_THEME = new Theme(
   {

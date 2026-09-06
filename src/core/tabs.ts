@@ -112,7 +112,7 @@ export function activateTab(state: MixCodeState, tabId: string): void {
   for (const listener of activeTabListeners) listener(tabId);
   const tab = state.tabs.find((item) => item.sessionId === tabId);
   if (!tab) return;
-  // /mark-done sets status=done + unreadDone; both drive the "!" glyph. Clear both
+  // /mark-done sets status=done + unreadDone; both drive the completion badge. Clear both
   // on focus so the badge matches real agent_end (unread only until viewed).
   tab.unreadDone = false;
   if (tab.status === "done") tab.status = "idle";

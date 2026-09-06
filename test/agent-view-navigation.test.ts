@@ -972,7 +972,7 @@ test("renderHome mirrors Agent Tab glyphs in Agent View cards", () => {
   assert.match(output, /x Broken/);
   assert.match(output, /\? Question/);
   assert.match(output, /● Working/);
-  assert.match(output, /! Done/);
+  assert.match(output, /✓ Done/);
   assert.match(output, /- Idle/);
 });
 

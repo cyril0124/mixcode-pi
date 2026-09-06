@@ -245,7 +245,7 @@ export function zenStatusMarkers(
   for (const tab of tabs) {
     if (tab.sessionId === activeSessionId) continue;
     const glyph = tabStatusGlyph(tab);
-    if (glyph === "!") markers.push("done");
+    if (glyph === "✓") markers.push("done");
     else if (glyph === "●") markers.push("working");
     else if (glyph === "?") markers.push("waiting");
     else if (glyph === "x") markers.push("error");
@@ -1304,12 +1304,9 @@ function tabChipOpenSeq(paint: (text: string) => string): string {
 function paintTabChip(paint: (text: string) => string, body: string): string {
   const open = tabChipOpenSeq(paint);
   if (!open) return paint(body);
-  // The focus mark and the shimmer wave reset fg (39) / inverse (27) after every
-  // styled run. Re-open the chip so the rest of the label keeps its chrome.
-  // Anything the label must keep across those resets has to be part of `paint`.
-  return paint(
-    body.replace(/\x1b\[39m/g, `\x1b[39m${open}`).replace(/\x1b\[27m/g, `\x1b[27m${open}`),
-  );
+  // Focus, status, and shimmer spans reset foreground, intensity, or inverse.
+  // Re-open the chip so nested spans cannot strip the title's theme styling.
+  return paint(body.replace(/\x1b\[(39|22|27)m/g, (reset) => `${reset}${open}`));
 }
 
 function tabStatusFg(tab: MixCodeTabInfo): ((text: string) => string) | undefined {
@@ -1326,28 +1323,31 @@ function renderTabSegmentText(
   recentRank: number,
   onHome: boolean,
 ): string {
-  const raw = ` ${tabStatusGlyph(tab)} ${tab.title} `;
+  const glyph = tabStatusGlyph(tab);
+  const raw = ` ${glyph} ${tab.title} `;
   const fg = tabStatusFg(tab);
-  if (active) {
-    const rest = raw.slice(1);
-    const shimmery = applyActiveTabShimmer(rest, tab.activatedAt);
-    // Compose the status color into the chip paint rather than wrapping the
-    // shimmer in it: the wave's fg resets would otherwise strip the status color
-    // from every character after the wave, moving that boundary each frame.
-    const chip = fg
-      ? (body: string) => activeRenderTheme.activeTab(fg(body))
-      : activeRenderTheme.activeTab;
-    return withFocusMark(chip, shimmery);
+  const body = active ? applyActiveTabShimmer(raw.slice(1), tab.activatedAt) : raw;
+  // Apply status color after the chip so default-color prefixes survive.
+  const paint = (chip: (label: string) => string): string => {
+    const rendered = active ? withFocusMark(chip, body) : paintTabChip(chip, body);
+    return fg ? rendered.replace(glyph, `${fg(glyph)}${tabChipOpenSeq(chip)}`) : rendered;
+  };
+  if (glyph === "✓") {
+    // Completion must remain visible regardless of recency, without borrowing the focus background.
+    const base = active ? activeRenderTheme.activeTab : activeRenderTheme.recentTab;
+    const completed = (label: string) =>
+      base(activeRenderTheme.bold(activeRenderTheme.doneFg(label)));
+    return paint(completed);
   }
-  const text = fg ? fg(raw) : raw;
+  if (active) return paint(activeRenderTheme.activeTab);
   if (onHome) {
-    if (recentRank === 0) return paintTabChip(activeRenderTheme.recentTab, text);
-    if (recentRank === 1) return paintTabChip(activeRenderTheme.olderRecentTab, text);
-    return paintTabChip(activeRenderTheme.tab, text);
+    if (recentRank === 0) return paint(activeRenderTheme.recentTab);
+    if (recentRank === 1) return paint(activeRenderTheme.olderRecentTab);
+    return paint(activeRenderTheme.tab);
   }
-  if (recentRank === 1) return paintTabChip(activeRenderTheme.recentTab, text);
-  if (recentRank === 2) return paintTabChip(activeRenderTheme.olderRecentTab, text);
-  return paintTabChip(activeRenderTheme.tab, text);
+  if (recentRank === 1) return paint(activeRenderTheme.recentTab);
+  if (recentRank === 2) return paint(activeRenderTheme.olderRecentTab);
+  return paint(activeRenderTheme.tab);
 }
 
 export function tabStatusGlyph(tab: MixCodeTabInfo): string {
@@ -1362,7 +1362,7 @@ export function tabStatusGlyph(tab: MixCodeTabInfo): string {
   if (tab.status === "error") return "x";
   if (tabIsWaitingForInput(tab)) return "?";
   if (tab.status === "running" || tab.status === "thinking") return "●";
-  if (tab.status === "done" || tab.unreadDone) return "!";
+  if (tab.status === "done" || tab.unreadDone) return "✓";
   return "-";
 }
 

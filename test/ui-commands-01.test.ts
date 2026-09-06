@@ -34,8 +34,13 @@ test("theme registry validates and suggests themes", () => {
   assert.ok(ids.includes("claude-warm"));
   assert.ok(ids.includes("tokyo-night"));
   assert.ok(ids.includes("terminal"));
-  assert.match(themeForId("claude-warm").homeTab(" MixCode Home "), /\x1b\[48;2;217;119;87m/);
-  assert.match(themeForId("tokyo-night").homeTab(" MixCode Home "), /\x1b\[48;2;122;162;247m/);
+  for (const themeId of ["claude-warm", "tokyo-night"]) {
+    const theme = themeForId(themeId);
+    assert.equal(
+      theme.homeTab(" MixCode Home "),
+      `${theme.toolPendingBg.start}${theme.accent(" MixCode Home ")}${theme.toolPendingBg.end}`,
+    );
+  }
   assert.equal(themeForId("terminal").surface("plain"), "plain");
   assert.throws(() => setTheme(state, "unknown"), /Unknown theme/);
   // Pi built-in light is a valid theme id after Pi theme alignment.

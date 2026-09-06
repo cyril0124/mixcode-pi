@@ -27,7 +27,7 @@ test("tab bar marks running, error, and done agents", () => {
   );
   assert.match(line, /● Agent-08/);
   assert.match(line, /x Agent-09/);
-  assert.match(line, /! Agent-10/);
+  assert.match(line, /✓ Agent-10/);
   assert.match(line, /- Agent-11/);
 });
 
@@ -46,7 +46,7 @@ test("tab bar treats unreadDone as a done marker", () => {
       120,
     ).join("\n"),
   );
-  assert.match(line, /! Agent-12 /);
+  assert.match(line, /✓ Agent-12 /);
   assert.match(line, /x Agent-13 /);
 });
 

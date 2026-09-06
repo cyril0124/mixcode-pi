@@ -50,7 +50,7 @@ Models and credentials use Pi's standard config: `~/.pi/agent/models.json` (mode
 ## Key features
 
 ### 1. Multi-tab workspaces & session coordination
-Run isolated agent sessions side by side. Switch with `Tab` / `Shift+Tab` or fuzzy jump via `Ctrl+T`; background tabs show live status indicators (`●` running, `!` unread, `x` error). Each tab maintains an independent conversation tree, tool runtime, and working directory. Workspaces persist tab layouts across restarts, while atomic file locks (`open_tabs.json.lock`) coordinate tabs across multiple terminal windows or tmux panes.
+Run isolated agent sessions side by side. Switch with `Tab` / `Shift+Tab` or fuzzy jump via `Ctrl+T`; background tabs show live status indicators (`●` running, `✓` unread, `x` error). Each tab maintains an independent conversation tree, tool runtime, and working directory. Workspaces persist tab layouts across restarts, while atomic file locks (`open_tabs.json.lock`) coordinate tabs across multiple terminal windows or tmux panes.
 
 ### 2. Agent Tab collaboration
 Tabs talk to each other, in the same TUI or another `mpi`, without stealing the keyboard. One tab delegates a review or verification to a peer, waits, and reads the reply. The built-in `mpi-ctl` skill exposes `mpi status` / `mpi ctl` to the agent's bash tool. CLI loop: [Agent Tab Collaboration](#agent-tab-collaboration).

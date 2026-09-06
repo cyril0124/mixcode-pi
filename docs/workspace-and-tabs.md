@@ -7,7 +7,7 @@ MixCode Pi provides native multi-tab agent sessions, cross-instance synchronizat
 ## Design Motivation
 
 - **Parallel Exploration & Execution**: Standard single-session agents force developers to block on long-running compiles, test suites, or heavy refactoring before starting a new conversation. MixCode allows running multiple isolated agent conversations side by side in independent tabs within a single terminal instance.
-- **Recent-Access Decay Hierarchy (`recentTabIds`)**: Visually prioritizes active and recently focused tabs (`recent1`, `recent2`, `inactive`) with tiered styling so users maintain context across dozens of tabs.
+- **Recent Access (`recentAgentTabIds`)**: Tracks agent focus order. See [Tab appearance](#tab-appearance) for the theme-driven visual hierarchy.
 - **State Continuity**: Workspaces persist layout, focus, models, and session linkages across machine restarts.
 
 ## Tab Lifecycle
@@ -22,7 +22,7 @@ Create Tab (/new-session / Ctrl+T)
 
 ### Tab Actions & Real-Time Glyphs
 
-Tabs display live status glyphs: `●` (running/working), `-` (idle/ready), `!` (done/unread), and `x` (error).
+Tabs display live status glyphs: `●` (running/working), `-` (idle/ready), `✓` (done/unread), `?` (waiting for input), and `x` (error).
 
 | Action | Key / Command | Behavior |
 |---|---|---|
@@ -35,6 +35,12 @@ Tabs display live status glyphs: `●` (running/working), `-` (idle/ready), `!` 
 | Tab Jump | `Ctrl+T` / `/jump` | Displays an interactive modal to jump to any open tab. |
 | Tab Cycle | `Tab` / `Shift+Tab` | Cycles tabs when autocomplete is closed. Swallowed in Zen mode (use `Ctrl+T`). |
 | Zen Mode | `/toggle-zen-mode` | Toggles the top tab bar for an uncluttered focus view. |
+
+### Tab appearance
+
+Tab colors use the current theme's existing tokens; tab rendering defines no separate palette. The active tab, including Home, uses `selectedBg` with bold `text`. All inactive tabs use `toolPendingBg`: ordinary titles use `muted`, the two most recent inactive agents use `text`, and Home uses `accent`. On Home, the two most recently visited agents receive the recent styling.
+
+Completed/unread tabs use `✓` and a bold title in the theme's `doneFg` color, independent of recency. They retain the ordinary background unless focused. Focusing a tab clears its completion badge and emphasis; a running, waiting, or error state takes priority over an unread completion. Other status colors apply only to the glyph. The active tab retains its left focus marker and the title's three-second shimmer cycle; the glyph retains its status color during the sweep. The `terminal` theme uses reverse video for selection and terminal-default backgrounds for inactive tabs.
 
 ### Tab titles
 
