@@ -1,13 +1,12 @@
 import * as path from "node:path";
 import type { LocalCommand } from "../core/commands.js";
-import { assertConfiguredOpenTabsReadable, noteTabReplaced } from "../core/open-tabs-store.js";
+import { assertConfiguredOpenTabsReadable } from "../core/open-tabs-store.js";
 import { createPicker } from "../core/pickers.js";
-import { activateTab } from "../core/tabs.js";
 import { pushToast } from "../core/toast.js";
 import { appendActiveSystemMessage, applyWorkdirSelection } from "./app-actions.js";
 import { syncOwnedAppOverlay } from "./app-overlays.js";
 import { HOME_TAB_ID } from "../core/types.js";
-import { type LocalCommandHandler, type MixCodeSubmitRuntime, SKIP_FINALIZE } from "./app-types.js";
+import { type LocalCommandHandler, SKIP_FINALIZE } from "./app-types.js";
 import { openSaveWorkspaceOverlay, openWorkspaceSelector } from "./components/workspace-overlay.js";
 import {
   deleteWorkspaceByName,
@@ -87,50 +86,13 @@ const handleDeleteWorkspace: LocalCommandHandler = async ({
   await deleteWorkspaceByName(state, tui, workspaceFile, name);
 };
 
-const handleImport: LocalCommandHandler = async ({ state, active, args, runtime }) => {
+const handleImport: LocalCommandHandler = async ({ active, args, runtime }) => {
   assertConfiguredOpenTabsReadable();
   const request = parseImportRequest(args);
   const importPath = resolveAgainstWorkdir(active!.workdir, request.path);
-  const oldSessionId = active!.sessionId;
-  const { sessionId: targetSessionId } = await runtime.previewSessionImport(
-    importPath,
-    request.cwdOverride,
-    active!.workdir,
-  );
-  const identityChanged = targetSessionId !== oldSessionId;
-  const publishIdentity = (from: string, to: string) => {
-    noteTabReplaced(from, to);
-    active!.sessionId = to;
-    activateTab(state, to);
-  };
-  const rollbackIdentity = (...originalErrors: [] | [unknown]) => {
-    let publicationFailed = false;
-    let publicationError: unknown;
-    try {
-      noteTabReplaced(targetSessionId, oldSessionId);
-    } catch (rollbackError) {
-      publicationFailed = true;
-      publicationError = rollbackError;
-    }
-    active!.sessionId = oldSessionId;
-    activateTab(state, oldSessionId);
-    if (publicationFailed) {
-      throw new AggregateError(
-        [...originalErrors, publicationError],
-        "Import failed and open_tabs rollback also failed",
-      );
-    }
-  };
-  if (identityChanged) publishIdentity(oldSessionId, targetSessionId);
-  let result: Awaited<ReturnType<MixCodeSubmitRuntime["importFromJsonl"]>>;
-  try {
-    result = await runtime.importFromJsonl(oldSessionId, importPath, request.cwdOverride);
-  } catch (error) {
-    if (identityChanged) rollbackIdentity(error);
-    throw error;
-  }
+  await runtime.previewSessionImport(importPath, request.cwdOverride, active!.workdir);
+  const result = await runtime.importFromJsonl(active!.sessionId, importPath, request.cwdOverride);
   if (result.cancelled) {
-    if (identityChanged) rollbackIdentity();
     pushToast(active!, { type: "warning", message: "Import cancelled." });
   } else {
     pushToast(active!, { type: "success", message: `Imported session: ${importPath}` });

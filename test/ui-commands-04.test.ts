@@ -13,7 +13,8 @@ import {
   readOpenTabs,
   writeOpenTabs,
 } from "./helpers/mixcode.js";
-import type { MixCodeRuntime } from "./helpers/mixcode.js";
+import { MIXCODE_FAUX_MODEL, MixCodeRuntime } from "./helpers/mixcode.js";
+import { bindRuntimeRendering } from "../src/ui/app-runtime.js";
 import { testOverlayHandle, testTui } from "./helpers/tui.js";
 import { testRuntime } from "./helpers/runtime-stub.js";
 import { testRuntimeTab } from "./helpers/runtime-tab.js";
@@ -447,8 +448,8 @@ test("submitted input marks done, exports state, imports sessions, and exits dir
     cancelledFile,
     `${JSON.stringify({ type: "session", version: 3, id: "cancelled", timestamp: "2026-05-10T00:00:00.000Z", cwd: dir })}\n`,
   );
-  const state = createInitialState("/repo");
-  const tab = createTab(1, "s1", "/repo");
+  const state = createInitialState(dir);
+  const tab = createTab(1, "s1", dir);
   state.tabs.push(tab);
   state.activeTabId = "s1";
   writeOpenTabs(openTabsPath, [tab.sessionId]);
@@ -456,7 +457,9 @@ test("submitted input marks done, exports state, imports sessions, and exits dir
   const overlays: string[] = [];
   const lifecycle: string[] = [];
   let stopped = false;
-  let closedAll = 0;
+  let quitSessions = 0;
+  let cancelImport = false;
+  let importBoundary: { active: string; source: string; shared: string[] } | undefined;
   const tui = {
     requestRender: () => renders.push("render"),
     showOverlay: (component: { render: (width: number) => string[] }) => {
@@ -477,28 +480,34 @@ test("submitted input marks done, exports state, imports sessions, and exits dir
       lifecycle.push("resume");
     },
   };
-  const runtime = {
-    appendSystemMessage: (_sessionId: string, _text: string) => undefined,
-    getTab: () => undefined,
-    previewSessionImport: async (path: string) => ({
-      resolvedPath: path,
-      sessionId: path.includes("cancelled") ? "cancelled" : "imported",
-    }),
-    importFromJsonl: async (sessionId: string, path: string, cwdOverride?: string) => {
-      assert.equal(sessionId, "s1");
-      assert.equal(tab.sessionId, "imported");
-      assert.deepEqual(readOpenTabs(openTabsPath), ["imported"]);
-      overlays.push(`import:${path}:${cwdOverride ?? ""}`);
-      return { cancelled: false };
-    },
-    closeTab: async () => undefined,
-    closeAllTabs: async () => {
-      closedAll++;
-    },
-    deleteTab: async () => undefined,
-    deleteAllTabs: async () => undefined,
-    compactSession: async () => undefined,
-  } as unknown as MixCodeRuntime;
+  const runtime = new MixCodeRuntime({
+    sessionsRoot: path.join(dir, "sessions"),
+    agentDir: path.join(dir, "agent"),
+    extensionFactories: [
+      (pi) => {
+        pi.on("session_before_switch", (_event, ctx) => {
+          if (!cancelImport) return;
+          importBoundary = {
+            active: state.activeTabId,
+            source: ctx.sessionManager.getSessionId(),
+            shared: readOpenTabs(openTabsPath),
+          };
+          return { cancel: true };
+        });
+        pi.on("session_shutdown", (event) => {
+          if (event.reason === "quit") quitSessions++;
+        });
+      },
+    ],
+  });
+  // Count command-level repaints separately from asynchronous runtime redraws.
+  const unbind = bindRuntimeRendering(runtime, { requestRender() {} }, state);
+  t.after(async () => {
+    unbind();
+    await runtime.closeAllTabs();
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  });
+  await runtime.createTab(tab, { workdir: dir, systemPrompt: "test", model: MIXCODE_FAUX_MODEL });
 
   await handleSubmittedInput(state, runtime, "/mark-done", tui);
   assert.equal(tab.status, "done");
@@ -508,26 +517,32 @@ test("submitted input marks done, exports state, imports sessions, and exits dir
   // Editor handoff is renderer-only pause/resume; the shutdown stop()/start()
   // path must stay untouched until the /exit below.
   assert.deepEqual(lifecycle, ["pause", "resume"]);
-  await handleSubmittedInput(state, runtime, `/import ${sessionFile} /repo`, tui);
-  assert.equal(overlays.at(-1), `import:${sessionFile}:/repo`);
+  await handleSubmittedInput(state, runtime, `/import ${sessionFile} ${dir}`, tui);
+  assert.equal(
+    runtime.getTab("imported")?.session.getSessionFile(),
+    path.join(dir, "sessions", "session.jsonl"),
+  );
+  assert.equal(runtime.getTab("imported")?.session.getCwd(), dir);
+  assert.equal(runtime.getTab("s1"), undefined);
   assert.equal(tab.toast?.message, `Imported session: ${sessionFile}`);
   assert.equal(await fsPromises.readFile(sessionFile, "utf8"), sessionContents);
-  runtime.importFromJsonl = async (sessionId: string, path: string, cwdOverride?: string) => {
-    assert.equal(sessionId, "imported");
-    assert.equal(tab.sessionId, "cancelled");
-    assert.deepEqual(readOpenTabs(openTabsPath), ["cancelled"]);
-    overlays.push(`cancelled-import:${path}:${cwdOverride ?? ""}`);
-    return { cancelled: true };
-  };
+  cancelImport = true;
   await handleSubmittedInput(state, runtime, `/import ${cancelledFile}`, tui);
-  assert.equal(overlays.at(-1), `cancelled-import:${cancelledFile}:`);
+  assert.deepEqual(importBoundary, {
+    active: "imported",
+    source: "imported",
+    shared: ["imported"],
+  });
+  assert.equal(runtime.getTab("cancelled"), undefined);
+  assert.deepEqual(overlays, []);
   assert.equal(tab.toast?.message, "Import cancelled.");
   assert.equal(tab.sessionId, "imported");
   assert.equal(state.activeTabId, "imported");
   assert.deepEqual(readOpenTabs(openTabsPath), ["imported"]);
   await handleSubmittedInput(state, runtime, "/exit", tui);
   assert.equal(stopped, true);
-  assert.equal(closedAll, 1);
+  assert.equal(quitSessions, 1);
+  assert.equal(runtime.listTabs().length, 0);
   assert.equal(state.quitConfirmOpen, false);
   // 6, not 7: the editor handoff repaints via resume()'s renderNow, no longer
   // through an extra requestRender(true).

@@ -13,7 +13,6 @@ import {
   assertConfiguredOpenTabsReadable,
   noteTabClosed,
   noteTabOpened,
-  noteTabReplaced,
 } from "../core/open-tabs-store.js";
 import { invalidateSessionCatalog } from "../core/session-catalog.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
@@ -136,14 +135,13 @@ export async function openSessionSelector(
       return pending;
     },
     (sessionPath) => {
-      const nameAndId = readSessionNameAndId(sessionPath);
+      const sessionName = readSessionName(sessionPath);
       close();
       resumeSelectedSession(
         state,
         tui,
         sessionPath,
-        nameAndId.name,
-        nameAndId.id,
+        sessionName,
         currentSessionPath,
         runtime as unknown as MixCodeKeyRuntime,
         onStateChanged,
@@ -249,15 +247,11 @@ export async function renameOpenSession(
   invalidateSessionCatalog(path.dirname(sessionFilePath));
 }
 
-function readSessionNameAndId(sessionPath: string): { name?: string; id?: string } {
+function readSessionName(sessionPath: string): string | undefined {
   try {
-    const mgr = SessionManager.open(sessionPath);
-    return {
-      id: mgr.getSessionId(),
-      name: mgr.getSessionName(),
-    };
+    return SessionManager.open(sessionPath).getSessionName();
   } catch {
-    return {};
+    return undefined;
   }
 }
 
@@ -304,8 +298,6 @@ export function resumeSelectedSession(
   tui: OverlayTui,
   sessionPath: string,
   sessionName: string | undefined,
-  /** Durable session id from SessionManager (filename embed). */
-  targetSessionId: string | undefined,
   /** Active session file when the selector opened (blocks self-resume). */
   currentSessionPath: string | null,
   runtime?: MixCodeKeyRuntime,
@@ -365,8 +357,6 @@ export function resumeSelectedSession(
   activateTab(state, ephemeralSessionId);
   void (async () => {
     let runtimeTabCreated = false;
-    let identityPublished = false;
-    const durableId = targetSessionId?.trim() || undefined;
     try {
       await runtimeRef.createTab(newTab, {
         systemPrompt: MIXCODE_SYSTEM_PROMPT,
@@ -374,22 +364,12 @@ export function resumeSelectedSession(
         workdir: newTab.workdir,
       });
       runtimeTabCreated = true;
-      if (durableId && durableId !== ephemeralSessionId) {
-        noteTabReplaced(ephemeralSessionId, durableId);
-        newTab.sessionId = durableId;
-        activateTab(state, durableId);
-        identityPublished = true;
-      }
       newTab.loadingPhase = "transcript";
       const result = await runtimeRef.extensionSwitchSession(ephemeralSessionId, sessionPath);
       if (result.cancelled) {
         await runtimeRef.closeTab(ephemeralSessionId);
-        noteTabClosed(identityPublished && durableId ? durableId : ephemeralSessionId);
-        discardResumeTabState(
-          state,
-          identityPublished && durableId ? durableId : ephemeralSessionId,
-          previousActiveTabId,
-        );
+        noteTabClosed(ephemeralSessionId);
+        discardResumeTabState(state, ephemeralSessionId, previousActiveTabId);
         const tab = getActiveTab(state);
         if (tab) pushToast(tab, { type: "info", message: "Resume cancelled" });
         await onStateChanged?.(state);
@@ -401,9 +381,6 @@ export function resumeSelectedSession(
         runtimeRef.getTab(newTab.sessionId)?.session.getSessionName?.() ?? sessionName;
       if (resumedName) newTab.title = resumedName;
       newTab.status = "idle";
-      if (!identityPublished) {
-        noteTabReplaced(ephemeralSessionId, newTab.sessionId);
-      }
       await onStateChanged?.(state);
       tui.requestRender();
     } catch (error: unknown) {
@@ -412,7 +389,7 @@ export function resumeSelectedSession(
           runtimeRef.getTab(newTab.sessionId) !== undefined ? newTab.sessionId : ephemeralSessionId;
         await runtimeRef.closeTab(runtimeKey);
       }
-      noteTabClosed(identityPublished && durableId ? durableId : ephemeralSessionId);
+      noteTabClosed(newTab.sessionId);
       discardResumeTabState(state, newTab.sessionId, previousActiveTabId);
       showErrorOverlay(tui, error);
       tui.requestRender();

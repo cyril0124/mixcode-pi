@@ -41,6 +41,16 @@ export class RuntimeSyncManager {
     // reply; materialize regardless of whether content-sync is enabled so
     // openExistingAgentTab can find the file from another instance.
     materializeSessionFile(runtimeTab.session);
+    this.track(runtimeTab);
+  }
+
+  /** Retarget a committed replacement whose session file is already materialized. */
+  replace(previousSessionId: string, runtimeTab: RuntimeTab): void {
+    this.unregister(previousSessionId);
+    this.track(runtimeTab);
+  }
+
+  private track(runtimeTab: RuntimeTab): void {
     const file = runtimeTab.session.getSessionFile();
     if (file) this.coordinator?.register(runtimeTab.tab.sessionId, file);
   }
