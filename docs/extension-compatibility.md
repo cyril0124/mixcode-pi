@@ -139,6 +139,21 @@ When `ctx.switchSession()`, session-selector resume, or `/import` targets a diff
 
 Session replacement updates tab identity before `withSession`; subsequent prompts target that session. See [Session replacement](workspace-and-tabs.md#session-replacement) for publication, focus, cancellation, and failure behavior.
 
+### New-session initialization
+
+`ctx.newSession({ setup, withSession })` checks `session_before_switch` first.
+Cancellation preserves the current session and skips both callbacks.
+
+After the old session shuts down, MixCode creates its replacement and awaits
+`setup(newSessionManager)` under the per-tab replacement lock. It synchronizes
+message history before emitting `session_start` with reason `new`, then calls
+`withSession` with the new context. Both handlers can read the setup entries and
+messages.
+
+If setup rejects, the error reaches the caller; `session_start` and `withSession`
+do not run. The old session remains shut down. Setup is optional and applies only
+to new sessions, not fork or resume.
+
 ### Active tools
 
 MixCode initializes host-owned tools from `defaultTools` or Pi's defaults before

@@ -239,6 +239,187 @@ test("runtime wires extension command session actions into MixCode sessions", as
   }
 });
 
+test("newSession startup and replacement callback see completed asynchronous setup", async () => {
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-new-setup-order-"));
+  const events: string[] = [];
+  const observed: Array<{ phase: string; menu: unknown; parent: string | undefined }> = [];
+  const extension: ExtensionFactory = (pi) => {
+    pi.on("session_shutdown", (event) => {
+      if (event.reason === "new") events.push("shutdown");
+    });
+    pi.on("session_start", (event, ctx) => {
+      if (event.reason !== "new") return;
+      events.push("start");
+      const menu = ctx.sessionManager
+        .getEntries()
+        .find((entry) => entry.type === "custom" && entry.customType === "setup-menu");
+      observed.push({
+        phase: "start",
+        menu: menu?.type === "custom" ? menu.data : undefined,
+        parent: ctx.sessionManager.getHeader()?.parentSession,
+      });
+    });
+    pi.registerCommand("setup-session", {
+      handler: async (_args, ctx) => {
+        await ctx.newSession({
+          parentSession: "setup-parent.jsonl",
+          setup: async (session) => {
+            events.push("setup-start");
+            await fsPromises.writeFile(path.join(dir, "menu.txt"), "noodles");
+            const dish = await fsPromises.readFile(path.join(dir, "menu.txt"), "utf8");
+            session.appendCustomEntry("setup-menu", { dish });
+            session.appendMessage({
+              role: "user",
+              content: "prepared context",
+              timestamp: Date.now(),
+            });
+            events.push("setup-end");
+          },
+          withSession: async (fresh) => {
+            events.push("withSession");
+            const menu = fresh.sessionManager
+              .getEntries()
+              .find((entry) => entry.type === "custom" && entry.customType === "setup-menu");
+            observed.push({
+              phase: "withSession",
+              menu: menu?.type === "custom" ? menu.data : undefined,
+              parent: fresh.sessionManager.getHeader()?.parentSession,
+            });
+            await fresh.sendMessage({
+              customType: "setup-done",
+              content: "callback delivered",
+              display: true,
+            });
+          },
+        });
+      },
+    });
+  };
+  const runtime = new MixCodeRuntime({
+    sessionsRoot: path.join(dir, "sessions"),
+    agentDir: path.join(dir, "agent"),
+    extensionFactories: [extension],
+  });
+  try {
+    await runtime.createTab(createTab(1, "source", dir), {
+      workdir: dir,
+      systemPrompt: "setup test",
+      model: MIXCODE_FAUX_MODEL,
+    });
+    await runtime.prompt("source", "/setup-session");
+    assert.deepEqual(events, ["shutdown", "setup-start", "setup-end", "start", "withSession"]);
+    assert.deepEqual(observed, [
+      { phase: "start", menu: { dish: "noodles" }, parent: "setup-parent.jsonl" },
+      { phase: "withSession", menu: { dish: "noodles" }, parent: "setup-parent.jsonl" },
+    ]);
+    const replacement = runtime.listTabs()[0]!;
+    assert.ok(
+      replacement.agentSession.messages.some(
+        (message) => message.role === "user" && message.content === "prepared context",
+      ),
+    );
+    assert.ok(
+      replacement.chat.some((line) => line.role === "user" && line.text === "prepared context"),
+    );
+    assert.ok(
+      replacement.chat.some(
+        (line) => line.role === "extension" && line.text === "callback delivered",
+      ),
+    );
+  } finally {
+    await runtime.closeAllTabs();
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("cancelled newSession skips setup and withSession without changing the source", async () => {
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-new-setup-cancel-"));
+  const events: string[] = [];
+  const runtime = new MixCodeRuntime({
+    sessionsRoot: path.join(dir, "sessions"),
+    agentDir: path.join(dir, "agent"),
+    extensionFactories: [
+      (pi) => {
+        pi.on("session_before_switch", () => ({ cancel: true }));
+        pi.on("session_shutdown", () => {
+          events.push("shutdown");
+        });
+        pi.on("session_start", (event) => {
+          if (event.reason === "new") events.push("start");
+        });
+      },
+    ],
+  });
+  try {
+    const source = await runtime.createTab(createTab(1, "source", dir), {
+      workdir: dir,
+      systemPrompt: "setup test",
+      model: MIXCODE_FAUX_MODEL,
+    });
+    source.session.appendCustomEntry("source-state", { keep: true });
+    const before = source.session.getEntries();
+    assert.deepEqual(
+      await runtime.extensionNewSession("source", {
+        setup: async () => {
+          events.push("setup");
+        },
+        withSession: async () => {
+          events.push("withSession");
+        },
+      }),
+      { cancelled: true },
+    );
+    assert.deepEqual(events, []);
+    assert.equal(runtime.getTab("source"), source);
+    assert.deepEqual(source.session.getEntries(), before);
+  } finally {
+    await runtime.closeAllTabs();
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("newSession setup failure propagates before startup or replacement callback", async () => {
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-new-setup-error-"));
+  const events: string[] = [];
+  const runtime = new MixCodeRuntime({
+    sessionsRoot: path.join(dir, "sessions"),
+    agentDir: path.join(dir, "agent"),
+    extensionFactories: [
+      (pi) => {
+        pi.on("session_shutdown", (event) => {
+          if (event.reason === "new") events.push("shutdown");
+        });
+        pi.on("session_start", (event) => {
+          if (event.reason === "new") events.push("start");
+        });
+      },
+    ],
+  });
+  try {
+    await runtime.createTab(createTab(1, "source", dir), {
+      workdir: dir,
+      systemPrompt: "setup test",
+      model: MIXCODE_FAUX_MODEL,
+    });
+    await assert.rejects(
+      runtime.extensionNewSession("source", {
+        setup: async () => {
+          events.push("setup");
+          await fsPromises.readFile(path.join(dir, "missing-menu.json"), "utf8");
+        },
+        withSession: async () => {
+          events.push("withSession");
+        },
+      }),
+      { code: "ENOENT" },
+    );
+    assert.deepEqual(events, ["shutdown", "setup"]);
+  } finally {
+    await runtime.closeAllTabs();
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("runtime extension newSession works without optional parent setup or callback", async () => {
   const dir = await fsPromises.mkdtemp(
     path.join(os.tmpdir(), "mixcode-runtime-extension-new-plain-"),

@@ -139,6 +139,19 @@ AGENTS / project context / system prompt 走 Pi resource loader 链路，不再�
 
 会话替换在 `withSession` 之前更新 Tab 身份，后续消息提交到该会话。发布、焦点、取消和失败行为见[会话替换](workspace-and-tabs.zh.md#会话替换)。
 
+### 新会话初始化
+
+`ctx.newSession({ setup, withSession })` 首先检查 `session_before_switch`。
+取消时保留当前会话，不执行两个回调。
+
+旧会话关闭后，MixCode 创建新会话，在当前标签的替换锁内等待
+`setup(newSessionManager)` 完成。同步消息历史后，触发 reason 为 `new` 的
+`session_start`，再用新上下文调用 `withSession`。
+两个处理器都能读取 setup 写入的条目与消息。
+
+setup 拒绝时，错误传给调用者，不执行 `session_start` 和 `withSession`；
+旧会话保持关闭。setup 可省略，仅用于新会话，不用于 fork 或 resume。
+
 ### 活动工具
 
 MixCode 在 `session_start` 之前按 `defaultTools` 或 Pi 默认值初始化宿主工具。

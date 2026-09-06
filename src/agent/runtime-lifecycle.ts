@@ -66,6 +66,7 @@ import {
 } from "./runtime-session.js";
 import type {
   ExtensionCustomUiHost,
+  ExtensionNewSessionOptions,
   MixCodeStreamFn,
   RuntimeEvent,
   RuntimeTab,
@@ -381,11 +382,16 @@ function mapKeyForRuntimeTab(tabs: Map<string, RuntimeTab>, runtimeTab: RuntimeT
   return runtimeTab.tab.sessionId;
 }
 
+/**
+ * Serialize replacement within a tab. Optional setup runs on the new session after
+ * outgoing shutdown, before extension startup; rejection skips startup and propagates.
+ */
 export async function replaceRuntimeTabSession(
   runtimeTab: RuntimeTab,
   sessionManager: SessionManager,
   reason: SessionReplacementReason,
   context: RuntimeLifecycleContext,
+  setup?: NonNullable<ExtensionNewSessionOptions>["setup"],
 ): Promise<RuntimeTab> {
   // Serialize per tab: concurrent resume/new/fork must not dispose a session that
   // another replace has installed but not yet bound (stale ctx in session_start).
@@ -394,7 +400,13 @@ export async function replaceRuntimeTabSession(
   runtimeTab.replaceLock = replaceLock;
   await previousLock.catch(() => undefined);
   try {
-    return await replaceRuntimeTabSessionUnlocked(runtimeTab, sessionManager, reason, context);
+    return await replaceRuntimeTabSessionUnlocked(
+      runtimeTab,
+      sessionManager,
+      reason,
+      context,
+      setup,
+    );
   } finally {
     releaseLock();
   }
@@ -405,6 +417,7 @@ async function replaceRuntimeTabSessionUnlocked(
   sessionManager: SessionManager,
   reason: SessionReplacementReason,
   context: RuntimeLifecycleContext,
+  setup?: NonNullable<ExtensionNewSessionOptions>["setup"],
 ): Promise<RuntimeTab> {
   if (runtimeTab.agentSession.isStreaming) {
     throw new Error(`Cannot replace a session while the agent is streaming: ${reason}`);
@@ -453,6 +466,12 @@ async function replaceRuntimeTabSessionUnlocked(
     services: created.services,
   });
   runtimeTab.session = sessionManager;
+  if (setup) {
+    // Pi newSession awaits setup before rebind emits session_start. Both the
+    // extension context and the next model request must see the seeded history.
+    await setup(sessionManager);
+    created.session.agent.state.messages = sessionManager.buildSessionContext().messages;
+  }
   runtimeTab.queuedPromptCount = 0;
   runtimeTab.queuedFollowUpCount = 0;
   runtimeTab.streamingAssistant = undefined;

@@ -33,6 +33,7 @@ export interface RuntimeExtensionSessionContext {
     runtimeTab: RuntimeTab,
     sessionManager: SessionManager,
     reason: "new" | "resume" | "fork",
+    setup?: NonNullable<ExtensionNewSessionOptions>["setup"],
   ) => Promise<RuntimeTab>;
   syncChatFromSession: (runtimeTab: RuntimeTab) => Promise<void>;
   emitChange: (event: RuntimeEvent, runtimeTab: RuntimeTab) => void;
@@ -40,6 +41,10 @@ export interface RuntimeExtensionSessionContext {
   setLiveEditorText: (text: string) => void;
 }
 
+/**
+ * Cancel before replacement; otherwise await setup before startup and withSession.
+ * Setup failures propagate without running the replacement startup or callback.
+ */
 export async function extensionNewRuntimeSession(
   sessionId: string,
   options: ExtensionNewSessionOptions | undefined,
@@ -55,12 +60,12 @@ export async function extensionNewRuntimeSession(
   if (options?.parentSession) {
     sessionManager.newSession({ parentSession: options.parentSession });
   }
-  const result = await context.replaceRuntimeTabSession(runtimeTab, sessionManager, "new");
-  if (options?.setup) {
-    await options.setup(result.session);
-    result.agentSession.agent.state.messages = result.session.buildSessionContext().messages;
-    await context.syncChatFromSession(result);
-  }
+  const result = await context.replaceRuntimeTabSession(
+    runtimeTab,
+    sessionManager,
+    "new",
+    options?.setup,
+  );
   await options?.withSession?.(result.agentSession.createReplacedSessionContext());
   return { cancelled: false };
 }

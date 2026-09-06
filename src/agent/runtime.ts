@@ -233,8 +233,8 @@ export class MixCodeRuntime {
       requireTab: (sessionId) => this.requireTab(sessionId),
       createSession: (cwd, sessionId, parentSession) =>
         this.createSession(cwd, sessionId, parentSession),
-      replaceRuntimeTabSession: (runtimeTab, sessionManager, reason) =>
-        this.replaceRuntimeTabSession(runtimeTab, sessionManager, reason),
+      replaceRuntimeTabSession: (runtimeTab, sessionManager, reason, setup) =>
+        this.replaceRuntimeTabSession(runtimeTab, sessionManager, reason, setup),
       syncChatFromSession: (runtimeTab) => syncRuntimeChatFromSession(runtimeTab),
       emitChange: (event, runtimeTab) => this.emitChange(event, runtimeTab),
       extensionUiHost: () => this.extensionUiHost,
@@ -1532,8 +1532,15 @@ export class MixCodeRuntime {
     runtimeTab: RuntimeTab,
     sessionManager: SessionManager,
     reason: SessionReplacementReason,
+    setup?: NonNullable<ExtensionNewSessionOptions>["setup"],
   ): Promise<RuntimeTab> {
-    return replaceRuntimeTabSession(runtimeTab, sessionManager, reason, this.lifecycleContext());
+    return replaceRuntimeTabSession(
+      runtimeTab,
+      sessionManager,
+      reason,
+      this.lifecycleContext(),
+      setup,
+    );
   }
 
   /**
