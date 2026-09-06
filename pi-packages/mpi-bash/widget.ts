@@ -214,6 +214,8 @@ export interface FinishedRun extends DetachedStart {
   exitCode: number | null;
   timedOut: boolean;
   endedAt: number;
+  /** Process ended, but the log can still grow until its stream closes. */
+  logPending: boolean;
 }
 
 export function hasEnded(run: DetachedStart | FinishedRun): run is FinishedRun {
@@ -249,21 +251,22 @@ export function formatRunChoice(run: DetachedStart | FinishedRun, now = Date.now
 }
 
 /**
- * Last `limit` bytes of a log, with nothing added.
+ * Read up to the last `limit` bytes of a log. `size` and `mtimeMs` come from
+ * the stat snapshot taken before the read.
  *
  * Throws the underlying fs error (e.g. ENOENT for a log the user deleted).
  */
 export async function readLogTail(
   logPath: string,
   limit: number,
-): Promise<{ text: string; bytes: number; size: number }> {
+): Promise<{ text: string; bytes: number; size: number; mtimeMs: number }> {
   const handle = await fs.promises.open(logPath, "r");
   try {
-    const { size } = await handle.stat();
+    const { size, mtimeMs } = await handle.stat();
     const length = Math.min(size, limit);
     const buffer = Buffer.alloc(length);
     await handle.read(buffer, 0, length, size - length);
-    return { text: buffer.toString("utf8"), bytes: length, size };
+    return { text: buffer.toString("utf8"), bytes: length, size, mtimeMs };
   } finally {
     await handle.close();
   }
@@ -350,10 +353,17 @@ export class BackgroundStatus {
       exitCode: run.exitCode,
       timedOut: run.timedOut,
       endedAt: Date.now(),
+      logPending: true,
     });
     // Bounded so a long session cannot grow the history without limit.
     if (this.history.length > HISTORY_LIMIT) this.history.shift();
     this.render();
+  }
+
+  /** Stop log following after flush, without reviving an evicted or closed job. */
+  completeLog(logPath: string): void {
+    const run = this.history.find((run) => run.logPath === logPath);
+    if (run) run.logPending = false;
   }
 
   /** Runs still executing, oldest first. */

@@ -155,6 +155,7 @@ test("/bash-logs lists this session's runs and opens the selected log", async ()
     );
     fs.rmSync(logPath, { force: true });
   } finally {
+    await handlers.session_shutdown?.[0]?.({}, {});
     if (previousWindow === undefined) delete process.env.MPI_BASH_FOREGROUND_SECONDS;
     else process.env.MPI_BASH_FOREGROUND_SECONDS = previousWindow;
   }
@@ -255,6 +256,7 @@ test("the pager follows a live log and leaves a finished one alone", async () =>
 
     fs.rmSync(logPath, { force: true });
   } finally {
+    await handlers.session_shutdown?.[0]?.({}, {});
     if (previousWindow === undefined) delete process.env.MPI_BASH_FOREGROUND_SECONDS;
     else process.env.MPI_BASH_FOREGROUND_SECONDS = previousWindow;
   }
@@ -342,6 +344,7 @@ test("/bash-logs rows line up in columns and stay unique per run", () => {
       exitCode: 0,
       timedOut: false,
       endedAt: now - 1_000,
+      logPending: false,
     }),
     formatRunChoice({
       id: 333,
@@ -351,6 +354,7 @@ test("/bash-logs rows line up in columns and stay unique per run", () => {
       exitCode: 137,
       timedOut: true,
       endedAt: now,
+      logPending: false,
     }),
   ];
 
@@ -548,6 +552,54 @@ test("completion marks only output that exceeds the tail limit as truncated", as
 
   fs.rmSync(exact.logPath, { force: true });
   fs.rmSync(overflow.logPath, { force: true });
+});
+
+test("completion delivery exposes the entire flushed background log", async () => {
+  const bytes = 32 * 1024 * 1024;
+  const command = `sleep 0.4; node -e 'process.stdout.write(Buffer.alloc(${bytes}, 120)); process.stdout.write("\\nLOG-END\\n")'`;
+  const completed = Promise.withResolvers<{ run: DetachedRun; snapshot: Buffer }>();
+  await operations(0.1, (run) => {
+    // Snapshot at onDetachedExit, after the log stream has flushed.
+    completed.resolve({ run, snapshot: fs.readFileSync(run.logPath) });
+  }).exec(command, process.cwd(), { onData: () => {}, env: process.env, timeout: 30 });
+  const { run, snapshot } = await completed.promise;
+  try {
+    const header = `# Command: ${command}\n# ---\n`;
+    assert.equal(run.exitCode, 0);
+    assert.equal(snapshot.length, Buffer.byteLength(header) + bytes + 9);
+    assert.equal(snapshot.subarray(-9).toString("utf8"), "\nLOG-END\n");
+  } finally {
+    fs.rmSync(run.logPath, { force: true });
+  }
+});
+
+test("an asynchronous log open failure is reported with the command result", async () => {
+  const completed = Promise.withResolvers<DetachedRun>();
+  let logPath = "";
+  await createDetachingBashOperations({
+    shellPath: undefined,
+    foregroundSeconds: 0.05,
+    onDetached: (run) => {
+      logPath = run.logPath;
+      // Replace the path before the stream's asynchronous open to trigger EISDIR.
+      fs.rmSync(logPath);
+      fs.mkdirSync(logPath);
+    },
+    onDetachedExit: (run) => completed.resolve(run),
+  }).exec("sleep 0.3; printf 'payload\\n'", process.cwd(), {
+    onData: () => {},
+    env: process.env,
+    timeout: 10,
+  });
+  try {
+    const run = await completed.promise;
+    assert.equal(run.exitCode, 0);
+    assert.match(run.logError ?? "", /EISDIR/);
+    assert.match(formatCompletionNotice(run), /<log_error>/);
+    assert.match(run.tail, /payload/);
+  } finally {
+    fs.rmSync(logPath, { recursive: true, force: true });
+  }
 });
 
 test("a command finishing inside the window streams output and reports its exit code", async () => {
@@ -862,6 +914,7 @@ test("the registered bash tool detaches, shows the widget, and reports by starti
     );
     fs.rmSync(logPath, { force: true });
   } finally {
+    await handlers.session_shutdown?.[0]?.({}, {});
     if (previousWindow === undefined) delete process.env.MPI_BASH_FOREGROUND_SECONDS;
     else process.env.MPI_BASH_FOREGROUND_SECONDS = previousWindow;
   }

@@ -25,7 +25,12 @@ async function notice(
   runs: Parameters<StallMonitor["check"]>[0],
   now: number,
 ): Promise<string> {
-  return (await monitor.check(runs, now))?.content ?? "";
+  const report = await monitor.check(runs, now);
+  report?.markDelivered(
+    report.jobs.map((job) => job.id),
+    now,
+  );
+  return report?.content ?? "";
 }
 
 const MINUTE = 60_000;
@@ -118,6 +123,62 @@ test("silence is reported once, then at doubling intervals", async () => {
   write("acquired\n", resumed);
   assert.equal(await notice(monitor, [run], resumed + 30_000), "");
   assert.match(await notice(monitor, [run], resumed + 61_000), /<silence>1m01s<\/silence>/);
+});
+
+test("an undelivered reminder stays due and delivery alone advances backoff", async () => {
+  const start = Date.now();
+  const { run } = makeRun(start, "waiting\n");
+  const monitor = new StallMonitor(6000);
+  try {
+    const first = await monitor.check([run], start + 7000);
+    assert.match(first?.content ?? "", /waiting/);
+    const retry = await monitor.check([run], start + 8000);
+    assert.match(retry?.content ?? "", /waiting/, "a deferred report must remain due");
+    retry!.markDelivered([run.id], start + 8000);
+    assert.equal(await monitor.check([run], start + 19000), undefined);
+    assert.match((await monitor.check([run], start + 20000))?.content ?? "", /waiting/);
+  } finally {
+    fs.rmSync(path.dirname(run.logPath), { recursive: true, force: true });
+  }
+});
+
+test("only delivered jobs advance their reminder intervals", async () => {
+  const start = Date.now();
+  const first = makeRun(start, "first\n").run;
+  const second = { ...makeRun(start, "second\n").run, id: first.id + 1 };
+  const monitor = new StallMonitor(6000);
+  try {
+    const report = await monitor.check([first, second], start + 7000);
+    assert.deepEqual(
+      report?.jobs.map((job) => job.id),
+      [first.id, second.id],
+    );
+    report!.markDelivered([first.id], start + 7000);
+    const next = await monitor.check([first, second], start + 8000);
+    assert.deepEqual(
+      next?.jobs.map((job) => job.id),
+      [second.id],
+    );
+  } finally {
+    for (const run of [first, second])
+      fs.rmSync(path.dirname(run.logPath), { recursive: true, force: true });
+  }
+});
+
+test("fresh output invalidates an old undelivered reminder", async () => {
+  const start = Date.now();
+  const { run, write } = makeRun(start, "waiting\n");
+  const monitor = new StallMonitor(6000);
+  try {
+    const old = await monitor.check([run], start + 7000);
+    assert.match(old?.content ?? "", /waiting/);
+    write("resumed\n", start + 8000);
+    assert.equal(await monitor.check([run], start + 9000), undefined);
+    old!.markDelivered([run.id], start + 9000);
+    assert.match((await monitor.check([run], start + 14000))?.content ?? "", /resumed/);
+  } finally {
+    fs.rmSync(path.dirname(run.logPath), { recursive: true, force: true });
+  }
 });
 
 test("the silence window is env-configurable and fails loudly", () => {

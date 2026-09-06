@@ -2,6 +2,7 @@ import { type ChildProcess, spawn } from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { finished } from "node:stream/promises";
 import { type BashOperations, getShellConfig } from "@earendil-works/pi-coding-agent";
 
 /**
@@ -318,12 +319,15 @@ export interface DetachedStart {
  * `onData`, throw `aborted` when the abort signal fires, throw `timeout:<secs>`
  * when the command is killed by its timeout, otherwise resolve with the exit
  * code. Detaching resolves with exit code 0 after appending a handle notice, so
- * the turn continues while the command keeps running.
+ * the turn continues while the command keeps running. onDetachedProcessExit
+ * runs after exit/stdio drain, before log flush; onDetachedExit runs only after
+ * the log finishes or fails. elapsedMs excludes log flush time.
  */
 export function createDetachingBashOperations(options: {
   shellPath: string | undefined;
   foregroundSeconds: number;
   onDetached?: (start: DetachedStart) => void;
+  onDetachedProcessExit?: (run: DetachedRun) => void;
   onDetachedExit: (run: DetachedRun) => void;
 }): BashOperations {
   installExitHook();
@@ -494,9 +498,8 @@ export function createDetachingBashOperations(options: {
       const runId = child.pid ?? Date.now();
       options.onDetached?.({ id: runId, command, startedAt, logPath });
 
-      const reportExit = (exitCode: number | null) => {
-        logStream?.end();
-        options.onDetachedExit({
+      const reportExit = async (exitCode: number | null) => {
+        const run: DetachedRun = {
           id: runId,
           command,
           exitCode,
@@ -508,7 +511,21 @@ export function createDetachingBashOperations(options: {
           lineCount: lineCount + (danglingLine ? 1 : 0),
           startedAt,
           elapsedMs: Date.now() - startedAt,
-        });
+        };
+        // The pid may be reused while log writes are still pending.
+        options.onDetachedProcessExit?.(run);
+        const stream = logStream;
+        if (stream) {
+          const flushed = finished(stream, { cleanup: true });
+          stream.end();
+          try {
+            await flushed;
+          } catch (error) {
+            // Include stream errors in the completion notice.
+            logError = (error as Error).message;
+          }
+        }
+        options.onDetachedExit({ ...run, logError });
       };
       // Both settlements must report: a rejected wait (stdio failure after
       // detach) still ends the run, and dropping it would strand the status

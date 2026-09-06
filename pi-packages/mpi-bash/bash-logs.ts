@@ -44,6 +44,7 @@ export class BashLogs implements Component {
   private listOffset = 0;
   private log: LogView | undefined;
   private logKillable = false;
+  private logPending = false;
   private stamp = "";
   private inflight: Promise<void> = Promise.resolve();
   private gen = 0;
@@ -208,6 +209,7 @@ export class BashLogs implements Component {
   private attachLog(run: DetachedStart | FinishedRun, text: string): void {
     this.stamp = "";
     this.logKillable = !hasEnded(run);
+    this.logPending = !hasEnded(run) || run.logPending;
     this.log = new LogView(
       this.opts.theme,
       run.logPath,
@@ -252,9 +254,17 @@ export class BashLogs implements Component {
       if (this.logKillable) {
         this.attachLog(run, "");
         this.queueLoad(run);
+        this.opts.requestRender();
+        return;
       }
-      this.opts.requestRender();
-      return;
+      if (!run.logPending) {
+        if (this.logPending) {
+          this.logPending = false;
+          this.queueLoad(run);
+        }
+        this.opts.requestRender();
+        return;
+      }
     }
     let result: { text: string; stamp: string } | undefined;
     try {

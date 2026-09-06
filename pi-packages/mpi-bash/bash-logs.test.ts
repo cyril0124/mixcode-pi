@@ -29,6 +29,7 @@ function finished(id: number, command: string, logPath: string): FinishedRun {
     exitCode: 1,
     timedOut: false,
     endedAt: startedAt + 3_000,
+    logPending: false,
   };
 }
 
@@ -61,6 +62,44 @@ function overlay(
     lines: () => view.render(80),
   };
 }
+
+test("an exited job stays read-only while its log finishes streaming", async () => {
+  const logPath = writeLog(`mpi-bash-overlay-${process.pid}-flush.log`, "first\n");
+  const run = { ...finished(31, "flushing-job", logPath), logPending: true };
+  let kills = 0;
+  const view = new BashLogs({
+    theme,
+    list: () => [run],
+    requestRender: () => {},
+    done: () => {},
+    openExternal: () => {},
+    kill: () => {
+      kills++;
+    },
+    initialText: "first\n",
+    followMs: 20,
+  });
+  const screen = () => view.render(80).join("\n");
+  try {
+    view.handleInput("x");
+    view.handleInput("y");
+    assert.equal(kills, 0);
+    assert.doesNotMatch(screen(), /x kill/);
+    fs.appendFileSync(logPath, "still flushing\n");
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    assert.match(screen(), /still flushing/);
+    fs.appendFileSync(logPath, "final output\n");
+    run.logPending = false;
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    assert.match(screen(), /final output/);
+    fs.appendFileSync(logPath, "after completion\n");
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    assert.doesNotMatch(screen(), /after completion/);
+  } finally {
+    view.close();
+    fs.rmSync(logPath, { force: true });
+  }
+});
 
 test("the overlay shows the job list and the selected log together", () => {
   const logPath = writeLog(`mpi-bash-overlay-${process.pid}-a.log`, "early\nlate\n");

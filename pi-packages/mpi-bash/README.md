@@ -4,7 +4,7 @@
 
 Bash execution policy: a default timeout, a foreground window, automatic detach to the background, an automatic completion notice, and `/bash-logs` for reading a background command's full log.
 
-The extension registers its own `bash` tool definition, built from Pi's `createBashToolDefinition` with custom `BashOperations`. Tool arguments, rendering, output truncation, `commandPrefix`, `shellPath`, and MixCode's per-spawn tab environment stay as Pi left them. Only command execution changes.
+The extension registers `bash` through Pi's `createBashToolDefinition` with custom `BashOperations`. It uses Pi's tool parameters, rendering, and output truncation, honors `commandPrefix` and `shellPath`, and passes MixCode's per-spawn tab environment.
 
 ## Behavior
 
@@ -14,7 +14,7 @@ The extension registers its own `bash` tool definition, built from Pi's `createB
 | Command ends first | The tool result carries its output and exit code, matching Pi's builtin bash. |
 | Window expires | The command keeps running in the background. The tool result gains a handle (pid + log path) and succeeds, so the turn continues. |
 | Background command writes nothing | After 60s of log silence a `bash-detached-stall` message asks the model to check on the job; see [Stall reminders](#stall-reminders). |
-| Background command ends | A `bash-detached-exit` message with the exit code and the last output is appended to the session and **starts a new turn**. |
+| Background command ends | After the log stream finishes or fails, a `bash-detached-exit` message carries the exit code and last output. It uses `steer` while the model is busy and starts a turn when idle. |
 | `timeout` reached | The command's process group is killed, in the foreground (Pi's `Command timed out after N seconds` error) or in the background (reported in the completion notice). |
 
 `timeout` bounds the command's total life, foreground plus background. When the model passes a `timeout` shorter than the foreground window, the command is killed before it can ever detach.
@@ -104,16 +104,18 @@ An unknown exit also uses `outcome="failure"`. The formatter omits `<exit_code>`
 
 ## Stall reminders
 
-Between the detach notice and the exit notice the model hears nothing, so nothing surfaces a hung command until its timeout kills it. Reminders track silence, not age. A build that streams output for ten minutes is healthy and costs no turn; a log that stopped growing is what gets reported.
+Stall reminders report background commands whose logs have stopped changing. Total runtime does not determine whether a reminder is due.
 
-A running job's log is stat'ed every quarter of the silence window, at most every 15s. Silence runs from the log's mtime, and each reminder doubles the wait for the next one, so a job hung for hours produces a handful of reminders instead of one a minute:
+The check interval is one quarter of the silence window, clamped to 500ms-15s. Logs are checked only while the session is idle. While busy, timer ticks set a single pending check. Pi's `agent_settled` event runs that check after queued continuations, retries, and compaction finish. Each session runs at most one check at a time.
 
-| Silence | What happens |
+Silence is measured from the log's mtime. The reminder interval changes as follows:
+
+| Condition | Result |
 | --- | --- |
-| < `MPI_BASH_STALL_SECONDS` (60s) | Nothing. |
-| 60s | First reminder. |
-| then | 2m, 4m, 8m, 16m... of silence, doubling with every reminder. |
-| any new output | The ladder resets: the next reminder needs a fresh 60s of silence. |
+| Silence below `MPI_BASH_STALL_SECONDS` (default 60s) | No reminder. |
+| Silence reaches the threshold | Reminder becomes due at the next idle check. |
+| Reminder delivered | Next wait doubles: 2m, 4m, 8m, 16m... with the default threshold. |
+| New output | Wait resets to `MPI_BASH_STALL_SECONDS`. |
 
 The chat panel uses the completion panel's layout, with the silence where a finished job shows its exit code:
 
@@ -140,7 +142,7 @@ The model receives `<bash_stall>`. It includes the job ID, command, silence dura
 </bash_stall>
 ```
 
-Delivery is `followUp`, so a silent job never cuts into a running turn. On an idle session it does start one, and the model decides to wait or kill instead of blocking until the timeout. Jobs that come due in the same check share one message and one turn.
+Before sending a `followUp` reminder, the extension rechecks that the session is idle and the jobs are running. The idle check reads current log state; reminder text is not queued during a busy period. If the session becomes busy during a log read, delivery waits without advancing the reminder interval. Jobs still due share one message and one model turn. Shutdown cancels pending checks.
 
 A job whose log cannot be read, from an unwritable tmpdir or a log the user deleted, is never reported this way. Its completion notice still arrives.
 
@@ -153,6 +155,8 @@ A command that finishes in the foreground never touches the disk: its whole outp
 | Tool result | Output up to the detach point. It is finalized there and never grows again. |
 | `<tmpdir>/mpi-bash-<pid>-<n>.log` | **Everything**, foreground part included. Read it to see the full output. |
 | Completion notice | The last 2000 bytes, plus the log path. |
+
+After the process exits and stdout/stderr have drained, it leaves the running list. `/bash-logs` disables termination while the log finishes writing. The completion notice is sent after the log stream finishes or fails. At delivery, the log is fully written or the notice contains `logError`. Command elapsed time excludes this write wait.
 
 A detached command's log outlives it, so `/bash-logs` can still open it; logs older than seven days are removed when a session starts. If the log cannot be written, the failure is named in the completion notice and the command keeps running.
 
@@ -192,7 +196,7 @@ The overlay is read-only except `x`, which kills a still-running job. Line numbe
 | `x` | Kill the selected running job, after a confirmation |
 | `q` `Esc` | Close |
 
-The preview starts at the newest output. A live job is re-read every second and stays pinned to the end (`following`). Scroll up to park. `G` jumps to the end and follows again. A finished job is read once.
+The preview starts at the newest output. A live or flushing log is re-read every second and stays pinned to the end (`following`). Scroll up to park. `G` jumps to the end and follows again. Once the log has finished flushing, the preview takes one final read and stops refreshing.
 
 The hint under the preview is the visible range, like `1-21/3574`. If the overlay is too narrow, it drops hints from the middle.
 

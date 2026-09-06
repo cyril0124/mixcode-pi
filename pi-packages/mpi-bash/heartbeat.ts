@@ -72,6 +72,8 @@ interface StallState {
 export interface StallReport {
   content: string;
   jobs: StallDetails[];
+  /** Advance backoff only for jobs actually delivered, once per report. */
+  markDelivered(jobIds: readonly number[], now?: number): void;
 }
 
 export function formatStallNotice(options: StallDetails & { logPath: string }): string {
@@ -115,8 +117,8 @@ export class StallMonitor {
   constructor(private readonly firstQuietMs = DEFAULT_STALL_SECONDS * 1000) {}
 
   /**
-   * Returns every run whose silence came due, as one report so several stalled
-   * jobs cost one turn, or undefined when nothing is due.
+   * Returns due candidates without consuming their reminder intervals. The
+   * caller rechecks session/job liveness, sends, then calls markDelivered.
    */
   async check(runs: readonly DetachedStart[], now = Date.now()): Promise<StallReport | undefined> {
     const live = new Set(runs.map((run) => run.id));
@@ -125,6 +127,7 @@ export class StallMonitor {
     }
 
     const due: StallDetails[] = [];
+    const dueStates = new Map<number, StallState>();
     const contents: string[] = [];
     for (const run of runs) {
       let stats: fs.Stats;
@@ -157,14 +160,20 @@ export class StallMonitor {
         // can disappear between. A short log is read from its first byte, so
         // the text still carries the header naming the command, which the
         // command never printed.
-        tail = stripLogHeader((await readLogTail(run.logPath, TAIL_BYTES)).text);
+        const log = await readLogTail(run.logPath, TAIL_BYTES);
+        if (log.size !== stats.size || log.mtimeMs !== stats.mtimeMs) {
+          // Output changed between the silence check and tail read.
+          // Reset the quiet interval before the next check.
+          this.states.delete(run.id);
+          continue;
+        }
+        tail = stripLogHeader(log.text);
       } catch {
         // Same contract as a failed stat. No report, ladder untouched, and the
         // whole check keeps running for the other jobs.
         continue;
       }
-      state.interval *= BACKOFF_FACTOR;
-      state.nextAt = now + state.interval;
+      dueStates.set(run.id, state);
       const job: StallDetails = {
         id: run.id,
         command: run.command.replace(/\s+/g, " ").trim(),
@@ -175,6 +184,19 @@ export class StallMonitor {
       due.push(job);
       contents.push(formatStallNotice({ ...job, logPath: run.logPath }));
     }
-    return due.length > 0 ? { content: contents.join("\n\n"), jobs: due } : undefined;
+    if (due.length === 0) return undefined;
+    return {
+      content: contents.join("\n\n"),
+      jobs: due,
+      markDelivered: (jobIds, deliveredAt = Date.now()) => {
+        for (const id of jobIds) {
+          const state = dueStates.get(id);
+          if (!state || this.states.get(id) !== state) continue;
+          state.interval *= BACKOFF_FACTOR;
+          state.nextAt = deliveredAt + state.interval;
+          dueStates.delete(id);
+        }
+      },
+    };
   }
 }
