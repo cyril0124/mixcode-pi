@@ -4,47 +4,64 @@ Reports MixCode pane activity to Herdr. [中文](README.zh.md)
 
 ## Activation
 
-The extension requires truthy `MIXCODE`, `HERDR_ENV=1`, and nonempty
-`HERDR_SOCKET_PATH` and `HERDR_PANE_ID`. Unset, empty, `0`, `false`, and `off`
-disable `MIXCODE` after trimming and case normalization. Pure Pi stays silent.
+Requires truthy `MIXCODE`, `HERDR_ENV=1`, and nonempty `HERDR_SOCKET_PATH` and
+`HERDR_PANE_ID`. For `MIXCODE`, unset, empty, `0`, `false`, and `off` disable the
+extension after trimming whitespace and normalizing case. Pure Pi stays silent.
 
-## Lifecycle
+## Pane state
 
-Only sessions started with `ctx.mode === "tui"` join the pane ledger. A shutdown
-without a matching TUI start does not change it. Each TUI session contributes
-its busy state; `agent_settled` clears it only when `ctx.isIdle()` returns true.
-The pane reports `blocked` when the host's process-wide `mpi:waiting-for-input`
-count is positive, otherwise `working` if any tracked session is busy, else `idle`.
+Only sessions started with `ctx.mode === "tui"` are tracked. Each runtime has an
+independent busy flag, even when several runtimes share a session file or ID.
+A shutdown without a matching TUI start has no effect.
 
-The ledger, report sequence, latest-state queue, deduplication state, notification
-debounce, and exit-hook registration share one process-global object. Extension
-module reloads reuse it while existing tabs remain alive. Closing the last tracked
-session clears busy/waiting state and awaits an idle report.
+State priority is `blocked` > `working` > `idle`. A positive process-wide count
+from `mpi:waiting-for-input` means `blocked`. Otherwise, any busy runtime means
+`working`; all idle means `idle`. `agent_settled` clears a runtime's busy flag
+only when `ctx.isIdle()` returns true.
 
-Reports use newline-delimited socket JSON-RPC: `pane.report_agent` and
-`pane.report_agent_session`, with source and agent both `mpi`. Only a complete
-newline-terminated response with the matching request ID, a typed `result`, and no
-`error` confirms delivery. Socket chunks are buffered until the full response arrives.
-Attempts time out after 500 ms and retry once with 1500 ms. If both attempts fail,
-the latest failed state's deduplication entry is cleared so a later lifecycle event
-can report the same state again; failure of an older send does not clear a newer
-entry. There is no background retry after these attempts: reporting is best-effort,
-not durable delivery. `mpi:mark-done` sends a `notification.show` request with
-sound `done`; duplicate events within 100 ms are suppressed.
+Every 2 seconds, the extension checks each live context's `ctx.isIdle()` and
+resends the pane state. This covers activity without Agent lifecycle events,
+such as manual compaction, and restores reports lost during a Herdr restart.
+Stale contexts retain their last known activity until shutdown or replacement.
+Tracking and delivery state are process-wide and survive module reloads.
+Closing the last tracked session stops the timer, clears activity and waiting
+counts, and waits for the final idle report's delivery attempts to finish.
 
-The first TUI session start registers process-exit cleanup. Processes that only
-load the extension or run non-TUI sessions do not release the pane on exit.
-For a process that owned a TUI session, exit starts a detached
-`herdr pane release-agent` child with a sequence higher than all reports allocated
-by that process. `HERDR_BIN_PATH` selects the CLI executable, defaulting to `herdr`
-on `PATH`. Release requires a working CLI and reachable Herdr server.
+## Delivery
 
-## Verification
+Requests use newline-delimited socket JSON-RPC with source and agent both `mpi`:
+`pane.report_agent` for state and `pane.report_agent_session` for session fields.
+A valid acknowledgement must be a complete line with the matching request ID,
+no `error`, and an object `result` containing a string `type`.
+
+Sequences follow `max(previousSeq + 1, Date.now() * 1000)`. Herdr acknowledges
+reports with stale sequences but does not apply them. Advancing with the current
+time lets later refreshes overtake timestamp-based reports from newer processes.
+An acknowledgement alone does not prove that Herdr applied the state.
+
+The first attempt has a 500 ms timeout; one retry has a 1500 ms timeout. If both
+fail, the latest failed state's deduplication entry is cleared so it can be sent
+again. An older failure cannot clear a newer entry. Periodic refreshes continue
+while TUI sessions remain live. Delivery is best-effort, with no durable queue.
+
+`mpi:mark-done` sends `notification.show` with sound `done`. Duplicate events
+within 100 ms are suppressed.
+
+## Exit cleanup
+
+The first TUI session registers an exit hook. Processes that only load the
+extension or run non-TUI sessions do not release the pane.
+
+On exit, the hook starts a detached `herdr pane release-agent` child with a
+sequence higher than the process's pending reports. `HERDR_BIN_PATH` selects
+the executable, defaulting to `herdr` on `PATH`. Cleanup requires a working CLI
+and reachable Herdr server.
+
+## Tests
 
 ```sh
 bun test --isolate --timeout=60000 pi-packages/mpi-herdr-report/
 ```
 
-The lifecycle regressions use Pi's extension loader and a local Unix socket
-server, including fresh module evaluation with native import caching disabled.
-They do not validate the Herdr UI or server implementation.
+Tests cover Pi extension loading, module re-evaluation, local Unix socket
+responses, and process exit. They do not exercise the Herdr server or UI.

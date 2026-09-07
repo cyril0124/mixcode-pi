@@ -49,6 +49,9 @@ async function createSession(
   const extension = result.extensions[0];
   assert.ok(extension, "extension must load successfully");
   return {
+    setIdle(value: boolean) {
+      idle = value;
+    },
     async emit(event: string) {
       if (event === "agent_start") idle = false;
       if (event === "agent_settled") idle = true;
@@ -69,7 +72,7 @@ async function withReporter(
     HERDR_ENV: "1",
     HERDR_SOCKET_PATH: path.join(dir, "herdr.sock"),
     HERDR_PANE_ID: "w1:p1",
-    // Compiled mpi disables native imports, so reloads must really re-evaluate the module.
+    // Match compiled mpi's uncached module loading.
     JITI_TRY_NATIVE: "false",
   };
   const previous = Object.fromEntries(Object.keys(env).map((key) => [key, process.env[key]]));
@@ -111,12 +114,12 @@ async function withReporter(
   }
 }
 
-async function waitFor(predicate: () => boolean): Promise<void> {
-  const deadline = Date.now() + 1000;
+async function waitFor(predicate: () => boolean, timeoutMs = 1000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
   while (!predicate() && Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, 5));
   }
-  assert.ok(predicate(), "expected report was not received within 1 second");
+  assert.ok(predicate(), `expected report was not received within ${timeoutMs} ms`);
 }
 
 function latestState(reports: Report[]): string | undefined {
@@ -210,6 +213,90 @@ test("a failed working report can be retried by another busy tab", async () => {
       return { result: { type: "ok" } };
     },
   );
+});
+
+test("idle runtimes sharing a session cannot erase another runtime's work", async () => {
+  await withReporter(async (reports, cwd) => {
+    const a = await createSession(cwd, "same-session");
+    const b = await createSession(cwd, "same-session");
+    try {
+      await a.emit("session_start");
+      await waitFor(() => latestState(reports) === "idle");
+      await a.emit("agent_start");
+      await waitFor(() => latestState(reports) === "working");
+      const before = reports.filter((r) => r.method === "pane.report_agent").length;
+      await b.emit("session_start");
+      await waitFor(() => reports.filter((r) => r.method === "pane.report_agent").length > before);
+      assert.equal(latestState(reports), "working");
+      await b.emit("session_shutdown");
+      await a.emit("agent_settled");
+      await waitFor(() => latestState(reports) === "idle");
+    } finally {
+      await b.emit("session_shutdown");
+      await a.emit("session_shutdown");
+    }
+  });
+});
+
+test("busy and idle changes without agent events are reconciled", async () => {
+  await withReporter(async (reports, cwd) => {
+    const session = await createSession(cwd, "compacting");
+    try {
+      await session.emit("session_start");
+      await waitFor(() => latestState(reports) === "idle");
+      session.setIdle(false);
+      await waitFor(() => latestState(reports) === "working", 3500);
+      session.setIdle(true);
+      await waitFor(() => latestState(reports) === "idle", 3500);
+    } finally {
+      await session.emit("session_shutdown");
+    }
+  });
+});
+
+test("busy state recovers after a later-sequenced external idle report", async () => {
+  let highestSeq = 0;
+  let remoteState: string | undefined;
+  await withReporter(
+    async (_reports, cwd) => {
+      const session = await createSession(cwd, "busy");
+      try {
+        await session.emit("session_start");
+        await waitFor(() => remoteState === "idle");
+        await session.emit("agent_start");
+        await waitFor(() => remoteState === "working");
+        // Herdr acknowledges stale sequences without applying their state.
+        highestSeq = Math.max(highestSeq + 1, Date.now() * 1000);
+        remoteState = "idle";
+        await waitFor(() => remoteState === "working", 3500);
+      } finally {
+        await session.emit("session_shutdown");
+      }
+    },
+    (report) => {
+      if (report.method === "pane.report_agent" && report.params.seq > highestSeq) {
+        highestSeq = report.params.seq;
+        remoteState = report.params.state;
+      }
+      return { result: { type: "ok" } };
+    },
+  );
+});
+
+test("closing the last TUI session stops periodic publication", async () => {
+  await withReporter(async (reports, cwd) => {
+    const session = await createSession(cwd, "closing");
+    try {
+      await session.emit("session_start");
+      await waitFor(() => latestState(reports) === "idle");
+      await session.emit("session_shutdown");
+      const before = reports.length;
+      await new Promise((resolve) => setTimeout(resolve, 2300));
+      assert.equal(reports.length, before, "closed sessions must not keep reporting");
+    } finally {
+      await session.emit("session_shutdown");
+    }
+  });
 });
 
 test("a non-TUI shutdown cannot clear a running TUI session", async () => {

@@ -1,18 +1,10 @@
 /**
- * Report mpi turn lifecycle to Herdr the same way the official Pi hook does:
- * socket JSON-RPC, latest-state queue, settled/isIdle.
- *
- * Active when MIXCODE is on and HERDR_ENV=1, HERDR_SOCKET_PATH, HERDR_PANE_ID
- * are set. MIXCODE off stays silent (do not fight official herdr:pi).
- * Multi-tab: process-level busy set so any running session keeps the pane working.
- *
- * MixCode extras: `mpi:waiting-for-input` → blocked, `mpi:mark-done` notify.
- * Processes owning a TUI session attempt a detached `herdr pane release-agent`
- * on exit to clear the pane's agent entry.
- * Pure Node — must also run under upstream pi (Node + jiti).
+ * Report aggregate MixCode TUI activity to Herdr over socket JSON-RPC.
+ * See README.md for activation, lifecycle, and delivery contracts.
  */
 
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import * as net from "node:net";
 import type {
   ExtensionContext,
@@ -28,6 +20,7 @@ export const HERDR_REPORT_AGENT = "mpi";
 export const MIXCODE_ENV = "MIXCODE" as const;
 export const WAITING_FOR_INPUT_EVENT = "mpi:waiting-for-input" as const;
 export const MARK_DONE_EVENT = "mpi:mark-done" as const;
+const STATE_REFRESH_INTERVAL_MS = 2000;
 
 export interface WaitingForInputEventPayload {
   count: number;
@@ -60,7 +53,7 @@ export function socketEndpoint(
   return platform === "win32" ? `\\\\.\\pipe\\${socketPath}` : socketPath;
 }
 
-/** Official-style desired state: blocked > working > idle. */
+/** State priority: blocked > working > idle. */
 export function desiredState(agentActive: boolean, blockedCount: number): HerdrReportState {
   if (blockedCount > 0) return "blocked";
   if (agentActive) return "working";
@@ -71,7 +64,7 @@ export function isStaleCtxError(error: unknown): boolean {
   return /stale after session replacement/.test(String(error));
 }
 
-/** Sync only. Stale ctx after /resume must not throw into the host. */
+/** Return undefined for a replaced context; rethrow all other errors. */
 export function readCtxIdle(ctx: { isIdle: () => boolean }): boolean | undefined {
   try {
     return ctx.isIdle();
@@ -219,15 +212,9 @@ type QueuedState = {
 };
 
 /**
- * The final report must survive every exit path: the quit exit watchdog,
- * SIGINT/SIGTERM handlers that call process.exit immediately, and crash-guard
- * exits. An 'exit' listener cannot await socket I/O, so delivery is delegated
- * to a detached `herdr pane release-agent` child that outlives this process.
- * Release removes the pane's agent entry from the herdr sidebar and hands the
- * pane back to herdr's own screen detection; an idle report would instead
- * leave the dead process listed as an idle agent. Seq continues the
- * in-process domain, so this is the highest seq the process ever reports and
- * wins over any straggling in-process delivery.
+ * Build release arguments for the detached exit-cleanup process.
+ * The caller supplies a sequence newer than pending reports so late delivery
+ * cannot reclaim the released agent. Exit listeners cannot await socket I/O.
  */
 export function buildExitReleaseArgv(paneId: string, seq: number): string[] {
   return [
@@ -270,6 +257,8 @@ interface ProcessReporter {
   lastState?: HerdrReportState;
   lastMessage?: string;
   lastStateSeq?: number;
+  refreshTimer?: ReturnType<typeof setInterval>;
+  contexts: Map<string, ExtensionContext>;
   ledger: HerdrLedger;
 }
 
@@ -282,13 +271,15 @@ registry[REPORTER_KEY] ??= {
   seq: Date.now() * 1000,
   sendInFlight: false,
   lastMarkDoneAt: 0,
+  contexts: new Map(),
   ledger: createHerdrLedger(),
 };
 const reporter = registry[REPORTER_KEY];
 const processLedger = reporter.ledger;
 
 function nextReportSeq(): number {
-  reporter.seq += 1;
+  // A later process can set a higher sequence for the same Herdr source.
+  reporter.seq = Math.max(reporter.seq + 1, Date.now() * 1000);
   return reporter.seq;
 }
 
@@ -430,6 +421,27 @@ function queueState(
   if (!reporter.sendInFlight) void drainStateQueue();
 }
 
+function publishState(force = false, extra: Record<string, unknown> = {}): void {
+  const state = ledgerState(processLedger);
+  const message = processLedger.blocked > 0 ? "waiting for input" : undefined;
+  if (!force && state === reporter.lastState && message === reporter.lastMessage) return;
+  reporter.lastState = state;
+  reporter.lastMessage = message;
+  queueState(state, message, extra);
+}
+
+function startStateRefresh(): void {
+  if (reporter.refreshTimer) return;
+  // Compaction can change isIdle without agent_start. Refresh also repairs state lost by Herdr.
+  reporter.refreshTimer = setInterval(() => {
+    for (const [key, ctx] of reporter.contexts) {
+      applySessionStart(processLedger.busy, key, readCtxIdle(ctx));
+    }
+    publishState(true);
+  }, STATE_REFRESH_INTERVAL_MS);
+  reporter.refreshTimer.unref();
+}
+
 const herdrReportExtension: ExtensionFactory = (pi) => {
   if (!herdrBridgeEnabled()) return;
 
@@ -437,25 +449,9 @@ const herdrReportExtension: ExtensionFactory = (pi) => {
   let sessionKey: string | undefined;
   let sessionExtra: Record<string, unknown> = {};
 
-  function rememberSession(ctx: unknown): void {
+  function rememberSession(ctx: ExtensionContext): void {
     sessionExtra = sessionFieldsFrom(ctx);
-    sessionKey = sessionKeyFrom(sessionExtra);
-  }
-
-  function currentMessage(): string | undefined {
-    return processLedger.blocked > 0 ? "waiting for input" : undefined;
-  }
-
-  function publishState(force = false): void {
-    const next = {
-      state: ledgerState(processLedger),
-      message: currentMessage(),
-    };
-    if (!force && next.state === reporter.lastState && next.message === reporter.lastMessage)
-      return;
-    reporter.lastState = next.state;
-    reporter.lastMessage = next.message;
-    queueState(next.state, next.message, sessionExtra);
+    if (sessionKey) reporter.contexts.set(sessionKey, ctx);
   }
 
   async function flushIdle(): Promise<void> {
@@ -480,7 +476,7 @@ const herdrReportExtension: ExtensionFactory = (pi) => {
     const payload = parseWaitingForInputPayload(raw);
     applyWaitingCount(processLedger, payload.count);
     if (!rootSession) return;
-    publishState();
+    publishState(false, sessionExtra);
   });
 
   pi.events.on(MARK_DONE_EVENT, () => {
@@ -489,30 +485,38 @@ const herdrReportExtension: ExtensionFactory = (pi) => {
     if (now - reporter.lastMarkDoneAt < 100) return;
     reporter.lastMarkDoneAt = now;
     void sendRequest(buildNotificationShowRequest("Marked done", "done"));
-    publishState(true);
+    publishState(true, sessionExtra);
   });
 
   pi.on("session_start", (event: SessionStartEvent, ctx: ExtensionContext) => {
     if (ctx.mode !== "tui") return;
     // Child processes can inherit Herdr env without owning the pane's TUI agent.
     installExitReleaseHook();
-    if (!rootSession) retainSession(processLedger);
+    if (!rootSession) {
+      retainSession(processLedger);
+      // Runtime ownership is distinct from a session file shared by multiple open instances.
+      sessionKey = randomUUID();
+    }
     rootSession = true;
     rememberSession(ctx);
     applySessionStart(processLedger.busy, sessionKey, readCtxIdle(ctx));
+    startStateRefresh();
     void reportSession(event.reason).then(() => {
-      publishState(true);
+      if (rootSession) publishState(true, sessionExtra);
     });
   });
 
   pi.on("session_shutdown", (_event: SessionShutdownEvent) => {
     // Non-TUI sessions never retain the pane ledger; repeated shutdowns are inert.
     if (!rootSession) return;
+    if (sessionKey) reporter.contexts.delete(sessionKey);
     const last = releaseSession(processLedger, sessionKey);
     rootSession = false;
     sessionKey = undefined;
     sessionExtra = {};
     if (last) {
+      clearInterval(reporter.refreshTimer);
+      reporter.refreshTimer = undefined;
       applyWaitingCount(processLedger, 0);
       return flushIdle();
     }
@@ -524,7 +528,7 @@ const herdrReportExtension: ExtensionFactory = (pi) => {
     if (!rootSession) return;
     rememberSession(ctx);
     applyAgentStart(processLedger.busy, sessionKey);
-    publishState();
+    publishState(false, sessionExtra);
     void reportSession();
   });
 
@@ -532,7 +536,7 @@ const herdrReportExtension: ExtensionFactory = (pi) => {
     if (!rootSession) return;
     rememberSession(ctx);
     applyAgentSettled(processLedger.busy, sessionKey, readCtxIdle(ctx));
-    publishState();
+    publishState(false, sessionExtra);
   });
 };
 
