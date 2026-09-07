@@ -61,7 +61,7 @@ apply
 | `mixcode.resolve_model(query)` | 将精确模型 ID 解析为已启用的 `provider/modelId`，见[模型解析](#模型解析) |
 | `mixcode.render(tpl, vars)` / `render(...)` | `{name}` 模板；`{{` / `}}` 转义字面量 |
 
-标准 Lua 库可用（含 `os.getenv`、`io` 等）。根目录 [`mixcode.d.lua`](../mixcode.d.lua) 是指向 `mpi-batch-skill` 随包分发的 [Lua API reference](../pi-packages/mpi-batch-skill/skills/mpi-batch/references/mixcode.d.lua) 的软链接。
+标准 Lua 库可用（含 `os.getenv`、`io` 等）。根目录 [`mixcode-batch.d.lua`](../mixcode-batch.d.lua) 是指向 `mpi-batch-skill` 随包分发的 [Lua API reference](../pi-packages/mpi-batch-skill/skills/mpi-batch/references/mixcode-batch.d.lua) 的软链接。
 
 ### `open_tab` 字段
 

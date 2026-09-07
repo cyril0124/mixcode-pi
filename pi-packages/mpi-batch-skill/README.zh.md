@@ -8,6 +8,6 @@
 
 Pi 通过 `pi.skills` 发现 skill。MixCode 将其安装到 `<agentDir>/extensions/mpi-batch-skill/`，由 `index.ts` 通过 `resources_discover` 提供 `skills/` 目录。
 
-[SKILL.md](skills/mpi-batch/SKILL.md) 包含工作流、CLI 命令、示例和执行限制。API 声明位于随包及编译二进制分发的 [TypeScript](skills/mpi-batch/references/mixcode-batch.d.ts) 和 [Lua](skills/mpi-batch/references/mixcode.d.lua) reference 文件。验证和执行需要 `PATH` 中的 `mpi`。
+[SKILL.md](skills/mpi-batch/SKILL.md) 包含工作流、CLI 命令、示例和执行限制。API 声明位于随包及编译二进制分发的 [TypeScript](skills/mpi-batch/references/mixcode-batch.d.ts) 和 [Lua](skills/mpi-batch/references/mixcode-batch.d.lua) reference 文件。验证和执行需要 `PATH` 中的 `mpi`。
 
-源码 checkout 中，根目录 `mixcode-batch.d.ts` 和 `mixcode.d.lua` 是指向这些 reference 的相对软链接。更新声明时编辑 reference 文件。Windows Git checkout 需要启用软链接支持。
+源码 checkout 中，根目录 `mixcode-batch.d.ts` 和 `mixcode-batch.d.lua` 是指向这些 reference 的相对软链接。更新声明时编辑 reference 文件。Windows Git checkout 需要启用软链接支持。

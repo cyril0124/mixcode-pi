@@ -11,7 +11,7 @@
  * export default script;
  * ```
  *
- * Lua counterpart: `mixcode.d.lua`. Field names are camelCase here.
+ * Lua counterpart: `mixcode-batch.d.lua`. Field names are camelCase here.
  */
 
 type MixCodeBatchThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";

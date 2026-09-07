@@ -222,7 +222,7 @@ import mpiBatchSkillMd from "../../pi-packages/mpi-batch-skill/skills/mpi-batch/
 import mpiBatchTsReference from "../../pi-packages/mpi-batch-skill/skills/mpi-batch/references/mixcode-batch.d.ts" with {
   type: "text",
 };
-import mpiBatchLuaReference from "../../pi-packages/mpi-batch-skill/skills/mpi-batch/references/mixcode.d.lua" with {
+import mpiBatchLuaReference from "../../pi-packages/mpi-batch-skill/skills/mpi-batch/references/mixcode-batch.d.lua" with {
   type: "text",
 };
 import mpiBatchReadmeMd from "../../pi-packages/mpi-batch-skill/README.md" with { type: "text" };
@@ -670,7 +670,7 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
       "package.json": mpiBatchPackageJson,
       "skills/mpi-batch/SKILL.md": mpiBatchSkillMd,
       "skills/mpi-batch/references/mixcode-batch.d.ts": mpiBatchTsReference,
-      "skills/mpi-batch/references/mixcode.d.lua": mpiBatchLuaReference,
+      "skills/mpi-batch/references/mixcode-batch.d.lua": mpiBatchLuaReference,
       "README.md": mpiBatchReadmeMd,
       "README.zh.md": mpiBatchReadmeZhMd,
     },
