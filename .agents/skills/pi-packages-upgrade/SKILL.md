@@ -1,6 +1,6 @@
 ---
 name: pi-packages-upgrade
-description: Compare installed @earendil-works/pi-* to the latest or a chosen pi release, report UX impact and mixcode-pi break risks, then upgrade after explicit confirmation. Use when user asks what is new in pi, whether to upgrade pi packages, upgrade impact, or says upgrade pi / pi-packages-upgrade.
+description: Use to review or upgrade Pi dependency releases.
 disable-model-invocation: true
 ---
 

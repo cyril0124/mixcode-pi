@@ -1,6 +1,6 @@
 ---
 name: mpi-ctl
-description: Agent Tab collaboration — control a live MixCode (mpi) TUI from the CLI. To send a user message or slash command, use mpi ctl send-prompt (not send-keys), then close the loop in one mode — poll (wait + last-message) or callback (--expect-response, end your turn) — never fire-and-forget. Also list instances, target a tab, send-keys only for real keypresses. Use when the user says mpi ctl, mpi status, another mpi, another tab, Agent Tab collaboration, Agent Tab 协作, or remote-control the TUI.
+description: Use to inspect live MixCode instances or control their tabs with mpi status or mpi ctl.
 ---
 
 # mpi status / ctl

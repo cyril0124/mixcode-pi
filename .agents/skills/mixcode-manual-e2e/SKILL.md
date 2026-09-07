@@ -1,6 +1,6 @@
 ---
 name: mixcode-manual-e2e
-description: Creates isolated, user-operated manual E2E demos for MixCode/Pi features through the real CLI/TUI and verifies them in tmux without external model APIs. Use when asked for a MixCode manual E2E, reproducible TUI demo, real mpi validation flow, or user-runnable feature reproducer.
+description: Use for user-runnable MixCode TUI demos or reproducers.
 disable-model-invocation: true
 ---
 

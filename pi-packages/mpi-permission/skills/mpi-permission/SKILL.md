@@ -1,6 +1,6 @@
 ---
 name: mpi-permission
-description: Write or edit mpi-permission.json allow/ask/deny rules. Use when the user invokes $mpi-permission or /skill:mpi-permission, or asks to write permission JSON, mpi-permission.json, allow/deny tool calls, or lock down bash/read/edit/write.
+description: Use to configure mpi-permission.json tool permissions.
 disable-model-invocation: true
 ---
 
