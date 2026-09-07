@@ -85,11 +85,13 @@ export interface MixCodeEditorActions {
   browsePromptHistory?: (data: string) => boolean;
   /**
    * True when a non-editor input component (e.g. the /login provider selector
-   * or login dialog) currently owns the input area. When true, all keys must
-   * be forwarded to it verbatim, bypassing global key handling — mirroring
-   * Pi agent's editorContainer takeover during login.
+   * or login dialog) currently owns the input area. Presses bypass global key
+   * handling; releases follow the component's wantsKeyRelease declaration.
+   * This mirrors Pi agent's editorContainer takeover during login.
    */
   hasInputComponent?: () => boolean;
+  /** Whether the currently visible editor/input component opts in to key releases. */
+  wantsKeyRelease?: () => boolean;
   /** Forward a raw key to the active input component. */
   forwardToInputComponent?: (data: string) => void;
   /** Replace the editor slot with a Component (Pi showSelector / login parity). */

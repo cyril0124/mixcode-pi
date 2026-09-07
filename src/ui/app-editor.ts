@@ -4,6 +4,7 @@ import {
   Editor,
   type EditorComponent,
   type EditorTheme,
+  isKeyRelease,
   matchesKey,
   type TUI as TuiType,
   truncateToWidth,
@@ -211,6 +212,20 @@ export class EditorSlot implements Component {
     return this.activeEditor;
   }
 
+  // Resolve against the current tab without a full editor rebind or tab scan.
+  private get inputTarget(): Component {
+    const sessionId = this.mixState.activeTabId;
+    if (this.inputComponentOverride && this.inputComponentSessionId === sessionId) {
+      return this.inputComponentOverride;
+    }
+    if (sessionId === HOME_TAB_ID) return this.defaultEditor;
+    return this.editorReplacements.get(sessionId)?.editor ?? this.defaultEditor;
+  }
+
+  get wantsKeyRelease(): boolean {
+    return this.inputTarget.wantsKeyRelease === true;
+  }
+
   get focused(): boolean {
     return this.focusState;
   }
@@ -320,6 +335,12 @@ export class EditorSlot implements Component {
   }
 
   handleInput(data: string): void {
+    if (isKeyRelease(data)) {
+      // A release is component input, never history navigation or a draft edit.
+      const target = this.inputTarget;
+      if (target.wantsKeyRelease) target.handleInput?.(data);
+      return;
+    }
     if (this.inputComponentOverride && this.inputComponentSessionId === this.mixState.activeTabId) {
       const handler = (this.inputComponentOverride as { handleInput?: (data: string) => void })
         .handleInput;

@@ -163,19 +163,21 @@ export function handleMixCodeKeyInput(
       : { consume: true };
   }
   if (isKeyRelease(data)) {
-    // Pi input listeners receive raw releases; app controls do not. Releases
-    // stay suppressed in the same states as presses so a handler never sees
-    // an orphan release for a press it was never given.
+    // Preserve terminal-listener eligibility, but let Pi TUI deliver releases
+    // to an opted-in focus target. Never run host shortcuts for a release.
+    let result: KeyResult;
+    const overlayOpen = hasAnyOverlay(tui);
     if (
       active &&
       state.activeTabId !== HOME_TAB_ID &&
-      !hasAnyOverlay(tui) &&
+      !overlayOpen &&
       (!active.extensionUi.waitingForInputs.length ||
         runtime?.hasHiddenExtensionOverlay?.(active.sessionId) === true)
     ) {
-      runtime?.dispatchTerminalInput?.(active.sessionId, data);
+      result = runtime?.dispatchTerminalInput?.(active.sessionId, data);
+      if (result?.consume) return result;
     }
-    return { consume: true };
+    return overlayOpen || editorActions?.wantsKeyRelease?.() ? result : { consume: true };
   }
   pasteDetector.recordInput(data);
   // A non-editor input component (e.g. /login provider selector or login

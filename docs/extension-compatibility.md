@@ -62,6 +62,21 @@ Exception: when a custom overlay is hidden (`handle.hide()` called by the extens
 
 `ctx.ui.setTitle(title)` writes the terminal title (OSC 0) immediately when the calling session's tab is active. Inactive tabs store the title, and it is re-applied when their tab becomes active. Switching to a tab without a stored title leaves the terminal title unchanged (Pi semantics: the title persists until overwritten).
 
+### Key-release input
+
+Focused components from `ctx.ui.custom()` (embedded or overlay) and
+`ctx.ui.setEditorComponent()` receive terminal key-release events only when
+`wantsKeyRelease` is `true`. Changes to that property take effect on the next
+input event. The editor slot forwards the current component's declaration;
+inactive tabs and hidden overlays do not receive the focused component's input.
+
+Releases retain their original terminal encoding, including navigation keys.
+They do not run MixCode shortcuts, browse prompt history, or update the host
+editor draft. Components without the opt-in keep ignoring releases. Terminal
+input listeners retain the eligibility rules above and can consume or rewrite
+an event before component delivery. The terminal must actually send releases
+(for example through Kitty's keyboard protocol); no releases are synthesized.
+
 ## Installation
 
 Declare packages in project-level Pi settings:

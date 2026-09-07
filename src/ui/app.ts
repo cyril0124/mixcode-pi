@@ -1,5 +1,10 @@
 import type { SettingsManager } from "@earendil-works/pi-coding-agent";
-import { ProcessTerminal, TuiMainScreen, type TUI as TuiType } from "@earendil-works/pi-tui";
+import {
+  isKeyRelease,
+  ProcessTerminal,
+  TuiMainScreen,
+  type TUI as TuiType,
+} from "@earendil-works/pi-tui";
 import type { ExtensionCustomUiHost, MixCodeRuntime } from "../agent/runtime.js";
 import { scanSkillEntries } from "../core/attachments.js";
 import { applyDisabledModelFlags, buildAvailableModelRefs, modelRefId } from "../core/models.js";
@@ -376,6 +381,7 @@ export function createMixCodeTui(
         submitCurrentText: () => editor.submitCurrentText(),
         browsePromptHistory: (input) => editor.browsePromptHistory(input),
         hasInputComponent: () => editor.hasInputComponent(),
+        wantsKeyRelease: () => editor.wantsKeyRelease,
         forwardToInputComponent: (data) => editor.handleInput(data),
         setInputComponent: (component, sessionId) => editor.setInputComponent(component, sessionId),
         clearInputComponent: (sessionId) => editor.clearInputComponent(sessionId),
@@ -402,7 +408,7 @@ export function createMixCodeTui(
         settingsDeps: options.settingsDeps,
       },
     );
-    if (result?.consume) return result;
+    if (result?.consume || isKeyRelease(data)) return result;
     // app.editor.external (Ctrl+G) opens the input in an external editor.
     // Pending extension interactions (e.g. /view dialog) own the key; permanent
     // setEditorComponent skins still use MixCode external-edit on active text.

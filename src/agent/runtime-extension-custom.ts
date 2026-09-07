@@ -1,5 +1,6 @@
 import { ExtensionEditorComponent } from "@earendil-works/pi-coding-agent";
 import {
+  isKeyRelease,
   matchesKey,
   type Component,
   type OverlayHandle,
@@ -234,6 +235,8 @@ function createExtensionCustomEditor<T>(
 // protocol and application-cursor mode send other encodings that matchesKey
 // understands but those plugins drop. Canonicalize unmodified nav keys.
 function canonicalizeCustomNavKey(data: string): string {
+  // Preserve Kitty event-type metadata; a release must not become a press.
+  if (isKeyRelease(data)) return data;
   if (matchesKey(data, "up")) return "\x1b[A";
   if (matchesKey(data, "down")) return "\x1b[B";
   if (matchesKey(data, "enter")) return "\r";
@@ -252,7 +255,9 @@ function customComponentEditor(component: ExtensionCustomComponent) {
     invalidate: () => renderWithPiExtensionContext(() => component.invalidate()),
     getText: () => "",
     setText: () => undefined,
-    wantsKeyRelease: component.wantsKeyRelease,
+    get wantsKeyRelease() {
+      return component.wantsKeyRelease;
+    },
     get focused() {
       return Boolean((component as { focused?: boolean }).focused);
     },

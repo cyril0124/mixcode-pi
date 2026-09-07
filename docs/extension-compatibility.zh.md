@@ -62,6 +62,18 @@ ctx.ui.select / confirm / input
 
 `ctx.ui.setTitle(title)` 在调用方 session 所在 tab 处于激活状态时立即写终端标题（OSC 0）；非激活 tab 只存储标题，切回该 tab 时重新应用。切到没有存储标题的 tab 不改变当前终端标题（与 Pi 一致：标题保持到被覆盖）。
 
+### 松键输入
+
+`ctx.ui.custom()` 的嵌入式组件、overlay 和 `ctx.ui.setEditorComponent()`
+自定义编辑器，仅在获得焦点且 `wantsKeyRelease` 为 `true` 时接收终端松键事件。
+该属性的变更在下一个输入事件生效；编辑器槽转发当前组件的声明，
+非激活标签和隐藏 overlay 不接收焦点组件的输入。
+
+松键保留原始终端编码，包括导航键；不触发 MixCode 快捷键、提示词历史浏览或
+宿主编辑器草稿更新。未声明订阅的组件继续忽略松键。终端输入监听器仍遵守
+上文的分发条件，可在组件收到事件前 consume 或改写输入。
+终端必须实际发送松键（例如使用 Kitty 键盘协议），宿主不合成松键事件。
+
 ## 安装方式
 
 目前推荐直接写项目级 Pi settings：
