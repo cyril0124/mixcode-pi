@@ -9,10 +9,12 @@ import {
 } from "../core/batch-lua.js";
 import { createInitialState } from "../core/defaults.js";
 import {
+  applyDisabledModelFlags,
   buildAvailableModelRefs,
   findModelRef,
   modelToRef,
   registerModels,
+  selectStartupModel,
 } from "../core/models.js";
 import { createPiModelRegistryBundle } from "../core/pi-models.js";
 import {
@@ -45,7 +47,8 @@ import { ensurePackageExtensions } from "../core/ensure-package-extensions.js";
 import { installConsoleTuiBridge, wireConsoleSink } from "./console-tui-bridge.js";
 import { installCrashGuard } from "./crash-guard.js";
 import { showNoticeTextOverlay } from "../ui/app-overlays.js";
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import { CONFIG_DIR_NAME, getAgentDir, SettingsManager } from "@earendil-works/pi-coding-agent";
+import { loadMixCodeSettings, MIXCODE_SETTINGS_FILENAME } from "../core/mixcode-settings.js";
 import type { MainArgs } from "./main.js";
 import { isBuiltinExtensionsOnlyEnabled, resolveMixcodePackageRoot } from "./main.js";
 
@@ -80,8 +83,48 @@ export async function runBatchDryRun(args: MainArgs): Promise<void> {
   const configuredModels = modelBundle.sources
     .filter((source) => source.authStatus.configured)
     .map((source) => modelToRef(source.model));
-  state.availableModels = buildAvailableModelRefs(configuredModels);
-  const fallbackModel = configuredModels.at(-1) ?? state.model;
+  const mixcodeSettings = await loadMixCodeSettings(
+    path.join(rootStateDir, MIXCODE_SETTINGS_FILENAME),
+  );
+  const settingsPaths = {
+    global: path.join(agentDir, "settings.json"),
+    project: path.join(args.workdir, CONFIG_DIR_NAME, "settings.json"),
+  };
+  const contents: Partial<Record<keyof typeof settingsPaths, string>> = {};
+  for (const scope of ["global", "project"] as const) {
+    try {
+      contents[scope] = await Bun.file(settingsPaths[scope]).text();
+    } catch (error) {
+      // Missing optional settings use Pi defaults; other read errors must surface.
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+  }
+  // Pi parses and merges the snapshot without taking filesystem write locks.
+  const settingsManager = SettingsManager.fromStorage(
+    {
+      withLock(scope, read) {
+        if (read(contents[scope]) !== undefined) {
+          throw new Error("Read-only batch settings");
+        }
+      },
+    },
+    { projectTrusted: true },
+  );
+  for (const { scope, error } of settingsManager.drainErrors()) {
+    throw new Error(`Error: ${settingsPaths[scope]}: ${error.message}`);
+  }
+  state.availableModels = applyDisabledModelFlags(
+    buildAvailableModelRefs(configuredModels),
+    mixcodeSettings.disabledProviders,
+    mixcodeSettings.disabledModels,
+  );
+  state.model = selectStartupModel(
+    state.availableModels,
+    configuredModels,
+    settingsManager.getDefaultProvider(),
+    settingsManager.getDefaultModel(),
+  );
+  const fallbackModel = state.model;
 
   const plan = await loadBatchRequests(args.batch, {
     ...contextFromState(state),
@@ -104,7 +147,14 @@ export async function runBatchDryRun(args: MainArgs): Promise<void> {
 export async function runInteractiveApp(args: MainArgs, selfRoot: string): Promise<void> {
   // dry-run never boots the TUI/runtime — only load models + existing state snapshot.
   if (args.batchDryRun) {
-    await runBatchDryRun(args);
+    try {
+      await runBatchDryRun(args);
+    } catch (error) {
+      // Dry-run failures are command errors, not crashes: do not write a crash log.
+      const message = error instanceof Error ? error.message : String(error);
+      process.stderr.write(`${message.startsWith("Error:") ? message : `Error: ${message}`}\n`);
+      process.exitCode = 1;
+    }
     return;
   }
 

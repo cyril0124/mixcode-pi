@@ -23,6 +23,20 @@ Read the file for the script's language. Paths are relative to this skill direct
 - TypeScript/JavaScript: [references/mixcode-batch.d.ts](references/mixcode-batch.d.ts). Declares the API, tab options, snapshot rows, and script function type. Scripts default-export a function receiving `mixcode`; it may be `async`. For editor types, use a triple-slash reference to this file's resolved path. Scripts also run without type annotations.
 - Lua: [references/mixcode.lua](references/mixcode.lua). Annotates the global `mixcode` table, tab options, snapshots, and `render` helper. Read it as a reference; the batch runtime supplies these functions, so do not execute or `require` the stub.
 
+## Model selection
+
+When a requested model should work across providers, resolve its exact ID:
+
+```ts
+const model = mixcode.resolveModel("claude-sonnet-4-5");
+```
+
+```lua
+local model = mixcode.resolve_model("claude-sonnet-4-5")
+```
+
+Pass the result as the tab's `model`. Check the selected provider in dry-run output. Use a full `provider/modelId` when the provider must be fixed; see the API reference for selection rules and errors.
+
 ## CLI
 
 ```bash

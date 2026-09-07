@@ -1,5 +1,6 @@
 import * as path from "node:path";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
+import { resolveBatchModel } from "./batch-models.js";
 import { modelRefId } from "./models.js";
 import { isThinkingLevelAvailable, validThinkingLevelsMessage } from "./thinking-levels.js";
 import type { MixCodeModelRef, MixCodeState } from "./types.js";
@@ -33,6 +34,10 @@ export interface BatchLuaContext {
   tabs: BatchLuaTabInfo[];
   /** Available models snapshot at batch startup. */
   models?: BatchLuaModelInfo[];
+  /** Provider of the startup default model, preferred when matching a bare id. */
+  defaultProvider?: string;
+  /** Canonical model ids excluded from resolution. */
+  disabledModelIds?: string[];
   /** CLI args after `--` (e.g. mpi --batch s.lua -- foo bar). */
   args?: string[];
 }
@@ -239,6 +244,19 @@ export async function runLuaScript(
     return 1;
   });
   lua.lua_setfield(L, -2, to_luastring("list_models"));
+
+  lua.lua_pushcfunction(L, (L: any) => {
+    const query =
+      lua.lua_type(L, 1) === lua.LUA_TSTRING ? to_jsstring(lua.lua_tostring(L, 1)) : undefined;
+    try {
+      lua.lua_pushstring(L, to_luastring(resolveBatchModel(query, context)));
+      return 1;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return lauxlib.luaL_error(L, to_luastring("%s"), to_luastring(message));
+    }
+  });
+  lua.lua_setfield(L, -2, to_luastring("resolve_model"));
 
   const renderFn = (L: any) => luaRender(L, lua, lauxlib, to_luastring, to_jsstring);
   lua.lua_pushcfunction(L, renderFn);
@@ -452,6 +470,8 @@ export function renderTemplate(
 export function contextFromState(state: MixCodeState): BatchLuaContext {
   return {
     workdir: state.workdir,
+    defaultProvider: state.model.provider,
+    disabledModelIds: state.availableModels.filter((model) => model.disabled).map(modelRefId),
     tabs: state.tabs.map((tab) => ({
       name: tab.title,
       sessionId: tab.sessionId,

@@ -8,6 +8,7 @@ import type {
   BatchReuseMode,
   BatchTabRequest,
 } from "./batch-lua.js";
+import { resolveBatchModel } from "./batch-models.js";
 import { renderTemplate } from "./batch-lua.js";
 
 /**
@@ -36,6 +37,8 @@ export interface MixCodeBatchApi {
   tabExists(name: string): boolean;
   listTabs(): BatchLuaTabInfo[];
   listModels(): BatchLuaModelInfo[];
+  /** Resolve an exact id to provider/modelId using the startup model snapshot. */
+  resolveModel(query: string): string;
   render(template: string, vars: Record<string, unknown>): string;
 }
 
@@ -78,6 +81,7 @@ export async function runTsScript(
     // Copies: a script mutating the returned rows must not corrupt host state.
     listTabs: () => context.tabs.map((tab) => ({ ...tab })),
     listModels: () => (context.models ?? []).map((model) => ({ ...model })),
+    resolveModel: (query) => resolveBatchModel(query, context),
     render: (template, vars) =>
       renderTemplate(template, (name) => {
         const value = vars[name];

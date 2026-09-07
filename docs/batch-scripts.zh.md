@@ -58,6 +58,7 @@ apply
 | `mixcode.tab_exists(name)` | 启动快照：是否已有同名 tab |
 | `mixcode.list_tabs()` | 启动快照：已有 tab 列表 |
 | `mixcode.list_models()` | 启动快照：可用模型列表（`id`/`provider`/`model_id`/`display_name`/`context_window`/`reasoning`） |
+| `mixcode.resolve_model(query)` | 将精确模型 ID 解析为已启用的 `provider/modelId`，见[模型解析](#模型解析) |
 | `mixcode.render(tpl, vars)` / `render(...)` | `{name}` 模板；`{{` / `}}` 转义字面量 |
 
 标准 Lua 库可用（含 `os.getenv`、`io` 等）。根目录 [`mixcode.lua`](../mixcode.lua) 是指向 `mpi-batch-skill` 随包分发的 [Lua API reference](../pi-packages/mpi-batch-skill/skills/mpi-batch/references/mixcode.lua) 的软链接。
@@ -142,6 +143,7 @@ export default script;
 | `mixcode.tab_exists(name)` | `mixcode.tabExists(name)` |
 | `mixcode.list_tabs()` → `session_id`、`model` | `mixcode.listTabs()` → `sessionId`、`model` |
 | `mixcode.list_models()` → `model_id`、`display_name`、`context_window` | `mixcode.listModels()` → `modelId`、`displayName`、`contextWindow` |
+| `mixcode.resolve_model(query)` | `mixcode.resolveModel(query)` |
 | `mixcode.render(tpl, vars)` / 全局 `render` | `mixcode.render(tpl, vars)`（或直接用模板字符串） |
 
 字段语义、`mode`、`systemPrompt` 的新会话规则、prompt 支持范围与校验都与上方 Lua 一致。
@@ -149,6 +151,40 @@ export default script;
 脚本写错时抛错：缺少默认导出或默认导出不是函数、`name` 缺失或非非空字符串、任意选项字段非字符串、`openTab` 传入未知字段（如误写 Lua 的 `system_prompt`）。脚本加载与运行失败会包装为 `Batch script error in <path>`。
 
 **无沙箱**：TypeScript 脚本在 MixCode 进程内以完整宿主权限运行（文件系统、网络、`process`）。把批处理脚本当作你亲自执行的本地可信代码。
+
+## 模型解析
+
+开 Tab 前，将模型 ID 解析为本机的 provider 引用：
+
+```lua
+mixcode.open_tab({ name = "review", model = mixcode.resolve_model("claude-sonnet-4-5") })
+```
+
+```ts
+export default (mixcode: MixCodeBatchApi) => {
+  mixcode.openTab({ name: "review", model: mixcode.resolveModel("claude-sonnet-4-5") });
+};
+```
+
+`resolve_model(query)` / `resolveModel(query)` 接受一个非空字符串，返回规范的 `provider/modelId` 字符串。去除首尾空白后，基于启动模型目录区分大小写地匹配：
+
+1. 精确的完整引用优先，即使同一字符串也是其他模型的裸 ID。显式引用已禁用的模型会失败，不改换 provider。
+2. 否则匹配完整模型 ID，包括其中的 `/`，排除禁用候选。
+3. 优先选择启动默认模型的 provider；没有对应候选时，按 JavaScript 字符串顺序选择名称最小的 provider，不依赖目录顺序。
+
+解析器读取启动快照。优先 provider 来自 MixCode 的启动模型；当 Pi 的 `defaultProvider` / `defaultModel` 对应模型已配置时，启动模型遵循该设置。恢复的 Tab 不决定此偏好。
+
+解析仅精确匹配，不替换模型版本。它不发送网络请求，也不验证凭证或服务可用性。自动选择不比较价格和数据策略；需要指定 provider 时传入完整的 `provider/modelId`。
+
+| 失败原因 | 错误 |
+| --- | --- |
+| 空字符串或非字符串查询 | `Error: Model query must be a non-empty string` |
+| 没有已启用的匹配项 | `Error: No available model matches: <query>` |
+| 显式引用已禁用的模型 | `Error: Model is disabled: <query>` |
+
+脚本错误包含脚本路径。模型解析在收集脚本期间执行，早于 batch 请求的应用。
+
+dry-run 使用相同的选择规则，并在 `model=...` 中显示解析后的完整引用。读取全局和项目设置时不获取写锁；读取或解析错误会中止校验。它不加载运行时扩展，也不获取网络发现的模型，因此目录可能与正式启动不同。校验失败不写状态、会话或崩溃日志；脚本本身仍拥有宿主权限。
 
 ## dry-run 输出
 

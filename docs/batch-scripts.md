@@ -58,6 +58,7 @@ apply
 | `mixcode.tab_exists(name)` | Launch snapshot: whether a tab with the given name exists |
 | `mixcode.list_tabs()` | Launch snapshot: list of existing tabs |
 | `mixcode.list_models()` | Launch snapshot: list of available models (`id`/`provider`/`model_id`/`display_name`/`context_window`/`reasoning`) |
+| `mixcode.resolve_model(query)` | Resolve an exact model id to an enabled `provider/modelId`; see [model resolution](#model-resolution) |
 | `mixcode.render(tpl, vars)` / `render(...)` | `{name}` template; `{{` / `}}` escape literals |
 
 Standard Lua libraries are available (including `os.getenv`, `io`, etc.). The root [`mixcode.lua`](../mixcode.lua) symlinks to the [Lua API reference](../pi-packages/mpi-batch-skill/skills/mpi-batch/references/mixcode.lua) shipped with `mpi-batch-skill`.
@@ -142,6 +143,7 @@ Names map one-to-one; TypeScript uses camelCase:
 | `mixcode.tab_exists(name)` | `mixcode.tabExists(name)` |
 | `mixcode.list_tabs()` → `session_id`, `model` | `mixcode.listTabs()` → `sessionId`, `model` |
 | `mixcode.list_models()` → `model_id`, `display_name`, `context_window` | `mixcode.listModels()` → `modelId`, `displayName`, `contextWindow` |
+| `mixcode.resolve_model(query)` | `mixcode.resolveModel(query)` |
 | `mixcode.render(tpl, vars)` / global `render` | `mixcode.render(tpl, vars)` (or template literals) |
 
 Field semantics, `mode`, the `systemPrompt` fresh-session rule, prompt support, and validation are identical to the Lua tables above.
@@ -149,6 +151,40 @@ Field semantics, `mode`, the `systemPrompt` fresh-session rule, prompt support, 
 Errors thrown for malformed scripts: missing or non-function default export, `name` missing or not a non-empty string, any non-string option field, and unknown `openTab` fields (for example the Lua spelling `system_prompt`). Script load and runtime failures are wrapped as `Batch script error in <path>`.
 
 **No sandbox**: a TypeScript script runs in the MixCode process with full host privileges (file system, network, `process`). Treat batch scripts as trusted local code, exactly like the shell commands you would run yourself.
+
+## Model Resolution
+
+Resolve a model ID to a local provider before opening a tab:
+
+```lua
+mixcode.open_tab({ name = "review", model = mixcode.resolve_model("claude-sonnet-4-5") })
+```
+
+```ts
+export default (mixcode: MixCodeBatchApi) => {
+  mixcode.openTab({ name: "review", model: mixcode.resolveModel("claude-sonnet-4-5") });
+};
+```
+
+`resolve_model(query)` / `resolveModel(query)` takes one non-empty string and returns a canonical `provider/modelId` string. It trims surrounding whitespace and matches case-sensitively against the startup catalog:
+
+1. An exact canonical reference wins, even if the same string is another model's bare id. A disabled explicit reference fails without changing provider.
+2. Otherwise match the entire model id, including any `/` characters, excluding disabled candidates.
+3. Prefer the startup default model's provider when it has a candidate. Otherwise choose the smallest provider name in JavaScript string order, independent of catalog order.
+
+The resolver reads the startup snapshot. Its preferred provider comes from MixCode's startup model, which honors Pi's `defaultProvider` / `defaultModel` settings when that model is configured. Restored tabs do not determine this preference.
+
+Matching is exact, with no version substitution. Resolution makes no network requests and does not verify credentials or service availability. Automatic selection does not compare prices or data policies; pass a full `provider/modelId` to choose a specific provider.
+
+| Failure | Error |
+| --- | --- |
+| Empty or non-string query | `Error: Model query must be a non-empty string` |
+| No enabled match | `Error: No available model matches: <query>` |
+| Disabled explicit reference | `Error: Model is disabled: <query>` |
+
+Script errors include the script path. Model resolution happens during script collection, before batch requests are applied.
+
+Dry-run uses the same selection rules and displays the resolved reference in `model=...`. It reads global and project settings without write locks; read or parse errors abort validation. It does not load runtime extensions or fetch network-discovered models, so its catalog may differ from a live launch. Validation failures write no state, sessions, or crash log; scripts themselves still have host privileges.
 
 ## Dry-run Output
 

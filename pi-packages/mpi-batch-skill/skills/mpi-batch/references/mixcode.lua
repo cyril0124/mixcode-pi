@@ -63,6 +63,15 @@ function mixcode.tab_exists(name) end
 ---@return mixcode.TabInfo[]
 function mixcode.list_tabs() end
 
+---Resolve an exact model id or provider/modelId to an enabled canonical id.
+---Uses the startup snapshot: prefer its default provider, then provider name
+---in case-sensitive JS string order. Canonical references never change routes.
+---Trims surrounding whitespace; throws for invalid/unknown queries or disabled
+---explicit references. No I/O, fuzzy matching, or model-version substitution.
+---@param query string Exact model id or provider/modelId
+---@return string id Canonical provider/modelId, accepted by open_tab
+function mixcode.resolve_model(query) end
+
 ---List available models at batch startup (snapshot; not live).
 ---@return mixcode.ModelInfo[]
 function mixcode.list_models() end

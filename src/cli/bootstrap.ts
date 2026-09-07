@@ -17,7 +17,6 @@ import {
   createInitialState,
   createSessionId,
   createTab,
-  DEFAULT_MODEL_REF,
   DEFAULT_THINKING_LEVEL,
 } from "../core/defaults.js";
 import {
@@ -36,10 +35,9 @@ import { setTheme } from "../ui/themes.js";
 import {
   applyDisabledModelFlags,
   buildAvailableModelRefs,
-  isModelRefAvailable,
   modelToRef,
-  normalizeModelRef,
   registerModels,
+  selectStartupModel,
   setStateModel,
   setTabModel,
 } from "../core/models.js";
@@ -52,7 +50,7 @@ import {
   stateFilePath,
 } from "../core/state-store.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
-import { HOME_TAB_ID, type MixCodeModelRef, type MixCodeState } from "../core/types.js";
+import { HOME_TAB_ID, type MixCodeState } from "../core/types.js";
 import type { MixCodeCompletionSources } from "../ui/components/completion.js";
 import { applyHttpProxySettings, configureHttpDispatcher } from "@earendil-works/pi-coding-agent";
 
@@ -169,31 +167,12 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
     state.disabledModels,
   );
 
-  // Respect settings.json defaultProvider/defaultModel if set
-  const defaultProvider = settingsManager.getDefaultProvider();
-  const defaultModel = settingsManager.getDefaultModel();
-  let preferredModel: MixCodeModelRef;
-  if (defaultProvider && defaultModel) {
-    const settingsModelRef: MixCodeModelRef = {
-      provider: defaultProvider,
-      modelId: defaultModel,
-      displayName: `${defaultProvider}/${defaultModel}`,
-      contextWindow: 200000, // will be corrected by normalizeModelRef if available
-    };
-    preferredModel = isModelRefAvailable(state.availableModels, settingsModelRef)
-      ? normalizeModelRef(state.availableModels, settingsModelRef)
-      : applyDisabledModelFlags(
-          [configuredModels.at(-1) ?? { ...DEFAULT_MODEL_REF }],
-          state.disabledProviders,
-          state.disabledModels,
-        )[0]!;
-  } else {
-    preferredModel = applyDisabledModelFlags(
-      [configuredModels.at(-1) ?? { ...DEFAULT_MODEL_REF }],
-      state.disabledProviders,
-      state.disabledModels,
-    )[0]!;
-  }
+  const preferredModel = selectStartupModel(
+    state.availableModels,
+    configuredModels,
+    settingsManager.getDefaultProvider(),
+    settingsManager.getDefaultModel(),
+  );
 
   setStateModel(state, preferredModel);
   state.thinkingLevel = settingsManager.getDefaultThinkingLevel() ?? DEFAULT_THINKING_LEVEL;

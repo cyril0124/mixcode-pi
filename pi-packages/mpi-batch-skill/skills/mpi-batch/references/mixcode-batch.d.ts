@@ -95,6 +95,14 @@ interface MixCodeBatchApi {
   tabExists(name: string): boolean;
   /** Tabs visible at batch startup (snapshot; not live). */
   listTabs(): MixCodeBatchTabInfo[];
+  /**
+   * Resolve an exact model id or provider/modelId to an enabled canonical id.
+   * Uses the startup snapshot: prefer its default provider, then provider name
+   * in case-sensitive JS string order. Canonical references never change routes.
+   * Trims surrounding whitespace; throws for invalid/unknown queries or disabled
+   * explicit references. No I/O, fuzzy matching, or model-version substitution.
+   */
+  resolveModel(query: string): string;
   /** Models available at batch startup (snapshot; not live). */
   listModels(): MixCodeBatchModelInfo[];
   /**

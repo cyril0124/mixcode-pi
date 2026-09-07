@@ -87,6 +87,25 @@ export function resolveRegisteredModel(
   return registeredModels.get(modelKey(provider, modelId));
 }
 
+/**
+ * Select the configured Pi default, then the last configured model, then faux.
+ * Returned catalog refs retain disabled flags; callers enforce usage restrictions.
+ */
+export function selectStartupModel(
+  available: MixCodeModelRef[],
+  configured: MixCodeModelRef[],
+  defaultProvider?: string,
+  defaultModelId?: string,
+): MixCodeModelRef {
+  const requested =
+    defaultProvider && defaultModelId
+      ? available.find(
+          (model) => model.provider === defaultProvider && model.modelId === defaultModelId,
+        )
+      : undefined;
+  return requested ?? normalizeModelRef(available, configured.at(-1) ?? { ...DEFAULT_MODEL_REF });
+}
+
 export function setStateModel(state: MixCodeState, model: MixCodeModelRef): void {
   state.model = model;
   state.availableModels = upsertModelRef(state.availableModels, model);
@@ -100,12 +119,10 @@ export function setTabModel(tab: MixCodeTabInfo, model: MixCodeModelRef): void {
 
 export function findModelRef(models: MixCodeModelRef[], query: string): MixCodeModelRef {
   const normalized = query.trim();
-  const found = models.find(
-    (model) =>
-      model.displayName === normalized ||
-      model.modelId === normalized ||
-      modelRefId(model) === normalized,
-  );
+  // A canonical reference must not be shadowed by another provider's bare id.
+  const found =
+    models.find((model) => modelRefId(model) === normalized) ??
+    models.find((model) => model.displayName === normalized || model.modelId === normalized);
   if (!found) throw new Error(`Error: Unknown model: ${query}`);
   return found;
 }
