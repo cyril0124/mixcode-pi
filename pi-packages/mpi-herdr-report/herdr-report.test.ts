@@ -1,33 +1,33 @@
+import { test } from "bun:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as net from "node:net";
 import * as os from "node:os";
 import * as path from "node:path";
-import { test } from "bun:test";
 import {
   applyAgentSettled,
   applyAgentStart,
   applySessionShutdown,
   applySessionStart,
   applyWaitingCount,
-  createHerdrLedger,
-  ledgerState,
-  releaseSession,
-  retainSession,
   buildNotificationShowRequest,
   buildReportAgentRequest,
   buildReportAgentSessionRequest,
+  createHerdrLedger,
   desiredState,
-  herdrBridgeEnabled,
   HERDR_REPORT_AGENT,
   HERDR_REPORT_SOURCE,
+  herdrBridgeEnabled,
   isMixcodeProcess,
   isStaleCtxError,
+  ledgerState,
   MARK_DONE_EVENT,
   parseWaitingForInputPayload,
   readCtxIdle,
+  releaseSession,
   resolveHerdrPaneId,
+  retainSession,
   sessionKeyFrom,
   socketEndpoint,
   WAITING_FOR_INPUT_EVENT,
@@ -203,13 +203,14 @@ test("session_start does not read isIdle after the session ctx is replaced", asy
   process.env.HERDR_SOCKET_PATH = socketPath;
   process.env.HERDR_PANE_ID = "w1:p1";
 
-  const reports: Array<{ method?: string; params?: { state?: string } }> = [];
+  const reports: Array<{ id: string; method?: string; params?: { state?: string } }> = [];
   const server = net.createServer((socket) => {
     socket.on("data", (buf) => {
       for (const line of String(buf).split("\n").filter(Boolean)) {
-        reports.push(JSON.parse(line) as (typeof reports)[number]);
+        const report = JSON.parse(line) as (typeof reports)[number];
+        reports.push(report);
+        socket.write(`${JSON.stringify({ id: report.id, result: { type: "ok" } })}\n`);
       }
-      socket.write("{}" + "\n");
       socket.end();
     });
   });
@@ -292,7 +293,10 @@ test("session_start does not read isIdle after the session ctx is replaced", asy
   }
 });
 
-test("process exit spawns a detached herdr CLI agent release", async () => {
+test.each([
+  "tui",
+  "print",
+] as const)("%s process exit releases only TUI-owned panes", async (mode) => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-herdr-exit-hook-"));
   const log = path.join(dir, "cli.log");
   const fakeCli = path.join(dir, "herdr");
@@ -303,7 +307,9 @@ test("process exit spawns a detached herdr CLI agent release", async () => {
     childScript,
     [
       `const { default: factory } = await import(${JSON.stringify(indexPath)});`,
-      "factory({ on() {}, events: { on() {} } });",
+      "const handlers = new Map();",
+      "factory({ on(event, handler) { handlers.set(event, handler); }, events: { on() {} } });",
+      `handlers.get("session_start")({ reason: "startup" }, { mode: ${JSON.stringify(mode)}, isIdle: () => true, sessionManager: { getSessionId: () => "exit-session" } });`,
       "process.exit(0);",
     ].join("\n"),
   );
@@ -328,10 +334,17 @@ test("process exit spawns a detached herdr CLI agent release", async () => {
     // The detached CLI child outlives the exiting process; poll for its write.
     let logged = "";
     for (let i = 0; i < 40 && !logged; i++) {
-      logged = await fs.readFile(log, "utf8").catch(() => "");
+      logged = await fs.readFile(log, "utf8").catch((error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return "";
+        throw error;
+      });
       if (!logged) await new Promise((resolve) => setTimeout(resolve, 50));
     }
-    assert.match(logged, /^pane release-agent w1:p1 --source mpi --agent mpi --seq \d+\n$/);
+    if (mode === "tui") {
+      assert.match(logged, /^pane release-agent w1:p1 --source mpi --agent mpi --seq \d+\n$/);
+    } else {
+      assert.equal(logged, "", "a print-only process must not release the parent pane's agent");
+    }
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
   }

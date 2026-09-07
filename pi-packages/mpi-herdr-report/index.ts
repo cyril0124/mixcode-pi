@@ -7,8 +7,8 @@
  * Multi-tab: process-level busy set so any running session keeps the pane working.
  *
  * MixCode extras: `mpi:waiting-for-input` → blocked, `mpi:mark-done` notify.
- * On process exit a detached `herdr pane release-agent` child clears the
- * pane's agent entry so no stale state outlives the process.
+ * Processes owning a TUI session attempt a detached `herdr pane release-agent`
+ * on exit to clear the pane's agent entry.
  * Pure Node — must also run under upstream pi (Node + jiti).
  */
 
@@ -156,12 +156,18 @@ export function parseWaitingForInputPayload(raw: unknown): WaitingForInputEventP
   return { count: n };
 }
 
+export interface HerdrRequest {
+  id: string;
+  method: string;
+  params: Record<string, unknown>;
+}
+
 export function buildReportAgentRequest(
   paneId: string,
   state: HerdrReportState,
   seq: number,
   extra: Record<string, unknown> = {},
-): Record<string, unknown> {
+): HerdrRequest {
   return {
     id: `${HERDR_REPORT_SOURCE}:${Date.now()}:${Math.random().toString(36).slice(2)}`,
     method: "pane.report_agent",
@@ -180,7 +186,7 @@ export function buildReportAgentSessionRequest(
   paneId: string,
   seq: number,
   extra: Record<string, unknown> = {},
-): Record<string, unknown> {
+): HerdrRequest {
   return {
     id: `${HERDR_REPORT_SOURCE}:session:${Date.now()}:${Math.random().toString(36).slice(2)}`,
     method: "pane.report_agent_session",
@@ -197,7 +203,7 @@ export function buildReportAgentSessionRequest(
 export function buildNotificationShowRequest(
   title: string,
   sound: "done" | "request" | "none",
-): Record<string, unknown> {
+): HerdrRequest {
   return {
     id: `${HERDR_REPORT_SOURCE}:notify:${Date.now()}:${Math.random().toString(36).slice(2)}`,
     method: "notification.show",
@@ -237,14 +243,9 @@ export function buildExitReleaseArgv(paneId: string, seq: number): string[] {
   ];
 }
 
-// One hook per process even across module re-imports (session replacement
-// re-imports this module; a module-local boolean would fork and double-spawn).
-const EXIT_HOOK_KEY = Symbol.for("mpi-herdr-report:exit-hook-installed");
-
 function installExitReleaseHook(env: NodeJS.ProcessEnv = process.env): void {
-  const registry = globalThis as unknown as Record<symbol, boolean | undefined>;
-  if (registry[EXIT_HOOK_KEY]) return;
-  registry[EXIT_HOOK_KEY] = true;
+  if (reporter.exitHookInstalled) return;
+  reporter.exitHookInstalled = true;
   process.on("exit", () => {
     const paneId = resolveHerdrPaneId(env);
     if (!paneId) return;
@@ -254,22 +255,41 @@ function installExitReleaseHook(env: NodeJS.ProcessEnv = process.env): void {
       stdio: "ignore",
     });
     child.on("error", () => {
-      // Swallowed: spawn ENOENT when the herdr CLI is not installed. Without
-      // the CLI there is no herdr server to report to.
+      // Best-effort teardown: the process is exiting, so CLI launch errors cannot be surfaced.
     });
     child.unref();
   });
 }
 
-let reportSeq = Date.now() * 1000;
-let sendInFlight = false;
-let queuedState: QueuedState | undefined;
-let lastMarkDoneAt = 0;
-const processLedger = createHerdrLedger();
+interface ProcessReporter {
+  exitHookInstalled: boolean;
+  seq: number;
+  sendInFlight: boolean;
+  queuedState?: QueuedState;
+  lastMarkDoneAt: number;
+  lastState?: HerdrReportState;
+  lastMessage?: string;
+  lastStateSeq?: number;
+  ledger: HerdrLedger;
+}
+
+// Pi can re-evaluate the module while other tabs still use an older factory.
+// Queue ownership, deduplication and the exit sequence must share the ledger's lifetime.
+const REPORTER_KEY = Symbol.for("mpi-herdr-report:process-state");
+const registry = globalThis as unknown as Record<symbol, ProcessReporter | undefined>;
+registry[REPORTER_KEY] ??= {
+  exitHookInstalled: false,
+  seq: Date.now() * 1000,
+  sendInFlight: false,
+  lastMarkDoneAt: 0,
+  ledger: createHerdrLedger(),
+};
+const reporter = registry[REPORTER_KEY];
+const processLedger = reporter.ledger;
 
 function nextReportSeq(): number {
-  reportSeq += 1;
-  return reportSeq;
+  reporter.seq += 1;
+  return reporter.seq;
 }
 
 function sessionFieldsFrom(ctx: unknown): Record<string, unknown> {
@@ -291,8 +311,9 @@ function sessionFieldsFrom(ctx: unknown): Record<string, unknown> {
   return {};
 }
 
+/** Disabled bridges are no-ops; otherwise only a complete, matching success envelope confirms delivery. */
 export function sendRequestAttempt(
-  request: unknown,
+  request: HerdrRequest,
   timeoutMs: number,
   env: NodeJS.ProcessEnv = process.env,
   options: { unrefTimeout?: boolean } = {},
@@ -313,9 +334,35 @@ export function sendRequestAttempt(
     };
 
     const socket = net.createConnection(endpoint);
+    socket.setEncoding("utf8");
+    let responseBuffer = "";
     socket.on("error", () => finish(false));
     socket.on("connect", () => socket.write(`${JSON.stringify(request)}\n`));
-    socket.on("data", () => finish(true));
+    socket.on("data", (chunk: string) => {
+      responseBuffer += chunk;
+      const newline = responseBuffer.indexOf("\n");
+      if (newline < 0) return;
+      let response: unknown;
+      try {
+        response = JSON.parse(responseBuffer.slice(0, newline));
+      } catch {
+        // Invalid JSON is a failed delivery, not an acknowledgement.
+        finish(false);
+        return;
+      }
+      finish(
+        typeof response === "object" &&
+          response !== null &&
+          "id" in response &&
+          response.id === request.id &&
+          !("error" in response) &&
+          "result" in response &&
+          typeof response.result === "object" &&
+          response.result !== null &&
+          "type" in response.result &&
+          typeof response.result.type === "string",
+      );
+    });
     socket.on("end", () => finish(false));
     timeout = setTimeout(() => finish(false), timeoutMs);
     if (options.unrefTimeout !== false) timeout.unref?.();
@@ -323,11 +370,11 @@ export function sendRequestAttempt(
 }
 
 async function sendRequest(
-  request: unknown,
+  request: HerdrRequest,
   options: { unrefTimeout?: boolean } = {},
-): Promise<void> {
-  if (await sendRequestAttempt(request, 500, process.env, options)) return;
-  await sendRequestAttempt(request, 1500, process.env, options);
+): Promise<boolean> {
+  if (await sendRequestAttempt(request, 500, process.env, options)) return true;
+  return sendRequestAttempt(request, 1500, process.env, options);
 }
 
 function sendState(
@@ -336,9 +383,9 @@ function sendState(
   seq: number,
   extra: Record<string, unknown> = {},
   options: { unrefTimeout?: boolean } = {},
-): Promise<void> {
+): Promise<boolean> {
   const paneId = resolveHerdrPaneId();
-  if (!paneId) return Promise.resolve();
+  if (!paneId) return Promise.resolve(false);
   return sendRequest(
     buildReportAgentRequest(paneId, state, seq, {
       ...extra,
@@ -348,18 +395,27 @@ function sendState(
   );
 }
 
+function forgetFailedState(seq: number): void {
+  // A failed older send must not invalidate a newer queued or direct report.
+  if (reporter.lastStateSeq !== seq) return;
+  reporter.lastState = undefined;
+  reporter.lastMessage = undefined;
+  reporter.lastStateSeq = undefined;
+}
+
 async function drainStateQueue(): Promise<void> {
-  if (sendInFlight) return;
-  sendInFlight = true;
+  if (reporter.sendInFlight) return;
+  reporter.sendInFlight = true;
   try {
-    while (queuedState) {
-      const next = queuedState;
-      queuedState = undefined;
-      await sendState(next.state, next.message, next.seq, next.extra ?? {});
+    while (reporter.queuedState) {
+      const next = reporter.queuedState;
+      reporter.queuedState = undefined;
+      const delivered = await sendState(next.state, next.message, next.seq, next.extra ?? {});
+      if (!delivered) forgetFailedState(next.seq);
     }
   } finally {
-    sendInFlight = false;
-    if (queuedState) void drainStateQueue();
+    reporter.sendInFlight = false;
+    if (reporter.queuedState) void drainStateQueue();
   }
 }
 
@@ -368,16 +424,15 @@ function queueState(
   message?: string,
   extra: Record<string, unknown> = {},
 ): void {
-  queuedState = { state, message, extra, seq: nextReportSeq() };
-  if (!sendInFlight) void drainStateQueue();
+  const seq = nextReportSeq();
+  reporter.lastStateSeq = seq;
+  reporter.queuedState = { state, message, extra, seq };
+  if (!reporter.sendInFlight) void drainStateQueue();
 }
 
 const herdrReportExtension: ExtensionFactory = (pi) => {
   if (!herdrBridgeEnabled()) return;
-  installExitReleaseHook();
 
-  let lastState: HerdrReportState | undefined;
-  let lastMessage: string | undefined;
   let rootSession = false;
   let sessionKey: string | undefined;
   let sessionExtra: Record<string, unknown> = {};
@@ -396,17 +451,21 @@ const herdrReportExtension: ExtensionFactory = (pi) => {
       state: ledgerState(processLedger),
       message: currentMessage(),
     };
-    if (!force && next.state === lastState && next.message === lastMessage) return;
-    lastState = next.state;
-    lastMessage = next.message;
+    if (!force && next.state === reporter.lastState && next.message === reporter.lastMessage)
+      return;
+    reporter.lastState = next.state;
+    reporter.lastMessage = next.message;
     queueState(next.state, next.message, sessionExtra);
   }
 
   async function flushIdle(): Promise<void> {
-    queuedState = undefined;
-    lastState = "idle";
-    lastMessage = undefined;
-    await sendState("idle", undefined, nextReportSeq(), {}, { unrefTimeout: false });
+    reporter.queuedState = undefined;
+    reporter.lastState = "idle";
+    reporter.lastMessage = undefined;
+    const seq = nextReportSeq();
+    reporter.lastStateSeq = seq;
+    const delivered = await sendState("idle", undefined, seq, {}, { unrefTimeout: false });
+    if (!delivered) forgetFailedState(seq);
   }
 
   async function reportSession(sessionStartSource?: string): Promise<void> {
@@ -427,14 +486,16 @@ const herdrReportExtension: ExtensionFactory = (pi) => {
   pi.events.on(MARK_DONE_EVENT, () => {
     if (!rootSession) return;
     const now = Date.now();
-    if (now - lastMarkDoneAt < 100) return;
-    lastMarkDoneAt = now;
+    if (now - reporter.lastMarkDoneAt < 100) return;
+    reporter.lastMarkDoneAt = now;
     void sendRequest(buildNotificationShowRequest("Marked done", "done"));
     publishState(true);
   });
 
   pi.on("session_start", (event: SessionStartEvent, ctx: ExtensionContext) => {
     if (ctx.mode !== "tui") return;
+    // Child processes can inherit Herdr env without owning the pane's TUI agent.
+    installExitReleaseHook();
     if (!rootSession) retainSession(processLedger);
     rootSession = true;
     rememberSession(ctx);
@@ -445,6 +506,8 @@ const herdrReportExtension: ExtensionFactory = (pi) => {
   });
 
   pi.on("session_shutdown", (_event: SessionShutdownEvent) => {
+    // Non-TUI sessions never retain the pane ledger; repeated shutdowns are inert.
+    if (!rootSession) return;
     const last = releaseSession(processLedger, sessionKey);
     rootSession = false;
     sessionKey = undefined;
