@@ -60,7 +60,7 @@ apply
 | `mixcode.list_models()` | 启动快照：可用模型列表（`id`/`provider`/`model_id`/`display_name`/`context_window`/`reasoning`） |
 | `mixcode.render(tpl, vars)` / `render(...)` | `{name}` 模板；`{{` / `}}` 转义字面量 |
 
-标准 Lua 库可用（含 `os.getenv`、`io` 等）。类型桩见仓库根目录 [`mixcode.lua`](../mixcode.lua)。
+标准 Lua 库可用（含 `os.getenv`、`io` 等）。根目录 [`mixcode.lua`](../mixcode.lua) 是指向 `mpi-batch` 随包分发的 [Lua API reference](../pi-packages/mpi-batch/skills/mpi-batch/references/mixcode.lua) 的软链接。
 
 ### `open_tab` 字段
 
@@ -129,7 +129,7 @@ const script: MixCodeBatchScript = async (mixcode) => {
 export default script;
 ```
 
-类型桩：仓库根目录 [`mixcode-batch.d.ts`](../mixcode-batch.d.ts)（对应 Lua 的 `mixcode.lua`）。它声明的是全局类型，一行 `/// <reference path="..." />` 即可；不引用也能直接跑。
+根目录 [`mixcode-batch.d.ts`](../mixcode-batch.d.ts) 是指向 `mpi-batch` 随包分发的 [TypeScript API reference](../pi-packages/mpi-batch/skills/mpi-batch/references/mixcode-batch.d.ts) 的软链接。它声明的是全局类型，一行 `/// <reference path="..." />` 即可；不引用也能直接跑。
 
 命名一一对应，TypeScript 侧用 camelCase：
 

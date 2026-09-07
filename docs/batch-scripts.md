@@ -60,7 +60,7 @@ apply
 | `mixcode.list_models()` | Launch snapshot: list of available models (`id`/`provider`/`model_id`/`display_name`/`context_window`/`reasoning`) |
 | `mixcode.render(tpl, vars)` / `render(...)` | `{name}` template; `{{` / `}}` escape literals |
 
-Standard Lua libraries are available (including `os.getenv`, `io`, etc.). Type stubs are at repository root [`mixcode.lua`](../mixcode.lua).
+Standard Lua libraries are available (including `os.getenv`, `io`, etc.). The root [`mixcode.lua`](../mixcode.lua) symlinks to the [Lua API reference](../pi-packages/mpi-batch/skills/mpi-batch/references/mixcode.lua) shipped with `mpi-batch`.
 
 ### `open_tab` Fields
 
@@ -129,7 +129,7 @@ const script: MixCodeBatchScript = async (mixcode) => {
 export default script;
 ```
 
-Type stub: [`mixcode-batch.d.ts`](../mixcode-batch.d.ts) at repository root (the TypeScript counterpart of `mixcode.lua`). It declares globals, so a `/// <reference path="..." />` line is enough; scripts also run untyped without it.
+The root [`mixcode-batch.d.ts`](../mixcode-batch.d.ts) symlinks to the [TypeScript API reference](../pi-packages/mpi-batch/skills/mpi-batch/references/mixcode-batch.d.ts) shipped with `mpi-batch`. It declares globals, so a `/// <reference path="..." />` line is enough; scripts also run untyped without it.
 
 Names map one-to-one; TypeScript uses camelCase:
 

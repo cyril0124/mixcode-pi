@@ -27,6 +27,7 @@ Every package with a user-edited JSON config ships a JSON Schema next to its ext
 | `mpi-tool-display` | Auto on tool/thinking render; `/mpi-tool-display config` | Render-only `ToolExecutionComponent` adapter for compact `bash`/`read`/`edit`/`write` rows, bars/split-view diffs, and context-safe themed Thinking labels; its global debug setting can append raw JSON arguments to every tool call without changing native ownership, execution, or `PI_*`. |
 | `mpi-image-hoist` | Auto on multimodal prompt | Re-orders and extracts image payloads for multimodal tool compatibility. |
 | `mpi-herdr-report` | `HERDR_ENV=1` | Notifies Herdr terminal multiplexer panes of agent status (working / idle / waiting). |
+| `mpi-batch` | `$mpi-batch`, `/skill:mpi-batch` (manual only) | Write, validate, and launch batch scripts. See [package reference](../pi-packages/mpi-batch/README.md). |
 | `mpi-ctl` | `$mpi-ctl`, `mpi status` / `mpi ctl` | Agent Tab collaboration skill: locate tabs via `MIXCODE_*` and prompt/wait/read peers with `mpi status` / `mpi ctl`. |
 
 ## Built-in Package Loading Lifecycle

@@ -212,6 +212,19 @@ import stuckGuardSchemaJson from "../../pi-packages/mpi-stuck-guard/mpi-stuck-gu
 import stuckGuardPackageJson from "../../pi-packages/mpi-stuck-guard/package.json" with {
   type: "text",
 };
+import mpiBatchIndex from "../../pi-packages/mpi-batch/index.ts" with { type: "text" };
+import mpiBatchPackageJson from "../../pi-packages/mpi-batch/package.json" with { type: "text" };
+import mpiBatchSkillMd from "../../pi-packages/mpi-batch/skills/mpi-batch/SKILL.md" with {
+  type: "text",
+};
+import mpiBatchTsReference from "../../pi-packages/mpi-batch/skills/mpi-batch/references/mixcode-batch.d.ts" with {
+  type: "text",
+};
+import mpiBatchLuaReference from "../../pi-packages/mpi-batch/skills/mpi-batch/references/mixcode.lua" with {
+  type: "text",
+};
+import mpiBatchReadmeMd from "../../pi-packages/mpi-batch/README.md" with { type: "text" };
+import mpiBatchReadmeZhMd from "../../pi-packages/mpi-batch/README.zh.md" with { type: "text" };
 import mpiCtlIndex from "../../pi-packages/mpi-ctl/index.ts" with { type: "text" };
 import mpiCtlPackageJson from "../../pi-packages/mpi-ctl/package.json" with { type: "text" };
 import mpiCtlSkillMd from "../../pi-packages/mpi-ctl/skills/mpi-ctl/SKILL.md" with { type: "text" };
@@ -645,6 +658,15 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
       "mpi-stuck-guard.schema.json": stuckGuardSchemaJson,
       "schema-hint.ts": stuckGuardSchemaHint,
       "package.json": stuckGuardPackageJson,
+    },
+    "mpi-batch": {
+      "index.ts": mpiBatchIndex,
+      "package.json": mpiBatchPackageJson,
+      "skills/mpi-batch/SKILL.md": mpiBatchSkillMd,
+      "skills/mpi-batch/references/mixcode-batch.d.ts": mpiBatchTsReference,
+      "skills/mpi-batch/references/mixcode.lua": mpiBatchLuaReference,
+      "README.md": mpiBatchReadmeMd,
+      "README.zh.md": mpiBatchReadmeZhMd,
     },
     "mpi-ctl": {
       "index.ts": mpiCtlIndex,

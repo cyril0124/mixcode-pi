@@ -1,0 +1,17 @@
+{
+  "name": "mpi-batch",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Manual-only skill for writing and validating MixCode batch scripts.",
+  "keywords": [
+    "pi-package"
+  ],
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ],
+    "skills": [
+      "./skills"
+    ]
+  }
+}
