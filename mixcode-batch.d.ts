@@ -1,1 +1,1 @@
-pi-packages/mpi-batch/skills/mpi-batch/references/mixcode-batch.d.ts
+pi-packages/mpi-batch-skill/skills/mpi-batch/references/mixcode-batch.d.ts

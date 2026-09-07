@@ -1,4 +1,4 @@
-# mpi-ctl
+# mpi-ctl-skill
 
 Agent Tab 协作 skill（`pi.skills: ["./skills"]`）。
 

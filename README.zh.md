@@ -190,7 +190,7 @@ mpi ctl --workdir ~/other-proj --tab Reviewer send-prompt 'review the diff'
 mpi ctl --tab Agent-01 wait && mpi ctl --tab Agent-01 last-message
 ```
 
-`mpi` 开发 `mpi` 正是如此：一个 Tab 把审查或验证任务委派给其他实例的 Tab，再收集它们的回复。完整命令参考：[pi-packages/mpi-ctl/skills/mpi-ctl/SKILL.md](pi-packages/mpi-ctl/skills/mpi-ctl/SKILL.md)。运行时该技能安装于 `<agentDir>/extensions/mpi-ctl/skills/mpi-ctl/SKILL.md`，默认 `~/.pi/agent/…`。
+`mpi` 开发 `mpi` 正是如此：一个 Tab 把审查或验证任务委派给其他实例的 Tab，再收集它们的回复。完整命令参考：[pi-packages/mpi-ctl-skill/skills/mpi-ctl/SKILL.md](pi-packages/mpi-ctl-skill/skills/mpi-ctl/SKILL.md)。运行时该技能安装于 `<agentDir>/extensions/mpi-ctl-skill/skills/mpi-ctl/SKILL.md`，默认 `~/.pi/agent/…`。
 
 灵感来自 [Herdr](https://herdr.dev)——一个面向编程 Agent 的终端复用器，它把会话控制能力暴露给运行其中的 Agent。
 

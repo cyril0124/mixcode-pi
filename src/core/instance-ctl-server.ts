@@ -184,7 +184,7 @@ export function mpiCtlSkillPath(env: NodeJS.ProcessEnv = process.env): string {
   return path.join(
     resolveMixcodeAgentDir(env),
     "extensions",
-    "mpi-ctl",
+    "mpi-ctl-skill",
     "skills",
     "mpi-ctl",
     "SKILL.md",

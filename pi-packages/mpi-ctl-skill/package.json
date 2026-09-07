@@ -1,5 +1,5 @@
 {
-  "name": "mpi-ctl",
+  "name": "mpi-ctl-skill",
   "version": "0.1.0",
   "type": "module",
   "description": "Agent Tab collaboration skill: prompt peer MixCode tabs via mpi status and mpi ctl.",

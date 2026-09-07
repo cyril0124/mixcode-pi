@@ -27,8 +27,8 @@ MixCode 随附位于 `pi-packages/mpi-*` 的第一方内置 Pi 包。启动时�
 | `mpi-tool-display` | 工具行/Thinking 渲染时自动生效；`/mpi-tool-display config` | 通过 render-only `ToolExecutionComponent` adapter 提供紧凑 `bash`/`read`/`edit`/`write` 行、bars/分栏 diff 与上下文安全的 Thinking 标签；全局调试设置可为每个工具调用追加原始 JSON 参数，同时不改变原生 ownership、执行逻辑或 `PI_*`。 |
 | `mpi-image-hoist` | 多模态输入时自动生效 | 提取并提升图片载荷，适配多模态模型与工具协议。 |
 | `mpi-herdr-report` | `HERDR_ENV=1` 环境生效 | 将 Agent 的运行状态（working / idle / waiting）同步上报至 Herdr 终端复用器窗格。 |
-| `mpi-batch` | `$mpi-batch`、`/skill:mpi-batch`（仅手动调用） | 编写、验证和启动 batch 脚本。详见 [包文档](../pi-packages/mpi-batch/README.zh.md)。 |
-| `mpi-ctl` | `$mpi-ctl`，`mpi status` / `mpi ctl` | Agent Tab 协作 skill：用 `MIXCODE_*` 定位 tab，再用 `mpi status` / `mpi ctl` 向同伴发 Prompt / 等待 / 读结果。 |
+| `mpi-batch-skill` | `$mpi-batch`、`/skill:mpi-batch`（仅手动调用） | 编写、验证和启动 batch 脚本。详见 [包文档](../pi-packages/mpi-batch-skill/README.zh.md)。 |
+| `mpi-ctl-skill` | `$mpi-ctl`，`mpi status` / `mpi ctl` | Agent Tab 协作 skill：用 `MIXCODE_*` 定位 tab，再用 `mpi status` / `mpi ctl` 向同伴发 Prompt / 等待 / 读结果。 |
 
 ## 内置包加载生命周期
 

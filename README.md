@@ -190,7 +190,7 @@ mpi ctl --workdir ~/other-proj --tab Reviewer send-prompt 'review the diff'
 mpi ctl --tab Agent-01 wait && mpi ctl --tab Agent-01 last-message
 ```
 
-This is how `mpi` develops `mpi`: one tab delegates review or verification tasks to tabs of other instances and collects their replies. Full command reference: [pi-packages/mpi-ctl/skills/mpi-ctl/SKILL.md](pi-packages/mpi-ctl/skills/mpi-ctl/SKILL.md). At runtime the skill is installed at `<agentDir>/extensions/mpi-ctl/skills/mpi-ctl/SKILL.md`, `~/.pi/agent/…` by default.
+This is how `mpi` develops `mpi`: one tab delegates review or verification tasks to tabs of other instances and collects their replies. Full command reference: [pi-packages/mpi-ctl-skill/skills/mpi-ctl/SKILL.md](pi-packages/mpi-ctl-skill/skills/mpi-ctl/SKILL.md). At runtime the skill is installed at `<agentDir>/extensions/mpi-ctl-skill/skills/mpi-ctl/SKILL.md`, `~/.pi/agent/…` by default.
 
 Inspired by [Herdr](https://herdr.dev), a terminal multiplexer for coding agents that exposes session control to the agents running inside it.
 

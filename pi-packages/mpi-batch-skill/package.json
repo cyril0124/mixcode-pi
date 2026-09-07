@@ -1,5 +1,5 @@
 {
-  "name": "mpi-batch",
+  "name": "mpi-batch-skill",
   "version": "0.1.0",
   "type": "module",
   "description": "Manual-only skill for writing and validating MixCode batch scripts.",

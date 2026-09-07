@@ -719,7 +719,7 @@ test("parseCtlArgs and handleCtlRequest send-prompt", async () => {
   assert.equal(wrapCtlSubmitText("!ls"), "!ls");
   assert.equal(wrapCtlSubmitText("!!ls"), "!!ls");
   const skillPath = mpiCtlSkillPath();
-  assert.match(skillPath, /\/extensions\/mpi-ctl\/skills\/mpi-ctl\/SKILL\.md$/);
+  assert.match(skillPath, /\/extensions\/mpi-ctl-skill\/skills\/mpi-ctl\/SKILL\.md$/);
   assert.equal(path.isAbsolute(skillPath), true);
   const expectedReply = wrapCtlSubmitText("hello", "Agent-01", true);
   assert.match(

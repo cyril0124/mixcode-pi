@@ -9,12 +9,12 @@ import {
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
 
-test("mpi-ctl contributes its skill from an installed extension package", async () => {
+test("mpi-ctl-skill contributes its skill from an installed extension package", async () => {
   const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-ctl-agent-"));
   try {
     const extensionsDir = path.join(agentDir, "extensions");
     await fs.mkdir(extensionsDir, { recursive: true });
-    await fs.symlink(import.meta.dirname, path.join(extensionsDir, "mpi-ctl"));
+    await fs.symlink(import.meta.dirname, path.join(extensionsDir, "mpi-ctl-skill"));
 
     const services = await createAgentSessionServices({ cwd: agentDir, agentDir });
     const { session } = await createAgentSessionFromServices({

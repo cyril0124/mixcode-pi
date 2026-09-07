@@ -55,7 +55,7 @@ Tab 配色使用当前主题已有的 token，渲染层不定义独立调色板�
 Tab 用 `mpi status` / `mpi ctl` 向同伴发 Prompt（同一 TUI，或通过 `--pid` / `--workdir` 指向另一实例）。这不是下方的 `open_tabs.json` peer-sync——后者只对账跨进程的打开 Tab 集合。
 
 - CLI 契约：[ctl 子命令](cli-and-flags.zh.md#ctl-子命令)
-- Agent 手册：[mpi-ctl skill](../pi-packages/mpi-ctl/skills/mpi-ctl/SKILL.md)
+- Agent 手册：[mpi-ctl skill](../pi-packages/mpi-ctl-skill/skills/mpi-ctl/SKILL.md)
 
 ## 工作区持久化 (Workspace)
 
