@@ -22,7 +22,8 @@
 - Before writing, reorganizing, reviewing, or trimming repository documentation, read and follow `.agents/skills/doc-standards/SKILL.md`.
 - **Proactive Documentation**: Actively document design decisions, architecture, workflows, API contracts, and usage patterns across the repository.
 - **Bilingual Documentation Pairing (EN / ZH)**:
-  - All documentation must be provided in both English and Chinese.
+  - All documentation except skill instruction files must be provided in both English and Chinese.
+  - Keep skill instructions in `SKILL.md` only; do not create `SKILL.zh.md`.
   - English documents use standard names (e.g., `README.md`, `docs/architecture.md`, `<topic>.md`).
   - Chinese documents use the `.zh.md` suffix (e.g., `README.zh.md`, `docs/architecture.zh.md`, `<topic>.zh.md`).
   - Keep both language versions synchronized whenever documentation is created or updated.
