@@ -90,6 +90,7 @@ function permissionProbeResult(
     toolName,
     inputValid: true as const,
     action: decision.action,
+    ...(decision.message !== undefined ? { message: decision.message } : {}),
     wouldAllow: decision.action === "allow",
     wouldAsk: decision.action === "ask",
     wouldBlock: decision.action === "deny",
@@ -304,7 +305,8 @@ export default function permissionExtension(pi: ExtensionAPI) {
     const denied = decisions.find((candidate) => candidate.action === "deny");
     if (denied) {
       const detail = denied.source ? describeSource(denied.source) : "denied";
-      return { block: true, reason: `permission: denied — ${detail}` };
+      const message = denied.message === undefined ? "" : `\n${denied.message}`;
+      return { block: true, reason: `permission: denied — ${detail}${message}` };
     }
     const asks = decisions.filter((candidate) => candidate.action === "ask");
     if (asks.length === 0) return undefined;

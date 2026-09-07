@@ -1,11 +1,28 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Permission rules (mpi-permission)",
-  "description": "Gate tool calls with allow / ask / deny rules. Keys are tool names, \"*\", or \"external_directory\"; values are one action or an ordered pattern->action object where the last matching rule wins. external_directory also evaluates statically parsed path arguments from common Bash file commands. \"doom_loop\" takes an action only.",
+  "description": "Gate tool calls with allow / ask / deny rules. Keys are tool names, \"*\", or \"external_directory\"; values are one action or an ordered pattern->effect object where the last matching rule wins. Pattern effects and \"doom_loop\" accept action strings or { action, message } objects. Messages are emitted only on deny. external_directory also evaluates statically parsed path arguments from common Bash file commands.",
   "definitions": {
     "action": {
       "description": "allow: run without approval; ask: prompt for approval; deny: block the call.",
       "enum": ["allow", "ask", "deny"]
+    },
+    "effect": {
+      "anyOf": [
+        { "$ref": "#/definitions/action" },
+        {
+          "type": "object",
+          "required": ["action"],
+          "additionalProperties": false,
+          "properties": {
+            "action": { "$ref": "#/definitions/action" },
+            "message": {
+              "type": "string",
+              "description": "Literal text appended to the winning deny reason and returned by permission_probe. Preserved but not emitted on allow/ask."
+            }
+          }
+        }
+      ]
     },
     "rules": {
       "anyOf": [
@@ -15,7 +32,7 @@
           "description": "Ordered wildcard rules over the tool's subject (* = any chars, ? = one char, leading ~ or $HOME expands). Last matching rule wins; put \"*\" first.",
           "minProperties": 1,
           "propertyNames": { "minLength": 1 },
-          "additionalProperties": { "$ref": "#/definitions/action" }
+          "additionalProperties": { "$ref": "#/definitions/effect" }
         }
       ]
     }
@@ -27,8 +44,8 @@
       "properties": {
         "$schema": { "type": "string" },
         "doom_loop": {
-          "description": "Fires when the same tool is called with identical input 3 times in a row. Action string only; absent = off.",
-          "$ref": "#/definitions/action"
+          "description": "Fires when the same tool is called with identical input 3 times in a row. Accepts an action string or { action, message } object, not patterns; absent = off.",
+          "$ref": "#/definitions/effect"
         }
       },
       "additionalProperties": { "$ref": "#/definitions/rules" }

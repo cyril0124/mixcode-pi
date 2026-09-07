@@ -17,9 +17,14 @@ export const DOOM_LOOP_THRESHOLD = 3;
 
 export type PermissionAction = "allow" | "ask" | "deny";
 
-export type PermissionRule = {
-  pattern: string;
+export type PermissionEffect = {
   action: PermissionAction;
+  /** Optional denial text; retained on allow/ask but only emitted on deny. */
+  message?: string;
+};
+
+export type PermissionRule = PermissionEffect & {
+  pattern: string;
 };
 
 /** Ordered rules for one config key (tool name, "*", or "external_directory"). */
@@ -32,7 +37,7 @@ export type PermissionConfig = {
   /** Insertion-ordered key entries; order matters for last-match-wins. */
   entries: ToolRuleSet[];
   /** Absent means the doom-loop guard is off. */
-  doomLoop?: PermissionAction;
+  doomLoop?: PermissionEffect;
   /** Editor `$schema` reference; ignored by evaluation, preserved on write. */
   schemaRef?: string;
 };
@@ -56,6 +61,8 @@ export type PermissionSource = {
 
 export type PermissionDecision = {
   action: PermissionAction;
+  /** Configured message of the winning deny; absent for allow/ask. */
+  message?: string;
   /** Undefined only for the implicit unmatched-allow default. */
   source?: PermissionSource;
 };
@@ -178,10 +185,41 @@ export function writePermissionConfig(
 // Parse / serialize
 // ---------------------------------------------------------------------------
 
+function parsePermissionEffect(
+  raw: unknown,
+  location: string,
+): { ok: true; effect: PermissionEffect } | { ok: false; error: string } {
+  if (typeof raw === "string" && ACTIONS.has(raw)) {
+    return { ok: true, effect: { action: raw as PermissionAction } };
+  }
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return { ok: false, error: `${location}: invalid action ${JSON.stringify(raw)}` };
+  }
+  for (const key of Object.keys(raw)) {
+    if (key !== "action" && key !== "message") {
+      return { ok: false, error: `${location}: unknown field ${JSON.stringify(key)}` };
+    }
+  }
+  const value = raw as Record<string, unknown>;
+  if (typeof value.action !== "string" || !ACTIONS.has(value.action)) {
+    return { ok: false, error: `${location}: action must be "allow" | "ask" | "deny"` };
+  }
+  if ("message" in value && typeof value.message !== "string") {
+    return { ok: false, error: `${location}: message must be a string` };
+  }
+  return {
+    ok: true,
+    effect: {
+      action: value.action as PermissionAction,
+      ...(typeof value.message === "string" ? { message: value.message } : {}),
+    },
+  };
+}
+
 /**
- * Parse a permission config body. Fail loud on any unknown shape:
- * root is an action string or an object of `key -> action | { pattern -> action }`.
- * `doom_loop` accepts an action string only.
+ * Parse a permission config body. Fail loud on unknown fields and invalid types.
+ * Root and per-tool shorthand remain action strings. Pattern values and
+ * `doom_loop` accept action strings or `{ action, message? }` objects.
  */
 export function parsePermissionConfig(
   raw: unknown,
@@ -199,7 +237,7 @@ export function parsePermissionConfig(
     return { ok: false, error: "config root must be an action string or an object" };
   }
   const entries: ToolRuleSet[] = [];
-  let doomLoop: PermissionAction | undefined;
+  let doomLoop: PermissionEffect | undefined;
   let schemaRef: string | undefined;
   for (const [key, value] of Object.entries(raw)) {
     if (!key.trim()) return { ok: false, error: "config keys must be non-empty" };
@@ -209,10 +247,9 @@ export function parsePermissionConfig(
       continue;
     }
     if (key === DOOM_LOOP_KEY) {
-      if (typeof value !== "string" || !ACTIONS.has(value)) {
-        return { ok: false, error: `${DOOM_LOOP_KEY} must be "allow" | "ask" | "deny"` };
-      }
-      doomLoop = value as PermissionAction;
+      const parsed = parsePermissionEffect(value, DOOM_LOOP_KEY);
+      if (!parsed.ok) return parsed;
+      doomLoop = parsed.effect;
       continue;
     }
     if (typeof value === "string") {
@@ -235,13 +272,12 @@ export function parsePermissionConfig(
     for (const [pattern, action] of Object.entries(value)) {
       if (!pattern)
         return { ok: false, error: `${JSON.stringify(key)}: patterns must be non-empty` };
-      if (typeof action !== "string" || !ACTIONS.has(action)) {
-        return {
-          ok: false,
-          error: `${JSON.stringify(key)}[${JSON.stringify(pattern)}]: invalid action ${JSON.stringify(action)}`,
-        };
-      }
-      rules.push({ pattern, action: action as PermissionAction });
+      const parsed = parsePermissionEffect(
+        action,
+        `${JSON.stringify(key)}[${JSON.stringify(pattern)}]`,
+      );
+      if (!parsed.ok) return parsed;
+      rules.push({ pattern, ...parsed.effect });
     }
     if (rules.length === 0)
       return { ok: false, error: `${JSON.stringify(key)}: rules object must not be empty` };
@@ -257,20 +293,30 @@ export function parsePermissionConfig(
   };
 }
 
-/** Inverse of parse: single `*` rule collapses to the string shorthand. */
+function serializePermissionEffect(effect: PermissionEffect): PermissionAction | PermissionEffect {
+  return effect.message === undefined
+    ? effect.action
+    : { action: effect.action, message: effect.message };
+}
+
+/** Single `*` rules collapse to shorthand only when no message needs preserving. */
 export function serializePermissionConfig(config: PermissionConfig): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   if (config.schemaRef !== undefined) out.$schema = config.schemaRef;
   for (const entry of config.entries) {
-    if (entry.rules.length === 1 && entry.rules[0]!.pattern === "*") {
+    if (
+      entry.rules.length === 1 &&
+      entry.rules[0]!.pattern === "*" &&
+      entry.rules[0]!.message === undefined
+    ) {
       out[entry.tool] = entry.rules[0]!.action;
       continue;
     }
-    const rules: Record<string, string> = {};
-    for (const rule of entry.rules) rules[rule.pattern] = rule.action;
+    const rules: Record<string, PermissionAction | PermissionEffect> = {};
+    for (const rule of entry.rules) rules[rule.pattern] = serializePermissionEffect(rule);
     out[entry.tool] = rules;
   }
-  if (config.doomLoop) out[DOOM_LOOP_KEY] = config.doomLoop;
+  if (config.doomLoop) out[DOOM_LOOP_KEY] = serializePermissionEffect(config.doomLoop);
   return out;
 }
 
@@ -473,18 +519,20 @@ function evaluateKey(
   if (!winner) return { action: "allow" };
   return {
     action: winner.rule.action,
+    ...(winner.rule.action === "deny" && winner.rule.message !== undefined
+      ? { message: winner.rule.message }
+      : {}),
     source: { kind, layer: winner.layer, tool: winner.tool, pattern: winner.rule.pattern, subject },
   };
 }
 
-/** Doom-loop action comes from the last layer that sets it. */
-export function doomLoopAction(layers: readonly LayeredConfig[]): {
-  action: PermissionAction;
-  layer: PermissionLayer;
-} | null {
-  let found: { action: PermissionAction; layer: PermissionLayer } | null = null;
+/** Doom-loop action and message come together from the last layer that sets it. */
+export function doomLoopAction(
+  layers: readonly LayeredConfig[],
+): (PermissionEffect & { layer: PermissionLayer }) | null {
+  let found: (PermissionEffect & { layer: PermissionLayer }) | null = null;
   for (const { layer, config } of layers) {
-    if (config.doomLoop) found = { action: config.doomLoop, layer };
+    if (config.doomLoop) found = { ...config.doomLoop, layer };
   }
   return found;
 }
@@ -562,6 +610,7 @@ export function evaluateToolCall(args: {
   if (doom && (args.doomCount ?? 0) >= DOOM_LOOP_THRESHOLD) {
     decision = stricterPermissionDecision(decision, {
       action: doom.action,
+      ...(doom.action === "deny" && doom.message !== undefined ? { message: doom.message } : {}),
       source: {
         kind: "doom_loop",
         layer: doom.layer,
@@ -697,7 +746,7 @@ export function cycleRuleAction(
       ? {
           tool: entry.tool,
           rules: entry.rules.map((rule, i) =>
-            i === index ? { pattern: rule.pattern, action: cycleAction(rule.action) } : rule,
+            i === index ? { ...rule, action: cycleAction(rule.action) } : rule,
           ),
         }
       : entry,
@@ -705,17 +754,16 @@ export function cycleRuleAction(
   return { ...config, entries };
 }
 
-/** Cycle doom_loop through off -> ask -> deny -> allow -> off. */
+/** Cycle off -> ask -> deny -> allow -> off; preserve the message until the guard is removed. */
 export function cycleDoomLoop(config: PermissionConfig): PermissionConfig {
   const next: PermissionAction | undefined =
     config.doomLoop === undefined
       ? "ask"
-      : config.doomLoop === "ask"
+      : config.doomLoop.action === "ask"
         ? "deny"
-        : config.doomLoop === "deny"
+        : config.doomLoop.action === "deny"
           ? "allow"
           : undefined;
-  // Rest spread keeps schemaRef and entries intact.
-  const { doomLoop: _dropped, ...rest } = config;
-  return next ? { ...rest, doomLoop: next } : { ...rest };
+  const { doomLoop, ...rest } = config;
+  return next ? { ...rest, doomLoop: { ...doomLoop, action: next } } : rest;
 }

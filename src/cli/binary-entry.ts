@@ -415,6 +415,10 @@ import permissionUnbashNotice from "../../pi-packages/mpi-permission/vendor/UNBA
 import permissionSkillMd from "../../pi-packages/mpi-permission/skills/mpi-permission/SKILL.md" with {
   type: "text",
 };
+import permissionReadmeMd from "../../pi-packages/mpi-permission/README.md" with { type: "text" };
+import permissionReadmeZhMd from "../../pi-packages/mpi-permission/README.zh.md" with {
+  type: "text",
+};
 import toolBlockIndex from "../../pi-packages/mpi-tool-block/index.ts" with { type: "text" };
 import toolBlockCore from "../../pi-packages/mpi-tool-block/tool-block-core.ts" with {
   type: "text",
@@ -690,6 +694,8 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
       "vendor/UNBASH-LICENSE": permissionUnbashLicense,
       "vendor/UNBASH-NOTICE": permissionUnbashNotice,
       "skills/mpi-permission/SKILL.md": permissionSkillMd,
+      "README.md": permissionReadmeMd,
+      "README.zh.md": permissionReadmeZhMd,
     },
     "mpi-auto-rename": {
       "index.ts": autoRenameIndex,

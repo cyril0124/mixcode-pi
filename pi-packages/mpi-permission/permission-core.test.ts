@@ -573,11 +573,11 @@ test("cycleRuleAction / cycleDoomLoop: full cycles", () => {
   let config = parsed({ read: "allow" });
   assert.equal(config.doomLoop, undefined);
   config = cycleDoomLoop(config);
-  assert.equal(config.doomLoop, "ask");
+  assert.equal(config.doomLoop?.action, "ask");
   config = cycleDoomLoop(config);
-  assert.equal(config.doomLoop, "deny");
+  assert.equal(config.doomLoop?.action, "deny");
   config = cycleDoomLoop(config);
-  assert.equal(config.doomLoop, "allow");
+  assert.equal(config.doomLoop?.action, "allow");
   config = cycleDoomLoop(config);
   assert.equal(config.doomLoop, undefined);
 });

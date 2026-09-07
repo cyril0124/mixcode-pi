@@ -56,7 +56,7 @@ const DOOM_NOTE = "same tool + identical input 3× in a row triggers this action
 export function buildPermissionRows(config: PermissionConfig): PermissionRow[] {
   const rows: PermissionRow[] = [
     { kind: "layer" },
-    { kind: "doom", action: config.doomLoop },
+    { kind: "doom", action: config.doomLoop?.action },
     { kind: "note", text: DOOM_NOTE },
   ];
   for (const entry of config.entries) {

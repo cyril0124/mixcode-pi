@@ -40,12 +40,32 @@ Root value is an action string or an object. Keys are actual tool names (`bash`,
 |------|---------|
 | `"<tool>": "allow" \| "ask" \| "deny"` | One action for every call of that tool. |
 | `"<tool>": { "<pattern>": action, ... }` | Pattern rules over the tool's subject; **last matching rule wins**, so put `"*"` first and specific rules after it. |
-| `"doom_loop": action` | Action string only, no patterns. Semantics: [Guards](#guards). |
+| `"doom_loop": action` | Action string or `{ "action": action, "message": string }`, no patterns. Semantics: [Guards](#guards). |
 | `"$schema": string` | Optional editor schema reference; accepted, preserved on overlay writes, ignored by evaluation. |
 
 The package ships `mpi-permission.schema.json` (installed to `<agentDir>/extensions/mpi-permission/mpi-permission.schema.json`) for editor completion and validation. In the global file the relative form above works as-is; in a project file use an absolute path or your editor's schema mapping.
 
 Both config files accept `//` line comments and `/* ... */` block comments (JSONC); comments inside string values are preserved. Note the `/permission` overlay rewrites the file as plain JSON, dropping hand-written comments.
+
+## Denial messages
+
+A pattern value or `doom_loop` may be an object with required `action` and optional string `message`. Unknown object fields and non-string messages are config errors. Root and per-tool shorthand remain action strings; use a `"*"` pattern to attach a message to every call of a tool.
+
+```json
+{
+  "bash": {
+    "git push*": { "action": "deny", "message": "Ask the user to push manually." }
+  },
+  "external_directory": {
+    "*": { "action": "deny", "message": "Keep file access inside the project." }
+  },
+  "doom_loop": { "action": "deny", "message": "Change the input before retrying." }
+}
+```
+
+On deny, the winning rule's message is appended on a new line after the existing matched-rule reason in the tool error returned to the model. Text is literal, including newlines; there is no interpolation. An empty string is valid. A missing message leaves the original reason unchanged.
+
+Messages follow the same winner as the action; they are not inherited from overridden rules or combined across denials. Equal-severity decisions keep the first evaluated winner. Messages on `allow` / `ask` are retained but not emitted, including when the user rejects an ask dialog. `/permission` preserves messages when saving or cycling actions; deleting a rule or switching `doom_loop` to Off removes its message. Edit message text in JSON; the overlay has no message editor.
 
 ## Permission probe
 
@@ -58,7 +78,7 @@ The package registers a `permission_probe` tool, but keeps it inactive at sessio
 }
 ```
 
-The result includes `action`, boolean `wouldAllow` / `wouldAsk` / `wouldBlock` fields, and matched permission sources. A successful probe describes what a subsequent real call would do; it does not guarantee that the target tool will succeed.
+The result includes `action`, boolean `wouldAllow` / `wouldAsk` / `wouldBlock` fields, and matched permission sources. On deny it also includes `message` when the winning rule has one, with the semantics in [Denial messages](#denial-messages). A successful probe describes what a subsequent real call would do; it does not guarantee that the target tool will succeed.
 
 Enable it for the current session with `/permission-probe`. The command is idempotent and preserves all currently active tools. The activation is session-scoped and is not persisted.
 
