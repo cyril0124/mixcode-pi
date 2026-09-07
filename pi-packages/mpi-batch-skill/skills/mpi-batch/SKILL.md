@@ -21,7 +21,7 @@ With no task or script attached, ask what tabs and prompts the user wants. Defau
 Read the file for the script's language. Paths are relative to this skill directory.
 
 - TypeScript/JavaScript: [references/mixcode-batch.d.ts](references/mixcode-batch.d.ts). Declares the API, tab options, snapshot rows, and script function type. Scripts default-export a function receiving `mixcode`; it may be `async`. For editor types, use a triple-slash reference to this file's resolved path. Scripts also run without type annotations.
-- Lua: [references/mixcode.lua](references/mixcode.lua). Annotates the global `mixcode` table, tab options, snapshots, and `render` helper. Read it as a reference; the batch runtime supplies these functions, so do not execute or `require` the stub.
+- Lua: [references/mixcode.d.lua](references/mixcode.d.lua). Annotates the global `mixcode` table, tab options, snapshots, and `render` helper. Read it as a reference; the batch runtime supplies these functions, so do not execute or `require` the stub.
 
 ## Model selection
 

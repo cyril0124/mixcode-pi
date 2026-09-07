@@ -61,7 +61,7 @@ apply
 | `mixcode.resolve_model(query)` | Resolve an exact model id to an enabled `provider/modelId`; see [model resolution](#model-resolution) |
 | `mixcode.render(tpl, vars)` / `render(...)` | `{name}` template; `{{` / `}}` escape literals |
 
-Standard Lua libraries are available (including `os.getenv`, `io`, etc.). The root [`mixcode.lua`](../mixcode.lua) symlinks to the [Lua API reference](../pi-packages/mpi-batch-skill/skills/mpi-batch/references/mixcode.lua) shipped with `mpi-batch-skill`.
+Standard Lua libraries are available (including `os.getenv`, `io`, etc.). The root [`mixcode.d.lua`](../mixcode.d.lua) symlinks to the [Lua API reference](../pi-packages/mpi-batch-skill/skills/mpi-batch/references/mixcode.d.lua) shipped with `mpi-batch-skill`.
 
 ### `open_tab` Fields
 

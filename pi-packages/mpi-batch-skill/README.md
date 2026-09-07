@@ -8,6 +8,6 @@ Manual-only skill for writing, validating, and launching MixCode batch scripts. 
 
 Pi discovers the skill through `pi.skills`. MixCode installs it under `<agentDir>/extensions/mpi-batch-skill/`, where `index.ts` contributes the `skills/` directory through `resources_discover`.
 
-[SKILL.md](skills/mpi-batch/SKILL.md) contains the workflow, CLI commands, examples, and execution limits. Its [TypeScript](skills/mpi-batch/references/mixcode-batch.d.ts) and [Lua](skills/mpi-batch/references/mixcode.lua) references own the API declarations. Both ship with the package and compiled binary. Validation and execution require `mpi` on `PATH`.
+[SKILL.md](skills/mpi-batch/SKILL.md) contains the workflow, CLI commands, examples, and execution limits. Its [TypeScript](skills/mpi-batch/references/mixcode-batch.d.ts) and [Lua](skills/mpi-batch/references/mixcode.d.lua) references own the API declarations. Both ship with the package and compiled binary. Validation and execution require `mpi` on `PATH`.
 
-In a source checkout, root `mixcode-batch.d.ts` and `mixcode.lua` are relative symlinks to these references. Edit the reference files to update the declarations. Windows Git checkouts need symlink support enabled.
+In a source checkout, root `mixcode-batch.d.ts` and `mixcode.d.lua` are relative symlinks to these references. Edit the reference files to update the declarations. Windows Git checkouts need symlink support enabled.
