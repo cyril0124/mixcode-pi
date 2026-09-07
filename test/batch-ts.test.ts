@@ -4,12 +4,13 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
 import {
-  contextFromState,
-  formatBatchPlan,
-  loadBatchRequests,
   type BatchLuaContext,
   type BatchLuaModelInfo,
   type BatchLuaTabInfo,
+  contextFromState,
+  formatBatchPlan,
+  loadBatchRequests,
+  validateBatchRequests,
 } from "../src/core/batch-lua.js";
 import type {
   MixCodeBatchApi as RuntimeBatchApi,
@@ -70,7 +71,7 @@ test("loadBatchRequests runs a .ts script and collects openTab calls", async () 
          model: "anthropic/claude-sonnet-4-20250514",
          thinking: "low",
          systemPrompt: "You are terse.",
-         mode: "clear",
+         mode: "delete",
        });
        mixcode.openTab({ name: "scratch" });
      };`,
@@ -85,7 +86,7 @@ test("loadBatchRequests runs a .ts script and collects openTab calls", async () 
       model: "anthropic/claude-sonnet-4-20250514",
       thinking: "low",
       systemPrompt: "You are terse.",
-      mode: "clear",
+      mode: "delete",
     },
     {
       name: "scratch",
@@ -97,6 +98,27 @@ test("loadBatchRequests runs a .ts script and collects openTab calls", async () 
       mode: undefined,
     },
   ]);
+});
+
+test("Lua and TS reject clear with empty system prompt during preflight", async () => {
+  for (const [filename, source] of [
+    ["invalid.lua", 'mixcode.open_tab({ name = "missing", mode = "clear", system_prompt = "" })'],
+    [
+      "invalid.ts",
+      'export default (mixcode) => mixcode.openTab({ name: "missing", mode: "clear", systemPrompt: "" });',
+    ],
+  ]) {
+    await withScript(filename!, source!, async (scriptPath) => {
+      const plan = await loadBatchRequests(scriptPath, testContext());
+      assert.equal(plan.requests[0]!.systemPrompt, "");
+      assert.throws(
+        () => validateBatchRequests(plan.requests, () => createInitialState("/repo").model),
+        {
+          message: /^Error:.*system_prompt.*mode="clear"/,
+        },
+      );
+    });
+  }
 });
 
 test("loadBatchRequests awaits async .ts scripts", async () => {

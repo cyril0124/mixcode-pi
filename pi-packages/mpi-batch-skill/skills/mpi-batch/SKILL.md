@@ -12,7 +12,7 @@ With no task or script attached, ask what tabs and prompts the user wants. Defau
 
 1. Identify the script path, launch directory, tab names, workdirs, and prompts. Read existing scripts before editing and preserve their language. Use Lua for new scripts when the user does not specify a language. Read the matching API reference below before writing requests. Use absolute paths when directories differ.
 2. Use distinct tab names for independent work. For existing tabs, default to `append`; obtain authorization before clearing or deleting sessions. Leave model and thinking unset unless requested. Choose explicit models from `mpi --list-models --json` or the script API's model snapshot.
-3. Write the tab requests using the API reference. Keep script evaluation limited to collecting requests and reading necessary inputs. Before running an existing script, inspect its imports and side effects; dry-run executes them too.
+3. Write the tab requests using the API reference. Use `mode="clear"` to start a new conversation in the same named tab while retaining its session and tree history. To change `system_prompt` / `systemPrompt`, use a new tab or `mode="delete"`; combining it with `clear` fails before any tab changes, even without a matching tab. Keep script evaluation limited to collecting requests and reading necessary inputs. Before running an existing script, inspect its imports and side effects; dry-run executes them too.
 4. Run dry-run from the intended launch directory. Require exit code zero and check that the printed requests match the intended titles, prompts, workdirs, models, thinking levels, and modes. Correct failures before launching. If `mpi` is unavailable, report that validation could not run.
 5. Return the script's absolute path, dry-run result, and launch command. When execution is requested, launch in an isolated tmux session, capture its screen, and provide the attach command. Report tab dispatch separately from completed agent work.
 
@@ -93,6 +93,14 @@ for _, workdir in ipairs(mixcode.args()) do
   })
 end
 ```
+
+## Reset a named tab
+
+```lua
+mixcode.open_tab({ name = "review", mode = "clear" })
+```
+
+This resets without sending a prompt; add `prompt` to submit the next task. Batch `clear` uses interactive `/reset` semantics, not interactive `/clear`. See the language reference for retained state and busy-session errors.
 
 ## Execution and errors
 

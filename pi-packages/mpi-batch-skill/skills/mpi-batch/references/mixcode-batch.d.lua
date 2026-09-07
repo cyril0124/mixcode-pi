@@ -11,7 +11,7 @@ mixcode = {}
 ---@field workdir? string Working directory for new tabs (defaults to launch workdir); reuse/clear keeps the existing directory
 ---@field model? string Model identifier from list_models().id; omitted means keep existing or use launch model for a new tab
 ---@field thinking? "off"|"minimal"|"low"|"medium"|"high"|"xhigh"|"max" Supported thinking level; omitted means keep existing or use launch default for a new tab
----@field system_prompt? string Base/identity system prompt only (same slot as SYSTEM.md). Tools, AGENTS.md, and skills stay assembled by MixCode. Requires a new session (create, mode="clear", or mode="delete").
+---@field system_prompt? string Base/identity system prompt only (same slot as SYSTEM.md). Tools, AGENTS.md, and skills stay assembled by MixCode. Requires a new tab or mode="delete"; rejected with mode="clear" even without a matching tab.
 ---@field mode? "append"|"clear"|"delete" Reuse behavior when tab exists (default: "append")
 
 ---@class mixcode.TabInfo
@@ -33,15 +33,18 @@ mixcode = {}
 ---Open a new agent tab or reuse an existing one by exact title match.
 ---If a tab with the same `name` already exists:
 ---  - mode="append" (default): prompt is appended to the existing session
----  - mode="clear": session is cleared first, then prompt is sent
+---  - mode="clear": reset the branch to session root, then send prompt; keep title, session id/file, workdir, and system prompt. History stays in /tree, outside the new context. No extension reload or service rebuild; rejected while streaming or bash is running.
 ---  - mode="delete": tab and its session file are deleted, then a brand-new tab is created
 ---If no matching tab exists, a new tab is created.
 ---If `prompt` is omitted, the tab is created/reused/cleared/deleted without submitting input.
 ---`system_prompt` replaces only the base identity line; tools/guidelines, APPEND_SYSTEM,
 ---project context (AGENTS.md), and skills remain. It is rejected when reusing an existing
----session with mode="append".
+---session with mode="append", or with mode="clear" even without a matching tab.
+---Clear + system_prompt (including an empty string) fails validation before any tab changes.
+---For repeated names, only the first request controls creation/reset/deletion.
+---Interactive /clear still replaces the session and resets its title.
 ---
----Throws on failure (missing name, unknown model, invalid thinking level, append+system_prompt).
+---Throws on failure (missing name, unknown model, invalid thinking level, invalid system_prompt use).
 ---@param opts mixcode.OpenTabOptions
 function mixcode.open_tab(opts) end
 

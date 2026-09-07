@@ -52,7 +52,7 @@ export interface BatchTabRequest {
   /**
    * Base/identity system prompt only (same slot as SYSTEM.md / MIXCODE_SYSTEM_PROMPT).
    * Tools, append, project context, and skills remain assembled by MixCode.
-   * Requires a new session: create, mode="clear", or mode="delete".
+   * Requires a new session: create or mode="delete". Rejected with mode="clear".
    */
   systemPrompt?: string;
   /** Behavior when reusing an existing tab: "append" (default), "clear", or "delete". */
@@ -77,8 +77,8 @@ export interface BatchExecutorHost {
     sessionId: string,
     options: { model?: MixCodeModelRef; thinking?: ThinkingLevel },
   ): Promise<void>;
-  /** Clear an existing tab's session (reset conversation) and return the new session id. */
-  clearTab(sessionId: string, options?: { systemPrompt?: string }): Promise<string>;
+  /** Reset to the session root, preserving id, file, title, and historical branches. */
+  clearTab(sessionId: string): Promise<void>;
   /** Delete an existing tab and its session file from disk. */
   deleteTab(sessionId: string): Promise<void>;
   /**
@@ -290,6 +290,12 @@ export function validateBatchRequests(
   const resolvedModels = new Map<BatchTabRequest, MixCodeModelRef>();
   const effectiveModels = new Map<string, MixCodeModelRef>();
   for (const request of requests) {
+    if (request.mode === "clear" && request.systemPrompt !== undefined) {
+      throw new Error(
+        `Error: system_prompt for tab '${request.name}' cannot be used with mode="clear"; ` +
+          `use mode="delete", or a new tab name without mode="clear"`,
+      );
+    }
     const explicitModel = request.model ? resolveModel(request.model) : undefined;
     if (explicitModel) resolvedModels.set(request, explicitModel);
     const model =
@@ -311,8 +317,8 @@ export function validateBatchRequests(
 }
 
 /**
- * system_prompt only applies when a new session is created (new tab, clear, or
- * delete). Append reuse keeps the existing session base prompt.
+ * system_prompt only applies when a new session is created (new tab or delete).
+ * Append and clear reuse keep the existing session base prompt.
  */
 export function validateSystemPromptRequests(
   requests: BatchTabRequest[],
@@ -326,7 +332,7 @@ export function validateSystemPromptRequests(
     }
     if (seenNames.has(request.name)) {
       throw new Error(
-        `system_prompt for tab '${request.name}' only applies when creating a new session; ` +
+        `Error: system_prompt for tab '${request.name}' only applies when creating a new session; ` +
           `later requests for the same tab reuse the session`,
       );
     }
@@ -334,8 +340,8 @@ export function validateSystemPromptRequests(
     const mode = request.mode ?? "append";
     if (findExisting(request.name) && mode === "append") {
       throw new Error(
-        `system_prompt for tab '${request.name}' requires a new session; ` +
-          `use mode="clear" or mode="delete", or a new tab name`,
+        `Error: system_prompt for tab '${request.name}' requires a new session; ` +
+          `use mode="delete", or a new tab name`,
       );
     }
   }
@@ -395,9 +401,7 @@ export async function applyBatchRequests(
     if (!sessionId) {
       sessionId = await host.createNewTab(group[0]!.request);
     } else if (group[0]!.request.mode === "clear") {
-      sessionId = await host.clearTab(sessionId, {
-        systemPrompt: group[0]!.request.systemPrompt,
-      });
+      await host.clearTab(sessionId);
     }
     groupSessions.set(name, sessionId);
   }

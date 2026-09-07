@@ -1,6 +1,6 @@
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { MixCodeRuntime } from "../agent/runtime.js";
-import { LOCAL_COMMANDS, parseInput, type ParsedInput } from "../core/commands.js";
+import { LOCAL_COMMANDS, type ParsedInput, parseInput } from "../core/commands.js";
 import { createSessionId, createTab, nextAvailableAgentTitle } from "../core/defaults.js";
 import { assertModelEnabled } from "../core/models.js";
 import {
@@ -163,6 +163,27 @@ export async function openExistingAgentTab(
   }
 }
 
+/**
+ * Reset the current branch and its view without changing session identity.
+ * Runtime rejection leaves the view untouched; even a root no-op drops stale anchors.
+ */
+export function resetAgentTab(
+  state: MixCodeState,
+  runtime: Pick<MixCodeRuntime, "resetTabToRoot">,
+  sessionId: string,
+): { noop: boolean } {
+  const tab = state.tabs.find((item) => item.sessionId === sessionId);
+  if (!tab) throw new Error(`Cannot reset unknown tab: ${sessionId}`);
+  const result = runtime.resetTabToRoot(sessionId);
+  tab.chatScrollOffset = 0;
+  tab.chatScrollAnchorEntryId = undefined;
+  tab.chatScrollAnchorIndex = undefined;
+  tab.chatScrollAnchorText = undefined;
+  tab.currentContextTokens = undefined;
+  clearConversationCache(sessionId);
+  return result;
+}
+
 export interface PreparedAgentTabClear {
   oldSessionId: string;
   tab: MixCodeTabInfo;
@@ -171,8 +192,7 @@ export interface PreparedAgentTabClear {
 /**
  * Clear the visible conversation before replacing the Pi session. TUI callers
  * deliberately paint this state first because extension loading is synchronous
- * enough to freeze the next frame; batch callers reuse the same reset so both
- * adapters preserve identical tab invariants.
+ * enough to freeze the next frame.
  */
 export function prepareAgentTabClear(
   state: MixCodeState,
@@ -219,7 +239,6 @@ export async function completeAgentTabClear(
   state: MixCodeState,
   runtime: MixCodeSubmitRuntime,
   prepared: PreparedAgentTabClear,
-  options?: { systemPrompt?: string; rebuildServices?: boolean },
 ): Promise<string> {
   const nextSessionId = createSessionId();
   const oldSessionId = prepared.oldSessionId;
@@ -230,18 +249,11 @@ export async function completeAgentTabClear(
   if (wasActive) state.activeTabId = nextSessionId;
   try {
     const cleared = await runtime.clearTab(oldSessionId, {
-      systemPrompt: options?.systemPrompt ?? MIXCODE_SYSTEM_PROMPT,
+      systemPrompt: MIXCODE_SYSTEM_PROMPT,
       thinkingLevel: prepared.tab.thinkingLevel,
       workdir: prepared.tab.workdir,
       newSessionId: nextSessionId,
-      ...(options?.rebuildServices ? { rebuildServices: true } : {}),
     });
-    // Batch clear can install a new base identity; keep the UI badge in sync.
-    if (options?.systemPrompt !== undefined) {
-      prepared.tab.customBasePrompt = isCustomBaseSystemPrompt(options.systemPrompt)
-        ? true
-        : undefined;
-    }
     const resultId = cleared.tab.sessionId;
     activateTab(state, resultId);
     // The cache is keyed by session id; clear the new key as well because session

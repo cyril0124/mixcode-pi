@@ -17,16 +17,17 @@ import {
   completeAgentTabClear,
   createAgentTab,
   deleteAgentTab,
-  prepareAgentTabClear,
   type PreparedAgentTabClear,
+  prepareAgentTabClear,
+  resetAgentTab,
 } from "./agent-tab-actions.js";
-import { showErrorOverlay } from "./app-overlays.js";
 import {
   appendActiveSystemMessage,
   openCloseAllSessionsConfirm,
   openDeleteAllSessionsConfirm,
   openSessionActionConfirm,
 } from "./app-actions.js";
+import { showErrorOverlay } from "./app-overlays.js";
 import {
   type LocalCommandHandler,
   type MixCodeKeyRuntime,
@@ -34,12 +35,12 @@ import {
   SKIP_FINALIZE,
 } from "./app-types.js";
 import { renderSessionInfoText as formatSessionInfoText } from "./components/session-info.js";
+import { openTreeSelector, type TreeSelectorRuntime } from "./components/tree-selector.js";
 import {
   openSessionSelector,
   resumeSelectedSession,
   type SessionSelectorRuntime,
 } from "./session-resume.js";
-import { openTreeSelector, type TreeSelectorRuntime } from "./components/tree-selector.js";
 
 const handleFollowUp: LocalCommandHandler = async ({ active, args, runtime }) => {
   // Queue as followUp (wait until idle). Do not send "/follow-up ..." as model text.
@@ -54,13 +55,7 @@ const handleFollowUp: LocalCommandHandler = async ({ active, args, runtime }) =>
 
 const handleReset: LocalCommandHandler = ({ state, active, runtime, tui }) => {
   try {
-    const result = runtime.resetTabToRoot(active!.sessionId);
-    // Same-file reset: keep title/sessionId; only drop ephemeral view state.
-    active!.chatScrollOffset = 0;
-    active!.chatScrollAnchorEntryId = undefined;
-    active!.chatScrollAnchorIndex = undefined;
-    active!.chatScrollAnchorText = undefined;
-    active!.currentContextTokens = undefined;
+    const result = resetAgentTab(state, runtime, active!.sessionId);
     if (result.noop) {
       appendActiveSystemMessage(state, runtime, "Already at session root (nothing to reset).");
     } else {

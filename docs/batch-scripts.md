@@ -72,14 +72,16 @@ Standard Lua libraries are available (including `os.getenv`, `io`, etc.). The ro
 | `workdir` | No | Working directory for this tab |
 | `model` | No | e.g. `anthropic/claude-sonnet-4-20250514` |
 | `thinking` | No | Based on model capability: `off` / `minimal` / `low` / … / `max` |
-| `system_prompt` | No | Replaces base/identity only (same as SYSTEM.md slot); tools/AGENTS.md/skills are still assembled by MixCode. **Requires fresh session**: new tab, or `mode="clear"` / `mode="delete"`. Error thrown if used with `append` on existing session |
+| `system_prompt` | No | Replaces base/identity only (same as SYSTEM.md slot); tools/AGENTS.md/skills are still assembled by MixCode. Requires a new tab or `mode="delete"`. Rejected with `mode="clear"`, even without a matching tab, and with `append` on an existing session |
 | `mode` | No | When tab already exists: `append` (default) / `clear` / `delete` |
 
 `mode`:
 
 - `append`: Continue on existing session
-- `clear`: Clear session before sending prompt
+- `clear`: Reset the current branch to session root before sending the prompt, like interactive `/reset`. Keeps the title, session ID/file, workdir, and system prompt; earlier history remains in `/tree` but is excluded from the new conversation context. Does not reload extensions or rebuild services. Refused while the agent is streaming or bash is running
 - `delete`: Delete tab + session files before recreating
+
+With no matching tab, a new tab is created. `clear` + `system_prompt` is always rejected during validation before any tab changes, including when `system_prompt` is an empty string. For repeated names, only the first request controls creation/reset/deletion. Interactive `/clear` still replaces the session and resets its title.
 
 Prompts support plain text, skills, prompt templates, extension commands, and `!shell`.
 MixCode local slash commands are **not supported** (they require interactive UI).
@@ -103,8 +105,8 @@ for _, pkg in ipairs(pkgs) do
   })
 end
 
--- Pre-open empty tab without dispatching prompt
-mixcode.open_tab({ name = "scratch" })
+-- Reset an existing named tab without submitting a prompt
+mixcode.open_tab({ name = "review", mode = "clear" })
 ```
 
 See [`examples/batch/`](../examples/batch/) for more examples.

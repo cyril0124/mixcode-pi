@@ -1,22 +1,22 @@
 import assert from "node:assert/strict";
 import * as fsPromises from "node:fs/promises";
-import * as path from "node:path";
 import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "node:test";
+import { runBatchDryRun } from "../src/cli/interactive-app.js";
+import { parseMainArgs } from "../src/cli/main.js";
 import {
   applyBatchRequests,
-  contextFromState,
-  loadBatchRequests,
-  formatBatchPlan,
-  renderTemplate,
-  runLuaScript,
   type BatchExecutorHost,
   type BatchTabRequest,
+  contextFromState,
+  formatBatchPlan,
+  loadBatchRequests,
+  renderTemplate,
+  runLuaScript,
 } from "../src/core/batch-lua.js";
-import { parseMainArgs } from "../src/cli/main.js";
-import { runBatchDryRun } from "../src/cli/interactive-app.js";
-import { createInitialState, createTab } from "./helpers/mixcode.js";
 import type { MixCodeModelRef } from "../src/core/types.js";
+import { createInitialState, createTab } from "./helpers/mixcode.js";
 
 // --- parseMainArgs --batch tests ---
 
@@ -251,7 +251,7 @@ function createMockHost(
 ): BatchExecutorHost & {
   created: BatchTabRequest[];
   inputs: Array<{ sessionId: string; input: string }>;
-  cleared: Array<{ sessionId: string; systemPrompt?: string }>;
+  cleared: string[];
   deleted: string[];
   configured: Array<{ sessionId: string; model?: string; thinking?: string }>;
 } {
@@ -266,7 +266,7 @@ function createMockHost(
   );
   const created: BatchTabRequest[] = [];
   const inputs: Array<{ sessionId: string; input: string }> = [];
-  const cleared: Array<{ sessionId: string; systemPrompt?: string }> = [];
+  const cleared: string[] = [];
   const deleted: string[] = [];
   const configured: Array<{ sessionId: string; model?: string; thinking?: string }> = [];
   return {
@@ -293,12 +293,8 @@ function createMockHost(
         thinking: options.thinking,
       });
     },
-    async clearTab(sessionId, options) {
-      cleared.push({ sessionId, systemPrompt: options?.systemPrompt });
-      const nextSessionId = `${sessionId}-cleared`;
-      const tab = existingTabs.find((t) => t.sessionId === sessionId);
-      if (tab) tab.sessionId = nextSessionId;
-      return nextSessionId;
+    async clearTab(sessionId) {
+      cleared.push(sessionId);
     },
     async deleteTab(sessionId) {
       deleted.push(sessionId);
@@ -490,8 +486,8 @@ test("applyBatchRequests clears tab when mode is clear", async () => {
   const requests: BatchTabRequest[] = [{ name: "my-agent", prompt: "fresh start", mode: "clear" }];
   await applyBatchRequests(requests, host);
   assert.equal(host.cleared.length, 1);
-  assert.equal(host.cleared[0]!.sessionId, "sess-1");
-  assert.equal(host.inputs[0]!.sessionId, "sess-1-cleared");
+  assert.equal(host.cleared[0], "sess-1");
+  assert.equal(host.inputs[0]!.sessionId, "sess-1");
   assert.equal(host.inputs[0]!.input, "fresh start");
 });
 
@@ -558,18 +554,18 @@ test("applyBatchRequests configures existing tab model and thinking", async () =
   assert.equal(host.inputs[0]!.sessionId, "sess-1");
 });
 
-test("applyBatchRequests configures cleared tab using new session id", async () => {
+test("applyBatchRequests configures cleared tab using the same session id", async () => {
   const host = createMockHost([{ title: "my-agent", sessionId: "sess-1" }]);
   await applyBatchRequests(
     [{ name: "my-agent", prompt: "hello", mode: "clear", model: "test-model", thinking: "low" }],
     host,
   );
   assert.deepEqual(host.configured[0], {
-    sessionId: "sess-1-cleared",
+    sessionId: "sess-1",
     model: "test-model",
     thinking: "low",
   });
-  assert.equal(host.inputs[0]!.sessionId, "sess-1-cleared");
+  assert.equal(host.inputs[0]!.sessionId, "sess-1");
 });
 
 // --- args / optional prompt / dry-run format ---
@@ -685,23 +681,59 @@ test("applyBatchRequests passes system_prompt on create", async () => {
   assert.equal(host.created[0]!.systemPrompt, "You are a strict reviewer.");
 });
 
-test("applyBatchRequests passes system_prompt on clear", async () => {
-  const host = createMockHost([{ title: "reviewer", sessionId: "sess-1" }]);
+test("applyBatchRequests rejects clear with any defined system_prompt before all tab effects", async () => {
+  for (const systemPrompt of ["You are a strict reviewer.", ""]) {
+    for (const name of ["reviewer", "missing"]) {
+      const host = createMockHost([{ title: "reviewer", sessionId: "sess-1" }]);
+      await assert.rejects(
+        () =>
+          applyBatchRequests(
+            [
+              { name: "first", prompt: "must not run" },
+              { name, mode: "clear", systemPrompt },
+            ],
+            host,
+          ),
+        { message: /^Error:.*system_prompt.*mode="clear"/ },
+      );
+      assert.deepEqual(host.created, []);
+      assert.deepEqual(host.cleared, []);
+      assert.deepEqual(host.deleted, []);
+      assert.deepEqual(host.configured, []);
+      assert.deepEqual(host.inputs, []);
+    }
+  }
+});
+
+test("applyBatchRequests rejects clear with system_prompt in a later same-name request", async () => {
+  const host = createMockHost();
+  await assert.rejects(
+    () =>
+      applyBatchRequests(
+        [{ name: "reviewer" }, { name: "reviewer", mode: "clear", systemPrompt: "" }],
+        host,
+      ),
+    { message: /^Error:.*system_prompt.*mode="clear"/ },
+  );
+  assert.deepEqual(host.created, []);
+});
+
+test("applyBatchRequests creates a missing clear tab and applies only the first same-name mode", async () => {
+  const host = createMockHost();
   await applyBatchRequests(
     [
-      {
-        name: "reviewer",
-        prompt: "go",
-        mode: "clear",
-        systemPrompt: "You are a strict reviewer.",
-      },
+      { name: "reviewer", mode: "clear", prompt: "one" },
+      { name: "reviewer", mode: "delete", prompt: "two" },
     ],
     host,
   );
-  assert.deepEqual(host.cleared[0], {
-    sessionId: "sess-1",
-    systemPrompt: "You are a strict reviewer.",
-  });
+  assert.equal(host.created.length, 1);
+  assert.deepEqual(host.deleted, []);
+  assert.deepEqual(host.cleared, []);
+  assert.deepEqual(host.inputs, [
+    { sessionId: "new-reviewer", input: "one" },
+    { sessionId: "new-reviewer", input: "two" },
+  ]);
 });
 
 test("applyBatchRequests passes system_prompt on delete recreate", async () => {
@@ -729,7 +761,10 @@ test("applyBatchRequests rejects system_prompt on append reuse", async () => {
         [{ name: "reviewer", prompt: "go", systemPrompt: "You are a strict reviewer." }],
         host,
       ),
-    /system_prompt.*requires a new session/,
+    {
+      message:
+        /^Error: system_prompt.*requires a new session; use mode="delete", or a new tab name$/,
+    },
   );
 });
 

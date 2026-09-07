@@ -32,8 +32,8 @@ interface MixCodeBatchOpenTabOptions {
   thinking?: MixCodeBatchThinkingLevel;
   /**
    * Base/identity system prompt only (same slot as SYSTEM.md). Tools, AGENTS.md,
-   * and skills stay assembled by MixCode. Requires a new session: a new tab, or
-   * mode "clear" / "delete".
+   * and skills stay assembled by MixCode. Requires a new tab or mode "delete";
+   * rejected with mode "clear" even without a matching tab.
    */
   systemPrompt?: string;
   /** Reuse behavior when the tab exists (default: "append"). */
@@ -68,7 +68,10 @@ interface MixCodeBatchApi {
    *
    * When a tab with the same `name` already exists:
    * - `mode: "append"` (default): the prompt is appended to the existing session
-   * - `mode: "clear"`: the session is cleared first, then the prompt is sent
+   * - `mode: "clear"`: reset the branch to session root, then send the prompt.
+   *   Keeps title, session ID/file, workdir, and system prompt. History stays in
+   *   /tree, outside the new context. No extension reload or service rebuild;
+   *   rejected while streaming or bash is running.
    * - `mode: "delete"`: the tab and its session file are deleted, then a
    *   brand-new tab is created
    *
@@ -77,11 +80,15 @@ interface MixCodeBatchApi {
    *
    * `systemPrompt` replaces only the base identity line; tools/guidelines,
    * APPEND_SYSTEM, project context (AGENTS.md), and skills remain. It is
-   * rejected when reusing an existing session with `mode: "append"`.
+   * rejected when reusing an existing session with `mode: "append"`, or with
+   * `mode: "clear"` even without a matching tab. Clear + systemPrompt (including
+   * an empty string) fails validation before any tab changes.
+   * For repeated names, only the first request controls creation/reset/deletion.
+   * Interactive /clear still replaces the session and resets its title.
    *
    * Throws on a missing/empty `name`, a non-string option field, an unknown
    * field name, an unknown model, an invalid thinking level, or
-   * `append` + `systemPrompt`.
+   * invalid `systemPrompt` use.
    */
   openTab(options: MixCodeBatchOpenTabOptions): void;
   /**

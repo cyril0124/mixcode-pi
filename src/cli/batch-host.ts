@@ -4,20 +4,19 @@ import type { BatchExecutorHost, BatchTabRequest } from "../core/batch-lua.js";
 import { parseInput } from "../core/commands.js";
 import { assertModelEnabled, findModelRef } from "../core/models.js";
 import type { MixCodeState } from "../core/types.js";
-import { applyModelSelection, applyThinkingLevel } from "../ui/app-actions.js";
-import type { OverlayTui } from "../ui/app-types.js";
 import {
-  completeAgentTabClear,
   createAgentTab,
   deleteAgentTab,
-  prepareAgentTabClear,
+  resetAgentTab,
   submitAgentInput,
 } from "../ui/agent-tab-actions.js";
+import { applyModelSelection, applyThinkingLevel } from "../ui/app-actions.js";
+import type { OverlayTui } from "../ui/app-types.js";
 
 /**
  * Adapt Lua batch requests to the same Agent tab actions used by the TUI. This
  * module resolves batch-only inputs such as title/model overrides; lifecycle,
- * clear invariants, deletion ordering, and prompt dispatch stay shared.
+ * reset invariants, deletion ordering, and prompt dispatch stay shared.
  */
 export function createBatchExecutorHost(options: {
   state: MixCodeState;
@@ -61,18 +60,16 @@ export function createBatchExecutorHost(options: {
       if (config.model) await applyModelSelection(state, tab, config.model, runtime);
       if (config.thinking) applyThinkingLevel(state, tab, config.thinking, runtime);
     },
-    async clearTab(sessionId, options) {
-      const prepared = prepareAgentTabClear(state, runtime, sessionId);
-      // Publish the immediate empty state before replacement starts, matching the
-      // interactive adapter's two-phase clear without introducing a fake delay.
+    async clearTab(sessionId) {
+      try {
+        resetAgentTab(state, runtime, sessionId);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(message.startsWith("Error:") ? message : `Error: ${message}`, {
+          cause: error,
+        });
+      }
       tui.requestRender();
-      const nextSessionId = await completeAgentTabClear(state, runtime, prepared, {
-        systemPrompt: options?.systemPrompt,
-        // New base identity requires a fresh resourceLoader; default clear reuses services.
-        rebuildServices: options?.systemPrompt !== undefined,
-      });
-      tui.requestRender();
-      return nextSessionId;
     },
     async deleteTab(sessionId) {
       await deleteAgentTab(state, runtime, sessionId);

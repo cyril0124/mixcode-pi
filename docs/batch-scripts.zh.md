@@ -72,14 +72,16 @@ apply
 | `workdir` | 否 | 该 tab 工作目录 |
 | `model` | 否 | 如 `anthropic/claude-sonnet-4-20250514` |
 | `thinking` | 否 | 依模型能力：`off` / `minimal` / `low` / … / `max` |
-| `system_prompt` | 否 | 仅替换 base/identity（同 SYSTEM.md 槽位）；tools/AGENTS.md/skills 仍由 MixCode 组装。**需要新会话**：新建 tab，或 `mode="clear"` / `mode="delete"`。`append` 复用已有会话会报错 |
+| `system_prompt` | 否 | 仅替换 base/identity（同 SYSTEM.md 槽位）；tools/AGENTS.md/skills 仍由 MixCode 组装。需要新建 tab 或 `mode="delete"`。与 `mode="clear"` 组合始终报错，即使没有同名 tab；`append` 复用已有会话也会报错 |
 | `mode` | 否 | 已存在 tab 时：`append`（默认）/ `clear` / `delete` |
 
 `mode`：
 
 - `append`：在已有会话上继续
-- `clear`：清空会话后再发
+- `clear`：与交互式 `/reset` 一样，先将当前分支重置到会话根部，再发送 prompt。保留标题、session ID/文件、工作目录和系统提示词；旧历史仍在 `/tree`，但不进入新对话上下文。不重载扩展或重建服务。agent 正在流式输出或 bash 正在运行时拒绝重置
 - `delete`：删 tab + session 文件后新建
+
+没有同名 tab 时新建 tab。`clear` + `system_prompt` 在任何 tab 操作前的校验阶段始终被拒绝，包括系统提示词为空字符串的情况。同名重复请求仅由第一条决定新建/重置/删除行为。交互式 `/clear` 仍会替换会话并重置标题。
 
 prompt 支持普通文本、skills、prompt templates、extension commands、`!shell`。
 **不支持** MixCode 本地 slash command（需要交互 UI）。
@@ -103,8 +105,8 @@ for _, pkg in ipairs(pkgs) do
   })
 end
 
--- 只预开空 tab，不发 prompt
-mixcode.open_tab({ name = "scratch" })
+-- 重置已有同名 tab，不发送 prompt
+mixcode.open_tab({ name = "review", mode = "clear" })
 ```
 
 更多见 [`examples/batch/`](../examples/batch/)。
