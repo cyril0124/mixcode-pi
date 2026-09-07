@@ -69,6 +69,7 @@ test("real session blocks tool execution and exposes the same message through th
       const prediction = JSON.parse(probeText.text);
       assert.equal(prediction.action, "deny");
       assert.equal(prediction.message, message);
+      assert.equal("doomLoop" in prediction, false);
       assert.equal(denied.isError, true);
       const deniedText = denied.content.find((entry) => entry.type === "text");
       assert.ok(deniedText && deniedText.type === "text");

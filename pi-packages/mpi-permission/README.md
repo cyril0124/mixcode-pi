@@ -22,7 +22,7 @@ Cookbook: [skills/mpi-permission/SKILL.md](skills/mpi-permission/SKILL.md).
 
 Missing files are a no-op: with no config anywhere the package does not intervene at all. A config file that exists but fails to parse **fails closed**: every tool call is blocked with the file path and error until it is fixed.
 
-Root value is an action string or an object. Keys are actual tool names (`bash`, `read`, `edit`, `write`, `grep`, `find`, `ls`, any extension tool name), `*` (fallback for tools without a matching rule of their own), plus the guards `external_directory` and `doom_loop`:
+Root value is an action string or an object. Keys are actual tool names (`bash`, `read`, `edit`, `write`, `grep`, `find`, `ls`, any extension tool name), `*` (fallback for tools without a matching rule of their own), plus `external_directory`:
 
 ```json
 {
@@ -31,8 +31,7 @@ Root value is an action string or an object. Keys are actual tool names (`bash`,
   "bash": { "*": "ask", "git *": "allow", "git push*": "deny" },
   "read": { "*": "allow", "*.env": "deny", "*.env.example": "allow" },
   "edit": { "*": "deny", "src/*": "allow" },
-  "external_directory": { "*": "ask", "~/notes/**": "allow" },
-  "doom_loop": "ask"
+  "external_directory": { "*": "ask", "~/notes/**": "allow" }
 }
 ```
 
@@ -40,8 +39,9 @@ Root value is an action string or an object. Keys are actual tool names (`bash`,
 |------|---------|
 | `"<tool>": "allow" \| "ask" \| "deny"` | One action for every call of that tool. |
 | `"<tool>": { "<pattern>": action, ... }` | Pattern rules over the tool's subject; **last matching rule wins**, so put `"*"` first and specific rules after it. |
-| `"doom_loop": action` | Action string or `{ "action": action, "message": string }`, no patterns. Semantics: [Guards](#guards). |
 | `"$schema": string` | Optional editor schema reference; accepted, preserved on overlay writes, ignored by evaluation. |
+
+The root key `doom_loop` is invalid in this file. Configure repeated-call protection through `doomLoop` in global [mpi-stuck-guard.json](../mpi-stuck-guard/README.md#doom-loop).
 
 The package ships `mpi-permission.schema.json` (installed to `<agentDir>/extensions/mpi-permission/mpi-permission.schema.json`) for editor completion and validation. In the global file the relative form above works as-is; in a project file use an absolute path or your editor's schema mapping.
 
@@ -49,7 +49,7 @@ Both config files accept `//` line comments and `/* ... */` block comments (JSON
 
 ## Denial messages
 
-A pattern value or `doom_loop` may be an object with required `action` and optional string `message`. Unknown object fields and non-string messages are config errors. Root and per-tool shorthand remain action strings; use a `"*"` pattern to attach a message to every call of a tool.
+A pattern value accepts `{ "action": ..., "message": ... }`. `action` is required; `message` is an optional string. Unknown fields and non-string messages are config errors. Root and per-tool shorthand use action strings. To give every call of a tool the same message, use a `"*"` pattern.
 
 ```json
 {
@@ -58,18 +58,21 @@ A pattern value or `doom_loop` may be an object with required `action` and optio
   },
   "external_directory": {
     "*": { "action": "deny", "message": "Keep file access inside the project." }
-  },
-  "doom_loop": { "action": "deny", "message": "Change the input before retrying." }
+  }
 }
 ```
 
-On deny, the winning rule's message is appended on a new line after the existing matched-rule reason in the tool error returned to the model. Text is literal, including newlines; there is no interpolation. An empty string is valid. A missing message leaves the original reason unchanged.
+On deny, the tool error returned to the model includes the matched-rule reason followed by the rule's `message` on a new line. Text is literal, including newlines, with no variable interpolation. Empty strings are valid; omitting `message` leaves the reason unchanged.
 
-Messages follow the same winner as the action; they are not inherited from overridden rules or combined across denials. Equal-severity decisions keep the first evaluated winner. Messages on `allow` / `ask` are retained but not emitted, including when the user rejects an ask dialog. `/permission` preserves messages when saving or cycling actions; deleting a rule or switching `doom_loop` to Off removes its message. Edit message text in JSON; the overlay has no message editor.
+Only the winning rule supplies the message. Overridden rules do not contribute text, and equal-severity decisions keep the first evaluated winner. Messages on `allow` / `ask` are saved but not displayed, including when a user rejects an ask dialog.
+
+Edit message text in JSON. `/permission` preserves it when saving or cycling actions; deleting a rule deletes its message.
 
 ## Permission probe
 
-The package registers a `permission_probe` tool, but keeps it inactive at session start. Enable it through Pi's existing active-tool controls when the model should use it. It accepts a target tool name and input object, validates the input against the target tool's registered parameter schema, then reports the current `allow` / `ask` / `deny` result without executing the target tool. Unknown tools return `unknown_tool`; invalid target input returns `invalid_target_input`. Probe calls do not advance the `doom_loop` counter.
+`permission_probe` is inactive at session start. `/permission-probe` enables it for the current session without changing other active tools or saving the setting. Repeating the command has no additional effect.
+
+The tool accepts a target tool name and input object. It validates the input against the target's parameter schema and reports the permission decision without executing the target. Unknown tools return `unknown_tool`; invalid input returns `invalid_target_input`. Probe calls bypass this package's rules but remain subject to other extensions.
 
 ```json
 {
@@ -78,9 +81,7 @@ The package registers a `permission_probe` tool, but keeps it inactive at sessio
 }
 ```
 
-The result includes `action`, boolean `wouldAllow` / `wouldAsk` / `wouldBlock` fields, and matched permission sources. On deny it also includes `message` when the winning rule has one, with the semantics in [Denial messages](#denial-messages). A successful probe describes what a subsequent real call would do; it does not guarantee that the target tool will succeed.
-
-Enable it for the current session with `/permission-probe`. The command is idempotent and preserves all currently active tools. The activation is session-scoped and is not persisted.
+The result contains `action`, the boolean fields `wouldAllow`, `wouldAsk`, and `wouldBlock`, and matched permission sources. A deny result also includes the winning rule's `message` when configured; see [Denial messages](#denial-messages). The probe predicts only this package's rules, not other guards or whether the target tool will execute successfully.
 
 ## Matching
 
@@ -106,25 +107,6 @@ When a path-taking tool (`read` / `edit` / `write` / `ls`, and `grep` / `find` w
 
 The final decision is the most severe tool or guard action (`deny` > `ask` > `allow`). No rules under `external_directory` means the guard is off; use `"*": "ask"` to gate every detected external path. A trailing slash is equivalent to the same path without it, so `"../"` matches the parent directory itself while `"../*"` matches content under it.
 
-### `doom_loop`
-
-Breaks agent retry loops: when the same tool is called with byte-identical input (compared as `JSON.stringify(input)`) 3 times **in a row**, the configured action applies to the 3rd and every further consecutive repeat.
-
-- The streak is consecutive-only: a call with a different tool or different input resets it to 1. Approving a prompt does **not** reset it — the 4th identical call triggers again.
-- The guard is independent of tool rules and combines by severity (`deny` > `ask` > `allow`), so an `allow` tool rule — including a session "Always allow" grant — does not silence it. To turn it off, remove the key or set `"doom_loop": "allow"` in a later layer (session overrides project overrides global).
-- Its `ask` dialog offers only Allow once / Reject; an "always" grant would defeat the guard.
-- The counter is in-memory per MixCode tab and starts with the first call made after the guard is configured.
-
-With `"doom_loop": "ask"`:
-
-```text
-bash: echo same    #1 runs
-bash: echo same    #2 runs
-bash: echo same    #3 dialog "repeated with identical input"
-bash: echo same    #4 dialog again (streak continues)
-bash: echo other   streak resets; the next `echo same` counts as #1
-```
-
 ## Ask dialog
 
 | Choice | Effect |
@@ -145,8 +127,6 @@ While the dialog is open the command has **not** started: the process spawns onl
 ┌─ Permission ───────────────────────────────────┐
 │  /home/user/.pi/agent/mpi-permission.json          │
 │  › Layer                           Global      │
-│    doom_loop                       Off         │
-│      same tool + identical input 3×…          │
 │   bash ───────────────────────────────────     │
 │    *                               ask         │
 │    git *                           allow       │
@@ -156,9 +136,9 @@ While the dialog is open the command has **not** started: the process spawns onl
 
 | Key | Action |
 |-----|--------|
-| Enter / Space | Cycle Layer (Global → Project → Session), cycle a rule's action, or cycle `doom_loop` (Off → ask → deny → allow → Off). |
+| Enter / Space | Cycle Layer (Global → Project → Session) or cycle a rule's action. |
 | `n` | New-rule wizard, three steps: **1/3 key** — pick from the candidate list (`*`, `external_directory`, registered tool names; type to filter, ↑↓ to pick, Enter accepts the highlighted candidate or your free text); **2/3 pattern** — prefilled `*`, per-key examples shown; **3/3 action** — choose allow / ask / deny with Space/←→, Enter adds the rule. Esc steps back one step. |
-| `d` | Delete the selected rule (a key with no rules left disappears) or reset `doom_loop` to Off. |
+| `d` | Delete the selected rule (a key with no rules left disappears). |
 | Esc | Cancel the input line, or close. |
 
 Global and Project edits persist to their files immediately; Project edits are rejected while the project is untrusted. Session edits stay in memory.

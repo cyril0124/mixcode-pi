@@ -22,12 +22,14 @@ const SECTIONS: readonly { title: string; keys: readonly ConfigKey[] }[] = [
       "knownTimeoutCooldownSeconds",
     ],
   },
+  { title: "Doom loop", keys: ["doomLoop"] },
   { title: "Schema hint", keys: ["schemaHintFailureThreshold"] },
 ];
 
 const CONFIG_KEYS: readonly ConfigKey[] = SECTIONS.flatMap((section) => section.keys);
 
 const LABELS: Record<ConfigKey, string> = {
+  doomLoop: "Repeated tool calls",
   streamWatchdogEnabled: "Stream watchdog",
   providerIds: "Provider IDs",
   streamStartTimeoutSeconds: "Stream start timeout (s)",
@@ -38,6 +40,8 @@ const LABELS: Record<ConfigKey, string> = {
 };
 
 const DESCRIPTIONS: Record<ConfigKey, string> = {
+  doomLoop:
+    'Third identical call: {"action":"allow"|"ask"|"deny","message"?:string}; allow disables.',
   streamWatchdogEnabled: "Abort stalled provider streams and hand the error to host retry.",
   providerIds: "Configured provider IDs to watch; empty means every configured provider.",
   streamStartTimeoutSeconds: "Maximum wait for the provider's first event; 0 disables.",

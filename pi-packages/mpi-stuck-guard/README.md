@@ -1,6 +1,37 @@
 # mpi-stuck-guard
 
-`mpi-stuck-guard` guards against stuck sessions on three layers: it blocks recursive searches that would never finish, it watches provider stream liveness, aborts stalled requests, and returns a retryable error to the host retry mechanism, and it steers the model back after repeated parameter-validation failures of the same tool.
+`mpi-stuck-guard` blocks oversized recursive searches, detects repeated identical tool calls, aborts stalled provider streams through the host retry path, and steers the model after repeated parameter-validation failures.
+
+## Doom loop
+
+`doomLoop` in `<agentDir>/mpi-stuck-guard.json` controls repeated-call protection for all projects. Settings are global; each session has its own counter.
+
+```json
+{
+  "doomLoop": {
+    "action": "deny",
+    "message": "Change the input before retrying."
+  }
+}
+```
+
+The threshold is fixed at 3: the action applies to the third and each subsequent consecutive call with the same tool name and byte-identical `JSON.stringify(input)`. Successful and failed calls both count. A different tool or input resets the count to 1; user messages and model replies leave it unchanged.
+
+`session_start` clears the counter. Settings reload on `session_start` and `before_agent_start`; disabling and re-enabling starts a new count.
+
+| Action | Result |
+|---|---|
+| `allow` | Disabled; also the default when `doomLoop` is absent. |
+| `ask` | Offer Allow once / Reject. Allow once leaves the count unchanged, so the next identical call asks again. Esc, cancellation, dialog failure, or missing UI blocks the call. |
+| `deny` | Block from the third call with a `stuck-guard: doom_loop` reason. Append optional `message` on a new line. |
+
+`action` is required. Optional `message` is a literal string that accepts empty text and newlines. Unknown fields and invalid types are configuration errors. Messages are saved but displayed only for automatic `deny`, not for `allow`, `ask`, or user rejection.
+
+Edit the JSON object under Doom loop in `/stuck-guard config`. Saved changes apply on the next agent turn.
+
+Pi stops dispatching `tool_call` after an extension blocks it. This guard counts only calls that reach it, excluding earlier validation failures and extension blocks. Permission probes count like any other tool, but their results cover [permission rules](../mpi-permission/README.md#permission-probe), not this guard.
+
+Permission and doom-loop approvals are separate; a call may require both. Watchdog statistics exclude doom-loop counts.
 
 ## Search guard
 
@@ -70,14 +101,14 @@ Timeout calls the request-local `AbortController` and invokes `iterator.return()
 | Retry cooldown | A timeout records a provider/model cooldown | The next request uses `streamRetryStartTimeoutSeconds`; after cooldown expiry, the normal start timeout is used |
 | Timeout disabled | Start, idle, and retry-start timeout values are set to `0` | A slow stream completes without a watchdog timeout |
 | Provider filter | `providerIds` limits wrapping to selected providers | Selected providers are watched; an unknown ID reports `Error: Unknown provider` |
-| Invalid configuration | The configuration contains an unknown key, invalid type, or invalid value | An `Error:` notification appears; the watchdog reports the error and continues with explicit defaults |
+| Invalid configuration | The configuration contains an unknown key, invalid type, or invalid value | An `Error:` notification appears; tool calls are blocked until a valid reload, while the watchdog uses explicit defaults |
 | Configuration page | `/stuck-guard config` is entered | A bordered configuration page opens in the Editor area and saves valid edits |
 | Provider picker | Provider IDs are edited from the configuration page | Text filters the list, Enter toggles IDs, and Esc saves; `j`/`k` enter search text, while arrow keys navigate |
 | Statistics page | `/stuck-guard stats` is entered | A read-only Editor page shows current-session watchdog counters |
 
 ## Configuration
 
-Config lives at `<agentDir>/mpi-stuck-guard.json`. Missing keys use defaults. Unknown keys, invalid types, and invalid values surface an error; the watchdog continues with explicit defaults instead of silently disabling protection.
+Config lives at `<agentDir>/mpi-stuck-guard.json`. Missing keys use defaults. Unreadable files, invalid JSON, unknown keys, invalid types, and invalid values surface an error and block tool calls until a successful reload; the watchdog continues with explicit defaults.
 
 ```json
 {
@@ -88,12 +119,14 @@ Config lives at `<agentDir>/mpi-stuck-guard.json`. Missing keys use defaults. Un
   "streamIdleTimeoutSeconds": 300,
   "streamRetryStartTimeoutSeconds": 300,
   "knownTimeoutCooldownSeconds": 60,
+  "doomLoop": { "action": "allow" },
   "schemaHintFailureThreshold": 2
 }
 ```
 
 | Key | Type | Default | Meaning |
 |---|---|---:|---|
+| `doomLoop` | object | `{ "action": "allow" }` | Repeated-call action and optional denial message; see [Doom loop](#doom-loop) |
 | `streamWatchdogEnabled` | boolean | `true` | Enables provider stream start and idle timeouts |
 | `providerIds` | string[] | `[]` | Providers to wrap; empty means all configured providers |
 | `streamStartTimeoutSeconds` | integer >= 0 | `300` | Maximum wait for the first provider event; `0` disables it |
@@ -124,7 +157,7 @@ Use these forms:
 /stuck-guard stats    # open current-session statistics
 ```
 
-`/stuck-guard config` opens the configuration page in the Editor area. Arguments other than `config` and `stats` are rejected. The page lets you edit every watchdog setting and select Provider IDs through a searchable multi-select list.
+`/stuck-guard config` opens the configuration page in the Editor area. Arguments other than `config` and `stats` are rejected. The page lets you edit watchdog settings, the Doom loop JSON object, and the schema-hint threshold, and select Provider IDs through a searchable multi-select list.
 
 `/stuck-guard stats` opens a read-only Editor page. It shows current-session counts for provider attempts, completed streams, start timeouts, idle timeouts, provider errors, user aborts, and retry cooldown events. Statistics are kept in memory and reset when the session starts; they are not written to `mpi-stuck-guard.json`.
 

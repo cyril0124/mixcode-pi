@@ -19,6 +19,7 @@ import {
 } from "./provider-wrapper.js";
 import { StuckGuardStats } from "./stats.js";
 import { wireSchemaHint } from "./schema-hint.js";
+import { wireDoomLoop } from "./doom-loop.js";
 import { wireSearchGuard } from "./search-guard.js";
 
 function wrapperOptionsFrom(
@@ -47,8 +48,9 @@ function wrapperOptionsFrom(
   };
 }
 
-/** Wire provider stream watchdogs and the configuration/statistics commands. */
+/** Wire tool-loop protection, provider watchdogs, and configuration/statistics commands. */
 export function wireStuckGuard(pi: ExtensionAPI, loadConfig: () => StuckGuardConfigLoad): void {
+  const configureDoomLoop = wireDoomLoop(pi);
   let config: StuckGuardConfig = { ...DEFAULT_STUCK_GUARD_CONFIG };
   const cooldowns = new ProviderCooldownStore();
   const stats = new StuckGuardStats();
@@ -96,6 +98,7 @@ export function wireStuckGuard(pi: ExtensionAPI, loadConfig: () => StuckGuardCon
 
   function reload(ctx: ExtensionContext | undefined): void {
     const loaded = loadConfig();
+    configureDoomLoop(loaded);
     if (loaded.ok) {
       config = loaded.config;
       Object.assign(providerWrapperOptions, wrapperOptionsFrom(config, cooldowns, stats));
@@ -105,7 +108,7 @@ export function wireStuckGuard(pi: ExtensionAPI, loadConfig: () => StuckGuardCon
     config = { ...DEFAULT_STUCK_GUARD_CONFIG };
     Object.assign(providerWrapperOptions, wrapperOptionsFrom(config, cooldowns, stats));
     configureProviders(ctx);
-    ctx?.ui.notify(`Error: ${loaded.error}; stuck-guard continues with defaults`, "error");
+    ctx?.ui.notify(`Error: ${loaded.error}; watchdog uses defaults; tool calls blocked`, "error");
   }
 
   pi.on("session_start", (_event, ctx) => {

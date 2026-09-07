@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Permission rules (mpi-permission)",
-  "description": "Gate tool calls with allow / ask / deny rules. Keys are tool names, \"*\", or \"external_directory\"; values are one action or an ordered pattern->effect object where the last matching rule wins. Pattern effects and \"doom_loop\" accept action strings or { action, message } objects. Messages are emitted only on deny. external_directory also evaluates statically parsed path arguments from common Bash file commands.",
+  "description": "Gate tool calls with allow / ask / deny rules. Keys are tool names, \"*\", or \"external_directory\"; values are one action or an ordered pattern->effect object where the last matching rule wins. Pattern effects accept action strings or { action, message } objects. Messages are emitted only on deny. external_directory also evaluates statically parsed path arguments from common Bash file commands.",
   "definitions": {
     "action": {
       "description": "allow: run without approval; ask: prompt for approval; deny: block the call.",
@@ -43,10 +43,7 @@
       "type": "object",
       "properties": {
         "$schema": { "type": "string" },
-        "doom_loop": {
-          "description": "Fires when the same tool is called with identical input 3 times in a row. Accepts an action string or { action, message } object, not patterns; absent = off.",
-          "$ref": "#/definitions/effect"
-        }
+        "doom_loop": false
       },
       "additionalProperties": { "$ref": "#/definitions/rules" }
     }

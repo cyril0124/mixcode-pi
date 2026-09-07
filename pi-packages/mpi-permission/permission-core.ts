@@ -13,7 +13,6 @@ import { analyzeBashCommand, type BashAnalysis, splitBashCommand } from "./bash-
 export { splitBashCommand } from "./bash-policy.js";
 
 export const PERMISSION_CONFIG_FILENAME = "mpi-permission.json";
-export const DOOM_LOOP_THRESHOLD = 3;
 
 export type PermissionAction = "allow" | "ask" | "deny";
 
@@ -36,8 +35,6 @@ export type ToolRuleSet = {
 export type PermissionConfig = {
   /** Insertion-ordered key entries; order matters for last-match-wins. */
   entries: ToolRuleSet[];
-  /** Absent means the doom-loop guard is off. */
-  doomLoop?: PermissionEffect;
   /** Editor `$schema` reference; ignored by evaluation, preserved on write. */
   schemaRef?: string;
 };
@@ -50,9 +47,9 @@ export type LayeredConfig = {
 };
 
 export type PermissionSource = {
-  kind: "tool" | "external_directory" | "doom_loop";
+  kind: "tool" | "external_directory";
   layer: PermissionLayer;
-  /** Matched config key ("bash", "*", "external_directory", "doom_loop"). */
+  /** Matched config key ("bash", "*", "external_directory"). */
   tool: string;
   pattern: string;
   /** Subject that triggered the rule (command segment, path, pattern, ...). */
@@ -81,7 +78,6 @@ export type ConfigLoadResult =
 const ACTIONS: ReadonlySet<string> = new Set(["allow", "ask", "deny"]);
 const SEVERITY: Record<PermissionAction, number> = { allow: 0, ask: 1, deny: 2 };
 
-export const DOOM_LOOP_KEY = "doom_loop";
 export const EXTERNAL_DIRECTORY_KEY = "external_directory";
 
 // ---------------------------------------------------------------------------
@@ -218,8 +214,9 @@ function parsePermissionEffect(
 
 /**
  * Parse a permission config body. Fail loud on unknown fields and invalid types.
- * Root and per-tool shorthand remain action strings. Pattern values and
- * `doom_loop` accept action strings or `{ action, message? }` objects.
+ * Root and per-tool shorthand remain action strings. Pattern values accept
+ * action strings or `{ action, message? }` objects.
+ * The root key `doom_loop` is rejected; configure `doomLoop` in mpi-stuck-guard.json.
  */
 export function parsePermissionConfig(
   raw: unknown,
@@ -237,7 +234,6 @@ export function parsePermissionConfig(
     return { ok: false, error: "config root must be an action string or an object" };
   }
   const entries: ToolRuleSet[] = [];
-  let doomLoop: PermissionEffect | undefined;
   let schemaRef: string | undefined;
   for (const [key, value] of Object.entries(raw)) {
     if (!key.trim()) return { ok: false, error: "config keys must be non-empty" };
@@ -246,11 +242,12 @@ export function parsePermissionConfig(
       schemaRef = value;
       continue;
     }
-    if (key === DOOM_LOOP_KEY) {
-      const parsed = parsePermissionEffect(value, DOOM_LOOP_KEY);
-      if (!parsed.ok) return parsed;
-      doomLoop = parsed.effect;
-      continue;
+    if (key === "doom_loop") {
+      return {
+        ok: false,
+        error:
+          "doom_loop is not a permission rule; configure doomLoop in global mpi-stuck-guard.json",
+      };
     }
     if (typeof value === "string") {
       if (!ACTIONS.has(value)) {
@@ -287,7 +284,6 @@ export function parsePermissionConfig(
     ok: true,
     config: {
       entries,
-      ...(doomLoop ? { doomLoop } : {}),
       ...(schemaRef !== undefined ? { schemaRef } : {}),
     },
   };
@@ -316,7 +312,6 @@ export function serializePermissionConfig(config: PermissionConfig): Record<stri
     for (const rule of entry.rules) rules[rule.pattern] = serializePermissionEffect(rule);
     out[entry.tool] = rules;
   }
-  if (config.doomLoop) out[DOOM_LOOP_KEY] = serializePermissionEffect(config.doomLoop);
   return out;
 }
 
@@ -325,7 +320,7 @@ export function emptyPermissionConfig(): PermissionConfig {
 }
 
 export function hasAnyRules(config: PermissionConfig): boolean {
-  return config.entries.length > 0 || config.doomLoop !== undefined;
+  return config.entries.length > 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -526,17 +521,6 @@ function evaluateKey(
   };
 }
 
-/** Doom-loop action and message come together from the last layer that sets it. */
-export function doomLoopAction(
-  layers: readonly LayeredConfig[],
-): (PermissionEffect & { layer: PermissionLayer }) | null {
-  let found: (PermissionEffect & { layer: PermissionLayer }) | null = null;
-  for (const { layer, config } of layers) {
-    if (config.doomLoop) found = { ...config.doomLoop, layer };
-  }
-  return found;
-}
-
 export function stricterPermissionDecision(
   a: PermissionDecision,
   b: PermissionDecision,
@@ -563,9 +547,8 @@ export function evaluateExternalDirectoryPath(args: {
 
 /**
  * Evaluate one tool call against the layered config.
- * Combines the per-tool rule, the external-directory guard, and the doom-loop
- * guard by taking the most severe action (deny > ask > allow). `doomCount` is
- * the number of consecutive identical calls including this one.
+ * Combines the per-tool rule and the external-directory guard by taking
+ * the most severe action (deny > ask > allow).
  */
 export function evaluateToolCall(args: {
   layers: readonly LayeredConfig[];
@@ -573,7 +556,6 @@ export function evaluateToolCall(args: {
   input: Record<string, unknown>;
   cwd: string;
   home: string;
-  doomCount?: number;
   bashAnalysis?: BashAnalysis;
 }): PermissionDecision {
   const { layers, toolName, input, cwd, home } = args;
@@ -606,20 +588,6 @@ export function evaluateToolCall(args: {
     );
   }
 
-  const doom = doomLoopAction(layers);
-  if (doom && (args.doomCount ?? 0) >= DOOM_LOOP_THRESHOLD) {
-    decision = stricterPermissionDecision(decision, {
-      action: doom.action,
-      ...(doom.action === "deny" && doom.message !== undefined ? { message: doom.message } : {}),
-      source: {
-        kind: "doom_loop",
-        layer: doom.layer,
-        tool: DOOM_LOOP_KEY,
-        pattern: DOOM_LOOP_KEY,
-        subject: toolName,
-      },
-    });
-  }
   return decision;
 }
 
@@ -630,7 +598,6 @@ export function evaluateToolCallDecisions(args: {
   input: Record<string, unknown>;
   cwd: string;
   home: string;
-  doomCount?: number;
 }): PermissionDecision[] {
   if (args.toolName !== "bash") return [evaluateToolCall(args)];
 
@@ -662,34 +629,6 @@ export function evaluateToolCallDecisions(args: {
     );
   }
   return decisions;
-}
-
-/** Consecutive-identical-call counter for the doom-loop guard. */
-export function createDoomLoopTracker(): {
-  record(toolName: string, input: unknown): number;
-  reset(): void;
-} {
-  let lastSignature: string | null = null;
-  let count = 0;
-  return {
-    record(toolName, input) {
-      let serialized: string;
-      try {
-        serialized = JSON.stringify(input) ?? "";
-      } catch {
-        // Non-serializable input cannot repeat verbatim; treat as unique.
-        serialized = `unique:${Date.now()}:${Math.random()}`;
-      }
-      const signature = `${toolName}\u0000${serialized}`;
-      count = signature === lastSignature ? count + 1 : 1;
-      lastSignature = signature;
-      return count;
-    },
-    reset() {
-      lastSignature = null;
-      count = 0;
-    },
-  };
 }
 
 // ---------------------------------------------------------------------------
@@ -752,18 +691,4 @@ export function cycleRuleAction(
       : entry,
   );
   return { ...config, entries };
-}
-
-/** Cycle off -> ask -> deny -> allow -> off; preserve the message until the guard is removed. */
-export function cycleDoomLoop(config: PermissionConfig): PermissionConfig {
-  const next: PermissionAction | undefined =
-    config.doomLoop === undefined
-      ? "ask"
-      : config.doomLoop.action === "ask"
-        ? "deny"
-        : config.doomLoop.action === "deny"
-          ? "allow"
-          : undefined;
-  const { doomLoop, ...rest } = config;
-  return next ? { ...rest, doomLoop: { ...doomLoop, action: next } } : rest;
 }

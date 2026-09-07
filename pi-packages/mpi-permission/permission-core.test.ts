@@ -3,10 +3,10 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
+import { Value } from "typebox/value";
+import permissionSchema from "./mpi-permission.schema.json" with { type: "json" };
 import {
   addRule,
-  createDoomLoopTracker,
-  cycleDoomLoop,
   cycleRuleAction,
   evaluateExternalDirectoryPath,
   evaluateToolCall,
@@ -40,13 +40,8 @@ function layersOf(...configs: Array<[LayeredConfig["layer"], unknown]>): Layered
   return configs.map(([layer, raw]) => ({ layer, config: parsed(raw) }));
 }
 
-function evaluate(
-  layers: LayeredConfig[],
-  toolName: string,
-  input: Record<string, unknown>,
-  doomCount = 0,
-) {
-  return evaluateToolCall({ layers, toolName, input, cwd: CWD, home: HOME, doomCount });
+function evaluate(layers: LayeredConfig[], toolName: string, input: Record<string, unknown>) {
+  return evaluateToolCall({ layers, toolName, input, cwd: CWD, home: HOME });
 }
 
 // ─── wildcard matching ───────────────────────────────────────────────────────
@@ -103,11 +98,31 @@ test("parse: fail loud on invalid action, empty object, bad shapes", () => {
   assert.equal(parsePermissionConfig({ doom_loop: { "*": "ask" } }).ok, false);
 });
 
+test("doom_loop is rejected with the stuck-guard configuration location", () => {
+  for (const value of [
+    "allow",
+    "ask",
+    "deny",
+    { action: "deny", message: "Stop." },
+    { "*": "ask" },
+  ]) {
+    const raw = { doom_loop: value };
+    assert.equal(Value.Check(permissionSchema, raw), false);
+    const result = parsePermissionConfig(raw);
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.match(result.error, /doom_loop/);
+      assert.match(result.error, /mpi-stuck-guard\.json/);
+      assert.match(result.error, /doomLoop/);
+    }
+  }
+});
+
 test("$schema: accepted as string, preserved through mutations and file round-trip", () => {
   const config = parsed({ $schema: "./mpi-permission.schema.json", bash: { "git *": "allow" } });
   assert.equal(config.schemaRef, "./mpi-permission.schema.json");
 
-  const mutated = cycleDoomLoop(addRule(config, "read", "*.env", "deny"));
+  const mutated = addRule(config, "read", "*.env", "deny");
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "mpi-permission-"));
   const file = path.join(dir, "mpi-permission.json");
   assert.equal(writePermissionConfig(file, mutated).ok, true);
@@ -133,12 +148,10 @@ test("serialize: single * rule collapses to string, order preserved", () => {
   const config = parsed({
     read: "allow",
     bash: { "git *": "allow", "*": "ask" },
-    doom_loop: "ask",
   });
   assert.deepEqual(serializePermissionConfig(config), {
     read: "allow",
     bash: { "git *": "allow", "*": "ask" },
-    doom_loop: "ask",
   });
 });
 
@@ -493,33 +506,6 @@ test("evaluate: external_directory has no * tool-key fallback and no default gat
   assert.equal(evaluate(layers, "read", { path: "/etc/passwd" }).action, "allow");
 });
 
-// ─── doom loop ───────────────────────────────────────────────────────────────
-
-test("doom tracker: counts consecutive identical calls, resets on change", () => {
-  const tracker = createDoomLoopTracker();
-  assert.equal(tracker.record("bash", { command: "ls" }), 1);
-  assert.equal(tracker.record("bash", { command: "ls" }), 2);
-  assert.equal(tracker.record("bash", { command: "pwd" }), 1);
-  assert.equal(tracker.record("bash", { command: "ls" }), 1);
-  assert.equal(tracker.record("bash", { command: "ls" }), 2);
-  assert.equal(tracker.record("bash", { command: "ls" }), 3);
-  tracker.reset();
-  assert.equal(tracker.record("bash", { command: "ls" }), 1);
-});
-
-test("evaluate: doom_loop fires at the threshold with the configured action", () => {
-  const layers = layersOf(["global", { bash: "allow", doom_loop: "ask" }]);
-  assert.equal(evaluate(layers, "bash", { command: "ls" }, 2).action, "allow");
-  const tripped = evaluate(layers, "bash", { command: "ls" }, 3);
-  assert.equal(tripped.action, "ask");
-  assert.equal(tripped.source?.kind, "doom_loop");
-});
-
-test("evaluate: later layer overrides doom_loop action", () => {
-  const layers = layersOf(["global", { doom_loop: "deny" }], ["session", { doom_loop: "allow" }]);
-  assert.equal(evaluate(layers, "bash", { command: "ls" }, 5).action, "allow");
-});
-
 // ─── subject extraction ──────────────────────────────────────────────────────
 
 test("extractSubject: per-tool subject kinds", () => {
@@ -564,22 +550,13 @@ test("removeRule: drops the rule and empty keys disappear", () => {
   );
 });
 
-test("cycleRuleAction / cycleDoomLoop: full cycles", () => {
+test("cycleRuleAction: full cycle", () => {
   const base = parsed({ bash: { "git *": "allow" } });
   const once = cycleRuleAction(base, "bash", 0);
   assert.equal(once.entries[0]!.rules[0]!.action, "ask");
-  assert.equal(cycleRuleAction(once, "bash", 0).entries[0]!.rules[0]!.action, "deny");
-
-  let config = parsed({ read: "allow" });
-  assert.equal(config.doomLoop, undefined);
-  config = cycleDoomLoop(config);
-  assert.equal(config.doomLoop?.action, "ask");
-  config = cycleDoomLoop(config);
-  assert.equal(config.doomLoop?.action, "deny");
-  config = cycleDoomLoop(config);
-  assert.equal(config.doomLoop?.action, "allow");
-  config = cycleDoomLoop(config);
-  assert.equal(config.doomLoop, undefined);
+  const twice = cycleRuleAction(once, "bash", 0);
+  assert.equal(twice.entries[0]!.rules[0]!.action, "deny");
+  assert.equal(cycleRuleAction(twice, "bash", 0).entries[0]!.rules[0]!.action, "allow");
 });
 
 // ─── regression: fail-closed behavior at the production entry ───────────────

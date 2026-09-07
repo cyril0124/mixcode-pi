@@ -22,7 +22,7 @@
 
 文件缺失即完全不介入：任何一层都没有配置时，该包不改变任何行为。配置文件存在但解析失败则**失败关闭**（fail closed）：所有工具调用都会被拦截，原因中带文件路径与错误，直到修复为止。
 
-根值是动作字符串或对象。键为实际工具名（`bash`、`read`、`edit`、`write`、`grep`、`find`、`ls` 及任意扩展工具名）、`*`（工具自身无命中规则时的兜底），以及防护项 `external_directory` 与 `doom_loop`：
+根值是动作字符串或对象。键为实际工具名（`bash`、`read`、`edit`、`write`、`grep`、`find`、`ls` 及任意扩展工具名）、`*`（工具自身无命中规则时的兜底），以及防护项 `external_directory`：
 
 ```json
 {
@@ -31,8 +31,7 @@
   "bash": { "*": "ask", "git *": "allow", "git push*": "deny" },
   "read": { "*": "allow", "*.env": "deny", "*.env.example": "allow" },
   "edit": { "*": "deny", "src/*": "allow" },
-  "external_directory": { "*": "ask", "~/notes/**": "allow" },
-  "doom_loop": "ask"
+  "external_directory": { "*": "ask", "~/notes/**": "allow" }
 }
 ```
 
@@ -40,8 +39,9 @@
 |------|------|
 | `"<tool>": "allow" \| "ask" \| "deny"` | 该工具所有调用采用同一动作。 |
 | `"<tool>": { "<模式>": 动作, ... }` | 对该工具 subject 的模式规则；**最后匹配的规则优先**，因此把 `"*"` 放最前、具体规则放后面。 |
-| `"doom_loop": 动作` | 接受动作字符串或 `{ "action": 动作, "message": 字符串 }`，不支持模式。语义见[防护项](#防护项)。 |
 | `"$schema": 字符串` | 可选的编辑器 schema 引用；解析接受、overlay 写回时保留，求值忽略。 |
+
+此文件不接受根键 `doom_loop`。重复调用防护通过全局 [mpi-stuck-guard.json](../mpi-stuck-guard/README.zh.md#doom-loop) 的 `doomLoop` 配置。
 
 包内随带 `mpi-permission.schema.json`（安装于 `<agentDir>/extensions/mpi-permission/mpi-permission.schema.json`），供编辑器补全与校验。全局文件中直接使用上例的相对路径即可；项目文件请用绝对路径或编辑器的 schema 映射。
 
@@ -49,7 +49,7 @@
 
 ## 拒绝提示
 
-模式值或 `doom_loop` 可以使用对象形式，包含必填的 `action` 和可选字符串 `message`。未知对象字段、非字符串提示均为配置错误。根值及工具简写仍为动作字符串；为整个工具配置提示时使用 `"*"` 模式。
+模式值接受 `{ "action": ..., "message": ... }` 对象。`action` 必填，`message` 为可选字符串。未知字段或非字符串提示属于配置错误。根值及工具简写使用动作字符串；整个工具共用一条提示时，使用 `"*"` 模式。
 
 ```json
 {
@@ -58,18 +58,21 @@
   },
   "external_directory": {
     "*": { "action": "deny", "message": "请只访问项目目录内的文件。" }
-  },
-  "doom_loop": { "action": "deny", "message": "请修改输入后再重试。" }
+  }
 }
 ```
 
-deny 时，获胜规则的提示换行追加在原有命中规则说明之后，随工具错误返回给模型。文本按原样输出，包括换行，不做变量插值。空字符串有效；未配置提示时保持原有原因不变。
+deny 时，返回给模型的工具错误包含命中规则说明，随后换行追加该规则的 `message`。文本按原样输出，包括换行，不做变量插值。空字符串有效；省略 `message` 时不改变拒绝原因。
 
-提示与动作来自同一获胜规则，不继承被覆盖规则的提示，也不合并多个拒绝提示。同等严格度的决策保留先求值的获胜者。`allow` / `ask` 上的提示会保留但不输出，ask 对话框被用户拒绝时也不输出。`/permission` 保存或切换动作时保留提示；删除规则或将 `doom_loop` 切到 Off 时移除对应提示。提示文字通过 JSON 编辑，overlay 不提供文字编辑入口。
+提示仅来自获胜规则。被覆盖规则的文字不参与输出；同等严格度的决策保留先求值的获胜者。`allow` / `ask` 上的提示会保存但不显示，用户拒绝 ask 审批时也不显示。
+
+提示文字通过 JSON 编辑。`/permission` 保存或切换动作时保留提示，删除规则时一并删除提示。
 
 ## 探针工具
 
-包会注册 `permission_probe`，但在会话开始时保持 inactive。需要模型使用时，通过 Pi 现有的 active tool 管理入口显式开启。探针接收目标工具名和 input 对象，使用目标工具注册的参数 schema 校验 input，然后报告当前 `allow` / `ask` / `deny` 结果；它不会执行目标工具。未知工具返回 `unknown_tool`，目标参数非法返回 `invalid_target_input`。探针调用不会推进 `doom_loop` 计数。
+`permission_probe` 在会话开始时未启用。输入 `/permission-probe` 可在当前会话开启，不改变其他工具的启用状态，也不保存该设置。重复执行命令没有额外影响。
+
+探针接收目标工具名和 input 对象，按目标工具的参数 schema 校验输入，报告权限决策但不执行目标工具。未知工具返回 `unknown_tool`，非法输入返回 `invalid_target_input`。探针调用跳过本包的权限规则，但仍受其他扩展约束。
 
 ```json
 {
@@ -78,9 +81,7 @@ deny 时，获胜规则的提示换行追加在原有命中规则说明之后，
 }
 ```
 
-成功结果包含 `action`、`wouldAllow` / `wouldAsk` / `wouldBlock` 布尔字段以及命中的权限来源。deny 时，若获胜规则配置了提示，结果还包含 `message`，语义见[拒绝提示](#拒绝提示)。探针只说明后续真实调用在当前策略下会如何处理，不保证目标工具本身执行成功。
-
-使用 `/permission-probe` 可在当前会话开启探针。命令可重复执行，不会移除当前其他 active tools。开启状态仅限当前会话，不会持久化。
+结果包含 `action`、布尔字段 `wouldAllow`、`wouldAsk`、`wouldBlock` 及命中的权限来源。deny 时还会返回获胜规则配置的 `message`，见[拒绝提示](#拒绝提示)。探针只预测本包规则，不预测其他防护，也不保证目标工具能够执行成功。
 
 ## 匹配
 
@@ -106,25 +107,6 @@ deny 时，获胜规则的提示换行追加在原有命中规则说明之后，
 
 最终决策取工具规则与防护规则中更严格者（`deny` > `ask` > `allow`）。没有 `external_directory` 规则即关闭该防护；写 `"*": "ask"` 可把关所有检测到的外部路径。模式末尾 `/` 会被忽略，因此 `"../"` 匹配父目录本身，`"../*"` 匹配父目录中的内容。
 
-### `doom_loop`
-
-用于打断 Agent 重试死循环：同一工具以字节相同的输入（按 `JSON.stringify(input)` 比较）**连续**调用 3 次时，配置的动作作用于第 3 次及之后每一次连续重复调用。
-
-- 计数仅限连续：换工具或换输入即重置为 1。审批通过**不会**重置计数——第 4 次相同调用会再次触发。
-- 该防护与工具规则独立求值，按严格度合并（`deny` > `ask` > `allow`），所以 allow 工具规则——包括会话内的 "Always allow" 授权——压不住它。要关闭：删掉该键，或在更后的层写 `"doom_loop": "allow"`（会话覆盖项目、项目覆盖全局）。
-- 它的 `ask` 对话框只有 Allow once / Reject；提供 "always" 会让防护形同虚设。
-- 计数器为每个 MixCode 标签页内存独立，从防护配置后的第一次调用开始。
-
-以 `"doom_loop": "ask"` 为例：
-
-```text
-bash: echo same    #1 执行
-bash: echo same    #2 执行
-bash: echo same    #3 弹框 "repeated with identical input"
-bash: echo same    #4 再次弹框（连续计数未断）
-bash: echo other   计数重置；之后的 `echo same` 从 #1 重新计
-```
-
 ## Ask 对话框
 
 | 选项 | 效果 |
@@ -145,8 +127,6 @@ bash: echo other   计数重置；之后的 `echo same` 从 #1 重新计
 ┌─ Permission ───────────────────────────────────┐
 │  /home/user/.pi/agent/mpi-permission.json          │
 │  › Layer                           Global      │
-│    doom_loop                       Off         │
-│      same tool + identical input 3×…          │
 │   bash ───────────────────────────────────     │
 │    *                               ask         │
 │    git *                           allow       │
@@ -156,9 +136,9 @@ bash: echo other   计数重置；之后的 `echo same` 从 #1 重新计
 
 | 按键 | 动作 |
 |------|------|
-| Enter / Space | 循环 Layer（Global → Project → Session）、循环规则动作、或循环 `doom_loop`（Off → ask → deny → allow → Off）。 |
+| Enter / Space | 循环 Layer（Global → Project → Session）或循环规则动作。 |
 | `n` | 新建规则三步向导：**1/3 键名** — 从候选列表选（`*`、`external_directory` 与已注册工具名；输入即过滤，↑↓ 选择，回车取高亮候选或自由文本）；**2/3 模式** — 预填 `*`，按键名给出示例；**3/3 动作** — Space/←→ 选 allow / ask / deny，回车添加。Esc 逐步回退。 |
-| `d` | 删除选中规则（键下无规则时整键消失），或把 `doom_loop` 重置为 Off。 |
+| `d` | 删除选中规则（键下无规则时整键消失）。 |
 | Esc | 取消输入行，或关闭。 |
 
 Global 与 Project 的编辑立即写入对应文件；项目未受信任时 Project 层编辑被拒绝。Session 编辑仅存内存。

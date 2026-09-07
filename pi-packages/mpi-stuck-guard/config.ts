@@ -1,4 +1,4 @@
-// stuck-guard configuration for provider stream liveness.
+// stuck-guard configuration for provider streams and tool-call guards.
 // Loaded from <agentDir>/mpi-stuck-guard.json with strict validation.
 
 import * as fs from "node:fs";
@@ -6,7 +6,14 @@ import * as path from "node:path";
 
 export const STUCK_GUARD_CONFIG_FILENAME = "mpi-stuck-guard.json";
 
+export interface DoomLoopConfig {
+  action: "allow" | "ask" | "deny";
+  /** Appended only to an automatic deny; retained but not emitted on allow/ask. */
+  message?: string;
+}
+
 export interface StuckGuardConfig {
+  doomLoop: DoomLoopConfig;
   streamWatchdogEnabled: boolean;
   providerIds: string[];
   streamStartTimeoutSeconds: number;
@@ -17,6 +24,7 @@ export interface StuckGuardConfig {
 }
 
 export const DEFAULT_STUCK_GUARD_CONFIG: StuckGuardConfig = {
+  doomLoop: { action: "allow" },
   streamWatchdogEnabled: true,
   providerIds: [],
   streamStartTimeoutSeconds: 300,
@@ -42,6 +50,7 @@ const ALLOWED_ROOT_KEYS = new Set<string>([
   "streamWatchdogEnabled",
   "providerIds",
   "schemaHintFailureThreshold",
+  "doomLoop",
   "$schema",
 ]);
 
@@ -57,7 +66,32 @@ export function parseStuckGuardConfig(
     if (!ALLOWED_ROOT_KEYS.has(key)) return { ok: false, error: `unknown key: ${key}` };
   }
 
-  const config: StuckGuardConfig = { ...DEFAULT_STUCK_GUARD_CONFIG };
+  const config: StuckGuardConfig = {
+    ...DEFAULT_STUCK_GUARD_CONFIG,
+    doomLoop: { ...DEFAULT_STUCK_GUARD_CONFIG.doomLoop },
+  };
+  if ("doomLoop" in root) {
+    const rawEffect = root.doomLoop;
+    if (!rawEffect || typeof rawEffect !== "object" || Array.isArray(rawEffect)) {
+      return { ok: false, error: "doomLoop must be an object with action and optional message" };
+    }
+    const effect = rawEffect as Record<string, unknown>;
+    for (const key of Object.keys(effect)) {
+      if (key !== "action" && key !== "message") {
+        return { ok: false, error: `doomLoop: unknown field ${key}` };
+      }
+    }
+    if (effect.action !== "allow" && effect.action !== "ask" && effect.action !== "deny") {
+      return { ok: false, error: 'doomLoop.action must be "allow" | "ask" | "deny"' };
+    }
+    if ("message" in effect && typeof effect.message !== "string") {
+      return { ok: false, error: "doomLoop.message must be a string" };
+    }
+    config.doomLoop = {
+      action: effect.action,
+      ...(typeof effect.message === "string" ? { message: effect.message } : {}),
+    };
+  }
   if (root.streamWatchdogEnabled !== undefined) {
     if (typeof root.streamWatchdogEnabled !== "boolean")
       return { ok: false, error: "streamWatchdogEnabled must be a boolean" };
@@ -125,7 +159,11 @@ export function loadStuckGuardConfig(agentDir: string): StuckGuardConfigLoad {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
       return { ok: true, config: { ...DEFAULT_STUCK_GUARD_CONFIG }, path: filePath, missing: true };
     }
-    throw err;
+    return {
+      ok: false,
+      path: filePath,
+      error: `cannot read ${filePath}: ${err instanceof Error ? err.message : String(err)}`,
+    };
   }
   let parsed: unknown;
   try {

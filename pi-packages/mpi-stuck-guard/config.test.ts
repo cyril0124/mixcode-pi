@@ -54,6 +54,7 @@ test("config: valid provider watchdog values override defaults", () => {
     streamRetryStartTimeoutSeconds: 3,
     knownTimeoutCooldownSeconds: 9,
     schemaHintFailureThreshold: 2,
+    doomLoop: { action: "allow" },
   });
 });
 

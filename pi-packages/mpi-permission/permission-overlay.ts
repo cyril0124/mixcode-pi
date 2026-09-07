@@ -8,11 +8,9 @@
 // +---------------------------------------------------------------------------+
 import { Key, matchesKey, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import {
-  cycleDoomLoop,
   cycleRuleAction,
   removeRule,
   addRule,
-  DOOM_LOOP_KEY,
   type PermissionAction,
   type PermissionConfig,
   type PermissionLayer,
@@ -43,22 +41,14 @@ export interface PermissionOverlayOptions {
 
 export type PermissionRow =
   | { kind: "layer" }
-  | { kind: "doom"; action?: PermissionAction }
-  | { kind: "note"; text: string }
   | { kind: "header"; tool: string }
   | { kind: "rule"; tool: string; index: number; pattern: string; action: PermissionAction };
 
-type SelectableRow = Extract<PermissionRow, { kind: "layer" | "doom" | "rule" }>;
+type SelectableRow = Extract<PermissionRow, { kind: "layer" | "rule" }>;
 
-const DOOM_NOTE = "same tool + identical input 3× in a row triggers this action · Off = disabled";
-
-/** Rows for one layer draft: layer selector, doom_loop (+note), then key groups. */
+/** Rows for one layer draft: layer selector, then key groups. */
 export function buildPermissionRows(config: PermissionConfig): PermissionRow[] {
-  const rows: PermissionRow[] = [
-    { kind: "layer" },
-    { kind: "doom", action: config.doomLoop?.action },
-    { kind: "note", text: DOOM_NOTE },
-  ];
+  const rows: PermissionRow[] = [{ kind: "layer" }];
   for (const entry of config.entries) {
     rows.push({ kind: "header", tool: entry.tool });
     entry.rules.forEach((rule, index) => {
@@ -76,7 +66,7 @@ export function buildPermissionRows(config: PermissionConfig): PermissionRow[] {
 
 const LAYER_CYCLE: PermissionLayer[] = ["global", "project", "session"];
 const ACTION_ORDER: PermissionAction[] = ["allow", "ask", "deny"];
-const RESERVED_RULE_KEYS = new Set(["$schema", DOOM_LOOP_KEY]);
+const RESERVED_RULE_KEYS = new Set(["$schema", "doom_loop"]);
 const KEY_CANDIDATE_ROWS = 5;
 
 /** New-rule wizard state. Esc steps back; Enter advances. */
@@ -120,7 +110,7 @@ export function createPermissionOverlay(options: PermissionOverlayOptions): {
   }
 
   function selectable(list: PermissionRow[]): SelectableRow[] {
-    return list.filter((row): row is SelectableRow => row.kind !== "header" && row.kind !== "note");
+    return list.filter((row): row is SelectableRow => row.kind !== "header");
   }
 
   function clampSelected(): void {
@@ -166,10 +156,6 @@ export function createPermissionOverlay(options: PermissionOverlayOptions): {
       clampSelected();
       return;
     }
-    if (current.kind === "doom") {
-      apply(cycleDoomLoop(drafts[layer]));
-      return;
-    }
     apply(cycleRuleAction(drafts[layer], current.tool, current.index));
   }
 
@@ -180,10 +166,6 @@ export function createPermissionOverlay(options: PermissionOverlayOptions): {
       apply(removeRule(drafts[layer], current.tool, current.index));
       clampSelected();
       return;
-    }
-    if (current.kind === "doom" && drafts[layer].doomLoop !== undefined) {
-      const { doomLoop: _cleared, ...rest } = drafts[layer];
-      apply({ ...rest });
     }
   }
 
@@ -386,7 +368,7 @@ export function createPermissionOverlay(options: PermissionOverlayOptions): {
       const painted = list.map((row, index) =>
         paintRow(row, index === indexOfSelectable(list, selected), theme, inner, layer),
       );
-      if (list.length === 3) painted.push(dim("  No rules — press n to add"));
+      if (list.length === 1) painted.push(dim("  No rules — press n to add"));
       const windowed = windowLines(painted, indexOfSelectable(list, selected), listBudget, dim);
       const body = fitBody([...chrome, ...windowed], footer, bodyBudget, pathLine);
       return renderPanel(body, width, " Permission ", theme);
@@ -401,9 +383,6 @@ function paintRow(
   innerWidth: number,
   layer: PermissionLayer,
 ): string {
-  if (row.kind === "note") {
-    return theme.fg("dim", truncateToWidth(`    ${row.text}`, innerWidth, "…"));
-  }
   if (row.kind === "header") {
     const left = ` ${truncateToWidth(row.tool, Math.max(1, innerWidth - 3), "…")} `;
     const fill = Math.max(0, innerWidth - visibleWidth(left));
@@ -414,7 +393,7 @@ function paintRow(
   const labelCol = Math.max(12, Math.min(48, Math.floor((innerWidth - markerWidth - gap) * 0.7)));
   const valueCol = Math.max(6, innerWidth - markerWidth - gap - labelCol);
   const marker = selected ? theme.fg("accent", "› ") : "  ";
-  const label = row.kind === "layer" ? "Layer" : row.kind === "doom" ? DOOM_LOOP_KEY : row.pattern;
+  const label = row.kind === "layer" ? "Layer" : row.pattern;
   const valuePlain =
     row.kind === "layer"
       ? layer === "global"
@@ -422,23 +401,17 @@ function paintRow(
         : layer === "project"
           ? "Project"
           : "Session"
-      : row.kind === "doom"
-        ? (row.action ?? "Off")
-        : row.action;
+      : row.action;
   const labelText = truncateToWidth(label, labelCol, "…");
   const valueText = truncateToWidth(valuePlain, valueCol, "…");
   const valueColored =
     row.kind === "layer"
       ? theme.fg("accent", valueText)
-      : row.kind === "doom"
-        ? valueText === "Off"
-          ? theme.fg("dim", valueText)
-          : theme.fg("accent", valueText)
-        : row.action === "deny"
-          ? theme.fg("error", valueText)
-          : row.action === "ask"
-            ? theme.fg("warning", valueText)
-            : theme.fg("dim", valueText);
+      : row.action === "deny"
+        ? theme.fg("error", valueText)
+        : row.action === "ask"
+          ? theme.fg("warning", valueText)
+          : theme.fg("dim", valueText);
   const labelPadded = labelText + " ".repeat(Math.max(0, labelCol - visibleWidth(labelText)));
   const line = `${marker}${labelPadded}${" ".repeat(gap)}${valueColored}`;
   if (selected && theme.bg) return theme.bg("selectedBg", padVisible(line, innerWidth));
@@ -449,7 +422,7 @@ function indexOfSelectable(list: readonly PermissionRow[], selectableIndex: numb
   let seen = 0;
   for (let i = 0; i < list.length; i++) {
     const kind = list[i]!.kind;
-    if (kind === "header" || kind === "note") continue;
+    if (kind === "header") continue;
     if (seen === selectableIndex) return i;
     seen++;
   }

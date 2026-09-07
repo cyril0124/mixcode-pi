@@ -17,8 +17,6 @@ import { Type } from "typebox";
 import { Value } from "typebox/value";
 import {
   addRule,
-  createDoomLoopTracker,
-  doomLoopAction,
   emptyPermissionConfig,
   EXTERNAL_DIRECTORY_KEY,
   evaluateToolCallDecisions,
@@ -95,10 +93,6 @@ function permissionProbeResult(
     wouldAsk: decision.action === "ask",
     wouldBlock: decision.action === "deny",
     sources: decisions.flatMap((candidate) => (candidate.source ? [candidate.source] : [])),
-    doomLoop: {
-      checked: false as const,
-      reason: "permission_probe does not advance the repeated-call counter",
-    },
   };
 }
 
@@ -126,10 +120,9 @@ type SuggestedRule = { tool: string; pattern: string };
  * Session "always" grant patterns suggested in the ask dialog.
  * Bash grants the first one or two command words plus ` *`; path-like and
  * pattern subjects grant the exact subject; an existing external directory
- * needs exact + contents rules. Doom-loop asks get no "always" option.
+ * needs exact + contents rules.
  */
 function suggestAlwaysRules(source: PermissionSource, toolName: string): SuggestedRule[] {
-  if (source.kind === "doom_loop") return [];
   if (source.kind === "external_directory") {
     if (existingDirectory(source.subject)) {
       return [
@@ -153,8 +146,6 @@ export default function permissionExtension(pi: ExtensionAPI) {
   let cachedGlobal: CachedConfig = { status: "missing", path: permissionConfigPath(getAgentDir()) };
   let cachedProject: CachedConfig | null = null;
   let sessionConfig: PermissionConfig = emptyPermissionConfig();
-  const doomTracker = createDoomLoopTracker();
-  let doomGuardActive = false;
 
   function reload(cwd: string): void {
     cachedGlobal = cacheFromLoad(loadPermissionConfig(permissionConfigPath(getAgentDir())));
@@ -205,8 +196,8 @@ export default function permissionExtension(pi: ExtensionAPI) {
     name: PERMISSION_PROBE_NAME,
     label: "Permission Probe",
     description:
-      "Check whether a registered tool call would be allowed, require approval, or be blocked. " +
-      "Validates the target input against that tool's registered schema and never executes it.",
+      "Check this package's permission rules for a registered tool call: allowed, approval required, or blocked. " +
+      "Validates the target input against its registered schema without executing it; does not predict other extensions' guards.",
     parameters: permissionProbeSchema,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const target = pi.getAllTools().find((tool) => tool.name === params.toolName);
@@ -284,22 +275,15 @@ export default function permissionExtension(pi: ExtensionAPI) {
     }
 
     const layers = buildLayers(trusted);
-    const doom = doomLoopAction(layers);
-    const nextDoomGuardActive = doom !== null && doom.action !== "allow";
-    if (nextDoomGuardActive && !doomGuardActive) doomTracker.reset();
-    doomGuardActive = nextDoomGuardActive;
     if (layers.length === 0) return undefined; // inert: no config anywhere
 
     const input = event.input as Record<string, unknown>;
-    // An explicit "allow" disables the guard just like an absent setting.
-    const doomCount = doomGuardActive ? doomTracker.record(event.toolName, input) : 0;
     const decisions = evaluateToolCallDecisions({
       layers,
       toolName: event.toolName,
       input,
       cwd: ctx.cwd,
       home,
-      doomCount,
     });
 
     const denied = decisions.find((candidate) => candidate.action === "deny");
@@ -327,16 +311,14 @@ export default function permissionExtension(pi: ExtensionAPI) {
           "no interactive UI is available, add an allow rule or run interactively",
       };
     }
-    const suggestions = sources.some((source) => source.kind === "doom_loop")
-      ? []
-      : sources
-          .flatMap((source) => suggestAlwaysRules(source, toolName))
-          .filter(
-            (rule, index, list) =>
-              list.findIndex(
-                (candidate) => candidate.tool === rule.tool && candidate.pattern === rule.pattern,
-              ) === index,
-          );
+    const suggestions = sources
+      .flatMap((source) => suggestAlwaysRules(source, toolName))
+      .filter(
+        (rule, index, list) =>
+          list.findIndex(
+            (candidate) => candidate.tool === rule.tool && candidate.pattern === rule.pattern,
+          ) === index,
+      );
     const ALLOW_ONCE = "Allow once";
     const REJECT = "Reject";
     const always =
@@ -346,17 +328,13 @@ export default function permissionExtension(pi: ExtensionAPI) {
           ? `Always allow: ${suggestions[0]!.tool}[${suggestions[0]!.pattern}]`
           : `Always allow these ${suggestions.length} rules`;
     const options = always ? [ALLOW_ONCE, always, REJECT] : [ALLOW_ONCE, REJECT];
-    const doom = sources.find((source) => source.kind === "doom_loop");
     const details = sources
-      .filter((source) => source.kind !== "doom_loop")
       .map(
         (source) =>
           `  ${preview(source.subject)}\n\n  rule: ${source.layer} ${source.tool}[${source.pattern}]`,
       )
       .join("\n\n");
-    const title = doom
-      ? `Permission: ${toolName} repeated with identical input\n\n  ${preview(doom.subject)}\n${details ? `\n${details}\n` : ""}`
-      : `Permission: ${toolName}\n\n${details}\n`;
+    const title = `Permission: ${toolName}\n\n${details}\n`;
     // The tool row keeps counting from tool_execution_start while the dialog
     // is open even though nothing has spawned yet; make the wait explicit.
     ctx.ui.setWorkingMessage("waiting for permission approval…");

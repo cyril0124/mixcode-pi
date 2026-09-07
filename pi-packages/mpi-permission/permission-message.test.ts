@@ -25,8 +25,8 @@ function parse(raw: unknown): PermissionConfig {
 const cwd = "/project";
 const home = "/home/test";
 
-function evaluate(layers: LayeredConfig[], command: string, doomCount = 0) {
-  return evaluateToolCall({ layers, toolName: "bash", input: { command }, cwd, home, doomCount });
+function evaluate(layers: LayeredConfig[], command: string) {
+  return evaluateToolCall({ layers, toolName: "bash", input: { command }, cwd, home });
 }
 
 test("action objects reject malformed fields with the offending config location", () => {
@@ -39,12 +39,11 @@ test("action objects reject malformed fields with the offending config location"
     [],
     null,
   ]) {
-    for (const config of [{ bash: { "git *": value } }, { doom_loop: value }]) {
-      assert.equal(Value.Check(permissionSchema, config), false, JSON.stringify(config));
-      const result = parsePermissionConfig(config);
-      assert.equal(result.ok, false, JSON.stringify(config));
-      if (!result.ok) assert.match(result.error, "bash" in config ? /bash.*git \*/ : /doom_loop/);
-    }
+    const config = { bash: { "git *": value } };
+    assert.equal(Value.Check(permissionSchema, config), false, JSON.stringify(config));
+    const result = parsePermissionConfig(config);
+    assert.equal(result.ok, false, JSON.stringify(config));
+    if (!result.ok) assert.match(result.error, /bash.*git \*/);
   }
 });
 
@@ -53,7 +52,6 @@ test("message round-trip keeps wildcard objects, empty messages, and literal mes
     bash: { "*": { action: "deny", message: "Use the approved command.\nAsk the user." } },
     read: { "*.env": { action: "deny", message: "" }, "*.example": "allow" },
     custom: { action: "deny", message: "ask" },
-    doom_loop: { action: "deny", message: "Change the input before retrying." },
   };
   assert.equal(Value.Check(permissionSchema, raw), true);
   assert.deepEqual(serializePermissionConfig(parse(raw)), raw);
@@ -84,13 +82,12 @@ test("only the winning deny supplies a message across layers and compound segmen
   assert.equal(evaluate(layers, "rm file && git push").message, "global");
 });
 
-test("external-directory and doom-loop denials carry their own messages", () => {
+test("external-directory denials carry their own messages", () => {
   const layers: LayeredConfig[] = [
     {
       layer: "global",
       config: parse({
         external_directory: { "*": { action: "deny", message: "Stay in the project." } },
-        doom_loop: { action: "deny", message: "Do not repeat this input." },
       }),
     },
   ];
@@ -103,19 +100,14 @@ test("external-directory and doom-loop denials carry their own messages", () => 
   });
   assert.equal(external.action, "deny");
   assert.equal(external.message, "Stay in the project.");
-  assert.equal(evaluate(layers, "echo repeat", 2).message, undefined);
-  assert.equal(evaluate(layers, "echo repeat", 3).message, "Do not repeat this input.");
-  layers.push({ layer: "project", config: parse({ doom_loop: "deny" }) });
-  assert.equal(evaluate(layers, "echo repeat", 3).message, undefined);
 });
 
-test("overlay action edits persist messages and deleting doom_loop removes its message", () => {
+test("overlay action edits persist messages and deleting a rule removes its message", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "permission-message-"));
   try {
     const file = path.join(dir, "mpi-permission.json");
     const config = parse({
       bash: { "*": { action: "deny", message: "Run manually." } },
-      doom_loop: { action: "ask", message: "Change the input." },
     });
     const overlay = createPermissionOverlay({
       theme: { fg: (_color, text) => text, bold: (text) => text },
@@ -133,24 +125,17 @@ test("overlay action edits persist messages and deleting doom_loop removes its m
       return loaded.config;
     };
     overlay.handleInput("\x1b[B");
-    overlay.handleInput("\r");
-    assert.equal(
-      evaluate([{ layer: "global", config: readConfig() }], "echo x", 3).message,
-      "Run manually.",
-    );
-    overlay.handleInput("\x1b[B");
     for (const action of ["allow", "ask", "deny"]) {
       overlay.handleInput("\r");
       const saved = serializePermissionConfig(readConfig());
       assert.deepEqual(saved.bash, { "*": { action, message: "Run manually." } });
-      assert.deepEqual(saved.doom_loop, { action: "deny", message: "Change the input." });
     }
-    overlay.handleInput("\x1b[A");
+    assert.equal(
+      evaluate([{ layer: "global", config: readConfig() }], "echo x").message,
+      "Run manually.",
+    );
     overlay.handleInput("d");
-    assert.equal(serializePermissionConfig(readConfig()).doom_loop, undefined);
-    assert.deepEqual(serializePermissionConfig(readConfig()).bash, {
-      "*": { action: "deny", message: "Run manually." },
-    });
+    assert.equal(serializePermissionConfig(readConfig()).bash, undefined);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

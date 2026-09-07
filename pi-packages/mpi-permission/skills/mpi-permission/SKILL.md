@@ -33,10 +33,11 @@ Root is `"allow"` / `"ask"` / `"deny"`, or an object.
 |------|---------|
 | `"<tool>": "allow" \| "ask" \| "deny"` | One action for every call of that tool |
 | `"<tool>": { "<pattern>": action, ... }` | Pattern rules; **last matching rule wins**. Put `"*"` first, specific rules after |
-| `"doom_loop": action` | Action string or `{ "action": action, "message": string }`. No pattern object |
 | `"$schema": string` | Editor schema ref. Ignored at eval |
 
-Keys: real tool names (`bash`, `read`, `edit`, `write`, `grep`, `find`, `ls`, any extension tool), `*` (fallback when the tool has no matching rule of its own), `external_directory`, `doom_loop`.
+Keys: real tool names (`bash`, `read`, `edit`, `write`, `grep`, `find`, `ls`, any extension tool), `*` (fallback when the tool has no matching rule of its own), `external_directory`.
+
+The root key `doom_loop` is invalid here. Configure repeated-call protection in global [mpi-stuck-guard.json](../../../mpi-stuck-guard/README.md#doom-loop).
 
 `$schema` for the global file:
 
@@ -46,7 +47,7 @@ extensions/mpi-permission/mpi-permission.schema.json
 
 For a project file, use an absolute path to that schema, or omit `$schema`.
 
-For a custom deny hint, replace a pattern value with `{ "action": "deny", "message": "Ask the user to push manually." }`. Use a `"*"` pattern for a whole-tool hint. The same effect object is accepted by `doom_loop`. See [Denial messages](../../README.md#denial-messages) for validation, winner selection, output, and overlay persistence.
+For a custom deny message, use `{ "action": "deny", "message": "Ask the user to push manually." }` as the pattern value. A `"*"` pattern applies the message to every call of that tool. See [Denial messages](../../README.md#denial-messages).
 
 ## 4. Matching
 
@@ -68,13 +69,9 @@ Per-tool subject:
 
 When a path-taking tool resolves outside cwd, also evaluate `external_directory` rules. Bash static path args of common file commands (`cd`, `ls`, `cat`, `rm`, `cp`, `mv`, `mkdir`, and related) are scanned too. Combine by severity. No rules under this key means the guard is off. `"*": "ask"` gates every detected external path. `"../"` matches the parent directory. `"../*"` matches content under it.
 
-### `doom_loop`
-
-Same tool plus identical `JSON.stringify(input)` 3 times in a row applies this action on the 3rd and every further consecutive repeat. Independent of tool rules. Combines by severity. Omit the key to leave it off.
-
 ## Permission probe
 
-The package registers `permission_probe` but keeps it inactive at session start. Enable it for the current session with `/permission-probe`; the command preserves all active tools and does not persist the activation. The tool validates `input` against the registered target tool schema and reports the predicted permission action without executing the target or advancing `doom_loop`.
+Enable `permission_probe` for the current session with `/permission-probe`. It validates the target input and predicts this package's permission decision without executing the target. Other extensions can still block probe calls or the target call. Activation and output details: [Permission probe](../../README.md#permission-probe).
 
 ## 5. Templates
 
@@ -89,8 +86,7 @@ Default-allow, deny secrets and `git push`:
   "bash": { "*": "ask", "git *": "allow", "git push*": "deny" },
   "read": { "*": "allow", "*.env": "deny", "*.env.example": "allow" },
   "edit": { "*": "deny", "src/*": "allow" },
-  "external_directory": { "*": "ask", "~/notes/**": "allow" },
-  "doom_loop": "ask"
+  "external_directory": { "*": "ask", "~/notes/**": "allow" }
 }
 ```
 
@@ -114,14 +110,13 @@ Restrict `edit` / `write` to `src/`:
 }
 ```
 
-Gate every external path and repeated identical calls:
+Gate every external path:
 
 ```json
 {
   "$schema": "extensions/mpi-permission/mpi-permission.schema.json",
-  "external_directory": { "*": "ask" },
-  "doom_loop": "ask"
+  "external_directory": { "*": "ask" }
 }
 ```
 
-Write 2-space JSON with a trailing newline. The loader accepts `//` line comments and `/* */` block comments (JSONC); the `/permission` overlay rewrites the file as plain JSON, dropping hand-written comments. `doom_loop` accepts an action string or an effect object, never a pattern object.
+Write 2-space JSON with a trailing newline. The loader accepts `//` line comments and `/* */` block comments (JSONC); the `/permission` overlay rewrites the file as plain JSON, dropping hand-written comments.

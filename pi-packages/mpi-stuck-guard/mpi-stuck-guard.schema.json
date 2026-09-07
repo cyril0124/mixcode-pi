@@ -2,10 +2,24 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "mpi-stuck-guard.schema.json",
   "title": "mpi-stuck-guard configuration",
-  "description": "Configuration for provider stream watchdog. Lives at <agentDir>/mpi-stuck-guard.json; missing keys use defaults.",
+  "description": "Configuration for provider stream watchdog, parameter hints and repeated-tool-call protection. Lives at <agentDir>/mpi-stuck-guard.json; missing keys use defaults.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "doomLoop": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action"],
+      "default": { "action": "allow" },
+      "description": "Third and later consecutive calls with identical tool name and JSON input require approval or are denied. Global config, per-session counter; allow disables.",
+      "properties": {
+        "action": { "enum": ["allow", "ask", "deny"] },
+        "message": {
+          "type": "string",
+          "description": "Literal text appended only on automatic deny. Preserved but not emitted on allow/ask."
+        }
+      }
+    },
     "$schema": {
       "type": "string",
       "description": "Optional editor schema reference."

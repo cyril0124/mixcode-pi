@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { fauxProvider, type Provider } from "@earendil-works/pi-ai";
 import { isWatchdogWrappedProvider } from "./provider-wrapper.js";
+import { DEFAULT_STUCK_GUARD_CONFIG } from "./config.js";
 import { wireStuckGuard } from "./index.js";
 
 function makeProvider(providerId: string): Provider {
@@ -52,6 +53,7 @@ test("wiring wraps selected providers and restores them when disabled", async ()
   const provider = makeProvider("watchdog-test");
   harness.register(provider);
   let config = {
+    ...DEFAULT_STUCK_GUARD_CONFIG,
     streamWatchdogEnabled: true,
     providerIds: ["watchdog-test"],
     streamStartTimeoutSeconds: 1,
@@ -73,6 +75,7 @@ test("wiring reports unknown selected providers", async () => {
   wireStuckGuard(harness.pi as never, () => ({
     ok: true as const,
     config: {
+      ...DEFAULT_STUCK_GUARD_CONFIG,
       streamWatchdogEnabled: true,
       providerIds: ["missing"],
       streamStartTimeoutSeconds: 1,
