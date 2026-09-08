@@ -1,4 +1,5 @@
 export type LocalCommand =
+  | "batch"
   | "models"
   | "thinking"
   | "context-limit"
@@ -104,6 +105,12 @@ export const LOCAL_COMMANDS: Array<{
   /** Palette metadata. Omit to keep a command out of the command palette. */
   palette?: LocalCommandPaletteMeta;
 }> = [
+  {
+    name: "batch",
+    description: "Run a batch script in this instance",
+    argumentHint: "<script> [-- <args...>]",
+    palette: { label: "Run Batch Script", scope: "both" },
+  },
   {
     name: "models",
     description: "Select model for the active agent",

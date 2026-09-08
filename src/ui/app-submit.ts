@@ -6,6 +6,7 @@ import { pushToast } from "../core/toast.js";
 import type { MixCodeState, MixCodeTabInfo } from "../core/types.js";
 import { submitAgentInput } from "./agent-tab-actions.js";
 import { errorMessage } from "./app-overlays.js";
+import { BATCH_COMMAND_HANDLERS } from "./app-submit-batch.js";
 import { SESSION_COMMAND_HANDLERS } from "./app-submit-session.js";
 import { SETTINGS_COMMAND_HANDLERS } from "./app-submit-settings.js";
 import { UI_COMMAND_HANDLERS } from "./app-submit-ui.js";
@@ -79,6 +80,10 @@ export async function handleSubmittedInput(
       runtime,
       active,
       args: parsed.args,
+      rawArgs: text
+        .trimStart()
+        .slice(parsed.command.length + 1)
+        .trimStart(),
       tui,
       onStateChanged,
       authInputHost,
@@ -93,6 +98,7 @@ export async function handleSubmittedInput(
 }
 
 const LOCAL_COMMAND_HANDLERS = {
+  ...BATCH_COMMAND_HANDLERS,
   ...SESSION_COMMAND_HANDLERS,
   ...WORKSPACE_COMMAND_HANDLERS,
   ...SETTINGS_COMMAND_HANDLERS,
@@ -100,6 +106,7 @@ const LOCAL_COMMAND_HANDLERS = {
 } satisfies Record<LocalCommand, LocalCommandHandler>;
 
 const CONFIG_SCOPED_COMMANDS: ReadonlySet<LocalCommand> = new Set([
+  "batch",
   "tui-state",
   "console-history",
   "new-session",

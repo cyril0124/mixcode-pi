@@ -16,6 +16,7 @@ MixCode 在 `src/core/commands.ts` 中注册了内置本地 Slash 命令。这�
 
 | 命令 | 参数提示 | 层级 | 说明 |
 |---|---|---|---|
+| `/batch` | `<script> [-- <args...>]` | Workdir | 在当前 TUI 执行 Lua 或 TypeScript/JavaScript 批处理脚本。见[批处理脚本](batch-scripts.zh.md#运行)。 |
 | `/models` | `[provider/modelId]` | Session | 打开交互式模型选择器或直接切换当前 Tab 模型。 |
 | `/thinking` | `[off\|minimal\|low\|medium\|high\|xhigh\|max]` | Session | 调整模型思考 / 推理深度（Reasoning Effort）。 |
 | `/context-limit` | `<tokens\|reset>` | Session | 人为设置上下文窗口上限（用于测试或压缩调优）。 |

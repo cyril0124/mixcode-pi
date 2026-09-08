@@ -16,6 +16,7 @@ Commands operate across three distinct persistence tiers:
 
 | Command | Argument Hint | Tier | Description |
 |---|---|---|---|
+| `/batch` | `<script> [-- <args...>]` | Workdir | Runs a Lua or TypeScript/JavaScript batch script in the current TUI. See [Batch scripts](batch-scripts.md#running). |
 | `/models` | `[provider/modelId]` | Session | Opens interactive model selector or switches model directly. |
 | `/thinking` | `[off\|minimal\|low\|medium\|high\|xhigh\|max]` | Session | Sets model reasoning/thinking effort level. |
 | `/context-limit` | `<tokens\|reset>` | Session | Sets artificial context window limit for testing or compaction tuning. |

@@ -7,7 +7,7 @@ import { test } from "node:test";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { MIXCODE_FAUX_MODEL, mixcodeFauxStream } from "../src/agent/faux-stream.js";
 import { MixCodeRuntime } from "../src/agent/runtime.js";
-import { createBatchExecutorHost } from "../src/cli/batch-host.js";
+import { createBatchExecutorHost } from "../src/ui/batch-host.js";
 import { applyBatchRequests, contextFromState, loadBatchRequests } from "../src/core/batch-lua.js";
 import { createInitialState, createTab } from "../src/core/defaults.js";
 import { modelToRef, registerModels } from "../src/core/models.js";

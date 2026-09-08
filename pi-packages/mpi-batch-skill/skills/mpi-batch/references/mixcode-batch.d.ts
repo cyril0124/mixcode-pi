@@ -1,12 +1,12 @@
 /**
  * MixCode batch execution API for TypeScript/JavaScript scripts.
  *
- * Usage in a `mpi --batch script.ts` file:
+ * Write a script file and run it with `mpi --batch script.ts` or `/batch script.ts`:
  *
  * ```ts
  * /// <reference path="/path/to/mixcode-batch.d.ts" />
  * const script: MixCodeBatchScript = (mixcode) => {
- *   mixcode.openTab({ name: "review", contextLimit: "32k", prompt: "Review the current branch." });
+ *   mixcode.openTab({ name: "review", prompt: "Review the current branch." });
  * };
  * export default script;
  * ```
@@ -25,30 +25,17 @@ interface MixCodeBatchOpenTabOptions {
   /**
    * Prompt to submit; omit to create/reuse/clear/delete without submitting.
    * Supports skills, templates, extension commands, and !shell / !!shell.
-   * Registered MixCode local commands fail at dispatch. Pi handles other slash
-   * input; unmatched input, including paths, becomes message text.
+   * Registered MixCode local commands, including /batch, fail at dispatch.
+   * Other slash input and paths pass unchanged to Pi; unmatched input becomes message text.
    */
   prompt?: string;
-  /** Working directory for new tabs (defaults to launch workdir); reuse/clear keeps the existing directory. */
+  /** New-tab directory; defaults and relative paths use currentWorkdir(). Reuse/clear keeps the existing directory. */
   workdir?: string;
-  /** Model identifier from listModels().id; omitted means keep existing or use launch model for a new tab. */
+  /** Model identifier from listModels().id; omitted means keep existing or use the instance default for a new tab. */
   model?: string;
-  /** Supported thinking level; omitted means keep existing or use launch default for a new tab. */
+  /** Supported thinking level; omitted means keep existing or use the instance default for a new tab. */
   thinking?: MixCodeBatchThinkingLevel;
-  /**
-   * Session context budget: a positive safe integer token count, or a /context-limit
-   * string such as "32000", "32k", "32.5k", or "reset". Strings trim whitespace,
-   * ignore case, and use /context-limit numeric rounding; resulting tokens must
-   * be positive safe integers. Runtime null/undefined mean omitted.
-   * Applied after each request's model/thinking and before its optional prompt,
-   * including later same-name requests and all modes. "reset" restores the
-   * selected model's canonical window. Omission uses the model default for a new
-   * tab and retains a reused tab's limit unless explicit model selection resets it.
-   * Synchronizes session contextWindow, UI, and compaction budgets for this session
-   * only; no global config change. Above-capacity values warn without expanding
-   * provider capacity. Invalid values fail before any tab changes with Error: and
-   * the tab name; the script loader adds the script path.
-   */
+  /** Positive integer tokens, /context-limit text, or "reset". */
   contextLimit?: number | string;
   /**
    * Base/identity system prompt only (same slot as SYSTEM.md). Tools, AGENTS.md,
@@ -60,7 +47,7 @@ interface MixCodeBatchOpenTabOptions {
   mode?: MixCodeBatchReuseMode;
 }
 
-/** Tab snapshot taken at batch startup. */
+/** Tab snapshot captured before each script invocation; not live. */
 interface MixCodeBatchTabInfo {
   name: string;
   sessionId: string;
@@ -71,7 +58,7 @@ interface MixCodeBatchTabInfo {
   status: string;
 }
 
-/** Model snapshot taken at batch startup. */
+/** Model catalog captured before each invocation; includes disabled entries without a disabled field. */
 interface MixCodeBatchModelInfo {
   /** Canonical id (`provider/modelId`). */
   id: string;
@@ -84,19 +71,23 @@ interface MixCodeBatchModelInfo {
 
 interface MixCodeBatchApi {
   /**
-   * Open a new agent tab, or reuse an existing one by exact title match.
+   * Collect a tab request. MixCode applies it after the script finishes.
    *
    * When a tab with the same `name` already exists:
-   * - `mode: "append"` (default): the prompt is appended to the existing session
+   * - `mode: "append"` (default): continue the session; streaming prompts use steering
    * - `mode: "clear"`: reset the branch to session root, then send the prompt.
-   *   Keeps title, session ID/file, workdir, and system prompt. History stays in
+   *   Keeps title, session ID/file, workdir, system prompt, and focus. History stays in
    *   /tree, outside the new context. No extension reload or service rebuild;
    *   rejected while streaming or bash is running.
    * - `mode: "delete"`: the tab and its session file are deleted, then a
    *   brand-new tab is created
    *
    * With no matching tab, a new one is created. With `prompt` omitted, the tab
-   * is created/reused/cleared/deleted without submitting input.
+   * is created/reused/cleared/deleted without submitting input. New tabs and
+   * delete replacements take focus. Setup failures stop before prompt dispatch;
+   * during parallel dispatch, other groups continue after one fails. Applied
+   * changes remain in both cases. See ../SKILL.md#execution-and-errors for
+   * command errors and persistence.
    *
    * `systemPrompt` replaces only the base identity line; tools/guidelines,
    * APPEND_SYSTEM, project context (AGENTS.md), and skills remain. It is
@@ -104,34 +95,41 @@ interface MixCodeBatchApi {
    * `mode: "clear"` even without a matching tab. Clear + systemPrompt (including
    * an empty string) fails validation before any tab changes.
    * For repeated names, only the first request controls creation/reset/deletion.
-   * Each request applies model/thinking, then contextLimit, then its optional prompt.
    * Interactive /clear still replaces the session and resets its title.
    *
-   * Throws on a missing/empty `name`, an invalid option type or contextLimit,
-   * an unknown field name, an unknown model, an invalid thinking level, or
-   * invalid `systemPrompt` use.
+   * Throws on a missing/empty name, a non-string option field, or an unknown
+   * field name. Model, thinking, mode, contextLimit, and systemPrompt validation
+   * happens after collection, before tab changes.
    */
   openTab(options: MixCodeBatchOpenTabOptions): void;
   /**
-   * CLI arguments after `--`.
-   * Example: `mpi --batch s.ts -- foo bar` yields `["foo", "bar"]`.
+   * Arguments after `--` in startup CLI or /batch.
+   * Example: `/batch s.ts -- foo ""` yields ["foo", ""].
+   * /batch supports quotes and backslash escaping except inside single quotes;
+   * no shell variable, command, or glob expansion occurs.
    */
   args(): string[];
-  /** The current MixCode workdir. */
+  /**
+   * Invocation directory: calling Agent tab workdir for /batch, instance workdir
+   * on Home, launch workdir for CLI. Also resolves the script path and new-tab
+   * workdirs. Does not change process.cwd(); script-owned relative I/O uses host cwd.
+   */
   currentWorkdir(): string;
-  /** Whether a tab with this exact title exists at batch startup. */
+  /** Whether a tab with this exact title exists in this invocation's snapshot. */
   tabExists(name: string): boolean;
-  /** Tabs visible at batch startup (snapshot; not live). */
+  /** Tabs captured before this invocation (snapshot; not live). */
   listTabs(): MixCodeBatchTabInfo[];
   /**
    * Resolve an exact model id or provider/modelId to an enabled canonical id.
-   * Uses the startup snapshot: prefer its default provider, then provider name
-   * in case-sensitive JS string order. Canonical references never change routes.
+   * Uses a fresh invocation snapshot of models, disabled IDs, and the instance default provider.
+   * Prefer the captured instance default provider, then the smallest provider name
+   * in case-sensitive JS string order. Canonical references never change routes;
+   * disabled candidates are excluded from automatic selection.
    * Trims surrounding whitespace; throws for invalid/unknown queries or disabled
    * explicit references. No I/O, fuzzy matching, or model-version substitution.
    */
   resolveModel(query: string): string;
-  /** Models available at batch startup (snapshot; not live). */
+  /** Invocation model catalog (not live); includes disabled entries without a disabled field. */
   listModels(): MixCodeBatchModelInfo[];
   /**
    * Render a string template using `{name}` placeholders. Use `{{` and `}}` to
@@ -144,6 +142,8 @@ interface MixCodeBatchApi {
 
 /**
  * Default export shape of a batch script. It may be async; the execution plan
- * is collected after the returned promise resolves.
+ * is collected after the returned promise resolves. Each invocation calls this
+ * function with fresh context. ES module caching preserves module-level state;
+ * file edits require restarting MixCode.
  */
 type MixCodeBatchScript = (mixcode: MixCodeBatchApi) => void | Promise<void>;

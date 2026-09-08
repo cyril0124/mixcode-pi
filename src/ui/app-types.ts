@@ -28,6 +28,8 @@ export interface LocalCommandContext {
   runtime: MixCodeSubmitRuntime;
   active: MixCodeTabInfo | undefined;
   args: string;
+  /** Argument text with quotes and internal whitespace preserved. */
+  rawArgs: string;
   tui: OverlayTui;
   onStateChanged?: (state: MixCodeState) => void | Promise<void>;
   authInputHost?: AuthInputHost;

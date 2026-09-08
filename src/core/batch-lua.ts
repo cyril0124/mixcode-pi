@@ -33,13 +33,13 @@ export interface BatchLuaModelInfo {
 export interface BatchLuaContext {
   workdir: string;
   tabs: BatchLuaTabInfo[];
-  /** Available models snapshot at batch startup. */
+  /** Available models captured before this script invocation. */
   models?: BatchLuaModelInfo[];
-  /** Provider of the startup default model, preferred when matching a bare id. */
+  /** Provider of the invocation's instance default model, preferred for bare ids. */
   defaultProvider?: string;
   /** Canonical model ids excluded from resolution. */
   disabledModelIds?: string[];
-  /** CLI args after `--` (e.g. mpi --batch s.lua -- foo bar). */
+  /** Arguments after `--` in startup CLI or the interactive /batch command. */
   args?: string[];
 }
 
@@ -86,9 +86,8 @@ export interface BatchExecutorHost {
   deleteTab(sessionId: string): Promise<void>;
   /**
    * Submit input through the shared dispatch: !shell / !!shell execute bash;
-   * registered MixCode local commands are rejected because batch mode has no
-   * interactive UI. Other input enters Pi's native prompt pipeline, where
-   * unmatched slash input (including paths) becomes user message text.
+   * registered MixCode local commands are rejected. Other input enters Pi's native
+   * prompt pipeline, where unmatched slash input (including paths) becomes message text.
    */
   submitInput(sessionId: string, input: string): Promise<void>;
   resolveModel(query: string): MixCodeModelRef;
@@ -525,6 +524,7 @@ export function renderTemplate(
   return output;
 }
 
+/** Copy current tab/model values; callers may override the invocation workdir. */
 export function contextFromState(state: MixCodeState): BatchLuaContext {
   return {
     workdir: state.workdir,

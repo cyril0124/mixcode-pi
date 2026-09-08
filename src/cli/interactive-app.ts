@@ -40,7 +40,7 @@ import { dispatchOwnedOverlayKey } from "../ui/app-key-handlers.js";
 import { hasCapturingAppOverlay, renderAppOverlay } from "../ui/app-overlays.js";
 import { handleSubmittedInput } from "../ui/app-submit.js";
 import { closeExistingAgentTab, openExistingAgentTab } from "../ui/agent-tab-actions.js";
-import { createBatchExecutorHost } from "./batch-host.js";
+import { createBatchExecutorHost } from "../ui/batch-host.js";
 import { bootstrapMixCode } from "./bootstrap.js";
 import { resolveMixcodeStateDir } from "../core/paths.js";
 import { ensurePackageExtensions } from "../core/ensure-package-extensions.js";

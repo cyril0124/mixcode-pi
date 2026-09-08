@@ -35,12 +35,15 @@ export interface MixCodeBatchOpenTabOptions {
 
 export interface MixCodeBatchApi {
   openTab(options: MixCodeBatchOpenTabOptions): void;
+  /** Arguments after `--` in the CLI or /batch command. */
   args(): string[];
+  /** Invocation workdir; independent of the host process cwd. */
   currentWorkdir(): string;
+  /** Snapshot lookups are fixed before script evaluation on each invocation. */
   tabExists(name: string): boolean;
   listTabs(): BatchLuaTabInfo[];
   listModels(): BatchLuaModelInfo[];
-  /** Resolve an exact id to provider/modelId using the startup model snapshot. */
+  /** Resolve an exact id to provider/modelId using the invocation's model snapshot. */
   resolveModel(query: string): string;
   render(template: string, vars: Record<string, unknown>): string;
 }
@@ -52,6 +55,8 @@ export type MixCodeBatchScript = (mixcode: MixCodeBatchApi) => void | Promise<vo
  *
  * The module must default-export a function; it is called with the `mixcode`
  * API and awaited, so scripts may be async (read files, shell out, fetch).
+ * Each invocation calls the default export with fresh context. ES module caching
+ * still applies: module-level state persists and script edits are not hot-reloaded.
  * Scripts run in-process with full host privileges — same trust level as Lua
  * batch scripts, but without fengari's sandbox.
  *

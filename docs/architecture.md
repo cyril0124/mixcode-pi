@@ -65,8 +65,9 @@ input handlers can finish handling input without starting a model turn.
 Unmatched slash input, such as `/home/example/session.jsonl` or `/unknown`,
 becomes message text regardless of whether a file exists. The dispatcher trims
 leading whitespace from slash input. Slash input forwarded to Pi retains
-internal whitespace and newlines; local command arguments collapse whitespace
-to single spaces. Project context such as `AGENTS.md` is assembled in the system prompt.
+internal whitespace and newlines. Local handlers receive whitespace-normalized
+`args` and unnormalized `rawArgs`; `/batch` parses `rawArgs` to preserve quoted
+whitespace. Project context such as `AGENTS.md` is assembled in the system prompt.
 
 ```text
 User Input

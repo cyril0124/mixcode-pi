@@ -1,21 +1,35 @@
-# Batch Scripts
+# Batch scripts
 
 [English Documentation](batch-scripts.md)
 
-用 Lua 或 TypeScript 脚本在启动后批量开 agent tab、发 prompt。适合 monorepo 并行任务、模型对比、复用已有 tab 续聊。
+用 Lua 或 TypeScript 脚本在启动时或当前 TUI 中批量开 agent tab、发 prompt。适合 monorepo 并行任务、模型对比、复用已有 tab 续聊。
 
 脚本语言由扩展名决定：`.lua` 走 fengari，`.ts` / `.mts` / `.js` / `.mjs` 以 ES module 形式动态导入。两者产出同一份执行计划，共用全部校验、dry-run 与派发链路。
 
-## 设计意图与动机
-
-在大型多子包工程（Monorepo）或横向评测场景下，手动打开十几个 Tab、频繁切换工作目录、逐一调整模型/思考档位并重复粘贴 Prompt，既繁琐又易错，且不可复现。
-
-批处理脚本是一套**声明式可编程启动派发语言**：
-- 通过 CLI 参数透传（`-- <args...>`）与环境变量（`os.getenv`）动态参数化运行。
-- 派发前先校验模型与思考档位的兼容性。
-- Dry-run 预览派发执行计划，不启动 TUI、不写任何状态文件。
-
 ## 运行
+
+### 当前 TUI
+
+在 Agent tab 或 Home 输入：
+
+```text
+/batch <script> [-- <args...>]
+/batch "scripts/review batch.ts" -- "packages/core" '' 'literal\path'
+```
+
+脚本参数必须放在 `--` 后。单双引号用于组合参数，空引号保留为空字符串。反斜杠转义下一个字符，但单引号内不转义。引号未闭合或末尾存在未完成的转义时，在加载前报错。不展开 shell 变量、命令或 glob。
+
+调用目录是发起命令的 Agent tab workdir；Home 使用实例 workdir。相对脚本路径和新 tab workdir 以调用目录为基准，`currentWorkdir()` / `current_workdir()` 返回该目录。`append` 和 `clear` 复用的已有 tab 保留原 workdir。
+
+`/batch` 保持 `process.cwd()` 不变。脚本自行读写相对路径文件时，应显式基于 API workdir 解析路径。
+
+每次调用在执行脚本前，捕获 tab、模型、禁用模型 ID 和实例默认 provider 的固定快照。
+
+预览计划请使用 [CLI dry-run](#启动-cli)。
+
+### 启动 CLI
+
+`--workdir <directory>` 指定启动 workdir，默认使用 shell cwd。相对脚本路径和新 tab workdir 以启动目录为基准。CLI 启动一个新的 TUI 实例。
 
 ```bash
 # 启动 TUI 后执行脚本（Lua 或 TypeScript）
@@ -35,7 +49,7 @@ mpi --batch script.ts --batch-dry-run -- packages/core
 脚本跑完（.lua 走 fengari | .ts/.js 走动态导入）
    │  收集 open_tab / openTab
    v
-validate (model / thinking / context limit / mode)
+validate (model / thinking / mode)
    │
    ├─ --batch-dry-run → 打印 plan → 退出
    │
@@ -46,22 +60,22 @@ apply
            同名 tab 内请求严格串行
 ```
 
-**不是编排引擎**：脚本不能 `wait` agent 结果，也不能根据回复再分支。一次 collect、一次 apply。
+脚本在派发前收集一次计划，无法读取 agent 回复或根据结果分支。
 
 ## Lua API（`mixcode` 全局表）
 
 | API | 作用 |
 |-----|------|
 | `mixcode.open_tab(opts)` | 建 tab 或按 **精确标题** 复用，可选发 prompt |
-| `mixcode.args()` | CLI `--` 后的参数，1-indexed 数组 |
-| `mixcode.current_workdir()` | 当前 workdir |
-| `mixcode.tab_exists(name)` | 启动快照：是否已有同名 tab |
-| `mixcode.list_tabs()` | 启动快照：已有 tab 列表 |
-| `mixcode.list_models()` | 启动快照：可用模型列表（`id`/`provider`/`model_id`/`display_name`/`context_window`/`reasoning`） |
+| `mixcode.args()` | 两种入口中 `--` 后的参数，1-indexed 数组 |
+| `mixcode.current_workdir()` | 调用目录，见[运行](#运行) |
+| `mixcode.tab_exists(name)` | 调用快照：是否已有同名 tab |
+| `mixcode.list_tabs()` | 调用快照：已有 tab 列表 |
+| `mixcode.list_models()` | 调用时的模型目录，包含禁用项但不提供 disabled 字段（`id`/`provider`/`model_id`/`display_name`/`context_window`/`reasoning`） |
 | `mixcode.resolve_model(query)` | 将精确模型 ID 解析为已启用的 `provider/modelId`，见[模型解析](#模型解析) |
 | `mixcode.render(tpl, vars)` / `render(...)` | `{name}` 模板；`{{` / `}}` 转义字面量 |
 
-标准 Lua 库可用（含 `os.getenv`、`io` 等）。根目录 [`mixcode-batch.d.lua`](../mixcode-batch.d.lua) 是指向 `mpi-batch-skill` 随包分发的 [Lua API reference](../pi-packages/mpi-batch-skill/skills/mpi-batch/references/mixcode-batch.d.lua) 的软链接。
+Lua 每次调用都会重新读取并执行文件，提供 `os.getenv`、`io` 等标准库。根目录 [`mixcode-batch.d.lua`](../mixcode-batch.d.lua) 是指向 `mpi-batch-skill` 随包分发的 [Lua API reference](../pi-packages/mpi-batch-skill/skills/mpi-batch/references/mixcode-batch.d.lua) 的软链接。
 
 ### `open_tab` 字段
 
@@ -69,34 +83,29 @@ apply
 |------|------|------|
 | `name` | 是 | tab 标题；复用时精确匹配 |
 | `prompt` | 否 | 省略则只建/复用/清/删 tab，不 submit |
-| `workdir` | 否 | 该 tab 工作目录 |
+| `workdir` | 否 | 新 tab 工作目录；默认值和相对路径以调用目录为基准。复用/clear 保留已有目录 |
 | `model` | 否 | 如 `anthropic/claude-sonnet-4-20250514` |
 | `thinking` | 否 | 依模型能力：`off` / `minimal` / `low` / … / `max` |
-| `context_limit` | 否 | `number \| string`；会话 token 预算或 `"reset"`，见[上下文限制](#上下文限制) |
+| `context_limit` | 否 | 正数 token 上限、`/context-limit` 值或 `reset`，仅作用于该 session |
 | `system_prompt` | 否 | 仅替换 base/identity（同 SYSTEM.md 槽位）；tools/AGENTS.md/skills 仍由 MixCode 组装。需要新建 tab 或 `mode="delete"`。与 `mode="clear"` 组合始终报错，即使没有同名 tab；`append` 复用已有会话也会报错 |
 | `mode` | 否 | 已存在 tab 时：`append`（默认）/ `clear` / `delete` |
 
 `mode`：
 
-- `append`：在已有会话上继续
-- `clear`：与交互式 `/reset` 一样，先将当前分支重置到会话根部，再发送 prompt。保留标题、session ID/文件、工作目录和系统提示词；旧历史仍在 `/tree`，但不进入新对话上下文。不重载扩展或重建服务。agent 正在流式输出或 bash 正在运行时拒绝重置
+- `append`：在已有会话上继续；流式输出期间发送的 prompt 使用 steering
+- `clear`：与交互式 `/reset` 一样，先将当前分支重置到会话根部，再发送 prompt。保留标题、session ID/文件、工作目录和系统提示词；旧历史仍在 `/tree`，但不进入新对话上下文。不改变焦点、不重载扩展或重建服务。agent 正在流式输出或 bash 正在运行时拒绝重置
 - `delete`：删 tab + session 文件后新建
 
-没有同名 tab 时新建 tab。`clear` + `system_prompt` 在任何 tab 操作前的校验阶段始终被拒绝，包括系统提示词为空字符串的情况。同名重复请求仅由第一条决定新建/重置/删除行为。每条请求都按 model/thinking、上下文限制、可选 prompt 的顺序执行，同名请求之间严格串行。后续请求不会再次新建/重置/删除。交互式 `/clear` 仍会替换会话并重置标题。
+新 tab，包括 `delete` 重建的 tab，会获取焦点。
+
+没有同名 tab 时新建 tab。`clear` + `system_prompt` 在任何 tab 操作前的校验阶段始终被拒绝，包括系统提示词为空字符串的情况。同名重复请求仅由第一条决定新建/重置/删除行为。交互式 `/clear` 仍会替换会话并重置标题。
 
 prompt 使用[共用输入分发](architecture.zh.md#运行时映射)，支持普通文本、文件路径、
 skills、prompt templates、extension commands 和 `!shell` / `!!shell`。
-已注册的 MixCode 本地 slash command 会在 prompt 分发阶段被拒绝，须在交互式 TUI 中执行。
+已注册的 MixCode 本地 slash command，包括 `/batch`，会在 prompt 分发阶段被拒绝，须在交互式 TUI 中执行。
+其他 slash 输入和路径原样交给 Pi；未匹配的输入，例如 `/unknown`，成为消息文本。
 
 设置了 `system_prompt` 的 tab，编辑器标题旁显示 `[sys]` 角标。
-
-### 上下文限制
-
-Lua 的 `context_limit` 与 TypeScript/JavaScript 的 `contextLimit` 接受数字或字符串。数字必须是正的安全整数 token 数。字符串沿用 `/context-limit` 解析器（`parseContextLimitValue`），接受 `"32000"`、`"32k"`、`"32.5k"` 和 `"reset"`，去除首尾空白并忽略大小写。数字字符串保留该命令的取整行为；归一化后的 token 数必须是正的安全整数。TS/JS 的 `undefined`、`null` 与 Lua 的 `nil` 都视为省略。
-
-每条请求在应用 model/thinking 后、发送 prompt 前应用该值，包括省略 prompt 的请求和后续同名请求。新建 tab 及 `append`/`clear`/`delete` 所有模式均可使用。`"reset"` 恢复所选模型的规范上下文窗口。省略时，新 tab 使用模型默认值；复用 tab 保留当前限制，除非显式选择模型将其重置。
-
-该覆盖值同步当前运行时会话的 `contextWindow`、UI 和压缩预算，仅影响当前会话，不修改全局配置。超过模型容量的值会被接受并显示现有警告，但不会扩大 provider 容量。非法输入在任何 tab 变更前失败，错误包含 `Error:` 和 tab 名称；脚本加载器补充脚本路径。
 
 ### 示例
 
@@ -111,20 +120,19 @@ for _, pkg in ipairs(pkgs) do
     name = "lint-" .. pkg,
     workdir = pkg,
     thinking = "low",
-    context_limit = "32k",
     prompt = render("Run lint and typecheck in {pkg}. Fix errors only.", { pkg = pkg }),
   })
 end
 
--- 重置已有同名 tab 并恢复模型的规范窗口，不发送 prompt
-mixcode.open_tab({ name = "review", mode = "clear", context_limit = "reset" })
+-- 重置已有同名 tab，不发送 prompt
+mixcode.open_tab({ name = "review", mode = "clear" })
 ```
 
 更多见 [`examples/batch/`](../examples/batch/)。
 
 ## TypeScript API
 
-TypeScript/JavaScript 脚本默认导出一个函数，参数是同一套 API 对象。函数可以是 `async`，完成后才收集计划。
+TypeScript/JavaScript 脚本默认导出一个接收 API 对象的函数。函数可以是 `async`，完成后才收集计划。每次调用会向函数传入新的上下文。ES module 保持缓存，模块级状态会保留，修改文件后需要重启 MixCode。
 
 ```ts
 /// <reference path="/path/to/mixcode-batch.d.ts" />
@@ -135,7 +143,6 @@ const script: MixCodeBatchScript = async (mixcode) => {
       name: `lint-${pkg}`,
       workdir: pkg,
       thinking: "low",
-      contextLimit: "32k",
       prompt: `Run lint and typecheck in ${pkg}. Fix errors only.`,
     });
   }
@@ -151,7 +158,6 @@ export default script;
 | Lua | TypeScript |
 |-----|------------|
 | `mixcode.open_tab(opts)` | `mixcode.openTab(opts)` |
-| `opts.context_limit` | `opts.contextLimit` |
 | `opts.system_prompt` | `opts.systemPrompt` |
 | `mixcode.args()`（1-indexed table） | `mixcode.args()`（`string[]`） |
 | `mixcode.current_workdir()` | `mixcode.currentWorkdir()` |
@@ -163,9 +169,9 @@ export default script;
 
 字段语义、`mode`、`systemPrompt` 的新会话规则、prompt 支持范围与校验都与上方 Lua 一致。
 
-脚本写错时抛错：缺少默认导出或默认导出不是函数、`name` 缺失或非非空字符串、非法选项类型或上下文限制、`openTab` 传入未知字段（如误写 Lua 的 `system_prompt` 或 `context_limit`）。脚本加载与运行失败会包装为 `Batch script error in <path>`。
+脚本写错时抛错：缺少默认导出或默认导出不是函数、`name` 缺失或非非空字符串、任意选项字段非字符串、`openTab` 传入未知字段（如误写 Lua 的 `system_prompt`）。脚本加载与运行失败会包装为 `Batch script error in <path>`。
 
-**无沙箱**：TypeScript 脚本在 MixCode 进程内以完整宿主权限运行（文件系统、网络、`process`）。把批处理脚本当作你亲自执行的本地可信代码。
+TypeScript 脚本拥有宿主的文件、网络和进程访问权限。只执行可信脚本；dry-run 也会执行其中的代码。
 
 ## 模型解析
 
@@ -181,13 +187,13 @@ export default (mixcode: MixCodeBatchApi) => {
 };
 ```
 
-`resolve_model(query)` / `resolveModel(query)` 接受一个非空字符串，返回规范的 `provider/modelId` 字符串。去除首尾空白后，基于启动模型目录区分大小写地匹配：
+`resolve_model(query)` / `resolveModel(query)` 接受一个非空字符串，返回规范的 `provider/modelId` 字符串。去除首尾空白后，基于调用时的模型目录区分大小写地匹配：
 
 1. 精确的完整引用优先，即使同一字符串也是其他模型的裸 ID。显式引用已禁用的模型会失败，不改换 provider。
 2. 否则匹配完整模型 ID，包括其中的 `/`，排除禁用候选。
-3. 优先选择启动默认模型的 provider；没有对应候选时，按 JavaScript 字符串顺序选择名称最小的 provider，不依赖目录顺序。
+3. 优先选择本次调用的实例默认模型 provider；没有对应候选时，按 JavaScript 字符串顺序选择名称最小的 provider，不依赖目录顺序。
 
-解析器读取启动快照。优先 provider 来自 MixCode 的启动模型；当 Pi 的 `defaultProvider` / `defaultModel` 对应模型已配置时，启动模型遵循该设置。恢复的 Tab 不决定此偏好。
+解析器使用捕获的实例默认模型 provider 和禁用模型 ID。`/batch` 每次调用都会刷新这些值，不由发起调用的 tab 模型决定。启动入口使用 MixCode 的启动模型；当 Pi 的 `defaultProvider` / `defaultModel` 对应模型已配置时遵循该设置，恢复的 tab 不决定此偏好。
 
 解析仅精确匹配，不替换模型版本。它不发送网络请求，也不验证凭证或服务可用性。自动选择不比较价格和数据策略；需要指定 provider 时传入完整的 `provider/modelId`。
 
@@ -205,22 +211,18 @@ dry-run 使用相同的选择规则，并在 `model=...` 中显示解析后的�
 
 ```text
 Batch dry-run: 2 request(s)
-1. name=lint-packages/core thinking=low context_limit=32000 workdir=packages/core
+1. name=lint-packages/core thinking=low workdir=packages/core
    prompt: Run lint and typecheck in packages/core. Fix errors only.
-2. name=scratch context_limit=reset
+2. name=scratch
    prompt: (none)
 ```
 
-仍会做 model / thinking / context limit 校验；非法配置会失败退出。传入的限制以归一化形式显示：`"32k"` 显示为 `context_limit=32000`，`"reset"` 显示为 `context_limit=reset`。启动前，将这些值与请求选项和 prompt 一并核对。
+仍会做 model / thinking 校验；非法配置会失败退出。
 
-## 边界
+## 执行与错误
 
-| 做 | 不做 |
-|----|------|
-| 批量派发 tab + prompt | 等 agent 完成 / 读回复 |
-| 启动时 introspection | 运行中 live `list_tabs` |
-| 不同 tab 并行 + 同 tab 串行 | 并发上限 / DAG / 依赖边 |
-| CLI 参数 + 环境变量（`os.getenv`、`process.env`） | 第二套配置格式（JSON/YAML） |
-| Lua（`.lua`）与 TypeScript/JavaScript（`.ts`/`.mts`/`.js`/`.mjs`） | 为 TypeScript 脚本做沙箱 |
+不同 tab 组并行执行，没有可配置的并发上限。同一组内的请求按顺序执行。
 
-出错时：脚本语法/运行错误、未知 model、非法 thinking/context limit/mode → 抛错；apply 失败写 stderr 并设 `exitCode=1`。
+对 `/batch`，目标为 `Not Ready` 时，在应用任何请求前报错：`Error: Batch tab is still loading: <name>`。tab 操作、提交结束，以及 apply 完成或失败后，串行保存状态。
+
+串行准备 tab 时失败，batch 会停止，不会开始派发 prompt。并行派发时某组失败，其他组继续运行。两种情况下都保留已应用的变更；失败请求不会自动重试。`/batch` 显示 `Error:` 消息，不改变进程退出码。启动 CLI 的 apply 失败显示在 TUI notice 中，并设 `exitCode=1`；脚本或校验错误也会使 CLI 命令失败。

@@ -63,7 +63,8 @@ src/
 
 未匹配的 slash 输入，例如 `/home/example/session.jsonl` 或 `/unknown`，
 会作为消息文本发送，处理方式不取决于文件是否存在。分发器去除 slash 输入开头的空白。
-交给 Pi 的 slash 输入保留内部空白和换行；本地命令参数中的连续空白会合并为一个空格。
+交给 Pi 的 slash 输入保留内部空白和换行。本地 handler 同时接收合并空白后的
+`args` 和保留原始空白的 `rawArgs`；`/batch` 解析 `rawArgs`，保留引号内的空白。
 `AGENTS.md` 等项目上下文在 system prompt 中组装。
 
 ```text
