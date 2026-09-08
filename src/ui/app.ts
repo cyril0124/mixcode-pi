@@ -394,7 +394,12 @@ export function createMixCodeTui(
             command,
             tui,
             options.onStateChanged,
-            undefined,
+            {
+              setInputComponent: (component, sessionId) =>
+                editor.setInputComponent(component, sessionId),
+              clearInputComponent: (sessionId) => editor.clearInputComponent(sessionId),
+              requestRender: () => tui.requestRender(),
+            },
             options.workspaceFile,
             undefined,
             options.settingsDeps,

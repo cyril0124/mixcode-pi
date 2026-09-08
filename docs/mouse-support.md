@@ -41,12 +41,19 @@ MixCode computes exact hit regions (`MouseHitRegion`) during frame rendering to 
 |---|---|
 | Tab chip | Focus that tab. Re-click the already-active chip to open Tab Jump. |
 | MixCode Home chip | Opens the Home tab. Compact form is ` H `. |
+| Home New session / Resume | Run the corresponding session action on primary-button release inside the pressed button. See below. |
 | Zen background dots (`●`) | Visual status only. Not clickable. |
 | Model Badge in Meta Bar | Opens the `/models` model selection picker. |
 | Thinking Badge in Meta Bar | Opens the `/thinking` effort level picker. |
 | Workdir Badge in Meta Bar | Opens the `/workdir` directory navigation picker. |
 | Chat Scrollbar Rail & Thumb | Jumps or drags the conversation viewport directly. |
 | Jump to latest | Returns the active chat to its end and resumes automatic following. |
+
+### Home Actions
+
+Home buttons use SGR pointer input routed by `src/ui/app-input.ts`, with rendering and hit geometry owned together by `src/ui/home-actions.ts`. Hover changes emphasis; primary-button press changes the fill. Releasing inside the same button executes once. Leaving the button while pressed cancels the action, even if the pointer returns before release. Secondary clicks, wheel events, and releases without a press do not execute actions. Modal overlays, editor takeovers, autocomplete, viewport changes, tab changes, and teardown clear capture; overlays cannot be clicked through.
+
+New session runs `/new-session`, immediately focuses the new loading tab, and then shows the existing startup status. Resume runs `/resume` and mounts Pi's existing session selector in the editor slot. Pending command dispatch disables repeated activation. Failures use the existing Error overlay and creation rollback. Buttons neither submit nor rewrite the editor draft. Hover hit testing checks at most two targets; repeated movement within the same target or outside all targets does not repaint. Layout and narrow-screen behavior are specified in [Home](tui-components.md#home).
 
 ### Jump to Latest
 
@@ -62,7 +69,7 @@ Clicking the track centers the thumb at the pointer, clamped at either end. Pres
 
 The chat reserves a one-column gutter, keeping the scrollbar out of text and selection coordinates. Long transcripts retain windowed rendering and estimated total heights. Third-party Pi themes use `scrollbarTrack` and `scrollbarThumb`; built-in MixCode themes use their muted and text foregrounds. Scrollbar interaction state lives in `src/ui/chat-scrollbar.ts`; geometry and cell painting use exported Pi helpers from the `pi-tui` patch.
 
-`src/ui/terminal.ts` enables all-motion tracking (`1003`) with SGR coordinates (`1006`) and disables it on stop or input drain. Passive pointer movement outside the chat track does not trigger a MixCode repaint or alter keyboard chords. Side-panel scrolling remains independent.
+`src/ui/terminal.ts` enables all-motion tracking (`1003`) with SGR coordinates (`1006`) and disables it on stop or input drain. Passive pointer movement outside the chat track and Home buttons does not trigger a MixCode repaint or alter keyboard chords; leaving a highlighted target repaints once to clear its highlight. Side-panel scrolling remains independent.
 
 ## 2. Interactive Overlay Clicking & Scrolling
 

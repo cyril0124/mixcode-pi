@@ -266,7 +266,8 @@ const handleResume: LocalCommandHandler = async ({
     currentSessionPath,
     onStateChanged,
     authInputHost,
-    active?.sessionId ?? state.activeTabId,
+    // Home selects an agent for previews, but owns its own editor-slot selector.
+    state.activeTabId,
   );
   await onStateChanged?.(state);
   tui.requestRender();

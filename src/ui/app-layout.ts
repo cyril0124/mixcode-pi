@@ -32,6 +32,7 @@ import {
   zenStatusMarkers,
 } from "./rendering.js";
 import { renderFloatingPanelOverlay } from "./components/floating-panel.js";
+import { homeActionsFor } from "./home-actions.js";
 import { chatScrollbarFor, type ChatScrollbar } from "./chat-scrollbar.js";
 import { isOverlayActive } from "../core/overlays.js";
 import { hasActiveNotice, hasAnyOverlay } from "./app-overlays.js";
@@ -88,6 +89,7 @@ export class MixCodeRoot implements Component {
   private scrollbar?: ChatScrollbar;
 
   dispose(): void {
+    homeActionsFor(this.state).reset();
     this.scrollbar?.reset();
     this.scrollbar = undefined;
   }
@@ -96,6 +98,13 @@ export class MixCodeRoot implements Component {
 
   render(width: number): string[] {
     const active = getActiveTab(this.state);
+    if (
+      this.state.activeTabId !== HOME_TAB_ID ||
+      isOverlayActive(this.state) ||
+      this.hasInputComponent() ||
+      (this.tui && hasAnyOverlay(this.tui))
+    )
+      homeActionsFor(this.state).reset();
     if (active) active.chatJumpToLatestHitRegion = undefined;
     const scrollbar =
       active && this.state.activeTabId !== HOME_TAB_ID ? chatScrollbarFor(active) : undefined;

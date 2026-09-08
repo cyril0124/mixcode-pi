@@ -371,7 +371,6 @@ export const LOCAL_COMMANDS: Array<{
       description:
         "Create a new pi agent session; optional title becomes the tab name; default focuses the new tab",
       scope: "both",
-      requires: "session",
     },
   },
   {
@@ -379,7 +378,7 @@ export const LOCAL_COMMANDS: Array<{
     description:
       "Resume a different session (optional: /resume <session-id> or /resume N:<tab-name>)",
     argumentHint: "[session-id | N:<tab-name>]",
-    palette: { label: "Resume Session", scope: "both", requires: "session" },
+    palette: { label: "Resume Session", scope: "both" },
   },
   {
     name: "help",

@@ -1,4 +1,5 @@
 import { parseSgrMouseInput } from "../core/mouse.js";
+import { homeActionsFor } from "./home-actions.js";
 import { chatScrollbarFor } from "./chat-scrollbar.js";
 import { handleChatScrollbarMouseInput } from "./app-mouse.js";
 import { isKeyRelease, matchesKey } from "@earendil-works/pi-tui";
@@ -149,6 +150,50 @@ export function handleMixCodeKeyInput(
     return { consume: true };
   }
   const mouse = parseSgrMouseInput(data);
+  const homeActions = homeActionsFor(state);
+  if (
+    state.activeTabId !== HOME_TAB_ID ||
+    inputTakeover ||
+    hasAnyOverlay(tui) ||
+    isOverlayActive(state) ||
+    isEditorAutocompleteOpen()
+  ) {
+    homeActions.reset();
+  } else if (mouse) {
+    const result = homeActions.handleMouse(mouse);
+    if (result.changed) tui.requestRender();
+    if (result.action && runtime) {
+      homeActions.pending = true;
+      tui.requestRender();
+      void handleSubmittedInput(
+        state,
+        runtime,
+        `/${result.action}`,
+        tui,
+        onStateChanged,
+        editorActions?.setInputComponent && editorActions.clearInputComponent
+          ? {
+              setInputComponent: editorActions.setInputComponent,
+              clearInputComponent: editorActions.clearInputComponent,
+              requestRender: () => tui.requestRender(),
+            }
+          : undefined,
+        workspaceOptions.workspaceFile,
+        undefined,
+        workspaceOptions.settingsDeps,
+        editorActions,
+      )
+        .catch((error: unknown) => {
+          showErrorOverlay(tui, error);
+        })
+        .finally(() => {
+          homeActions.pending = false;
+          homeActions.reset();
+          tui.requestRender();
+        });
+    }
+    if (result.consume) return { consume: true };
+  }
   // All-motion reporting must not feed passive movement into keyboard chords,
   // paste detection, or the editor's per-input repaint path.
   if (mouse?.motion && mouse.button === 3 && !mouse.wheel) {

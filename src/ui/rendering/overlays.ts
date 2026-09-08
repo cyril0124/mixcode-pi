@@ -23,6 +23,7 @@ import { highlightRanges } from "./highlight.js";
 import { joinColumns } from "./layout.js";
 import { overlayPanel, padLine } from "./primitives.js";
 import { applyToastOverlay } from "../components/toast-overlay.js";
+import { homeActionsFor } from "../home-actions.js";
 import { halfScreenRows, windowStart } from "./scroll-window.js";
 
 /** Shared match style for dynamic fuzzy-search highlighting across overlays: bold + accent. */
@@ -46,11 +47,12 @@ export function renderHome(
 function renderHomeInner(
   state: MixCodeState,
   width: number,
-  _rowOffset: number,
+  rowOffset: number,
   maxRows: number | undefined,
   chatForTab: ((sessionId: string) => readonly ChatLine[] | undefined) | undefined,
 ): string[] {
   const height = maxRows === undefined ? undefined : Math.max(0, Math.floor(maxRows));
+  homeActionsFor(state).beginFrame(width, height, rowOffset);
   const inset = width >= 80 ? 3 : width >= 4 ? 1 : 0;
   const bodyWidth = Math.max(0, width - inset * 2);
   const brand = `${activeRenderTheme.accent(activeRenderTheme.bold("MixCode"))} ${activeRenderTheme.dim("/ HOME")}`;
@@ -100,6 +102,7 @@ function renderHomeInner(
     bodyWidth,
     height === undefined ? undefined : height - top.length,
     chatForTab,
+    { x: inset + 1, y: rowOffset + top.length + 1 },
   );
   const lines = [...top, ...body].map((line) =>
     padLine(`${" ".repeat(inset)}${padLine(line, bodyWidth)}`, width),
@@ -157,6 +160,7 @@ function renderAgentViewTable(
   width: number,
   maxRows: number | undefined,
   chatForTab: ((sessionId: string) => readonly ChatLine[] | undefined) | undefined,
+  origin: { x: number; y: number },
 ): string[] {
   const budget = maxRows === undefined ? undefined : Math.max(0, Math.floor(maxRows));
   const visible = homeVisibleTabIndices(state);
@@ -182,37 +186,52 @@ function renderAgentViewTable(
   const emptyMessage = activeRenderTheme.dim(
     state.tabs.length === 0 ? "No agent sessions." : "No non-idle agents.",
   );
-  // In tiny viewports the selected agent takes precedence over section chrome and hints.
+  const actions = homeActionsFor(state);
+  // In tiny viewports the selected agent still takes precedence over actions.
   if (budget !== undefined && budget < 4) {
-    if (budget === 0) return [];
+    if (budget === 0) {
+      actions.reset();
+      return [];
+    }
+    if (visible.length > 0) actions.reset();
     const rows =
       visible.length === 0
-        ? [emptyMessage]
+        ? actions.renderHeading("", width, origin, activeRenderTheme, 1, true)
         : renderAgentRoster(state, width, Math.max(1, budget - 1), chatForTab);
     return budget === 1 ? rows.slice(0, 1) : finish(rows);
   }
+  const split = visible.length > 0 && width >= 114 && (budget === undefined || budget >= 18);
+  const listWidth = split ? Math.floor((width - 3) * 0.44) : width;
+  const headings = actions.renderHeading(
+    heading,
+    listWidth,
+    origin,
+    activeRenderTheme,
+    budget === undefined || budget >= 5 ? 2 : 1,
+    visible.length === 0,
+  );
   const rule = activeRenderTheme.borderMuted("─".repeat(width));
   if (visible.length === 0) {
-    return finish([heading, rule, emptyMessage]);
+    return finish([...headings, rule, emptyMessage]);
   }
   const selectedIndex = visible.includes(state.homeSelectedTabIndex)
     ? state.homeSelectedTabIndex
     : visible[0]!;
   const selectedTab = state.tabs[selectedIndex]!;
-  const bodyRows = budget === undefined ? undefined : Math.max(0, budget - 3);
+  const bodyRows = budget === undefined ? undefined : Math.max(0, budget - headings.length - 2);
   // Split only when both the roster and a readable conversation fit the viewport.
-  if (width >= 114 && (budget === undefined || budget >= 18)) {
-    const listWidth = Math.floor((width - 3) * 0.44);
+  if (split) {
     const previewWidth = width - listWidth - 3;
     const roster = renderAgentRoster(state, listWidth, bodyRows, chatForTab);
     const detailRows = bodyRows ?? Math.max(roster.length, 12);
-    const left = [heading, activeRenderTheme.borderMuted("─".repeat(listWidth)), ...roster];
+    const left = [...headings, activeRenderTheme.borderMuted("─".repeat(listWidth)), ...roster];
     const right = [
       homeLineEnds(
         activeRenderTheme.bold("Conversation"),
         formatTabStatusChip(selectedTab),
         previewWidth,
       ),
+      ...Array.from({ length: headings.length - 1 }, () => ""),
       activeRenderTheme.borderMuted("─".repeat(previewWidth)),
       ...renderConversationPreview(selectedTab, previewWidth, detailRows, chatForTab),
     ];
@@ -229,7 +248,7 @@ function renderAgentViewTable(
   }
   const previewRows = previewSlotRows(bodyRows);
   const rosterRows = bodyRows === undefined ? undefined : Math.max(0, bodyRows - previewRows);
-  const lines = [heading, rule, ...renderAgentRoster(state, width, rosterRows, chatForTab)];
+  const lines = [...headings, rule, ...renderAgentRoster(state, width, rosterRows, chatForTab)];
   if (previewRows > 0) {
     lines.push(
       ...renderPreviewPanel(

@@ -314,7 +314,18 @@ export class MixCodeRuntime {
       config,
       this.lifecycleContext(),
     );
-    this.sync.register(runtimeTab);
+    // Register materializes the session file after the runtime tab is published.
+    // Roll back that live tab if the storage boundary rejects startup.
+    try {
+      this.sync.register(runtimeTab);
+    } catch (error) {
+      try {
+        await this.closeTab(tab.sessionId);
+      } catch (cleanupError) {
+        throw new AggregateError([error, cleanupError], "Session startup and cleanup failed");
+      }
+      throw error;
+    }
     return runtimeTab;
   }
 
