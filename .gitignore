@@ -9,3 +9,4 @@ bun.lockb
 .worktrees/
 .test-timings.json
 __pycache__
+/scripts/record-readme-gifs.local.json

@@ -1,0 +1,5 @@
+[
+  { "text": "Wire up list command", "done": true },
+  { "text": "Add delete command", "done": false },
+  { "text": "Write a short README", "done": false }
+]
