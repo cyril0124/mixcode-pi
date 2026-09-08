@@ -70,7 +70,7 @@ test("thinking border colors follow Pi levels without collisions", () => {
   }
 });
 
-test("submitted input handles compact and validates theme", async () => {
+test("submitted input compacts locally and forwards unregistered slash input", async () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"));
   state.activeTabId = "s1";
@@ -90,11 +90,11 @@ test("submitted input handles compact and validates theme", async () => {
   const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
   await handleSubmittedInput(state, runtime, "/goal ship", tui);
   await handleSubmittedInput(state, runtime, "/compact preserve decisions", tui);
-  assert.equal(prompts.length, 0);
+  assert.deepEqual(prompts, ["/goal ship"]);
   assert.deepEqual(compacted, [{ sessionId: "s1", instructions: "preserve decisions" }]);
-  assert.ok(systemMessages.some((message) => message.includes("Unknown slash command: /goal")));
   await handleSubmittedInput(state, runtime, "/theme unknown", tui);
-  assert.ok(systemMessages.some((message) => message.includes("Unknown slash command: /theme")));
+  assert.deepEqual(prompts, ["/goal ship", "/theme unknown"]);
+  assert.deepEqual(systemMessages, []);
 });
 
 test("submitted input reloads active Pi resources", async () => {
@@ -234,10 +234,13 @@ test("unknown slash commands keep focus on the active tab", async () => {
   const second = createTab(2, "s2", "/repo");
   state.tabs.push(first, second);
   state.activeTabId = "s2";
+  const prompts: Array<{ sessionId: string; text: string }> = [];
   const systemMessages: string[] = [];
   const runtime = {
     appendSystemMessage: (_sessionId: string, text: string) => systemMessages.push(text),
-    prompt: async () => undefined,
+    prompt: async (sessionId: string, text: string) => {
+      prompts.push({ sessionId, text });
+    },
     getTab: () => undefined,
     getExtensionCommands: () => [],
     createTab: async () => undefined,
@@ -252,9 +255,8 @@ test("unknown slash commands keep focus on the active tab", async () => {
 
   await handleSubmittedInput(state, runtime, "/no-such-command", tui);
   assert.equal(state.activeTabId, "s2");
-  assert.ok(
-    systemMessages.some((message) => message.includes("Unknown slash command: /no-such-command")),
-  );
+  assert.deepEqual(prompts, [{ sessionId: "s2", text: "/no-such-command" }]);
+  assert.deepEqual(systemMessages, []);
 });
 
 test("submitted input opens TUI state JSON in external editor", async () => {

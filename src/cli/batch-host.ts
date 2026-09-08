@@ -79,9 +79,10 @@ export function createBatchExecutorHost(options: {
       const tab = state.tabs.find((item) => item.sessionId === sessionId);
       if (!tab) throw new Error(`Cannot submit to unknown tab: ${sessionId}`);
       const parsed = parseInput(input);
-      if (await submitAgentInput(tab, runtime, input, parsed)) return;
-      const command = parsed.command ? `/${parsed.command}` : input;
-      throw new Error(`Batch prompt cannot execute MixCode local command: ${command}`);
+      if (parsed.kind === "local-command") {
+        throw new Error(`Batch prompt cannot execute MixCode local command: /${parsed.command}`);
+      }
+      await submitAgentInput(tab, runtime, input, parsed);
     },
     resolveModel(query) {
       const model = findModelRef(state.availableModels, query);

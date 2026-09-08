@@ -56,20 +56,29 @@ src/
 
 ## Runtime Mapping
 
+`src/core/commands.ts` recognizes local commands registered in `LOCAL_COMMANDS`.
+They take priority over extension commands and prompt templates. Pi's
+`AgentSession.prompt()` handles other slash input in this order: extension command,
+`input` event, skill/template expansion, user message. Extension commands and
+input handlers can finish handling input without starting a model turn.
+
+Unmatched slash input, such as `/home/example/session.jsonl` or `/unknown`,
+becomes message text regardless of whether a file exists. The dispatcher trims
+leading whitespace from slash input. Slash input forwarded to Pi retains
+internal whitespace and newlines; local command arguments collapse whitespace
+to single spaces. Project context such as `AGENTS.md` is assembled in the system prompt.
+
 ```text
 User Input
   │
-  ├─ Normal prompt
-  │    └─ Forwarded as-is to Pi AgentSession.prompt()
-  │        ├─ $skill reference (expanded by mpi-skill-refs extension in Pi native pipeline)
-  │        ├─ /skill: and prompt templates (expanded by Pi native _expandSkillCommand / expandPromptTemplate)
-  │        ├─ @file reference
-  │        └─ Does not inject AGENTS.md directly; project context enters system prompt
+  ├─ Registered /local-command
+  │    └─ MixCode handler (UI, settings, or session operation)
   │
-  ├─ /local-command
-  │    ├─ Pure UI state: /toggle-todo /mark-done
-  │    ├─ Session operations: /new-session /fork /compact /delete-session
-  │    └─ Prompt templates: /goal /compact
+  ├─ Other input, including unknown slash input and paths
+  │    └─ Pi AgentSession.prompt()
+  │        ├─ Registered extension command -> execute
+  │        └─ input event -> skill/template expansion -> user message
+  │             └─ $skill references are handled by mpi-skill-refs
   │
   └─ !shell / !!shell
        └─ Dispatched to Pi AgentSession.executeBash (!! = excludeFromContext)

@@ -7,7 +7,7 @@ mixcode = {}
 
 ---@class mixcode.OpenTabOptions
 ---@field name string Tab title (used for matching existing tabs)
----@field prompt? string Prompt text to send; omit to create/reuse tab without submitting
+---@field prompt? string Prompt to submit; omit to create/reuse/clear/delete without submitting. Supports skills, templates, extension commands, and !shell / !!shell. Registered MixCode local commands fail at dispatch. Pi handles other slash input; unmatched input, including paths, becomes message text.
 ---@field workdir? string Working directory for new tabs (defaults to launch workdir); reuse/clear keeps the existing directory
 ---@field model? string Model identifier from list_models().id; omitted means keep existing or use launch model for a new tab
 ---@field thinking? "off"|"minimal"|"low"|"medium"|"high"|"xhigh"|"max" Supported thinking level; omitted means keep existing or use launch default for a new tab

@@ -70,7 +70,7 @@ function silentTerminal(): Terminal {
   };
 }
 
-test("createMixCodeTui editor submits prompts and surfaces slash errors", async () => {
+test("createMixCodeTui editor forwards unknown slash input and surfaces local command failures", async () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo");
   state.tabs.push(tab);
@@ -137,8 +137,11 @@ test("createMixCodeTui editor submits prompts and surfaces slash errors", async 
 
     layout.editor.setText("/does-not-exist");
     layout.editor.submitCurrentText();
-    await waitFor(() =>
-      chat.some((message) => message.text === "Error: Unknown slash command: /does-not-exist"),
+    await waitFor(() => prompts.includes("/does-not-exist"));
+    assert.equal(layout.editor.getText(), "");
+    assert.deepEqual(
+      chat.filter((message) => message.role === "system").map((message) => message.text),
+      ["Clear failed: clear failed"],
     );
   } finally {
     tui.stop();

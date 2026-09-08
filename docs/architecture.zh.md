@@ -56,20 +56,27 @@ src/
 
 ## 运行时映射
 
+`src/core/commands.ts` 识别 `LOCAL_COMMANDS` 中注册的本地命令，
+本地命令优先于同名扩展命令和 prompt 模板。Pi 的 `AgentSession.prompt()`
+依次处理其余 slash 输入：扩展命令、`input` 事件、skill/模板展开、用户消息。
+扩展命令和 input handler 可以直接处理完输入，无需启动模型回合。
+
+未匹配的 slash 输入，例如 `/home/example/session.jsonl` 或 `/unknown`，
+会作为消息文本发送，处理方式不取决于文件是否存在。分发器去除 slash 输入开头的空白。
+交给 Pi 的 slash 输入保留内部空白和换行；本地命令参数中的连续空白会合并为一个空格。
+`AGENTS.md` 等项目上下文在 system prompt 中组装。
+
 ```text
-用户输入
+User Input
   │
-  ├─ 普通 prompt
-  │    └─ 原样透传给 Pi AgentSession.prompt()
-  │        ├─ $skill 引用（由 mpi-skill-refs 扩展在 Pi 原生流程中展开）
-  │        ├─ /skill: 与 prompt 模板（由 Pi 原生 _expandSkillCommand / expandPromptTemplate 展开）
-  │        ├─ @file 引用
-  │        └─ 不注入 AGENTS.md；项目上下文进入 system prompt
+  ├─ Registered /local-command
+  │    └─ MixCode handler (UI, settings, or session operation)
   │
-  ├─ /local-command
-  │    ├─ 纯 UI 状态：/toggle-todo /mark-done
-  │    ├─ 会话操作：/new-session /fork /compact /delete-session
-  │    └─ prompt 模板：/goal /compact
+  ├─ Other input, including unknown slash input and paths
+  │    └─ Pi AgentSession.prompt()
+  │        ├─ Registered extension command -> execute
+  │        └─ input event -> skill/template expansion -> user message
+  │             └─ $skill references are handled by mpi-skill-refs
   │
   └─ !shell / !!shell
        └─ 走 Pi AgentSession.executeBash（!! = excludeFromContext）

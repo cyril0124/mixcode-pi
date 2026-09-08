@@ -83,8 +83,9 @@ apply
 
 没有同名 tab 时新建 tab。`clear` + `system_prompt` 在任何 tab 操作前的校验阶段始终被拒绝，包括系统提示词为空字符串的情况。同名重复请求仅由第一条决定新建/重置/删除行为。交互式 `/clear` 仍会替换会话并重置标题。
 
-prompt 支持普通文本、skills、prompt templates、extension commands、`!shell`。
-**不支持** MixCode 本地 slash command（需要交互 UI）。
+prompt 使用[共用输入分发](architecture.zh.md#运行时映射)，支持普通文本、文件路径、
+skills、prompt templates、extension commands 和 `!shell` / `!!shell`。
+已注册的 MixCode 本地 slash command 会在 prompt 分发阶段被拒绝，须在交互式 TUI 中执行。
 
 设置了 `system_prompt` 的 tab，编辑器标题旁显示 `[sys]` 角标。
 

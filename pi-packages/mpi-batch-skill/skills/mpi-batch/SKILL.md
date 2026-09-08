@@ -108,7 +108,7 @@ Batch collects requests, validates them, then applies the plan. It cannot wait f
 
 For repeated requests with the same title, the first request controls creation, clearing, or deletion. Later requests configure model/thinking and submit prompts in order; they are not additional reset steps. Put creation options on the first request.
 
-Prompts support plain text, skills, prompt templates, extension commands, and `!shell`; MixCode local slash commands are not supported.
+Prompts support plain text, skills, prompt templates, extension commands, and `!shell` / `!!shell`. Batch rejects registered MixCode local commands during prompt dispatch. Pi handles other slash input; unmatched input, including absolute paths and `/unknown`, becomes message text.
 
 Script syntax and runtime errors identify the script path. Invalid tab options fail validation. JS scripts also reject missing or non-function default exports and unknown option names, including the Lua spelling `system_prompt`.
 

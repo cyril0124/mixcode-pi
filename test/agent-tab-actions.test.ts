@@ -55,6 +55,36 @@ async function withBatchRuntime(
 }
 
 for (const extension of ["lua", "ts"]) {
+  test(`batch ${extension} sends unknown slash input and paths through the prompt pipeline`, async () => {
+    await withBatchRuntime(async (runtime, state, dir) => {
+      const host = createBatchExecutorHost({ state, runtime, tui: { requestRender() {} } });
+      const prompts = ["/nfs/home/sessions/missing.jsonl", "/unknown first\n  second", "/"];
+      const scriptPath = path.join(dir, `slash-input.${extension}`);
+      const requests = prompts.map((prompt, index) =>
+        extension === "lua"
+          ? `mixcode.open_tab({ name = "slash-${index}", prompt = ${JSON.stringify(prompt)} })`
+          : `mixcode.openTab(${JSON.stringify({ name: `slash-${index}`, prompt })});`,
+      );
+      await Bun.write(
+        scriptPath,
+        extension === "lua"
+          ? requests.join("\n")
+          : `export default (mixcode) => {\n${requests.join("\n")}\n};`,
+      );
+      const plan = await loadBatchRequests(scriptPath, contextFromState(state));
+      await applyBatchRequests(plan.requests, host);
+      assert.deepEqual(
+        state.tabs.map((tab) =>
+          runtime
+            .getTab(tab.sessionId)!
+            .agentSession.messages.filter((message) => message.role === "user")
+            .map((message) => message.content),
+        ),
+        prompts.map((prompt) => [[{ type: "text", text: prompt }]]),
+      );
+    });
+  });
+
   test(`batch ${extension} clear keeps identity and history across repeated lookup`, async () => {
     await withBatchRuntime(async (runtime, state, dir) => {
       const host = createBatchExecutorHost({ state, runtime, tui: { requestRender() {} } });

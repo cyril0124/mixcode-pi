@@ -45,12 +45,10 @@ export type LocalCommand =
   | "quit"
   | "exit";
 
-export interface ParsedInput {
-  kind: "prompt" | "local-command" | "shell";
-  command?: LocalCommand | string;
-  args: string;
-  excludeFromContext?: boolean;
-}
+export type ParsedInput =
+  | { kind: "prompt"; args: string }
+  | { kind: "local-command"; command: LocalCommand; args: string }
+  | { kind: "shell"; command: "shell"; args: string; excludeFromContext: boolean };
 
 /** Enable-condition for a palette entry, resolved against the current UI state. */
 export type PaletteRequirement = "session" | "session+models" | "tabs";
@@ -472,13 +470,14 @@ export function parseInput(text: string): ParsedInput {
       excludeFromContext: false,
     };
   if (!trimmed.startsWith("/")) return { kind: "prompt", args: text };
-  // /skill:<name> is a prompt expansion, not a local command
-  if (trimmed.startsWith("/skill:")) return { kind: "prompt", args: trimmed };
-  const [rawCommand = "", ...rest] = trimmed.slice(1).split(/\s+/);
-  const args = rest.join(" ");
-  return {
-    kind: "local-command",
-    command: COMMAND_SET.has(rawCommand) ? (rawCommand as LocalCommand) : rawCommand,
-    args,
-  };
+  const [rawCommand = ""] = trimmed.slice(1).split(/\s+/, 1);
+  // Reserve only registered local names. Pi owns all other slash input,
+  // including extension commands, skills, templates, and absolute paths.
+  if (!isLocalCommand(rawCommand)) return { kind: "prompt", args: trimmed };
+  const args = trimmed
+    .slice(rawCommand.length + 1)
+    .trimStart()
+    .split(/\s+/)
+    .join(" ");
+  return { kind: "local-command", command: rawCommand, args };
 }

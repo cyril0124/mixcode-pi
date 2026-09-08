@@ -83,8 +83,10 @@ Standard Lua libraries are available (including `os.getenv`, `io`, etc.). The ro
 
 With no matching tab, a new tab is created. `clear` + `system_prompt` is always rejected during validation before any tab changes, including when `system_prompt` is an empty string. For repeated names, only the first request controls creation/reset/deletion. Interactive `/clear` still replaces the session and resets its title.
 
-Prompts support plain text, skills, prompt templates, extension commands, and `!shell`.
-MixCode local slash commands are **not supported** (they require interactive UI).
+Prompts use the [shared input dispatch](architecture.md#runtime-mapping), including
+plain text, paths, skills, prompt templates, extension commands, and `!shell` / `!!shell`.
+Registered MixCode local slash commands are rejected during prompt dispatch;
+use the interactive TUI to execute them.
 
 Tabs with a custom `system_prompt` display a `[sys]` badge beside the editor title.
 

@@ -22,7 +22,12 @@ type MixCodeBatchReuseMode = "append" | "clear" | "delete";
 interface MixCodeBatchOpenTabOptions {
   /** Tab title; exact match when reusing an existing tab. */
   name: string;
-  /** Prompt to submit; omit to create/reuse/clear/delete without submitting. */
+  /**
+   * Prompt to submit; omit to create/reuse/clear/delete without submitting.
+   * Supports skills, templates, extension commands, and !shell / !!shell.
+   * Registered MixCode local commands fail at dispatch. Pi handles other slash
+   * input; unmatched input, including paths, becomes message text.
+   */
   prompt?: string;
   /** Working directory for new tabs (defaults to launch workdir); reuse/clear keeps the existing directory. */
   workdir?: string;

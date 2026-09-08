@@ -208,9 +208,8 @@ test("commands parse prompts, slash commands, shell commands, and suggestions", 
     args: "main",
   });
   assert.deepEqual(parseInput("/view chatlog"), {
-    kind: "local-command",
-    command: "view",
-    args: "chatlog",
+    kind: "prompt",
+    args: "/view chatlog",
   });
   assert.deepEqual(parseInput("/import ./session.jsonl /repo"), {
     kind: "local-command",
@@ -273,9 +272,8 @@ test("commands parse prompts, slash commands, shell commands, and suggestions", 
     args: "",
   });
   assert.deepEqual(parseInput("/unknown x"), {
-    kind: "local-command",
-    command: "unknown",
-    args: "x",
+    kind: "prompt",
+    args: "/unknown x",
   });
   // string[] rather than the LocalCommand name union: the negative assertion
   // below names an unregistered command, which must stay a runtime check.

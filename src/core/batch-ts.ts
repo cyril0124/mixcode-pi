@@ -22,6 +22,7 @@ import { renderTemplate } from "./batch-lua.js";
  */
 export interface MixCodeBatchOpenTabOptions {
   name: string;
+  /** Shares the prompt dispatch contract of BatchTabRequest.prompt. */
   prompt?: string;
   workdir?: string;
   model?: string;

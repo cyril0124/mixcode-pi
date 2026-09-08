@@ -44,7 +44,7 @@ export interface BatchLuaContext {
 
 export interface BatchTabRequest {
   name: string;
-  /** Optional: omit to create/reuse a tab without submitting a prompt. */
+  /** Optional input for BatchExecutorHost.submitInput; omit to create/reuse/clear/delete only. */
   prompt?: string;
   workdir?: string;
   model?: string;
@@ -82,10 +82,10 @@ export interface BatchExecutorHost {
   /** Delete an existing tab and its session file from disk. */
   deleteTab(sessionId: string): Promise<void>;
   /**
-   * Submit agent-directed input through the shared prompt pipeline: normal
-   * prompts, skills, prompt templates, extension commands, and !shell. MixCode
-   * local commands are rejected because batch mode has no interactive UI to own
-   * pickers, confirmations, or overlays.
+   * Submit input through the shared dispatch: !shell / !!shell execute bash;
+   * registered MixCode local commands are rejected because batch mode has no
+   * interactive UI. Other input enters Pi's native prompt pipeline, where
+   * unmatched slash input (including paths) becomes user message text.
    */
   submitInput(sessionId: string, input: string): Promise<void>;
   resolveModel(query: string): MixCodeModelRef;

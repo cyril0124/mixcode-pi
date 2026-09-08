@@ -1,10 +1,10 @@
 import { isBashAlreadyRunningError } from "../agent/runtime.js";
-import { isLocalCommand, type LocalCommand, parseInput } from "../core/commands.js";
+import type { LocalCommand } from "../core/commands.js";
+import { parseInput } from "../core/commands.js";
 import { getActiveTab } from "../core/tabs.js";
 import { pushToast } from "../core/toast.js";
 import type { MixCodeState, MixCodeTabInfo } from "../core/types.js";
 import { submitAgentInput } from "./agent-tab-actions.js";
-import { appendActiveSystemMessage } from "./app-actions.js";
 import { errorMessage } from "./app-overlays.js";
 import { SESSION_COMMAND_HANDLERS } from "./app-submit-session.js";
 import { SETTINGS_COMMAND_HANDLERS } from "./app-submit-settings.js";
@@ -41,7 +41,7 @@ export async function handleSubmittedInput(
   const parsed = parseInput(text);
   const active = activeTabOverride ?? getActiveTab(state);
   const requiresActive =
-    parsed.kind === "prompt" || parsed.kind === "shell" || !configScopedCommand(parsed.command);
+    parsed.kind !== "local-command" || !CONFIG_SCOPED_COMMANDS.has(parsed.command);
   if (!active && requiresActive) {
     throw new Error("Error: No agent to send to");
   }
@@ -73,7 +73,7 @@ export async function handleSubmittedInput(
     }
     throw error;
   }
-  if (isLocalCommand(parsed.command)) {
+  if (parsed.kind === "local-command") {
     const result = await LOCAL_COMMAND_HANDLERS[parsed.command]({
       state,
       runtime,
@@ -87,12 +87,6 @@ export async function handleSubmittedInput(
       editorActions,
     });
     if (result === SKIP_FINALIZE) return;
-  } else {
-    appendActiveSystemMessage(
-      state,
-      runtime,
-      `Error: Unknown slash command: /${parsed.command}`.trim(),
-    );
   }
   await onStateChanged?.(state);
   tui.requestRender();
@@ -129,7 +123,3 @@ const CONFIG_SCOPED_COMMANDS: ReadonlySet<LocalCommand> = new Set([
   "quit",
   "exit",
 ]);
-
-function configScopedCommand(command: string | undefined): boolean {
-  return isLocalCommand(command) && CONFIG_SCOPED_COMMANDS.has(command);
-}

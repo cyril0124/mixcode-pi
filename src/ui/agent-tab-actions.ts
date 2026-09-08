@@ -1,6 +1,7 @@
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { MixCodeRuntime } from "../agent/runtime.js";
-import { LOCAL_COMMANDS, type ParsedInput, parseInput } from "../core/commands.js";
+import type { ParsedInput } from "../core/commands.js";
+import { parseInput } from "../core/commands.js";
 import { createSessionId, createTab, nextAvailableAgentTitle } from "../core/defaults.js";
 import { assertModelEnabled } from "../core/models.js";
 import {
@@ -14,8 +15,6 @@ import { activateTab, closeAgentTab } from "../core/tabs.js";
 import type { MixCodeModel, MixCodeModelRef, MixCodeState, MixCodeTabInfo } from "../core/types.js";
 import type { MixCodeSubmitRuntime } from "./app-types.js";
 import { clearConversationCache } from "./rendering/agent-surface.js";
-
-const LOCAL_COMMAND_NAMES = new Set<string>(LOCAL_COMMANDS.map((command) => command.name));
 
 export interface CreateAgentTabOptions {
   title?: string;
@@ -357,44 +356,7 @@ export async function submitAgentInput(
     });
     return true;
   }
-  if (!parsed.command || LOCAL_COMMAND_NAMES.has(parsed.command)) return false;
-  // Local command names are reserved by MixCode even when an extension declares
-  // the same name; only unknown slash commands enter extension/template lookup.
-  const commandText = text.trimStart();
-  // Both extension commands and prompt templates are handled by Pi's native
-  // prompt pipeline; forward the raw command text and let AgentSession.prompt()
-  // dispatch and expand it. Unknown slash commands still fall through (return
-  // false) so MixCode does not silently send them to the model.
-  if (
-    isExtensionCommand(runtime, tab.sessionId, parsed.command) ||
-    isPromptTemplate(runtime, tab.sessionId, parsed.command)
-  ) {
-    assertModelEnabled(tab.model);
-    await runtime.prompt(tab.sessionId, commandText);
-    return true;
-  }
   return false;
-}
-
-function isExtensionCommand(
-  runtime: MixCodeSubmitRuntime,
-  sessionId: string,
-  command: string,
-): boolean {
-  return runtime.getExtensionCommands(sessionId).some((item) => item.name === command);
-}
-
-function isPromptTemplate(
-  runtime: MixCodeSubmitRuntime,
-  sessionId: string,
-  command: string,
-): boolean {
-  const runtimeTab = runtime.getTab(sessionId);
-  return (
-    runtimeTab?.services?.resourceLoader
-      .getPrompts()
-      .prompts.some((prompt) => prompt.name === command) ?? false
-  );
 }
 
 /** True when the caller overrode the default base/identity system prompt. */
