@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createInitialState, createTab, handleMixCodeKeyInput } from "./helpers/mixcode.js";
 import type { MixCodeRuntime } from "./helpers/mixcode.js";
+import { testOverlayHandle } from "./helpers/tui.js";
 
 function assertQuitOverlay(text: string | undefined): void {
   assert.match(text ?? "", /┌/);
@@ -82,10 +83,11 @@ test("ctrl+q opens a quit confirmation overlay when the prompt is empty", async 
           ? component
           : (component.render?.(80).join("\n") ?? String(component));
       return {
-        hide: () => {
+        ...testOverlayHandle(() => {
           overlayOpen = false;
-        },
-      } as never;
+        }),
+        isFocused: () => overlayOpen,
+      };
     },
     hideOverlay: () => {
       overlayOpen = false;

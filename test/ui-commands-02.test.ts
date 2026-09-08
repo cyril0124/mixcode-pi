@@ -14,6 +14,7 @@ import {
 import type { MixCodeRuntime } from "./helpers/mixcode.js";
 import type { Model } from "@earendil-works/pi-ai";
 import { MIXCODE_FAUX_MODEL } from "./helpers/mixcode.js";
+import { testOverlayHandle } from "./helpers/tui.js";
 
 async function waitFor<T>(read: () => Promise<T>, attempts = 25): Promise<T> {
   let lastError: unknown;
@@ -54,10 +55,11 @@ test("submitted input opens local pickers and picker keys apply selections", asy
           : (component.render?.(120).join("\n") ?? String(component)),
       );
       return {
-        hide: () => {
+        ...testOverlayHandle(() => {
           overlayOpen = false;
-        },
-      } as never;
+        }),
+        isFocused: () => overlayOpen,
+      };
     },
     hideOverlay: () => {
       overlayOpen = false;
@@ -228,10 +230,11 @@ test("workdir picker applies async runtime workdir updates", async () => {
             : (component.render?.(120).join("\n") ?? String(component)),
         );
         return {
-          hide: () => {
+          ...testOverlayHandle(() => {
             overlayOpen = false;
-          },
-        } as never;
+          }),
+          isFocused: () => overlayOpen,
+        };
       },
       hideOverlay: () => {
         overlayOpen = false;
@@ -407,9 +410,10 @@ test("unfocused /models does not consume focused-tab keys", async () => {
     showOverlay: () => {
       overlayOpen = true;
       return {
-        hide: () => {
+        ...testOverlayHandle(() => {
           overlayOpen = false;
-        },
+        }),
+        isFocused: () => overlayOpen,
       };
     },
     hideOverlay: () => {

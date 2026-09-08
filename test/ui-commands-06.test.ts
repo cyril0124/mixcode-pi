@@ -11,6 +11,7 @@ import {
   tabBarHitRegions,
 } from "./helpers/mixcode.js";
 import type { MixCodeRuntime } from "./helpers/mixcode.js";
+import { testOverlayHandle } from "./helpers/tui.js";
 import { closeAppOverlay } from "../src/ui/app-overlays.js";
 import { ExtensionManagerPanel } from "../src/ui/components/extension-manager.js";
 
@@ -60,10 +61,11 @@ test("global key input toggles MixCode overlays and passes through regular input
       shownComponents.push(component);
       overlays.push(component.render(120).join("\n"));
       return {
-        hide: () => {
+        ...testOverlayHandle(() => {
           overlayOpen = false;
-        },
-      } as never;
+        }),
+        isFocused: () => overlayOpen,
+      };
     },
     hideOverlay: () => {
       overlayOpen = false;

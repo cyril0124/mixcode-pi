@@ -15,6 +15,7 @@ import {
   writeOpenTabs,
 } from "./helpers/mixcode.js";
 import { UUIDV7_SESSION_ID_PATTERN } from "./helpers/session-id.js";
+import { testOverlayHandle } from "./helpers/tui.js";
 import type { MixCodeRuntime } from "./helpers/mixcode.js";
 
 type TestChatLine = { role: "system"; text: string; kind?: string };
@@ -399,7 +400,10 @@ test("single session close/delete confirmation cancel leaves tabs untouched", as
     requestRender: () => undefined,
     showOverlay: () => {
       overlayOpen = true;
-      return { hide: () => (overlayOpen = false) } as never;
+      return {
+        ...testOverlayHandle(() => (overlayOpen = false)),
+        isFocused: () => overlayOpen,
+      };
     },
     hasOverlay: () => overlayOpen,
   };
@@ -456,7 +460,10 @@ test("delete-all-sessions confirmation cancel (n or Escape) leaves tabs untouche
     requestRender: () => undefined,
     showOverlay: () => {
       overlayOpen = true;
-      return { hide: () => (overlayOpen = false) } as never;
+      return {
+        ...testOverlayHandle(() => (overlayOpen = false)),
+        isFocused: () => overlayOpen,
+      };
     },
     hasOverlay: () => overlayOpen,
   };
@@ -686,7 +693,10 @@ test("close-all-sessions confirmation cancel (n or Escape) leaves tabs untouched
     requestRender: () => undefined,
     showOverlay: () => {
       overlayOpen = true;
-      return { hide: () => (overlayOpen = false) } as never;
+      return {
+        ...testOverlayHandle(() => (overlayOpen = false)),
+        isFocused: () => overlayOpen,
+      };
     },
     hasOverlay: () => overlayOpen,
   };
@@ -1150,6 +1160,10 @@ test("config-scoped submitted input runs without an active agent tab", async () 
     items: [{ id: "tokyo-night", label: "Tokyo Night", description: "dark" }],
   };
   await handleSubmittedInput(state, runtime, "/tui-state --editor=false", tui);
+  // Unknown slash input needs an agent; exercise this before creating any tabs.
+  await assert.rejects(() => handleSubmittedInput(state, runtime, "/unknown", tui), {
+    message: "Error: No agent to send to",
+  });
   const debugTab = createTab(1, "debug", "/repo", {
     status: "running",
     chatScrollOffset: 2,
@@ -1179,10 +1193,6 @@ test("config-scoped submitted input runs without an active agent tab", async () 
   state.picker = undefined;
   await handleSubmittedInput(state, runtime, "/new-session s1", tui);
   await handleSubmittedInput(state, runtime, "/new-session", tui);
-  await assert.rejects(
-    () => handleSubmittedInput(state, runtime, "/unknown", tui),
-    /No active tab for system message/,
-  );
   await assert.rejects(
     () => handleSubmittedInput(state, runtime, "/exit", tui),
     /Quit command requires TUI stop support/,

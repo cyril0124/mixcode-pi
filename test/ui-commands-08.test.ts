@@ -9,6 +9,7 @@ import {
 } from "./helpers/mixcode.js";
 import { testRuntime } from "./helpers/runtime-stub.js";
 import { testRuntimeTab } from "./helpers/runtime-tab.js";
+import { testOverlayHandle } from "./helpers/tui.js";
 
 function createDualQueueKeyFixture() {
   const state = createInitialState("/repo");
@@ -968,10 +969,11 @@ test("tab jump overlay filters and activates selected tab from keyboard", () => 
           : (component.render?.(120).join("\n") ?? String(component)),
       );
       return {
-        hide: () => {
+        ...testOverlayHandle(() => {
           overlayOpen = false;
-        },
-      } as never;
+        }),
+        isFocused: () => overlayOpen,
+      };
     },
     hideOverlay: () => {
       overlayOpen = false;
@@ -1036,10 +1038,11 @@ test("vim mode allows ctrl-t tab jump and transfers vim mode to selected tab", (
           : (component.render?.(120).join("\n") ?? String(component)),
       );
       return {
-        hide: () => {
+        ...testOverlayHandle(() => {
           overlayOpen = false;
-        },
-      } as never;
+        }),
+        isFocused: () => overlayOpen,
+      };
     },
     hideOverlay: () => {
       overlayOpen = false;

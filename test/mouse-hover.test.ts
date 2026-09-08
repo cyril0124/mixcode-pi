@@ -154,7 +154,9 @@ test("metadata hover follows each click region and is blocked by Home and overla
   }
 });
 
-test("wrapped tabs and pinned Home hover use the same geometry as clicks", () => {
+test("wrapped tabs and pinned Home hover use the same geometry as clicks", (t) => {
+  // Keep the active-label shimmer identical across hover and resize renders.
+  t.mock.method(Date, "now", () => 0);
   const state = createInitialState("/repo");
   for (let i = 1; i <= 16; i++) state.tabs.push(createTab(i, `s${i}`, "/repo", { activatedAt: 0 }));
   state.activeTabId = "s12";

@@ -9,6 +9,7 @@ import {
   openWorkspaceSelector,
 } from "../src/ui/components/workspace-overlay.js";
 import { createInitialState, createTab } from "./helpers/mixcode.js";
+import { testOverlayHandle } from "./helpers/tui.js";
 
 function createOverlayTui() {
   let overlayOpen = false;
@@ -16,7 +17,10 @@ function createOverlayTui() {
     requestRender: () => undefined,
     showOverlay: () => {
       overlayOpen = true;
-      return { hide: () => (overlayOpen = false) } as never;
+      return {
+        ...testOverlayHandle(() => (overlayOpen = false)),
+        isFocused: () => overlayOpen,
+      };
     },
     hideOverlay: () => {
       overlayOpen = false;
