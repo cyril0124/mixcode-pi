@@ -1,19 +1,7 @@
-// +---------------------------------------------------------------------------+
-// |  skill-refs extension                                                     |
-// |  Expands `$SkillName` references in user prompts into a hidden custom     |
-// |  message (display:false) so the LLM sees the skill pointers while the     |
-// |  user message stays verbatim in the session (no separator stripping).     |
-// |                                                                           |
-// |  Event split:                                                             |
-// |  - before_agent_start: idle prompt path. Refreshes the authoritative      |
-// |    skill list from systemPromptOptions.skills (covers extension-          |
-// |    contributed skills) and returns the injected message for this turn.    |
-// |  - input: only handles streaming steer/followUp (before_agent_start does  |
-// |    not fire for queued messages); resolves from the warm cache and sends  |
-// |    the block with a matching deliverAs.                                   |
-// |  - session_start: cold-start filesystem scan (user + package skills) so   |
-// |    $ autocomplete works before the first prompt; registers autocomplete. |
-// +---------------------------------------------------------------------------+
+// Resolve `$SkillName` references without changing persisted user messages.
+// Idle prompts persist their hidden reference block through before_agent_start.
+// Queued prompts gain references only in the model context after delivery, so
+// skill metadata cannot run ahead of its user message or survive withdrawal.
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
   buildSkillBlock,
@@ -118,20 +106,45 @@ export default function (pi: ExtensionAPI) {
     };
   });
 
-  pi.on("input", (event) => {
-    // Idle input is handled by before_agent_start in the same prompt() call.
-    // streamingBehavior is only defined while the agent is streaming, where
-    // before_agent_start will not fire for the queued message.
-    if (!event.streamingBehavior) return;
-    const resolved = resolveRefs(event.text);
-    if (resolved.length === 0) return;
-    pi.sendMessage(
-      {
-        customType: CUSTOM_MESSAGE_TYPE,
-        content: buildSkillBlock(resolved),
-        display: false,
-      },
-      { deliverAs: event.streamingBehavior },
+  pi.on("context", (event) => {
+    // Context contains delivered messages only. An input handler runs before
+    // the user is queued, and a separate custom queue entry would be consumed
+    // independently in one-at-a-time mode or remain after Ctrl+U withdrawal.
+    const existingBlocks = new Set(
+      event.messages.flatMap((message) =>
+        message.role === "custom" &&
+        message.customType === CUSTOM_MESSAGE_TYPE &&
+        typeof message.content === "string"
+          ? [message.content]
+          : [],
+      ),
     );
+    const messages: typeof event.messages = [];
+    let changed = false;
+    for (const message of event.messages) {
+      messages.push(message);
+      if (message.role !== "user") continue;
+      const text =
+        typeof message.content === "string"
+          ? message.content
+          : message.content.map((part) => (part.type === "text" ? part.text : "")).join("\n");
+      const resolved = resolveRefs(text);
+      if (resolved.length === 0) continue;
+      const content = buildSkillBlock(resolved);
+      // Idle prompts and replayed sessions may already carry this block.
+      if (existingBlocks.has(content)) continue;
+      existingBlocks.add(content);
+      messages.push({
+        role: "custom",
+        customType: CUSTOM_MESSAGE_TYPE,
+        content,
+        display: false,
+        timestamp: message.timestamp,
+      });
+      changed = true;
+    }
+    // The context projection is rebuilt for each request; session history and
+    // queue ownership stay with Pi's original user messages.
+    if (changed) return { messages };
   });
 }

@@ -169,6 +169,8 @@ import loopManagementView from "../../pi-packages/mpi-loop/loop-management-view.
 import loopPackageJson from "../../pi-packages/mpi-loop/package.json" with { type: "text" };
 import skillRefsIndex from "../../pi-packages/mpi-skill-refs/index.ts" with { type: "text" };
 import skillRefsCore from "../../pi-packages/mpi-skill-refs/skill-core.ts" with { type: "text" };
+import skillRefsReadme from "../../pi-packages/mpi-skill-refs/README.md" with { type: "text" };
+import skillRefsReadmeZh from "../../pi-packages/mpi-skill-refs/README.zh.md" with { type: "text" };
 import skillRefsPackageJson from "../../pi-packages/mpi-skill-refs/package.json" with {
   type: "text",
 };
@@ -646,6 +648,8 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
       "index.ts": skillRefsIndex,
       "skill-core.ts": skillRefsCore,
       "package.json": skillRefsPackageJson,
+      "README.md": skillRefsReadme,
+      "README.zh.md": skillRefsReadmeZh,
     },
     "mpi-stuck-guard": {
       "index.ts": stuckGuardIndex,

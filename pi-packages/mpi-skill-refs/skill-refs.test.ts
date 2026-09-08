@@ -3,6 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { after, test } from "node:test";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import skillRefsExtension from "./index.js";
 import {
   buildSkillBlock,
@@ -264,85 +265,102 @@ test("before_agent_start: mixes known and unknown refs, keeping known", async ()
   assert.doesNotMatch(result.message.content, /ghost/);
 });
 
-// ─── input event (streaming steer/followUp) ─────────────────────────────────
+// ─── context expansion for delivered queued messages ───────────────────────
 
-test("input: steered $ref sends hidden custom message with deliverAs steer", async () => {
-  const fake = createFakePi();
-  skillRefsExtension(fake.pi as never);
-  // Warm the cache via a prior turn.
-  await emitBeforeAgentStart(fake, "warm up", [authoritativeSkill("review")]);
+async function projectContext(
+  fake: ReturnType<typeof createFakePi>,
+  messages: AgentMessage[],
+): Promise<AgentMessage[]> {
+  const handler = fake.handlers.get("context")!;
+  const result = (await handler({ type: "context", messages }, fake.ctx)) as
+    | { messages: AgentMessage[] }
+    | undefined;
+  return result?.messages ?? messages;
+}
 
-  const handler = fake.handlers.get("input");
-  assert.ok(handler, "input handler registered");
-  const result = await handler(
-    {
-      type: "input",
-      text: "also apply $review",
-      source: "interactive",
-      streamingBehavior: "steer",
-    },
-    fake.ctx,
-  );
-  // User text must pass through untouched.
-  assert.ok(result === undefined || (result as { action?: string }).action === "continue");
-  assert.equal(fake.sent.length, 1);
-  assert.equal(fake.sent[0]!.message.customType, "skill-refs");
-  assert.equal(fake.sent[0]!.message.display, false);
-  assert.match(String(fake.sent[0]!.message.content), /<skill name="review">/);
-  assert.equal(fake.sent[0]!.options?.deliverAs, "steer");
-});
+function userMessage(text: string): AgentMessage {
+  return { role: "user", content: [{ type: "text", text }], timestamp: 1 };
+}
 
-test("input: followUp $ref uses deliverAs followUp", async () => {
-  const fake = createFakePi();
-  skillRefsExtension(fake.pi as never);
-  await emitBeforeAgentStart(fake, "warm up", [authoritativeSkill("audit")]);
-
-  const handler = fake.handlers.get("input")!;
-  await handler(
-    { type: "input", text: "then $audit", source: "interactive", streamingBehavior: "followUp" },
-    fake.ctx,
-  );
-  assert.equal(fake.sent[0]!.options?.deliverAs, "followUp");
-});
-
-test("input: idle input is left to before_agent_start (no sendMessage)", async () => {
+test("context: delivered $ref gains hidden instructions without changing user history", async () => {
   const fake = createFakePi();
   skillRefsExtension(fake.pi as never);
   await emitBeforeAgentStart(fake, "warm up", [authoritativeSkill("review")]);
-
-  const handler = fake.handlers.get("input")!;
-  const result = await handler(
-    { type: "input", text: "apply $review", source: "interactive", streamingBehavior: undefined },
-    fake.ctx,
-  );
-  assert.ok(result === undefined || (result as { action?: string }).action === "continue");
+  const input = [userMessage("also apply $review")];
+  const result = await projectContext(fake, input);
+  assert.deepEqual(input, [userMessage("also apply $review")]);
+  assert.deepEqual(result[0], input[0]);
+  const block = result[1];
+  assert.ok(block?.role === "custom");
+  assert.equal(block.customType, "skill-refs");
+  assert.equal(block.display, false);
+  assert.match(String(block.content), /<skill name="review">/);
   assert.equal(fake.sent.length, 0);
 });
 
-test("input: steered text without refs sends nothing", async () => {
+test("context: each delivered skill prompt retains its own instructions", async () => {
   const fake = createFakePi();
   skillRefsExtension(fake.pi as never);
-  await emitBeforeAgentStart(fake, "warm up", [authoritativeSkill("review")]);
-
-  const handler = fake.handlers.get("input")!;
-  await handler(
-    { type: "input", text: "no refs", source: "interactive", streamingBehavior: "steer" },
-    fake.ctx,
+  await emitBeforeAgentStart(fake, "warm up", [
+    authoritativeSkill("review"),
+    authoritativeSkill("audit"),
+  ]);
+  const result = await projectContext(fake, [userMessage("$review"), userMessage("then $audit")]);
+  assert.deepEqual(
+    result.map((message) => message.role),
+    ["user", "custom", "user", "custom"],
   );
-  assert.equal(fake.sent.length, 0);
+  const review = result[1];
+  const audit = result[3];
+  assert.ok(review?.role === "custom");
+  assert.ok(audit?.role === "custom");
+  assert.match(String(review.content), /<skill name="review">/);
+  assert.match(String(audit.content), /<skill name="audit">/);
 });
 
-test("input: shell mode steer sends nothing", async () => {
+test("context: idle and replayed skill blocks are not duplicated", async () => {
+  const fake = createFakePi();
+  skillRefsExtension(fake.pi as never);
+  const idle = await emitBeforeAgentStart(fake, "$review", [authoritativeSkill("review")]);
+  assert.ok(idle?.message);
+  const input: AgentMessage[] = [
+    userMessage("$review"),
+    { role: "custom", ...idle.message, timestamp: 1 },
+  ];
+  assert.deepEqual(await projectContext(fake, input), input);
+});
+
+test("context: repeated projections and repeated references do not duplicate blocks", async () => {
   const fake = createFakePi();
   skillRefsExtension(fake.pi as never);
   await emitBeforeAgentStart(fake, "warm up", [authoritativeSkill("review")]);
-
-  const handler = fake.handlers.get("input")!;
-  await handler(
-    { type: "input", text: "!echo $review", source: "interactive", streamingBehavior: "steer" },
-    fake.ctx,
+  const input = [userMessage("$review"), userMessage("again $review")];
+  const first = await projectContext(fake, input);
+  assert.deepEqual(
+    first.map((message) => message.role),
+    ["user", "custom", "user"],
   );
-  assert.equal(fake.sent.length, 0);
+  assert.deepEqual(await projectContext(fake, first), first);
+  assert.deepEqual(await projectContext(fake, input), first);
+});
+
+test("context: plain text and unknown references gain no instructions", async () => {
+  const fake = createFakePi();
+  skillRefsExtension(fake.pi as never);
+  await emitBeforeAgentStart(fake, "warm up", [authoritativeSkill("review")]);
+  const input = [userMessage("no refs"), userMessage("$unknown")];
+  assert.deepEqual(await projectContext(fake, input), input);
+});
+
+test("context: shell input and unrelated custom messages do not invoke skills", async () => {
+  const fake = createFakePi();
+  skillRefsExtension(fake.pi as never);
+  await emitBeforeAgentStart(fake, "warm up", [authoritativeSkill("review")]);
+  const input: AgentMessage[] = [
+    userMessage("!echo $review"),
+    { role: "custom", customType: "notification", content: "$review", display: true, timestamp: 1 },
+  ];
+  assert.deepEqual(await projectContext(fake, input), input);
 });
 
 // ─── session_start cold-start scan + autocomplete registration ──────────────
