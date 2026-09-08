@@ -1,11 +1,18 @@
 import { parseSgrMouseInput } from "../core/mouse.js";
+import { pointerHoverFor } from "./pointer-hover.js";
 import { homeActionsFor } from "./home-actions.js";
 import { chatScrollbarFor } from "./chat-scrollbar.js";
-import { handleChatScrollbarMouseInput } from "./app-mouse.js";
+import {
+  handleChatScrollbarMouseInput,
+  handleChromeHoverInput,
+  handleCommandPaletteMouse,
+  handleTabJumpMouse,
+} from "./app-mouse.js";
 import { isKeyRelease, matchesKey } from "@earendil-works/pi-tui";
 import { MIXCODE_EXTENSION_KEYBINDINGS_MANAGER } from "../agent/runtime.js";
 import { copyToClipboard } from "@earendil-works/pi-coding-agent";
 import {
+  activeOverlay,
   closeActiveOverlay,
   isOverlayActive,
   openCommandPalette,
@@ -42,6 +49,7 @@ import {
 } from "./app-key-handlers.js";
 import {
   appOverlayHandlesInput,
+  appOverlayIsFocused,
   closeAppOverlay,
   copyActiveNoticeText,
   hasAnyOverlay,
@@ -145,11 +153,20 @@ export function handleMixCodeKeyInput(
 ): KeyResult {
   const active = getActiveTab(state);
   const inputTakeover = editorActions?.hasInputComponent?.() === true;
+  const mouse = parseSgrMouseInput(data);
+  // Pointer focus is independent of keyboard navigation and overlay lifetimes.
+  const passive = mouse?.motion && mouse.button === 3 && !mouse.wheel;
+  const listHoverEnabled = !inputTakeover && !hasActiveNotice() && appOverlayIsFocused(tui);
+  for (const scope of ["command-palette", "tab-jump"] as const) {
+    if (!passive || !listHoverEnabled || activeOverlay(state) !== scope) {
+      if (pointerHoverFor(state, scope).clear()) tui.requestRender();
+    }
+  }
+  handleChromeHoverInput(state, active, mouse, tui, inputTakeover || isEditorAutocompleteOpen());
   if (inputTakeover && active) chatScrollbarFor(active).reset();
   if (!inputTakeover && handleChatScrollbarMouseInput(state, active, data, tui)) {
     return { consume: true };
   }
-  const mouse = parseSgrMouseInput(data);
   const homeActions = homeActionsFor(state);
   if (
     state.activeTabId !== HOME_TAB_ID ||
@@ -197,6 +214,17 @@ export function handleMixCodeKeyInput(
   // All-motion reporting must not feed passive movement into keyboard chords,
   // paste detection, or the editor's per-input repaint path.
   if (mouse?.motion && mouse.button === 3 && !mouse.wheel) {
+    if (listHoverEnabled) {
+      const overlay = activeOverlay(state);
+      if (overlay === "command-palette") {
+        handleCommandPaletteMouse(state, data, tui, commandPaletteActions);
+        return { consume: true };
+      }
+      if (overlay === "tab-jump") {
+        handleTabJumpMouse(state, data, tui);
+        return { consume: true };
+      }
+    }
     if (inputTakeover) {
       editorActions?.forwardToInputComponent?.(data);
       return { consume: true };

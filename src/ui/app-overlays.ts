@@ -229,6 +229,11 @@ export function appOverlayHandlesInput(tui: OverlayTui): boolean {
   return typeof activeAppOverlays.get(tui)?.component.handleInput === "function";
 }
 
+/** Whether the tracked app overlay currently owns input focus. */
+export function appOverlayIsFocused(tui: OverlayTui): boolean {
+  return activeAppOverlays.get(tui)?.handle.isFocused() === true;
+}
+
 /** Feed a key to the live component overlay (settings / workspace / extension manager). */
 export function dispatchAppOverlayInput(tui: OverlayTui, data: string): boolean {
   const active = activeAppOverlays.get(tui);

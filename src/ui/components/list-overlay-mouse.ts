@@ -1,5 +1,6 @@
 import type { OverlayBounds } from "@earendil-works/pi-tui";
 import { parseSgrMouseInput, type SgrMouseInput } from "../../core/mouse.js";
+import { pointerHoverFor } from "../pointer-hover.js";
 
 /** Geometry shared by center list overlays (Tab Jump, Command Palette, …). */
 export interface ListOverlayPlan {
@@ -15,6 +16,11 @@ export interface ListOverlayMouseHandlers {
   plan: () => ListOverlayPlan;
   onMove: (delta: number) => void;
   onAccept: (entryIndex: number) => void;
+  /** Pointer-only coordinates; undefined clears focus without recomputing the list. */
+  onHover?: (
+    mouse: Pick<SgrMouseInput, "x" | "y"> | undefined,
+    bounds: OverlayBounds | undefined,
+  ) => void;
   reshow: () => void;
   /** Overlay open gate; when false, hit-test returns undefined. */
   isOpen?: () => boolean;
@@ -43,14 +49,46 @@ export function hitTestListOverlay(
   return plan.entryBodyLines.find((hit) => hit.bodyLine === bodyLine)?.entryIndex;
 }
 
+/** Hit-test the already rendered rows; passive motion never rebuilds a filtered list. */
+export function setListOverlayHover(
+  owner: object,
+  scope: "command-palette" | "tab-jump",
+  mouse: Pick<SgrMouseInput, "x" | "y"> | undefined,
+  bounds: OverlayBounds | undefined,
+): boolean {
+  const hover = pointerHoverFor(owner, scope);
+  if (
+    !mouse ||
+    !bounds ||
+    mouse.x <= bounds.col ||
+    mouse.x > bounds.col + bounds.width ||
+    mouse.y <= bounds.row + 1 ||
+    mouse.y >= bounds.row + bounds.height
+  )
+    return hover.clear();
+  return hover.move(mouse.x - bounds.col, mouse.y - bounds.row);
+}
+
 /**
- * Wheel moves selection; click accepts the row under the cursor.
- * Returns false when `data` is not SGR mouse (so key handlers can continue).
+ * Wheel moves selection; click accepts the row under the cursor. Passive motion
+ * updates pointer focus without selecting, accepting, or recreating the overlay.
+ * Other input clears hover. Returns false for keys so key handlers can continue.
  */
 export function handleListOverlayMouse(data: string, handlers: ListOverlayMouseHandlers): boolean {
   const mouse = parseSgrMouseInput(data);
-  if (!mouse) return false;
-  if (handlers.isOpen && !handlers.isOpen()) return true;
+  if (!mouse) {
+    handlers.onHover?.(undefined, undefined);
+    return false;
+  }
+  if (handlers.isOpen && !handlers.isOpen()) {
+    handlers.onHover?.(undefined, undefined);
+    return true;
+  }
+  if (mouse.motion && mouse.button === 3 && !mouse.release && !mouse.wheel) {
+    handlers.onHover?.(mouse, handlers.bounds());
+    return true;
+  }
+  handlers.onHover?.(undefined, undefined);
   if (mouse.wheel) {
     handlers.onMove(mouse.wheel === "up" ? -1 : 1);
     handlers.reshow();

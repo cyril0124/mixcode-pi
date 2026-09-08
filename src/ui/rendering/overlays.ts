@@ -24,6 +24,8 @@ import { joinColumns } from "./layout.js";
 import { overlayPanel, padLine } from "./primitives.js";
 import { applyToastOverlay } from "../components/toast-overlay.js";
 import { homeActionsFor } from "../home-actions.js";
+import type { ListOverlayPlan } from "../components/list-overlay-mouse.js";
+import { pointerHoverFor } from "../pointer-hover.js";
 import { halfScreenRows, windowStart } from "./scroll-window.js";
 
 /** Shared match style for dynamic fuzzy-search highlighting across overlays: bold + accent. */
@@ -578,6 +580,30 @@ function renderPackageUpdateNotice(packages: string[], width: number): string[] 
   ];
 }
 
+function renderHoveredList(
+  state: MixCodeState,
+  scope: "command-palette" | "tab-jump",
+  plan: ListOverlayPlan,
+  revision: string,
+  lines: string[],
+  width: number,
+): string[] {
+  const hover = pointerHoverFor(state, scope);
+  // Include the full filtered identity/order and query so a reused row cannot
+  // inherit focus after filtering, scrolling, selection changes, or replacement.
+  hover.layout(
+    plan.entryBodyLines.map(({ bodyLine, entryIndex }) => ({
+      id: String(entryIndex),
+      x: 1,
+      y: bodyLine + 2,
+      width,
+    })),
+    revision,
+  );
+  // Hit-testing includes side borders, so paint after the box has been built.
+  return hover.paint(lines, width, activeRenderTheme);
+}
+
 export function renderCommandPalette(
   state: MixCodeState,
   width: number,
@@ -649,7 +675,10 @@ function renderCommandPaletteInner(
   width: number,
   extensionCommands: Array<{ name: string; description?: string }> = [],
 ): string[] {
-  if (!state.commandPaletteOpen) return [];
+  if (!state.commandPaletteOpen) {
+    pointerHoverFor(state, "command-palette").reset();
+    return [];
+  }
   const plan = planCommandPaletteList(state, extensionCommands);
   const innerWidth = Math.max(1, width - 2);
 
@@ -724,7 +753,18 @@ function renderCommandPaletteInner(
   }
 
   lines.push("", activeRenderTheme.dim("  ↑↓ select  ⏎ run  esc close"));
-  return overlayPanel("Command Palette", lines, width);
+  return renderHoveredList(
+    state,
+    "command-palette",
+    plan,
+    JSON.stringify([
+      state.commandPalette.query,
+      state.commandPalette.selectedIndex,
+      plan.entries.map((entry) => entry.command),
+    ]),
+    overlayPanel("Command Palette", lines, width),
+    width,
+  );
 }
 
 export function renderTabJumpOverlay(state: MixCodeState, width: number): string[] {
@@ -786,7 +826,10 @@ export function planTabJumpList(state: MixCodeState): {
 }
 
 function renderTabJumpOverlayInner(state: MixCodeState, width: number): string[] {
-  if (!state.tabJumpOpen) return [];
+  if (!state.tabJumpOpen) {
+    pointerHoverFor(state, "tab-jump").reset();
+    return [];
+  }
   const plan = planTabJumpList(state);
   // Denominator is unfiltered total so 2/5 still means "2 of 5 tabs match".
   const totalTabs = tabJumpEntries(state).length;
@@ -826,7 +869,19 @@ function renderTabJumpOverlayInner(state: MixCodeState, width: number): string[]
     "",
     activeRenderTheme.dim("filter · ↑↓/ctrl+j/k/tab · ctrl+f non-idle · enter jump · esc cancel"),
   );
-  return overlayPanel("Tab Jump", lines, width);
+  return renderHoveredList(
+    state,
+    "tab-jump",
+    plan,
+    JSON.stringify([
+      state.tabJumpQuery,
+      state.tabJumpNonIdleOnly,
+      state.tabJumpIndex,
+      plan.entries.map((entry) => entry.id),
+    ]),
+    overlayPanel("Tab Jump", lines, width),
+    width,
+  );
 }
 
 function renderTabJumpRow(

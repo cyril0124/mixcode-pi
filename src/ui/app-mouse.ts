@@ -13,6 +13,7 @@ import {
 } from "../core/chat-selection.js";
 import { copyToClipboard as writeClipboard } from "@earendil-works/pi-coding-agent";
 import { parseSgrMouseInput, type SgrMouseInput } from "../core/mouse.js";
+import { pointerHoverFor } from "./pointer-hover.js";
 import { chatScrollbarFor } from "./chat-scrollbar.js";
 import { clearScrollFreeze } from "./rendering/agent-surface-scroll.js";
 import {
@@ -46,7 +47,7 @@ import {
   syncOwnedAppOverlay,
 } from "./app-overlays.js";
 import type { CommandPaletteActions, MixCodeKeyRuntime, OverlayTui } from "./app-types.js";
-import { handleListOverlayMouse } from "./components/list-overlay-mouse.js";
+import { handleListOverlayMouse, setListOverlayHover } from "./components/list-overlay-mouse.js";
 import {
   planCommandPaletteList,
   planTabJumpList,
@@ -280,6 +281,9 @@ export function handleTabJumpMouse(state: MixCodeState, data: string, tui: Overl
     isOpen: () => state.tabJumpOpen,
     plan: () => planTabJumpList(state),
     bounds: () => getAppOverlayBounds(tui),
+    onHover: (mouse, bounds) => {
+      if (setListOverlayHover(state, "tab-jump", mouse, bounds)) tui.requestRender();
+    },
     onMove: (delta) => moveTabJumpSelection(state, delta),
     onAccept: (entryIndex) => {
       state.tabJumpIndex = entryIndex;
@@ -303,6 +307,9 @@ export function handleCommandPaletteMouse(
     isOpen: () => state.commandPaletteOpen,
     plan: () => planCommandPaletteList(state, extensionCommands),
     bounds: () => getAppOverlayBounds(tui),
+    onHover: (mouse, bounds) => {
+      if (setListOverlayHover(state, "command-palette", mouse, bounds)) tui.requestRender();
+    },
     onMove: (delta) => moveCommandPaletteSelection(state, delta, extensionCommands),
     onAccept: (entryIndex) => {
       state.commandPalette.selectedIndex = entryIndex;
@@ -325,6 +332,65 @@ export function handleCommandPaletteMouse(
     reshow: () =>
       showLinesOverlay(tui, (width) => renderCommandPalette(state, width, extensionCommands)),
   });
+}
+
+/** Update pointer-only chrome highlights before passive motion is consumed by the host. */
+export function handleChromeHoverInput(
+  state: MixCodeState,
+  active: ActiveTab | undefined,
+  mouse: SgrMouseInput | undefined,
+  tui: OverlayTui,
+  inputTakeover = false,
+): void {
+  const tabs = pointerHoverFor(state, "tabs");
+  const meta = active ? pointerHoverFor(active, "meta") : undefined;
+  const jump = active ? pointerHoverFor(active, "jump") : undefined;
+  const notice = hasActiveNotice() ? getAppOverlayBounds(tui) : undefined;
+  const overNotice = Boolean(
+    mouse &&
+      notice &&
+      mouse.x > notice.col &&
+      mouse.x <= notice.col + notice.width &&
+      mouse.y > notice.row &&
+      mouse.y <= notice.row + notice.height,
+  );
+  const blocked =
+    inputTakeover ||
+    isOverlayActive(state) ||
+    overNotice ||
+    (hasAnyOverlay(tui) && !hasActiveNotice()) ||
+    active?.chatSelection?.dragging ||
+    active?.inputSelection?.dragging ||
+    active?.panelSelection?.dragging ||
+    (active && chatScrollbarFor(active).grabOffset !== undefined);
+  let changed = false;
+  if (!mouse?.motion || mouse.button !== 3 || mouse.wheel || blocked) {
+    changed = tabs.clear();
+    if (meta?.clear()) changed = true;
+    if (jump?.clear()) changed = true;
+  } else {
+    if (active?.zenMode && state.activeTabId !== HOME_TAB_ID) {
+      changed = tabs.clear();
+    } else {
+      changed = tabs.move(mouse.x, mouse.y - (state.tabBarTopRow ?? 1) + 1);
+    }
+    const agentSurface = active && state.activeTabId !== HOME_TAB_ID;
+    if (agentSurface) {
+      if (meta?.move(mouse.x, mouse.y)) changed = true;
+      const bounds = active.chatSurfaceBounds;
+      if (
+        bounds &&
+        active.chatJumpToLatestHitRegion &&
+        !active.extensionUi.waitingForInputs.length
+      ) {
+        if (jump?.move(mouse.x - bounds.left + 1, mouse.y - bounds.top + 1)) changed = true;
+      } else if (jump?.clear()) changed = true;
+    } else {
+      if (meta?.clear()) changed = true;
+      if (jump?.clear()) changed = true;
+    }
+  }
+  if (changed) tui.requestRender();
 }
 
 /** Scrollbar capture precedes text selection; mouse coordinates are 1-based. */

@@ -32,6 +32,7 @@ import {
   zenStatusMarkers,
 } from "./rendering.js";
 import { renderFloatingPanelOverlay } from "./components/floating-panel.js";
+import { pointerHoverFor } from "./pointer-hover.js";
 import { homeActionsFor } from "./home-actions.js";
 import { chatScrollbarFor, type ChatScrollbar } from "./chat-scrollbar.js";
 import { isOverlayActive } from "../core/overlays.js";
@@ -87,9 +88,18 @@ export class MixCodeRoot implements Component {
   ) {}
 
   private scrollbar?: ChatScrollbar;
+  private hoverOwner?: MixCodeState["tabs"][number];
+  private hoverViewport = "";
 
   dispose(): void {
     homeActionsFor(this.state).reset();
+    pointerHoverFor(this.state, "tabs").reset();
+    pointerHoverFor(this.state, "command-palette").reset();
+    pointerHoverFor(this.state, "tab-jump").reset();
+    if (this.hoverOwner) {
+      pointerHoverFor(this.hoverOwner, "meta").reset();
+      pointerHoverFor(this.hoverOwner, "jump").reset();
+    }
     this.scrollbar?.reset();
     this.scrollbar = undefined;
   }
@@ -98,6 +108,27 @@ export class MixCodeRoot implements Component {
 
   render(width: number): string[] {
     const active = getActiveTab(this.state);
+    const hoverViewport = `${this.state.activeTabId}:${width}:${this.getViewportRows?.()}`;
+    if (hoverViewport !== this.hoverViewport) {
+      pointerHoverFor(this.state, "command-palette").clear();
+      pointerHoverFor(this.state, "tab-jump").clear();
+    }
+    if (!this.state.commandPaletteOpen) pointerHoverFor(this.state, "command-palette").reset();
+    if (!this.state.tabJumpOpen) pointerHoverFor(this.state, "tab-jump").reset();
+    if (
+      hoverViewport !== this.hoverViewport ||
+      isOverlayActive(this.state) ||
+      this.hasInputComponent() ||
+      (this.tui && hasAnyOverlay(this.tui) && !hasActiveNotice())
+    ) {
+      pointerHoverFor(this.state, "tabs").clear();
+      if (this.hoverOwner) {
+        pointerHoverFor(this.hoverOwner, "meta").clear();
+        pointerHoverFor(this.hoverOwner, "jump").clear();
+      }
+    }
+    this.hoverOwner = active;
+    this.hoverViewport = hoverViewport;
     if (
       this.state.activeTabId !== HOME_TAB_ID ||
       isOverlayActive(this.state) ||

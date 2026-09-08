@@ -49,6 +49,14 @@ MixCode computes exact hit regions (`MouseHitRegion`) during frame rendering to 
 | Chat Scrollbar Rail & Thumb | Jumps or drags the conversation viewport directly. |
 | Jump to latest | Returns the active chat to its end and resumes automatic following. |
 
+### Hover feedback
+
+Tab chips, model/thinking/workdir badges, Command Palette rows, Tab Jump rows, and Jump to latest show a background highlight and underline on hover. The current theme supplies the colors. Foreground colors and keyboard-selection markers remain visible; the underline distinguishes hover from selection in monochrome themes. Home buttons use their primary/secondary hover and press styles, and the scrollbar thickens its hovered thumb.
+
+`src/ui/pointer-hover.ts` stores hover state in memory and paints the clickable cells. Renderers share click geometry with hover handling, including wrapped tabs, the compact Home anchor, narrow metadata, and clipped lists. Hover leaves the active tab, selected list index, editor draft, and scroll position unchanged. Geometry changes, tab switches, keyboard input, and input takeovers clear stale highlights. Modal overlays and text/scrollbar drags block hover on underlying controls. A non-capturing Notice blocks only its own rectangle.
+
+Entering or leaving a target requests a repaint. Pointer handling checks rendered targets without file I/O, timers, or conversation scans. Non-clickable labels, counters, overflow markers, keyboard-only picker rows, and text-selection areas keep their normal appearance. Extensions and terminal-native links handle their own pointer feedback.
+
 ### Home Actions
 
 Home buttons use SGR pointer input routed by `src/ui/app-input.ts`, with rendering and hit geometry owned together by `src/ui/home-actions.ts`. Hover changes emphasis; primary-button press changes the fill. Releasing inside the same button executes once. Leaving the button while pressed cancels the action, even if the pointer returns before release. Secondary clicks, wheel events, and releases without a press do not execute actions. Modal overlays, editor takeovers, autocomplete, viewport changes, tab changes, and teardown clear capture; overlays cannot be clicked through.
@@ -69,7 +77,7 @@ Clicking the track centers the thumb at the pointer, clamped at either end. Pres
 
 The chat reserves a one-column gutter, keeping the scrollbar out of text and selection coordinates. Long transcripts retain windowed rendering and estimated total heights. Third-party Pi themes use `scrollbarTrack` and `scrollbarThumb`; built-in MixCode themes use their muted and text foregrounds. Scrollbar interaction state lives in `src/ui/chat-scrollbar.ts`; geometry and cell painting use exported Pi helpers from the `pi-tui` patch.
 
-`src/ui/terminal.ts` enables all-motion tracking (`1003`) with SGR coordinates (`1006`) and disables it on stop or input drain. Passive pointer movement outside the chat track and Home buttons does not trigger a MixCode repaint or alter keyboard chords; leaving a highlighted target repaints once to clear its highlight. Side-panel scrolling remains independent.
+`src/ui/terminal.ts` enables all-motion tracking (`1003`) with SGR coordinates (`1006`) and disables it on stop or input drain. Passive pointer movement inside the same target or outside all interactive targets does not trigger a MixCode repaint or alter keyboard chords; entering or leaving a highlighted target repaints once. Side-panel scrolling remains independent.
 
 ## 2. Interactive Overlay Clicking & Scrolling
 
@@ -77,7 +85,8 @@ Modal overlays support direct mouse navigation:
 
 - **Command Palette (`Ctrl+P`)**: Click a command row to run it.
 - **Tab Jump (`Ctrl+T`)**: Click any tab row to switch directly.
-- **Model / Workdir Pickers**: Click any entry to select; scroll wheel scrolls through candidate lists.
+
+These two lists highlight hovered rows independently of the keyboard selection. Model/thinking/workdir pickers, workspace management, settings, extension management, session selectors, and tree selectors currently use keyboard navigation; their labels and rows are not host mouse targets.
 
 ## 3. Mouse Wheel Scrolling
 

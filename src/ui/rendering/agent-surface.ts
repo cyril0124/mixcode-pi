@@ -1,4 +1,5 @@
 import { compositeTuiLine, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { pointerHoverFor } from "../pointer-hover.js";
 import { chatScrollbarFor } from "../chat-scrollbar.js";
 import type { ChatLine, RuntimeTab } from "../../agent/runtime.js";
 import {
@@ -732,7 +733,11 @@ function appendChatScrollbar(
   const lines = chatScrollbarFor(tab).render(result, width, activeRenderTheme, hasNewContent);
   const showJump =
     width > 1 && (result.end < result.total || tab.chatScrollAnchorEntryId !== undefined);
-  if (!showJump || lines.length === 0) return lines;
+  const hover = pointerHoverFor(tab, "jump");
+  if (!showJump || lines.length === 0) {
+    hover.reset();
+    return lines;
+  }
 
   // The label overlays only its own cells, after selection capture and scrollbar paint.
   const contentWidth = width - 1;
@@ -752,7 +757,10 @@ function appendChatScrollbar(
   if (composed !== line && labelWidth > 0) {
     tab.chatJumpToLatestHitRegion = { row, column, width: labelWidth };
     lines[row] = composed;
+    hover.layout([{ id: "jump", x: column + 1, y: row + 1, width: labelWidth }]);
+    return hover.paint(lines, width, activeRenderTheme);
   }
+  hover.reset();
   return lines;
 }
 

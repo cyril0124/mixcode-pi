@@ -10,6 +10,7 @@ import {
   workingActivityMessage,
 } from "../../core/tab-state.js";
 import { HOME_TAB_ID, type MixCodeState, type MixCodeTabInfo } from "../../core/types.js";
+import { pointerHoverFor } from "../pointer-hover.js";
 import { buildLabeledTopBorder } from "../components/editor-top-border.js";
 import type { MixCodeTheme } from "../themes.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
@@ -63,7 +64,16 @@ export function renderTabBar(
   return renderWithTheme(theme, () => {
     const layout = visibleTabBarLayout(state, width, maxRows);
     const { rows, hiddenLeftAgents, hiddenRight, indent, homePin, homeSegment } = layout;
-    return rows.map((row, rowIndex) => {
+    const hover = pointerHoverFor(state, "tabs");
+    hover.layout(
+      tabBarLayoutHitRegions(layout).map((region) => ({
+        id: region.id,
+        x: region.startX,
+        y: (region.row ?? 0) + 1,
+        width: region.endX - region.startX + 1,
+      })),
+    );
+    const lines = rows.map((row, rowIndex) => {
       const prefix = rowIndex === 0 ? "" : " ".repeat(indent);
       const tabsText = row.map((segment) => segment.text).join(" ");
       const isFirst = rowIndex === 0;
@@ -89,6 +99,7 @@ export function renderTabBar(
         width,
       );
     });
+    return hover.paint(lines, width, activeRenderTheme);
   });
 }
 
@@ -258,11 +269,11 @@ export function tabBarHitRegions(
   width = Number.POSITIVE_INFINITY,
   maxRows?: number,
 ): MouseHitRegion[] {
-  const { rows, hiddenLeftAgents, indent, homePin, homeSegment } = visibleTabBarLayout(
-    state,
-    width,
-    maxRows,
-  );
+  return tabBarLayoutHitRegions(visibleTabBarLayout(state, width, maxRows));
+}
+
+function tabBarLayoutHitRegions(layout: TabBarLayout): MouseHitRegion[] {
+  const { rows, hiddenLeftAgents, indent, homePin, homeSegment } = layout;
   const regions: MouseHitRegion[] = [];
   rows.forEach((row, rowIndex) => {
     let cursor = rowIndex === 0 ? 1 : indent + 1;
@@ -766,7 +777,10 @@ function renderInputMetaInner(
   // Extension footers already paint cwd/model/context/git/status — collapse meta
   // so the two layers do not stack duplicate fields.
   if (tab.extensionUi.footer) {
-    if (updateHitRegions) tab.inputMetaHitRegions = [];
+    if (updateHitRegions) {
+      tab.inputMetaHitRegions = [];
+      pointerHoverFor(tab, "meta").reset();
+    }
     return [];
   }
   const model = process.env.MIXCODE_DISPLAY_MODEL?.trim() || tab.model.displayName || "-";
@@ -812,7 +826,17 @@ function renderInputMetaInner(
   // (e.g. pi-subagents) so its row is reclaimed by the chat surface.
   const extLine = tab.vimMode ? undefined : buildExtensionStatusLine(tab, Math.max(0, width - 1));
   if (extLine) lines.push(extLine);
-  return lines;
+  if (!updateHitRegions) return lines;
+  const hover = pointerHoverFor(tab, "meta");
+  hover.layout(
+    tab.inputMetaHitRegions!.map((region) => ({
+      id: region.action,
+      x: region.startX,
+      y: region.row,
+      width: region.endX - region.startX + 1,
+    })),
+  );
+  return hover.paint(lines, lineWidth, activeRenderTheme, row - 1);
 }
 
 // Progressive model-name degradation for narrow rows: render the richest
