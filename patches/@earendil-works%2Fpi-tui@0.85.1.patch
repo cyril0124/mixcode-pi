@@ -1,5 +1,5 @@
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index 1460dd1..50b697f 100644
+index 1460dd1160f1d8ccf9abf201844f7d9f01bc0fde..50b697f7b8597f0e54d3ccc35d3a368b897f792c 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
 @@ -20,6 +20,7 @@ export type { EditorComponent } from "./editor-component.ts";
@@ -19,7 +19,7 @@ index 1460dd1..50b697f 100644
  //# sourceMappingURL=index.d.ts.map
 \ No newline at end of file
 diff --git a/dist/index.js b/dist/index.js
-index 2a039ac..6a5fd40 100644
+index 2a039acd70bda559eb9397a5b6d1c1e533a4e634..6a5fd40878188edab7f5a170e38e84407b98c4f6 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -25,6 +25,7 @@ export { fuzzyFilter, fuzzyMatch } from "./fuzzy.js";
@@ -39,7 +39,7 @@ index 2a039ac..6a5fd40 100644
  //# sourceMappingURL=index.js.map
 \ No newline at end of file
 diff --git a/dist/keybindings.js b/dist/keybindings.js
-index aac8bf7..72ad558 100644
+index aac8bf7598bd205e6ee5733c78e0ff5fd507341c..72ad558072abbeebae00f91172ab1f3e35440007 100644
 --- a/dist/keybindings.js
 +++ b/dist/keybindings.js
 @@ -220,13 +220,18 @@ export class KeybindingsManager {
@@ -64,7 +64,7 @@ index aac8bf7..72ad558 100644
      return globalKeybindings;
  }
 diff --git a/dist/keys.js b/dist/keys.js
-index 46faf59..134345c 100644
+index 46faf595f6b007838c42fabfe2689aeb8ac7433c..134345c4d9ade944b73dd8d617cfae542eee280a 100644
 --- a/dist/keys.js
 +++ b/dist/keys.js
 @@ -20,18 +20,27 @@
@@ -113,7 +113,7 @@ index 46faf59..134345c 100644
      if (kitty) {
          return formatParsedKey(kitty.codepoint, kitty.modifier, kitty.baseLayoutKey);
 diff --git a/dist/layout.d.ts b/dist/layout.d.ts
-index 92b4829..38fe9b7 100644
+index 92b48297a2a60b14201401a26b52cb7b196a82ea..38fe9b73b8ef653ec08e609fc097a0883dd8004f 100644
 --- a/dist/layout.d.ts
 +++ b/dist/layout.d.ts
 @@ -33,6 +33,24 @@ export interface ScrollbarGeometry {
@@ -142,7 +142,7 @@ index 92b4829..38fe9b7 100644
  export declare function renderLayoutFrame(root: Component, width: number, height: number, requestRender: () => void): LayoutFrame;
  /** Return the visual hit path from the deepest component to the layout root. */
 diff --git a/dist/layout.js b/dist/layout.js
-index 99485d8..63ef8b1 100644
+index 99485d8881b299a8a2e5dff990515ae132836daf..63ef8b10b34ab8b467ba4e6a573172fd9c80cb6b 100644
 --- a/dist/layout.js
 +++ b/dist/layout.js
 @@ -156,7 +156,7 @@ function layoutComponent(context, component, x, y, width, height, clip) {
@@ -194,8 +194,61 @@ index 99485d8..63ef8b1 100644
      }
  }
  function paintBox(box, screen, totalWidth) {
+diff --git a/dist/tui-alt-screen.d.ts b/dist/tui-alt-screen.d.ts
+index 4cc739e48496a2c0c05979b12443d383ea1b962d..1485408acfe9678c18d14b90b335c32c1af71b8e 100644
+--- a/dist/tui-alt-screen.d.ts
++++ b/dist/tui-alt-screen.d.ts
+@@ -3,8 +3,14 @@ import { type Component, TuiBase, type TuiStopOptions, VIEWPORT_TUI, type Viewpo
+ export interface TuiAltScreenOptions {
+     /** Number of logical lines moved for each mouse-wheel event. */
+     wheelScrollLines?: number;
+-    /** Capture mouse events for viewport scrolling and application-owned text selection. */
++    /** Enable terminal mouse reporting for the fullscreen viewport (default: true). */
+     mouse?: boolean;
++    /**
++     * Enable built-in viewport mouse and keyboard handling (default: true).
++     * Disable when a host owns scrolling and selection. Input listeners and
++     * focused components continue to receive input through TuiBase.
++     */
++    viewportInput?: boolean;
+     /** Style a non-current transcript search match. */
+     searchMatchStyle?: (text: string) => string;
+     /** Style the current transcript search match. */
+diff --git a/dist/tui-alt-screen.js b/dist/tui-alt-screen.js
+index 08dc17e0c44140a5ee5ca7ceac0cd58824e63435..a8d3f0a2ead37c0e8cddc37c7c0c3b47b3ef2f44 100644
+--- a/dist/tui-alt-screen.js
++++ b/dist/tui-alt-screen.js
+@@ -19,6 +19,7 @@ const FOCUS_IN = "\x1b[I";
+ const FOCUS_OUT = "\x1b[O";
+ const BEGIN_SYNCHRONIZED_OUTPUT = "\x1b[?2026h";
+ const END_SYNCHRONIZED_OUTPUT = "\x1b[?2026l";
++const RESET_VIEWPORT = "\x1b[?6l\x1b[r";
+ const OSC133_ZONE_PREFIX = /^(?:\x1b\]133;[ABC](?:\x07|\x1b\\))+/;
+ const OSC133_PROMPT_START = /^\x1b\]133;A(?:\x07|\x1b\\)/;
+ const PAGE_SCROLL_OVERLAP = 4;
+@@ -100,7 +101,9 @@ export class TuiAltScreen extends TuiBase {
+         this.onRightClickPaste = options.onRightClickPaste;
+         this.copyOnSelect = options.copyOnSelect ?? true;
+         this.copySelection = options.copySelection;
+-        this.addInputListener((data) => this.handleViewportInput(data));
++        if (options.viewportInput !== false) {
++            this.addInputListener((data) => this.handleViewportInput(data));
++        }
+     }
+     get viewportTop() {
+         return this.getPrimaryScrollView().scrollTop;
+@@ -1454,7 +1457,8 @@ export class TuiAltScreen extends TuiBase {
+         const preparedKittyScreen = redrawImages && this.imageProtocol === "kitty"
+             ? this.prepareKittyScreen(screen)
+             : { lines: screen, evictedImageDeletion: "" };
+-        let buffer = BEGIN_SYNCHRONIZED_OUTPUT;
++        // Absolute row addresses require a full-screen origin and scrolling region.
++        let buffer = BEGIN_SYNCHRONIZED_OUTPUT + RESET_VIEWPORT;
+         if (fullRedraw) {
+             this.fullRedrawCount += 1;
+             const clearImages = this.imageProtocol === "kitty" && hadUploadedKittyImages
 diff --git a/dist/tui.js b/dist/tui.js
-index 887f5e8..61d9bab 100644
+index 887f5e8bd3c3ba9b467f9f6c6b5eb4af8a63f7f3..61d9bab9cd3e7a77036763e09e0f80385dc23702 100644
 --- a/dist/tui.js
 +++ b/dist/tui.js
 @@ -536,6 +536,13 @@ export class TuiBase extends Container {

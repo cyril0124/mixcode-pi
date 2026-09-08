@@ -99,6 +99,12 @@ Layout does not change agent selection, message submission, or draft ownership. 
 
 ## Ownership Boundaries
 
+`createMixCodeTui()` in `src/ui/app.ts` uses Pi's `TuiMainScreen` for the `iterm2` image protocol and `TuiAltScreen` otherwise. The fullscreen path renders the fixed application frame in the terminal's alternate screen, positioning each changed row with absolute coordinates inside synchronized output. Pi owns line diffing, overlays, image placement, cursor placement, and screen restoration on `stop({ preserveScreen: true })`.
+
+MixCode owns chat virtualization and input routing. The fullscreen path uses the Pi patch option `viewportInput: false` to leave scrolling and selection with the host, and `mouse: false` leaves mouse reporting with `MouseReportingTerminal`. The fullscreen painter restores a full-screen origin and scrolling region before writing a frame.
+
+Renderer handoffs are reversible: `start()` restores the redraw/title bindings and stdout protection removed by `stop()`. `pause()/resume()` preserve these resources while temporarily releasing the terminal.
+
 ```text
 ┌─ Ownership split ────────────────────────────────────────────────────────────────────────────────┐
 │  FROM pi-tui (reuse, do not reimplement)     MIXCODE-LOCAL (owned here)                          │

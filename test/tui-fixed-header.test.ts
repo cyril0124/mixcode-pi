@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { visibleWidth, type Terminal } from "@earendil-works/pi-tui";
+import {
+  getCapabilities,
+  renderImage,
+  setCapabilities,
+  visibleWidth,
+  type Terminal,
+} from "@earendil-works/pi-tui";
 import {
   bindRuntimeRendering,
   bindWorkingRedraw,
@@ -756,6 +762,55 @@ test("createMixCodeTui binds working redraw for Home Agent View spinners", async
   assert.equal(renders, rendersAfterStop);
 });
 
+test("iTerm2 image components remain visible across renderer handoffs", () => {
+  const previous = getCapabilities();
+  const state = createInitialState("/repo");
+  const runtime = {
+    getTab: () => undefined,
+    onChange: () => () => undefined,
+    getAllExtensionCommands: () => [],
+    getPromptHistory: () => [],
+    setExtensionUiHost: () => undefined,
+    getExtensionCommands: () => [],
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    appendSystemMessage: () => undefined,
+    getSharedModelRuntime: () => undefined,
+  } as unknown as MixCodeRuntime;
+  let writes = "";
+  const terminal = silentTerminal();
+  terminal.write = (data) => {
+    writes += data;
+  };
+  setCapabilities({ images: "iterm2", trueColor: true, hyperlinks: true });
+  const tui = createMixCodeTui(state, runtime, { terminal });
+  tui.addChild({
+    render: () => {
+      const image = renderImage(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+        { widthPx: 1, heightPx: 1 },
+      );
+      return [image?.sequence ?? "image unavailable"];
+    },
+    invalidate: () => undefined,
+  });
+  try {
+    tui.start();
+    assert.match(writes, /\x1b\]1337;File=/, "initial paint must emit the image");
+    tui.pause();
+    writes = "";
+    tui.resume();
+    assert.match(writes, /\x1b\]1337;File=/, "resuming must emit the image");
+    tui.stop({ preserveScreen: true });
+    writes = "";
+    tui.start();
+    assert.match(writes, /\x1b\]1337;File=/, "restarting must emit the image");
+  } finally {
+    tui.stop({ preserveScreen: true });
+    setCapabilities(previous);
+  }
+});
+
 test("differential renders do not force full redraws after the first paint", async () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"));
@@ -800,15 +855,18 @@ test("differential renders do not force full redraws after the first paint", asy
   } as unknown as MixCodeRuntime;
   const tui = createMixCodeTui(state, runtime, { terminal });
 
-  tui.requestRender(true);
-  await new Promise((resolve) => process.nextTick(resolve));
-  assert.equal(tui.fullRedraws, 1);
-  const before = writes.length;
-  tui.requestRender();
-  await Bun.sleep(25);
+  tui.start();
+  try {
+    assert.equal(tui.fullRedraws, 1);
+    const before = writes.length;
+    tui.requestRender();
+    await Bun.sleep(25);
 
-  assert.equal(tui.fullRedraws, 1);
-  assert.equal(writes.slice(before).includes("\x1b[2J"), false);
+    assert.equal(tui.fullRedraws, 1);
+    assert.equal(writes.slice(before).includes("\x1b[2J"), false);
+  } finally {
+    tui.stop({ preserveScreen: true });
+  }
 });
 
 test("working indicator is driven by the Pi TUI loader animation", async () => {

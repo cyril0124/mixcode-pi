@@ -101,6 +101,12 @@ Home 使用当前主题的语义颜色。`src/ui/home-actions.ts` 在列表标�
 
 ## 所有权边界
 
+`src/ui/app.ts` 中的 `createMixCodeTui()` 在图片协议为 `iterm2` 时使用 Pi 的 `TuiMainScreen`，其余情况使用 `TuiAltScreen`。全屏路径在终端备用屏幕中绘制固定应用画面，在同步输出块内用绝对坐标定位每个变化的行。行差分、浮层合成、图片与光标定位，以及 `stop({ preserveScreen: true })` 时的原屏幕恢复，均由 Pi 负责。
+
+MixCode 管理聊天窗口化渲染和输入路由。全屏路径使用 Pi 补丁的 `viewportInput: false` 选项，将滚动与选区操作交给宿主；`mouse: false` 则让 `MouseReportingTerminal` 管理鼠标报告。全屏绘制器在写入每帧前恢复屏幕原点与完整滚动范围。
+
+渲染器接管可恢复：`start()` 会重新安装 `stop()` 移除的绘制/标题监听与 stdout 保护。`pause()/resume()` 临时释放终端时保留这些资源。
+
 ```text
 ┌─ Ownership split ────────────────────────────────────────────────────────────────────────────────┐
 │  FROM pi-tui (reuse, do not reimplement)     MIXCODE-LOCAL (owned here)                          │

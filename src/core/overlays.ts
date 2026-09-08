@@ -16,8 +16,16 @@ import { tabIsNonIdle, tabIsWaitingForInput } from "./tab-state.js";
 import { clearScrollFreeze } from "../ui/rendering/agent-surface-scroll.js";
 
 export function scrollChat(tab: MixCodeTabInfo, delta: number): boolean {
-  // Stick-to-bottom (offset 0) must not resurrect a freeze from an earlier turn.
-  if (tab.chatScrollOffset === 0 && delta > 0) clearScrollFreeze(tab);
+  // Keep the painted tail anchor: a drag can start before the next paint.
+  // Discard a scrolled anchor only when returning to the tail is still pending.
+  if (
+    tab.chatScrollOffset === 0 &&
+    delta > 0 &&
+    !tab.chatSelection?.dragging &&
+    tab.lastRenderedChatScrollOffset !== 0
+  ) {
+    clearScrollFreeze(tab);
+  }
   if (tab.chatScrollAnchorEntryId) {
     tab.chatScrollOffset = Math.min(1_000_000, Math.max(-1_000_000, tab.chatScrollOffset + delta));
     return true;

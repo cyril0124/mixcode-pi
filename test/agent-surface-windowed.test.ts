@@ -17,7 +17,15 @@ import {
   type MixCodeTabInfo,
 } from "./helpers/mixcode.js";
 import { renderAgentSurface } from "../src/ui/rendering/agent-surface.js";
+import { syncAssistantBlocks } from "../src/agent/runtime-events.js";
+import { testRuntimeTab } from "./helpers/runtime-tab.js";
 import { renderConversation } from "../src/ui/rendering/chat.js";
+import type { AssistantMessage } from "@earendil-works/pi-ai";
+import {
+  selectedScrollableChatText,
+  startScrollableChatSelection,
+  toScrollableChatSelectionPoint,
+} from "../src/core/chat-selection.js";
 
 const WIDTH = 100;
 const HEIGHT = 20;
@@ -452,12 +460,12 @@ test("tool completion and agent-end notices do not shift a frozen history anchor
   assert.equal(after[anchorRow], anchor);
 });
 
-test("scrolling up past the streaming markdown limit does not snap on the next frame", () => {
+test("scrolling up in a long streaming message stays fixed on the next frame", () => {
   const streamingLines = Array.from(
     { length: 200 },
     (_, index) => `STREAM-LINE-${String(index).padStart(4, "0")} ${"content ".repeat(8)}`,
   );
-  // 120 rendered lines ≈ 8.6k chars: past STREAMING_MARKDOWN_CHAR_LIMIT at PageUp.
+  // The active block spans many viewports and continues growing after PageUp.
   const chat: ChatLine[] = [
     ...buildLongChat(24),
     { role: "assistant", text: streamingLines.slice(0, 120).join("\n") },
@@ -482,8 +490,7 @@ test("scrolling up past the streaming markdown limit does not snap on the next f
 
   assert.ok(anchor, "expected the PageUp viewport inside the streaming message");
 
-  // Next frame: the freeze disables tail truncation, so the block re-renders in
-  // full. The anchor line must not move.
+  // A new runtime projection retains the same visible history line.
   chat[streamingIndex] = { role: "assistant", text: streamingLines.slice(0, 130).join("\n") };
   const after = renderAgentSurface(tab, runtimeTab as never, WIDTH, HEIGHT).map(stripAnsi);
 
@@ -534,6 +541,96 @@ test("windowed renderer stays stable when user scrolls in the same frame as grow
     "scroll offset must grow to absorb appended content after a same-frame user scroll",
   );
 });
+
+for (const appendedBlock of [false, true]) {
+  test(`replacing a streaming anchor keeps historical tool renderers outside the viewport idle, ${appendedBlock ? "appending a block" : "growing a block"}`, () => {
+    let historicalRenders = 0;
+    const chat: ChatLine[] = Array.from({ length: 100 }, (_, index) => ({
+      role: "tool",
+      title: "historical",
+      toolCallId: `history-${index}`,
+      status: "success",
+      text: "",
+      renderToolCall: () => {
+        historicalRenders++;
+        return [`history-${index}`];
+      },
+    }));
+    const text = Array.from({ length: 100 }, (_, index) => `ROW-${index}`).join("\n");
+    chat.push({ role: "assistant", text });
+    const tab = createTab(50, "replaced-stream-anchor", "/repo", {
+      status: "running",
+      chatScrollOffset: 10,
+    });
+    const runtimeTab = testRuntimeTab({
+      tab,
+      chat,
+      streamingAssistant: {
+        chatIndex: 100,
+        blockIndices: new Map([[0, 100]]),
+        toolCallIndices: new Map(),
+      },
+    });
+    renderAgentSurface(tab, runtimeTab, WIDTH, HEIGHT);
+    tab.chatSelection = {
+      anchor: { row: 8, col: 30 },
+      focus: { row: 2, col: 0 },
+      dragging: true,
+    };
+    startScrollableChatSelection(
+      tab.chatSelection,
+      tab.lastRenderedChatLines!,
+      tab.chatScrollOffset,
+    );
+    tab.chatSelection.focus = toScrollableChatSelectionPoint(
+      tab.chatSelection,
+      tab.chatSelection.focus,
+      tab.lastRenderedChatLines!,
+      tab.chatScrollOffset,
+    );
+    const selectedBefore = selectedScrollableChatText(
+      tab.lastRenderedChatLines!,
+      tab.chatSelection,
+    );
+    const before = tab.lastRenderedChatLines!.map(stripAnsi);
+    assert.equal(historicalRenders, 0);
+
+    const message: AssistantMessage = {
+      role: "assistant",
+      content: appendedBlock
+        ? [
+            { type: "text", text },
+            {
+              type: "text",
+              text: Array.from({ length: 200 }, (_, index) => `NEW-${index}`).join("\n"),
+            },
+          ]
+        : [{ type: "text", text: `${text}\nADDED` }],
+      api: "openai-completions",
+      provider: "test",
+      model: "test",
+      usage: {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: 0,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      },
+      stopReason: "stop",
+      timestamp: 0,
+    };
+    syncAssistantBlocks(runtimeTab, message, runtimeTab.streamingAssistant);
+    renderAgentSurface(tab, runtimeTab, WIDTH, HEIGHT);
+
+    assert.equal(historicalRenders, 0, "an obsolete anchor must not materialize all history");
+    assert.deepEqual(tab.lastRenderedChatLines!.map(stripAnsi), before);
+    assert.equal(
+      selectedScrollableChatText(tab.lastRenderedChatLines!, tab.chatSelection),
+      selectedBefore,
+    );
+  });
+}
 
 test("running chats with historical tool renderers still use windowed rendering", () => {
   let rendered = 0;

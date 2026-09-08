@@ -31,6 +31,8 @@ export interface NormalizedChatSelection {
 interface ScrollableChatSelectionSource {
   originOffset: number;
   lines: Map<number, string>;
+  /** Last pointer position in viewport cells, before skipping boundary markers. */
+  viewportFocus?: ChatSelectionPoint;
 }
 
 const scrollableChatSelections = new WeakMap<ChatSelectionState, ScrollableChatSelectionSource>();
@@ -69,6 +71,16 @@ export function startScrollableChatSelection(
   captureScrollableChatSelection(selection, lines, scrollOffset);
 }
 
+/** Adjust the origin for layout compensation. offsetDelta excludes user scrolling. */
+export function rebaseScrollableChatSelection(
+  selection: ChatSelectionState | undefined,
+  offsetDelta: number,
+): void {
+  const source = selection && scrollableChatSelections.get(selection);
+  if (source) source.originOffset += offsetDelta;
+}
+
+/** Cache the rendered rows and update the endpoint of an active drag. */
 export function captureScrollableChatSelection(
   selection: ChatSelectionState,
   lines: string[],
@@ -81,8 +93,16 @@ export function captureScrollableChatSelection(
     const line = lines[row] ?? "";
     if (!isChatScrollMarker(line)) source.lines.set(firstRow + row, line);
   }
+  // Resolve the pointer against the new frame, including a disappearing top marker.
+  if (selection.dragging && source.viewportFocus) {
+    selection.focus = {
+      row: selectableChatRow(lines, source.viewportFocus.row) + firstRow,
+      col: source.viewportFocus.col,
+    };
+  }
 }
 
+/** Map the pointer in the displayed frame and remember its viewport position. */
 export function toScrollableChatSelectionPoint(
   selection: ChatSelectionState,
   point: ChatSelectionPoint,
@@ -91,6 +111,7 @@ export function toScrollableChatSelectionPoint(
 ): ChatSelectionPoint {
   const source = scrollableChatSelections.get(selection);
   if (!source) return point;
+  source.viewportFocus = point;
   const row = selectableChatRow(lines, point.row);
   return { row: row + source.originOffset - scrollOffset, col: point.col };
 }

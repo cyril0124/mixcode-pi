@@ -1,8 +1,7 @@
 import type { RuntimeTab } from "../../agent/runtime.js";
 import type { OversizedAssistantMessageSettings } from "../../core/mixcode-settings.js";
 import type { MermaidRenderingMode } from "../../core/types.js";
-import { isScrollFrozen } from "./agent-surface-scroll.js";
-import { STREAMING_MARKDOWN_CHAR_LIMIT, type RenderChatBlockOptions } from "./chat.js";
+import type { RenderChatBlockOptions } from "./chat.js";
 
 export interface AgentSurfaceRenderOptions {
   oversizedAssistantMessage?: OversizedAssistantMessageSettings;
@@ -44,18 +43,13 @@ export function chatBlockRenderOptions(
 
   const streaming = runtimeTab?.streamingAssistant;
   const line = runtimeTab?.chat[chatIndex];
-  if (
-    streaming &&
-    runtimeTab &&
-    !isScrollFrozen(runtimeTab.tab) &&
-    (line?.role === "assistant" || line?.role === "thinking")
-  ) {
+  if (streaming && runtimeTab && (line?.role === "assistant" || line?.role === "thinking")) {
     if (streaming.chatIndex === chatIndex) {
-      result.streamingMarkdownCharLimit = STREAMING_MARKDOWN_CHAR_LIMIT;
+      result.isStreaming = true;
     } else {
       for (const index of streaming.blockIndices.values()) {
         if (index === chatIndex) {
-          result.streamingMarkdownCharLimit = STREAMING_MARKDOWN_CHAR_LIMIT;
+          result.isStreaming = true;
           break;
         }
       }
@@ -63,7 +57,7 @@ export function chatBlockRenderOptions(
   }
 
   return result.oversizedAssistantMessage ||
-    result.streamingMarkdownCharLimit !== undefined ||
+    result.isStreaming ||
     result.hideThinking ||
     result.mermaidRenderingMode ||
     result.showImages === false ||

@@ -1,8 +1,11 @@
 import type { SettingsManager } from "@earendil-works/pi-coding-agent";
 import {
+  getCapabilities,
   isKeyRelease,
   ProcessTerminal,
+  TuiAltScreen,
   TuiMainScreen,
+  type Terminal,
   type TUI as TuiType,
 } from "@earendil-works/pi-tui";
 import type { ExtensionCustomUiHost, MixCodeRuntime } from "../agent/runtime.js";
@@ -75,7 +78,7 @@ export interface MixCodeTuiOptions {
   completionSources?: MixCodeCompletionSources;
   onStateChanged?: (state: MixCodeState) => void | Promise<void>;
   workspaceFile?: string;
-  terminal?: ConstructorParameters<typeof TuiMainScreen>[0];
+  terminal?: Terminal;
   exitProcessOnQuit?: boolean;
   rootStateDir?: string;
   /** Required to enable the /settings overlay panel. */
@@ -103,7 +106,13 @@ export function createMixCodeTui(
   const injecting = new InjectingTerminal(
     withHostStdoutGuard(withMouseReporting(options.terminal ?? new ProcessTerminal())),
   );
-  const tui = new TuiMainScreen(injecting) as unknown as MixCodeTui;
+  // Keep iTerm2 images on the upstream renderer that supports them.
+  const tui = (getCapabilities().images === "iterm2"
+    ? new TuiMainScreen(injecting)
+    : new TuiAltScreen(injecting, undefined, undefined, {
+        mouse: false,
+        viewportInput: false,
+      })) as unknown as MixCodeTui;
   tui.injectInput = (data) => injecting.inject(data);
   // settings.json showHardwareCursor / terminal.clearOnShrink.
   const settingsManager = options.settingsDeps?.settingsManager;
@@ -124,30 +133,32 @@ export function createMixCodeTui(
   );
   // Strip only: extension clears never hit the wire, so the previous frame is still
   // valid. Do not requestRender/clearScreen on block — that reintroduces the flash.
-  const uninstallStdoutGuard = installStdoutScreenGuard({});
+  let uninstallStdoutGuard: (() => void) | undefined = installStdoutScreenGuard({});
   (tui as TuiType & { mixCodeExitProcessOnQuit?: boolean }).mixCodeExitProcessOnQuit =
     options.exitProcessOnQuit === true;
   bindRuntimeRendering(runtime, tui, state, options.onStateChanged);
-  const stopWorkingRedraw = bindWorkingRedraw(state, tui);
-  const stopLoadingRedraw = bindLoadingRedraw(state, tui);
-  const stopTerminalProgress = bindTerminalProgress(
-    state,
-    tui.terminal,
-    () => settingsManager?.getShowTerminalProgress() === true,
-  );
-  // Extension ctx.ui.setTitle owns the terminal title per tab: the active tab
-  // writes immediately (runtime ui context); stored titles re-apply on switch.
-  // Tabs without a title leave the current title untouched (Pi: persists until
-  // overwritten).
-  const stopExtensionTitleSync = onActiveTabChange((tabId) => {
-    main.dispose();
-    const title = state.tabs.find((tab) => tab.sessionId === tabId)?.extensionUi.title;
-    if (title !== undefined) tui.terminal.setTitle(title);
-    syncOwnedAppOverlay(state, tui);
-    presentSettingsPanel(state, tui);
-  });
-  const stopLiveExtensionRedraw = bindLiveExtensionRedraw(state, tui);
-  const stopActiveTabShimmerRedraw = bindActiveTabShimmerRedraw(state, tui);
+  function bindUiEvents(): Array<() => void> {
+    return [
+      bindWorkingRedraw(state, tui),
+      bindLoadingRedraw(state, tui),
+      bindTerminalProgress(
+        state,
+        tui.terminal,
+        () => settingsManager?.getShowTerminalProgress() === true,
+      ),
+      // Reapply per-tab titles and reset transient UI when focus changes.
+      onActiveTabChange((tabId) => {
+        main.dispose();
+        const title = state.tabs.find((tab) => tab.sessionId === tabId)?.extensionUi.title;
+        if (title !== undefined) tui.terminal.setTitle(title);
+        syncOwnedAppOverlay(state, tui);
+        presentSettingsPanel(state, tui);
+      }),
+      bindLiveExtensionRedraw(state, tui),
+      bindActiveTabShimmerRedraw(state, tui),
+    ];
+  }
+  let uiEventDisposers: Array<() => void> | undefined = bindUiEvents();
   let editorRows = 0;
   let metaRows = state.activeTabId === HOME_TAB_ID ? 0 : 1;
   // Filled after EditorSlot construction; MixCodeRoot reads it lazily each render.
@@ -453,36 +464,31 @@ export function createMixCodeTui(
   const originalStart = tui.start.bind(tui);
   const originalStop = tui.stop.bind(tui);
   tui.start = () => {
+    // Pi extensions use stop()/start() for reversible terminal handoffs.
+    uninstallStdoutGuard ??= installStdoutScreenGuard({});
+    uiEventDisposers ??= bindUiEvents();
     originalStart();
     // MouseReportingTerminal.start() clears the screen. Force a full paint so
     // unchanged chrome (input meta) is rewritten after extension stop/start.
     tui.renderNow(true);
   };
-  tui.stop = () => {
-    stopWorkingRedraw();
-    stopLoadingRedraw();
-    stopTerminalProgress();
-    stopLiveExtensionRedraw();
-    stopActiveTabShimmerRedraw();
+  tui.stop = (stopOptions) => {
+    for (const dispose of uiEventDisposers ?? []) dispose();
+    uiEventDisposers = undefined;
     stopChatSelectionAutoScroll();
-    stopExtensionTitleSync();
+    originalStop(stopOptions);
+    // Alt-screen teardown can render the document once more for the parent screen.
     root.dispose();
-    originalStop();
-    uninstallStdoutGuard();
+    uninstallStdoutGuard?.();
+    uninstallStdoutGuard = undefined;
   };
-  // Renderer-only pause for external-process handoff ($EDITOR). Must bypass the
-  // destructive stop() wrapper above: it disposes the component root and stops
-  // the redraw/title bindings, and nothing re-creates them on tui.start().
-  // While paused, background requestRender calls are no-ops inside pi-tui, so
-  // redraw timers may keep running without painting over the editor.
+  // An editor handoff preserves the redraw bindings and component state.
+  // Pi suppresses their render requests while the renderer is stopped.
   tui.pause = () => {
     main.dispose();
-    originalStop();
+    originalStop({ preserveScreen: true });
   };
-  tui.resume = () => {
-    originalStart();
-    tui.renderNow(true);
-  };
+  tui.resume = () => tui.start();
   tui.addChild(root);
   tui.setFocus(editor);
   return tui;

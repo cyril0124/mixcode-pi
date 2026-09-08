@@ -1,6 +1,7 @@
 import { stripTerminalSequences } from "@earendil-works/pi-tui";
 import type { ChatLine } from "../../agent/runtime.js";
 import type { MixCodeTabInfo } from "../../core/types.js";
+import { rebaseScrollableChatSelection } from "../../core/chat-selection.js";
 import { activeRenderTheme } from "./context.js";
 import { padLine } from "./primitives.js";
 
@@ -8,9 +9,8 @@ import { padLine } from "./primitives.js";
 // once. Roughly matches a typical assistant paragraph at 120 cols.
 export const BLOCK_HEIGHT_FALLBACK = 4;
 
-// Per-tab scroll-freeze bookkeeping. When the user has scrolled up (offset > 0)
-// and new content streams in below, we "freeze" the viewport on a stable anchor
-// so the visible text does not jump. Resize re-anchors via ChatLine + progress.
+// Per-tab scroll-freeze bookkeeping. Scrolling up or dragging a selection pins
+// the viewport while content grows below it. Resize re-anchors via ChatLine + progress.
 interface ScrollFreezeState {
   total: number;
   width: number;
@@ -24,9 +24,10 @@ interface ScrollFreezeState {
   chatLine?: ChatLine;
   /** 0–1 progress through the anchored chat block (top of viewport content). */
   blockProgress?: number;
-  /** Exact row inside the anchored block and the height it was recorded at. */
+  /** Exact row inside the anchored block and its recorded dimensions. */
   blockRow?: number;
   blockRowHeight?: number;
+  blockWidth?: number;
   /**
    * User scroll delta this frame (wheel/key). Applied after anchor re-pin so
    * stream growth can be absorbed without undoing intentional scrolling.
@@ -46,9 +47,13 @@ export interface ChatBlockLayout {
   height: number;
 }
 
-/** Whether the tab's viewport is currently frozen at a scrolled-up anchor. */
-export function isScrollFrozen(tab: MixCodeTabInfo): boolean {
-  return scrollFreezeStates.get(tab)?.frozen === true;
+function shouldHoldViewport(tab: MixCodeTabInfo): boolean {
+  return tab.chatScrollOffset > 0 || tab.chatSelection?.dragging === true;
+}
+
+/** Last painted chat block to retain while materializing a pinned viewport. */
+export function scrollFreezeChatLine(tab: MixCodeTabInfo): ChatLine | undefined {
+  return shouldHoldViewport(tab) ? scrollFreezeStates.get(tab)?.chatLine : undefined;
 }
 
 /**
@@ -70,23 +75,25 @@ export function keepScrolledViewStable(
   const previous = scrollFreezeStates.get(tab);
   const grew = total > (previous?.total ?? total);
   const sameSize = previous?.width === width && previous?.height === height;
-  const scrolledUp = tab.chatScrollOffset > 0;
+  const holdViewport = shouldHoldViewport(tab);
   const userDelta =
     previous && sameSize ? tab.chatScrollOffset - (previous.offset ?? tab.chatScrollOffset) : 0;
   let adjusted = false;
-  if (scrolledUp && sameSize && previous !== undefined) {
+  if (holdViewport && sameSize && previous !== undefined) {
     // Work from last frame's offset so apply* can re-pin, then re-apply userDelta.
     tab.chatScrollOffset = previous.offset ?? tab.chatScrollOffset;
     if (grew) {
-      tab.chatScrollOffset += total - previous.total;
-      adjusted = true;
+      // Growth that still fits on screen must not shift selection coordinates.
+      const growth = Math.max(0, total - height) - Math.max(0, previous.total - height);
+      setAnchoredScrollOffset(tab, tab.chatScrollOffset + growth);
+      adjusted = growth > 0;
     }
   }
-  // Freeze when scrolled up with stable size (including same-frame user scroll).
-  const canFreeze = scrolledUp && sameSize && previous !== undefined;
+  // A drag also pins the live tail, where the offset is still zero.
+  const canFreeze = holdViewport && sameSize && previous !== undefined;
   // Stay frozen across size changes so apply* can re-align to the anchor.
   const keepFrozen =
-    scrolledUp && Boolean(previous?.line || previous?.chatLine) && (canFreeze || !sameSize);
+    holdViewport && Boolean(previous?.line || previous?.chatLine) && (canFreeze || !sameSize);
   scrollFreezeStates.set(tab, {
     ...previous,
     total,
@@ -126,7 +133,7 @@ export function applyScrollFreezeAnchor(
   allowChatLineFallback = false,
 ): void {
   const state = scrollFreezeStates.get(tab);
-  if (tab.chatScrollOffset <= 0 || !state?.frozen || !state.line) {
+  if (!shouldHoldViewport(tab) || !state?.frozen || !state.line) {
     return;
   }
   // Windowed rendering applies the stronger ChatLine anchor first. Full
@@ -142,7 +149,7 @@ export function applyScrollFreezeAnchor(
   if (index < 0) return;
   const maxStart = Math.max(0, lines.length - viewport);
   const start = Math.max(0, Math.min(index - (state.row ?? 0), maxStart));
-  tab.chatScrollOffset = Math.max(0, lines.length - (start + viewport));
+  setAnchoredScrollOffset(tab, Math.max(0, lines.length - (start + viewport)));
   // Keep bookkeeping aligned with the new layout size after re-anchor.
   scrollFreezeStates.set(tab, {
     ...state,
@@ -166,7 +173,7 @@ export function applyChatBlockScrollAnchor(
   width: number,
 ): boolean {
   const state = scrollFreezeStates.get(tab);
-  if (tab.chatScrollOffset <= 0 || !state?.frozen || !state.chatLine) return false;
+  if (!shouldHoldViewport(tab) || !state?.frozen || !state.chatLine) return false;
   let block = blocks.find((entry) => entry.line === state.chatLine);
   if (!block) {
     // Session rebuild may drop object identity; fall back to entryId/text match.
@@ -180,17 +187,19 @@ export function applyChatBlockScrollAnchor(
   }
   if (!block || block.height <= 0) return false;
   const progress = Math.min(1, Math.max(0, state.blockProgress ?? 0));
-  // Prefer the exact remembered row when the block height is unchanged:
-  // floor(progress * height) is not round-trip stable (56/142*142 floors to 55
-  // under IEEE rounding) and intermittently drifts the viewport up one row.
+  // Keep the recorded row when the block grows at the same width.
+  // Exact rows also prevent drift from rounding the progress fraction.
+  const preserveRow =
+    state.blockRowHeight === block.height ||
+    (state.blockWidth === width && block.height > (state.blockRowHeight ?? 0));
   const rowInBlock =
-    state.blockRow !== undefined && state.blockRowHeight === block.height
+    state.blockRow !== undefined && preserveRow
       ? Math.min(block.height - 1, state.blockRow)
       : Math.min(block.height - 1, Math.round(progress * block.height));
   const index = block.start + rowInBlock;
   const maxStart = Math.max(0, linesLength - viewport);
   const start = Math.max(0, Math.min(index - (state.row ?? 0), maxStart));
-  tab.chatScrollOffset = Math.max(0, linesLength - (start + viewport));
+  setAnchoredScrollOffset(tab, Math.max(0, linesLength - (start + viewport)));
   scrollFreezeStates.set(tab, {
     ...state,
     width,
@@ -199,6 +208,12 @@ export function applyChatBlockScrollAnchor(
     frozen: true,
   });
   return true;
+}
+
+/** Keep selection coordinates aligned when layout changes the scroll offset. */
+function setAnchoredScrollOffset(tab: MixCodeTabInfo, offset: number): void {
+  rebaseScrollableChatSelection(tab.chatSelection, offset - tab.chatScrollOffset);
+  tab.chatScrollOffset = offset;
 }
 
 /** Strip terminal controls so invisible rows are not treated as content. */
@@ -213,16 +228,8 @@ export function rememberScrollFreezeAnchor(
   width: number,
   height: number,
 ): void {
+  // Record the live tail too: a drag and new output can precede the next paint.
   const current = scrollFreezeStates.get(tab) ?? { total: 0, width, height };
-  if (tab.chatScrollOffset <= 0) {
-    scrollFreezeStates.set(tab, {
-      total: current.total,
-      width,
-      height,
-      offset: tab.chatScrollOffset,
-    });
-    return;
-  }
   // Prefer real message text over padded blank rows. Theme backgrounds leave
   // ANSI on whitespace-only lines; line.trim() alone treats those as content
   // and the freeze anchor then matches the wrong blank row after growth.
@@ -258,15 +265,6 @@ export function rememberChatBlockScrollAnchor(
   height: number,
 ): void {
   const current = scrollFreezeStates.get(tab) ?? { total: 0, width, height };
-  if (tab.chatScrollOffset <= 0) {
-    scrollFreezeStates.set(tab, {
-      total: current.total,
-      width,
-      height,
-      offset: tab.chatScrollOffset,
-    });
-    return;
-  }
   const row = visible.findIndex((line) => {
     const text = visibleText(line);
     return text.length > 0 && !text.includes("older above") && !text.includes("newer below");
@@ -284,13 +282,14 @@ export function rememberChatBlockScrollAnchor(
     width,
     height,
     offset: tab.chatScrollOffset,
-    frozen: true,
+    frozen: shouldHoldViewport(tab),
     line: row >= 0 ? visible[row] : undefined,
     row: row >= 0 ? row : undefined,
     chatLine: block?.line,
     blockProgress,
     blockRow: block ? absolute - block.start : undefined,
     blockRowHeight: block?.height,
+    blockWidth: width,
   });
 }
 

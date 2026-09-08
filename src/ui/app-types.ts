@@ -66,9 +66,8 @@ export type OverlayTui = Pick<TuiType, "requestRender" | "showOverlay"> &
     treeSelectorDisplay?: TreeSelectorDisplayHost;
     /**
      * Renderer-only terminal handoff for external processes (e.g. $EDITOR).
-     * Unlike stop()/start() — the app-shutdown path that disposes the ctl
-     * server, instance heartbeat, and peer tab sync — pause()/resume() only
-     * release and re-take the terminal.
+     * pause()/resume() preserve the component root and redraw/title bindings.
+     * stop()/start() remove and restore UI bindings and stdout protection.
      */
     pause?: () => void;
     resume?: () => void;

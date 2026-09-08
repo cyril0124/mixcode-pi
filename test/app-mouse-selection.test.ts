@@ -34,6 +34,7 @@ import {
   renderAgentSurface,
 } from "../src/ui/rendering.js";
 import type { RuntimeTab } from "../src/agent/runtime.js";
+import { captureScrollableChatSelection } from "../src/core/chat-selection.js";
 
 function setup() {
   const state = createInitialState("/repo");
@@ -94,6 +95,15 @@ test("handleMouseInput auto-scrolls a top-edge chat drag and copies off-screen r
   const render = () => {
     const start = Math.max(0, bottomStart - tab.chatScrollOffset);
     tab.lastRenderedChatLines = allLines.slice(start, start + viewport);
+    tab.lastRenderedChatScrollOffset = tab.chatScrollOffset;
+    // The render callback owns selection capture for the displayed rows.
+    if (tab.chatSelection) {
+      captureScrollableChatSelection(
+        tab.chatSelection,
+        tab.lastRenderedChatLines,
+        tab.chatScrollOffset,
+      );
+    }
     tab.lastChatScrollMetrics = {
       total: allLines.length,
       viewport,

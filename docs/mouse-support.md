@@ -100,4 +100,8 @@ Dragging with the left mouse button across the Chat surface, Input Editor, or No
 - **ANSI-Clean Extraction**: Strips syntax highlighting and background colors, copying plain text.
 - **Wide-Character (CJK) Boundary Safe**: `src/core/chat-selection.ts` snaps the start column to `getGraphemeCellRange(line, col).start` and the end column to `.end`, so a full-width grapheme under the pointer is never split.
 - **Block Background Overlay**: The same helper reapplies `theme.selectedBg` after every SGR in the selected slice so tool/thinking card backgrounds cannot hide the highlight.
-- **Edge Auto-Scroll**: Dragging past the top or bottom border of the chat viewport automatically scrolls the conversation while maintaining the drag selection.
+- **Edge Auto-Scroll**: Dragging to the top or bottom edge of the chat viewport automatically scrolls and extends the selection. At the top of the conversation, the selection can include the first text row.
+
+Mouse selection uses the text currently displayed. Pressing in the chat pins the current viewport, including at the live tail; appended output preserves those rows when viewport dimensions and the rendering of existing text remain unchanged. Markdown reflow or oversized-message folding can change those rows. Wheel and edge scrolling still move the viewport deliberately. After release, output accumulated below remains behind Jump to latest; a viewport still at the end continues following normally.
+
+Streaming messages retain their complete Markdown context during scrolling and selection, subject to the oversized-message policy. Windowed rendering retains the visible anchor block when new messages arrive, so changes in estimated history height cannot replace the selected rows.

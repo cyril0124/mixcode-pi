@@ -1,5 +1,4 @@
 import {
-  captureScrollableChatSelection,
   pointInChatSurface,
   screenToChatSelectionPoint,
   selectedChatText,
@@ -65,7 +64,6 @@ interface ChatSelectionAutoScrollState {
   active: ActiveTab;
   selection: ChatSelectionState;
   tui: OverlayTui;
-  pointer: { x: number; y: number };
   scrollDelta: -1 | 1;
   timer?: ReturnType<typeof setInterval>;
 }
@@ -99,7 +97,6 @@ function updateChatSelectionAutoScroll(
     return;
   }
   if (chatSelectionAutoScroll?.selection === selection) {
-    chatSelectionAutoScroll.pointer = { x: mouse.x, y: mouse.y };
     chatSelectionAutoScroll.scrollDelta = scrollDelta;
     return;
   }
@@ -109,7 +106,6 @@ function updateChatSelectionAutoScroll(
     active,
     selection,
     tui,
-    pointer: { x: mouse.x, y: mouse.y },
     scrollDelta,
   };
   chatSelectionAutoScroll = state;
@@ -121,7 +117,7 @@ function updateChatSelectionAutoScroll(
 }
 
 function autoScrollChatSelection(state: ChatSelectionAutoScrollState): void {
-  const { active, selection, pointer, scrollDelta, tui } = state;
+  const { active, selection, scrollDelta, tui } = state;
   const bounds = active.chatSurfaceBounds;
   if (
     chatSelectionAutoScroll !== state ||
@@ -134,16 +130,8 @@ function autoScrollChatSelection(state: ChatSelectionAutoScrollState): void {
     return;
   }
 
-  const lines = active.lastRenderedChatLines ?? [];
-  captureScrollableChatSelection(selection, lines, active.chatScrollOffset);
+  // The renderer updates selection coordinates after resolving the viewport.
   scrollChat(active, scrollDelta);
-  const point = screenToChatSelectionPoint(bounds, pointer.y, pointer.x);
-  selection.focus = toScrollableChatSelectionPoint(
-    selection,
-    point,
-    lines,
-    active.chatScrollOffset,
-  );
   tui.requestRender();
 }
 
@@ -622,29 +610,25 @@ function handleChatSelectionMouse(
     selectText: selectedScrollableChatText,
     mapPoint: (point, selection) => {
       if (!selection) return point;
-      const lines = active.lastRenderedChatLines ?? [];
-      captureScrollableChatSelection(selection, lines, active.chatScrollOffset);
-      return toScrollableChatSelectionPoint(selection, point, lines, active.chatScrollOffset);
+      return toScrollableChatSelectionPoint(
+        selection,
+        point,
+        active.lastRenderedChatLines ?? [],
+        active.lastRenderedChatScrollOffset ?? active.chatScrollOffset,
+      );
     },
     onSelectionStart: (selection) => {
       stopChatSelectionAutoScroll();
       startScrollableChatSelection(
         selection,
         active.lastRenderedChatLines ?? [],
-        active.chatScrollOffset,
+        active.lastRenderedChatScrollOffset ?? active.chatScrollOffset,
       );
     },
     onSelectionMotion: (selection) => {
       updateChatSelectionAutoScroll(active, selection, mouse, tui);
     },
-    onSelectionRelease: (selection) => {
-      captureScrollableChatSelection(
-        selection,
-        active.lastRenderedChatLines ?? [],
-        active.chatScrollOffset,
-      );
-      stopChatSelectionAutoScrollFor(selection);
-    },
+    onSelectionRelease: stopChatSelectionAutoScrollFor,
   });
 }
 

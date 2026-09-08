@@ -54,12 +54,10 @@ const OSC133_ZONE_START = "\x1b]133;A\x07";
 const OSC133_ZONE_END = "\x1b]133;B\x07";
 const OSC133_ZONE_FINAL = "\x1b]133;C\x07";
 const USER_BASH_PREVIEW_LINES = 20;
-// Max chars to render for an explicitly active streaming assistant/thinking block.
-// Complete messages render in full unless the TUI oversized policy folds them.
-export const STREAMING_MARKDOWN_CHAR_LIMIT = 8000;
 export interface RenderChatBlockOptions {
   oversizedAssistantMessage?: OversizedAssistantMessageSettings;
-  streamingMarkdownCharLimit?: number;
+  /** Active model output; Markdown retains the complete message context. */
+  isStreaming?: boolean;
   /** When true, thinking blocks collapse to a hidden form (label or placeholder). */
   hideThinking?: boolean;
   /** With hideThinking: render a 3-row tail with a left rail instead of the placeholder. */
@@ -238,8 +236,7 @@ function renderMessageBlock(
 ): string[] {
   const rawKey = chatLineRenderCacheKey(line, width, tab, options);
   const cacheKey = rawKey && `${chatLineRenderGeneration}${KEY_SEP}${rawKey}`;
-  const truncatesStreamingText = shouldTruncateStreamingMarkdown(line, options);
-  if (cacheKey && !truncatesStreamingText) {
+  if (cacheKey) {
     const cached = chatLineRenderCache.get(line);
     if (cached?.key === cacheKey) return cached.lines;
     const rendered = renderMessageBlockUncached(line, width, tab, options);
@@ -277,10 +274,10 @@ function renderMessageBlockUncached(
     );
     if (oversized) return withOsc133Zone(oversized);
     return withOsc133Zone(
-      renderMarkdown(streamingMarkdownText(trimmed, options), width, {
+      renderMarkdown(trimmed, width, {
         mermaidRenderingMode: options.mermaidRenderingMode,
         messageType: "assistant",
-        isStreaming: options.streamingMarkdownCharLimit !== undefined,
+        isStreaming: options.isStreaming === true,
         transformers: options.markdownTransformers,
       }),
     );
@@ -296,7 +293,7 @@ function renderMessageBlockUncached(
           italic: true,
           mermaidRenderingMode: options.mermaidRenderingMode,
           messageType: "assistant-thinking",
-          isStreaming: options.streamingMarkdownCharLimit !== undefined,
+          isStreaming: options.isStreaming === true,
           transformers: options.markdownTransformers,
         });
       }
@@ -322,12 +319,12 @@ function renderMessageBlockUncached(
       width,
     );
     if (oversized) return oversized;
-    return renderMarkdown(streamingMarkdownText(trimmed, options), width, {
+    return renderMarkdown(trimmed, width, {
       color: activeRenderTheme.thinkingText,
       italic: true,
       mermaidRenderingMode: options.mermaidRenderingMode,
       messageType: "assistant-thinking",
-      isStreaming: options.streamingMarkdownCharLimit !== undefined,
+      isStreaming: options.isStreaming === true,
       transformers: options.markdownTransformers,
     });
   }
@@ -344,21 +341,6 @@ function renderMessageBlockUncached(
     return renderCompactionSummaryBlock(text, width, line.compactionTokensBefore, tab);
   }
   return renderSystemBlock(text, width, line.variant, line.systemStatus === true);
-}
-
-function shouldTruncateStreamingMarkdown(line: ChatLine, options: RenderChatBlockOptions): boolean {
-  const limit = options.streamingMarkdownCharLimit;
-  return (
-    limit !== undefined &&
-    (line.role === "assistant" || line.role === "thinking") &&
-    line.text.trim().length > limit
-  );
-}
-
-function streamingMarkdownText(text: string, options: RenderChatBlockOptions): string {
-  const limit = options.streamingMarkdownCharLimit;
-  if (limit === undefined || limit <= 0 || text.length <= limit) return text;
-  return text.slice(-limit);
 }
 
 function withOsc133Zone(lines: string[]): string[] {
@@ -408,7 +390,7 @@ function chatLineRenderCacheKey(
         : "0";
     const mermaidKey = options.mermaidRenderingMode ?? "streaming";
     const transformersKey = markdownTransformersCacheKey(options.markdownTransformers);
-    return `${role[0]}${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${oversizedPolicyKey(options)}${KEY_SEP}${hideKey}${KEY_SEP}${mermaidKey}${KEY_SEP}${transformersKey}${KEY_SEP}${line.text}`;
+    return `${role[0]}${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${oversizedPolicyKey(options)}${KEY_SEP}${hideKey}${KEY_SEP}${mermaidKey}${KEY_SEP}${options.isStreaming === true ? 1 : 0}${KEY_SEP}${transformersKey}${KEY_SEP}${line.text}`;
   }
   const expanded = tab?.extensionUi.toolsExpanded ?? false;
   if (role === "user") {
@@ -1108,7 +1090,7 @@ function thinkingDurationLabel(line: ChatLine, options: RenderChatBlockOptions):
   const started = line.thinkingStartedAt;
   if (started === undefined) return "";
   const ended = line.thinkingEndedAt;
-  if (ended === undefined && options.streamingMarkdownCharLimit === undefined) return "";
+  if (ended === undefined && options.isStreaming !== true) return "";
   const elapsed = Math.max(0, (ended ?? Date.now()) - started);
   if (elapsed < 1000) return `${elapsed}ms`;
   if (elapsed < 60_000) return `${(Math.floor(elapsed / 100) / 10).toFixed(1)}s`;

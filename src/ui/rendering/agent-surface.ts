@@ -27,6 +27,7 @@ import {
   keepScrolledViewStable,
   rememberChatBlockScrollAnchor,
   rememberScrollFreezeAnchor,
+  scrollFreezeChatLine,
 } from "./agent-surface-scroll.js";
 import {
   chatBlockSeparator,
@@ -465,13 +466,30 @@ function renderAgentSurfaceWindowed(
   const newerFirstBlocks: string[][] = [];
   const newerFirstChatLines: ChatLine[] = [];
   const frameBlockHeights = new Map<ChatLine, number>();
+  const previousAnchor = scrollFreezeChatLine(tab);
+  // Runtime projections can replace a block without changing its text. Resolve
+  // the current object first, preserving identity before using the layout fallback.
+  const anchor =
+    previousAnchor &&
+    (displayChat.find((line) => line === previousAnchor) ??
+      displayChat.find(
+        (line) =>
+          (previousAnchor.entryId && line.entryId === previousAnchor.entryId) ||
+          (previousAnchor.text &&
+            line.role === previousAnchor.role &&
+            line.text === previousAnchor.text),
+      ));
+  let reachedAnchor = anchor === undefined;
   let oldestEmittedIndex = displayChat.length;
   // Count rows the same way unshift path did: tail first, then each older block
   // plus a separator when content already exists below.
   let assembledRows = tailLines.length;
   for (let i = displayChat.length - 1; i >= 0; i--) {
-    if (assembledRows >= targetRows) break;
+    // New messages can fill the budget before the visible anchor is reached.
+    // Retain that block so estimated heights cannot displace the pinned text.
+    if (assembledRows >= targetRows && reachedAnchor) break;
     const line = displayChat[i]!;
+    if (line === anchor) reachedAnchor = true;
     const originalIndex = originalIndices?.get(line) ?? i;
     const block = renderChatBlock(
       line,
@@ -707,6 +725,7 @@ function highlightVisibleChatLines(
   height: number,
 ): string[] {
   tab.lastRenderedChatLines = lines;
+  tab.lastRenderedChatScrollOffset = tab.chatScrollOffset;
   const result = applyToastOverlay(lines, activeToast(tab), width, height, activeRenderTheme);
   const selection = tab.chatSelection;
   if (!selection) return result;

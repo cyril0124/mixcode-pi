@@ -11,7 +11,7 @@ import {
 import { editTextWithTuiPaused } from "../src/ui/app-overlays.js";
 import type { OverlayTui } from "../src/ui/app-types.js";
 
-/** OverlayTui spy: records pause/resume and the shutdown stop()/start() path. */
+/** OverlayTui spy for renderer handoff method selection. */
 function createPauseSpyTui(): { tui: OverlayTui; calls: string[] } {
   const calls: string[] = [];
   const tui = {
@@ -113,7 +113,7 @@ test("external editor selection preserves explicit choice and auto-detects nvim 
   );
 });
 
-test("external-editor pause uses pause/resume, never the shutdown stop/start", async () => {
+test("external-editor handoff calls pause/resume", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-editor-"));
   try {
     const script = path.join(dir, "editor.sh");
@@ -121,8 +121,7 @@ test("external-editor pause uses pause/resume, never the shutdown stop/start", a
     await fsPromises.chmod(script, 0o755);
     const { tui, calls } = createPauseSpyTui();
     assert.equal(await editTextWithTuiPaused(tui, "initial", script), "paused edit\n");
-    // stop() is the app-shutdown path (tears down ctl server + heartbeat);
-    // the editor handoff must only pause and resume the renderer.
+    // The editor handoff preserves existing UI bindings through pause/resume.
     assert.deepEqual(calls, ["pause", "resume"]);
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });

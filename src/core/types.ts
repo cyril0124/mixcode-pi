@@ -181,6 +181,8 @@ export interface MixCodeTabInfo {
   chatJumpToLatestHitRegion?: { row: number; column: number; width: number };
   /** Non-persisted: raw rendered Agent message rows before selection highlighting. */
   lastRenderedChatLines?: string[];
+  /** Offset of lastRenderedChatLines; chatScrollOffset can already contain pending input. */
+  lastRenderedChatScrollOffset?: number;
   /** Non-persisted: last chat scroll metrics for scrollbar and edge-drag mapping. */
   lastChatScrollMetrics?: {
     total: number;
