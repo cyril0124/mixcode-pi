@@ -6,6 +6,7 @@ import * as path from "node:path";
 import { test } from "node:test";
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 import {
+  buildTranscriptEditorScript,
   buildViewText,
   type ContextPrefix,
   editorExtraArgs,
@@ -13,7 +14,6 @@ import {
   formatViewText,
   NVIM_TRANSCRIPT_LUA,
   resolveModel,
-  VIM_TRANSCRIPT_VIM,
 } from "./index.js";
 
 // ─── editorExtraArgs: vim/nvim flags ─────────────────────────────────────────
@@ -130,7 +130,8 @@ test("nvim transcript lua sets wrap/conceal, heading winbar, and heading badges"
     const md = path.join(dir, "t.md");
     const lua = path.join(dir, "t.lua");
     await fs.writeFile(md, TRANSCRIPT_VIEW_MARKDOWN);
-    await fs.writeFile(lua, NVIM_TRANSCRIPT_LUA);
+    // A zero threshold folds the short fixture bodies.
+    await fs.writeFile(lua, buildTranscriptEditorScript("nvim", 0));
     const dump = path.join(dir, "dump.lua");
     await fs.writeFile(
       dump,
@@ -340,7 +341,7 @@ test("vim transcript view sets wrap/conceal, heading statusline, and tool folds"
     const dump = path.join(dir, "dump.vim");
     const outFile = path.join(dir, "out.txt");
     await fs.writeFile(md, TRANSCRIPT_VIEW_MARKDOWN);
-    await fs.writeFile(view, VIM_TRANSCRIPT_VIM);
+    await fs.writeFile(view, buildTranscriptEditorScript("vim", 0));
     await fs.writeFile(
       dump,
       [

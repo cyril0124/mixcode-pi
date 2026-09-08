@@ -49,7 +49,11 @@ import {
   getAgentDir,
   sessionEntryToContextMessages,
 } from "@earendil-works/pi-coding-agent";
-import { loadTranscriptConfig, writeTranscriptConfig } from "./config.js";
+import {
+  DEFAULT_TRANSCRIPT_FOLD_THRESHOLD,
+  loadTranscriptConfig,
+  writeTranscriptConfig,
+} from "./config.js";
 import { resolveTranscriptEditor, transcriptEditorOptions } from "./editor.js";
 import { createTranscriptConfigOverlay } from "./config-overlay.js";
 import type { Component, TUI } from "@earendil-works/pi-tui";
@@ -997,6 +1001,9 @@ vim.opt_local.linebreak = true
 vim.opt_local.signcolumn = "no"
 vim.opt_local.foldmethod = "manual"
 vim.opt_local.foldenable = true
+-- The configured threshold counts text lines, not wrapped screen rows.
+vim.opt_local.foldminlines = 0
+local fold_threshold = vim.g.mpi_transcript_fold_threshold or ${DEFAULT_TRANSCRIPT_FOLD_THRESHOLD}
 vim.opt_local.fillchars:append({ fold = " " })
 
 -- Every color the view uses is a named group linked to a group that always
@@ -1114,7 +1121,8 @@ local rule = string.rep("─", vim.o.columns)
 -- with a delimiter longer than any run inside them, so they always close.
 -- Model prose carries no such guarantee, and one unclosed fence in a truncated
 -- reply would leave every later heading and separator undecorated. Stop at the
--- first non-blank, non-fence line so prose following a tool call is untouched.
+-- first non-blank, non-fence line except our generated truncation notices, so
+-- prose following a tool call is untouched and truncated errors stay foldable.
 local tool_fences = {}
 local in_fence = {}
 local scan = 1
@@ -1124,7 +1132,9 @@ while scan <= #lines do
   else
     scan = scan + 1
     while scan <= #lines do
-      if lines[scan]:match("^%s*$") then
+      if lines[scan]:match("^%s*$")
+        or lines[scan]:match("^_… %+%d+ earlier lines_$")
+        or lines[scan]:match("^_… %+%d+ more lines_$") then
         scan = scan + 1
       else
         local ticks = fence_open(lines[scan])
@@ -1190,10 +1200,11 @@ while t <= #lines do
   end
 end
 
--- Fold each tool fence's body, reusing the spans found above. An unterminated
--- fence (close past the last line) has no body to collapse.
+-- Count only body text lines in the already-scanned spans. Unterminated fences
+-- stay open, and the threshold does not change which lines are decorated.
 for _, f in ipairs(tool_fences) do
-  if f.close <= #lines and f.close - f.open > 1 then
+  local body_lines = f.close - f.open - 1
+  if f.close <= #lines and body_lines > fold_threshold then
     vim.cmd(("silent %d,%dfold"):format(f.open + 1, f.close - 1))
   end
 end
@@ -1320,6 +1331,9 @@ setlocal linebreak
 setlocal signcolumn=no
 setlocal foldmethod=manual
 setlocal foldenable
+" The configured threshold counts text lines, not wrapped screen rows.
+setlocal foldminlines=0
+let s:fold_threshold = get(g:, 'mpi_transcript_fold_threshold', ${DEFAULT_TRANSCRIPT_FOLD_THRESHOLD})
 let s:fc = []
 for s:item in split(&fillchars, ',')
   if s:item !~# '^fold:'
@@ -1406,7 +1420,8 @@ while s:scan <= len(s:lines)
   else
     let s:scan += 1
     while s:scan <= len(s:lines)
-      if s:lines[s:scan - 1] =~# '^\\s*$'
+      " Generated truncation notices may separate tool input from error output.
+      if s:lines[s:scan - 1] =~# '^\\s*$' || s:lines[s:scan - 1] =~# '^_… +\\d\\+ earlier lines_$' || s:lines[s:scan - 1] =~# '^_… +\\d\\+ more lines_$'
         let s:scan += 1
       else
         let s:ticks = s:fence_open(s:lines[s:scan - 1])
@@ -1471,7 +1486,8 @@ while s:t <= len(s:lines)
 endwhile
 
 for s:f in s:tool_fences
-  if s:f.close <= len(s:lines) && s:f.close - s:f.open > 1
+  let s:body_lines = s:f.close - s:f.open - 1
+  if s:f.close <= len(s:lines) && s:body_lines > s:fold_threshold
     execute 'silent ' . (s:f.open + 1) . ',' . (s:f.close - 1) . 'fold'
   endif
 endfor
@@ -1552,6 +1568,14 @@ nnoremap <buffer> <silent> <nowait> ]u :call MpiTranscriptJump('u', 1)<CR>
 nnoremap <buffer> <silent> <nowait> [u :call MpiTranscriptJump('u', -1)<CR>
 `;
 
+/** Build the editor view script with a threshold already validated by config loading. */
+export function buildTranscriptEditorScript(editor: "nvim" | "vim", foldThreshold: number): string {
+  if (editor === "nvim") {
+    return `vim.g.mpi_transcript_fold_threshold = ${foldThreshold}\n${NVIM_TRANSCRIPT_LUA}`;
+  }
+  return `let g:mpi_transcript_fold_threshold = ${foldThreshold}\n${VIM_TRANSCRIPT_VIM}`;
+}
+
 // Open `content` in an external editor on the inherited tty. TUI state is
 // always restored before the result is returned to the caller.
 function openInExternalEditor(
@@ -1569,6 +1593,7 @@ function openInExternalEditor(
   },
   editorCmd: string,
   content: string,
+  foldThreshold: number,
 ): Promise<ExternalEditorResult> {
   return ctx.ui.custom<ExternalEditorResult>((tui, _theme, _keybindings, done) => {
     const t = tui as unknown as {
@@ -1604,10 +1629,7 @@ function openInExternalEditor(
         const base = path.basename(cmd);
         if (base === "nvim" || base === "vim") {
           scriptFile = tmpFile.replace(/\.md$/, base === "nvim" ? ".lua" : ".vim");
-          await fs.writeFile(
-            scriptFile,
-            base === "nvim" ? NVIM_TRANSCRIPT_LUA : VIM_TRANSCRIPT_VIM,
-          );
+          await fs.writeFile(scriptFile, buildTranscriptEditorScript(base, foldThreshold));
         }
         const child = spawn(cmd, [...cmdArgs, ...editorExtraArgs(cmd, scriptFile), tmpFile], {
           stdio: "inherit",
@@ -1780,7 +1802,7 @@ const extension: ExtensionFactory = (pi) => {
       await ctx.ui.editor(meta.title, content);
       return;
     }
-    const result = await openInExternalEditor(ctx, editorCmd, content);
+    const result = await openInExternalEditor(ctx, editorCmd, content, loaded.config.foldThreshold);
     if (result.ok) return;
     ctx.ui.notify(result.error, "error");
     await ctx.ui.editor(meta.title, content);
@@ -1788,11 +1810,15 @@ const extension: ExtensionFactory = (pi) => {
 
   pi.registerCommand("transcript", {
     description:
-      "View transcript slices or configure the editor; N = last N turns, full = untruncated tool output",
+      "View transcript slices or configure editor and folding; N = last N turns, full = untruncated tool output",
     getArgumentCompletions: (prefix: string) =>
       [
         ...TARGETS.map((t) => ({ value: t.id, label: t.id, description: t.label })),
-        { value: "config", label: "config", description: "Choose the transcript editor" },
+        {
+          value: "config",
+          label: "config",
+          description: "Configure transcript editor and folding",
+        },
         { value: "full", label: "full", description: "Untruncated tool output" },
       ].filter((item) => item.value.startsWith(prefix.trim())),
     handler: async (args, ctx) => {

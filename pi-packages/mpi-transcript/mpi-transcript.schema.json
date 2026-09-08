@@ -15,6 +15,13 @@
       "enum": ["auto", "nvim", "vim", "builtin"],
       "default": "auto",
       "description": "Transcript editor mode. Auto selects nvim, then vim, then the in-app viewer."
+    },
+    "foldThreshold": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991,
+      "default": 20,
+      "description": "Fold tool code-block bodies only when their displayed text line count exceeds this threshold in nvim/vim. Zero folds every non-empty body."
     }
   }
 }

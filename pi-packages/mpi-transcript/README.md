@@ -11,22 +11,25 @@
 /transcript config
 ```
 
-`/transcript config` opens the transcript editor configuration panel. The panel always offers `auto` and `builtin`; `nvim` and `vim` appear only when their `--version` checks succeed.
+`/transcript config` opens the transcript settings panel. The editor choices include `auto` and `builtin`; `nvim` and `vim` appear when their `--version` checks succeed.
+
+To change the folding threshold, select `Fold threshold` and press Enter. Ctrl+U clears the input, Enter saves, and Esc cancels the edit.
 
 `N` applies to `context`, `chatlog`, and `thinking`. `full` applies to `context` and `chatlog`. Every view starts with transcript statistics, including the current session file path or `In-memory` for an unpersisted session.
 
-## Editor selection
+## Configuration
 
-Configuration is stored at `<agentDir>/mpi-transcript.json`:
+Settings are shared across workdirs that use the same `<agentDir>` and stored at `<agentDir>/mpi-transcript.json`:
 
 ```json
 {
   "$schema": "./extensions/mpi-transcript/mpi-transcript.schema.json",
-  "editor": "auto"
+  "editor": "auto",
+  "foldThreshold": 20
 }
 ```
 
-Supported values:
+`editor` values:
 
 | Value | Behavior |
 | --- | --- |
@@ -37,6 +40,16 @@ Supported values:
 
 `nvim` and `vim` open with `--clean`, so your init config, plugins, and colorscheme are not loaded. The transcript view brings its own styling, keybindings, and clipboard (`unnamedplus`; nvim uses OSC 52 when `$TMUX` is unset so the outer terminal receives yanks). Startup stays fast even on multi-megabyte transcripts.
 
-The package reads this file when `/transcript` runs. Missing configuration uses `auto`. Invalid configuration is reported as an error and the transcript does not open. If a selected external editor cannot start, the package reports the error and opens the in-app viewer.
+The package reads this file when `/transcript` runs. A missing `editor` uses `auto`; a missing `foldThreshold` uses the default described below. Invalid configuration is reported as an error and the transcript does not open. If a selected external editor cannot start, the package reports the error and opens the in-app viewer.
 
 The package ships `mpi-transcript.schema.json` next to the extension. The optional `$schema` field is preserved when the configuration is written.
+
+## Tool folding
+
+`foldThreshold` defaults to 20 and accepts integers from 0 through 9007199254740991. In nvim/vim, tool input and output bodies fold independently when their text line count exceeds this value. With the default, 20 lines stay expanded and 21 lines fold. Zero folds every non-empty, closed tool body.
+
+The count includes blank body lines and excludes titles and code fences. Screen wrapping does not add lines. Tool titles and statuses remain visible. User and assistant prose, Thinking, Skill cards, and unterminated tool fences stay expanded. Folding is unavailable in the built-in viewer.
+
+Tool output is truncated before folding. By default, successful output keeps the first 20 lines and failed output keeps the last 20, so both stay expanded at the default threshold. Use `/transcript chatlog full` or `/transcript context full` to retain all output and apply the threshold to its full length.
+
+In nvim/vim, `za` toggles the fold under the cursor, `zR` opens all folds, and `zM` closes all folds. Bodies at or below the threshold have no automatic fold to toggle.

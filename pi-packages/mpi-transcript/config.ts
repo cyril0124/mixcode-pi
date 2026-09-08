@@ -6,9 +6,11 @@ export const TRANSCRIPT_CONFIG_FILENAME = "mpi-transcript.json";
 export const TRANSCRIPT_EDITOR_MODES = ["auto", "nvim", "vim", "builtin"] as const;
 export type TranscriptEditorMode = (typeof TRANSCRIPT_EDITOR_MODES)[number];
 export const DEFAULT_TRANSCRIPT_EDITOR: TranscriptEditorMode = "auto";
+export const DEFAULT_TRANSCRIPT_FOLD_THRESHOLD = 20;
 
 export interface TranscriptConfig {
   editor: TranscriptEditorMode;
+  foldThreshold: number;
   schemaRef?: string;
 }
 
@@ -20,7 +22,7 @@ export type TranscriptConfigWriteResult =
   | { ok: true; path: string; config: TranscriptConfig }
   | { ok: false; path: string; error: string };
 
-const CONFIG_KEYS = new Set(["$schema", "editor"]);
+const CONFIG_KEYS = new Set(["$schema", "editor", "foldThreshold"]);
 
 export function transcriptConfigPath(agentDir: string): string {
   return path.join(agentDir, TRANSCRIPT_CONFIG_FILENAME);
@@ -38,12 +40,22 @@ export function parseTranscriptConfig(raw: unknown): TranscriptConfig {
   if (editor !== undefined && !TRANSCRIPT_EDITOR_MODES.includes(editor as TranscriptEditorMode)) {
     throw new Error(`editor must be one of ${TRANSCRIPT_EDITOR_MODES.join(", ")}`);
   }
+  const foldThreshold =
+    source.foldThreshold === undefined ? DEFAULT_TRANSCRIPT_FOLD_THRESHOLD : source.foldThreshold;
+  if (
+    typeof foldThreshold !== "number" ||
+    !Number.isSafeInteger(foldThreshold) ||
+    foldThreshold < 0
+  ) {
+    throw new Error("foldThreshold must be a non-negative safe integer");
+  }
   const schemaRef = source.$schema;
   if (schemaRef !== undefined && (typeof schemaRef !== "string" || !schemaRef.trim())) {
     throw new Error("$schema must be a non-empty string");
   }
   return {
     editor: (editor as TranscriptEditorMode | undefined) ?? DEFAULT_TRANSCRIPT_EDITOR,
+    foldThreshold,
     ...(schemaRef !== undefined ? { schemaRef: schemaRef as string } : {}),
   };
 }
@@ -58,7 +70,10 @@ export function loadTranscriptConfig(agentDir: string): TranscriptConfigLoadResu
       return {
         ok: true,
         path: filePath,
-        config: { editor: DEFAULT_TRANSCRIPT_EDITOR },
+        config: {
+          editor: DEFAULT_TRANSCRIPT_EDITOR,
+          foldThreshold: DEFAULT_TRANSCRIPT_FOLD_THRESHOLD,
+        },
         missing: true,
       };
     }
@@ -79,18 +94,23 @@ export function loadTranscriptConfig(agentDir: string): TranscriptConfigLoadResu
 
 export function writeTranscriptConfig(
   agentDir: string,
-  config: TranscriptConfig,
+  config: Omit<TranscriptConfig, "foldThreshold"> & { foldThreshold?: number },
 ): TranscriptConfigWriteResult {
   const filePath = transcriptConfigPath(agentDir);
   const normalized = parseTranscriptConfig({
     ...(config.schemaRef !== undefined ? { $schema: config.schemaRef } : {}),
     editor: config.editor,
+    foldThreshold: config.foldThreshold,
   });
   const tempPath = `${filePath}.${process.pid}.${crypto.randomUUID()}.tmp`;
   try {
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    const { schemaRef, editor } = normalized;
-    const raw = { ...(schemaRef !== undefined ? { $schema: schemaRef } : {}), editor };
+    const { schemaRef, editor, foldThreshold } = normalized;
+    const raw = {
+      ...(schemaRef !== undefined ? { $schema: schemaRef } : {}),
+      editor,
+      foldThreshold,
+    };
     fs.writeFileSync(tempPath, `${JSON.stringify(raw, null, 2)}\n`, {
       encoding: "utf8",
       mode: 0o600,

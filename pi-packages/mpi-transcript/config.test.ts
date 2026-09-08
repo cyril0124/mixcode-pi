@@ -22,7 +22,7 @@ test("missing transcript config defaults to auto", async () => {
     assert.deepEqual(loaded, {
       ok: true,
       path: transcriptConfigPath(dir),
-      config: { editor: DEFAULT_TRANSCRIPT_EDITOR },
+      config: { editor: DEFAULT_TRANSCRIPT_EDITOR, foldThreshold: 20 },
       missing: true,
     });
   } finally {
@@ -31,9 +31,13 @@ test("missing transcript config defaults to auto", async () => {
 });
 
 test("transcript config strictly validates supported keys and modes", () => {
-  assert.deepEqual(parseTranscriptConfig({ editor: "nvim" }), { editor: "nvim" });
+  assert.deepEqual(parseTranscriptConfig({ editor: "nvim" }), {
+    editor: "nvim",
+    foldThreshold: 20,
+  });
   assert.deepEqual(parseTranscriptConfig({ $schema: "./mpi-transcript.schema.json" }), {
     editor: "auto",
+    foldThreshold: 20,
     schemaRef: "./mpi-transcript.schema.json",
   });
   assert.throws(() => parseTranscriptConfig({ editor: "code" }), /editor must be one of/);
@@ -53,17 +57,31 @@ test("transcript config strictly validates supported keys and modes", () => {
   assert.throws(() => parseTranscriptConfig([]), /config root must be an object/);
 });
 
-test("transcript config writes and reloads the selected mode", async () => {
+test("transcript config accepts only non-negative safe integer fold thresholds", () => {
+  for (const foldThreshold of [0, 10, 30, Number.MAX_SAFE_INTEGER]) {
+    assert.deepEqual(parseTranscriptConfig({ foldThreshold }), { editor: "auto", foldThreshold });
+  }
+  for (const foldThreshold of [-1, 1.5, "30", null, true, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+    assert.throws(
+      () => parseTranscriptConfig({ foldThreshold }),
+      /foldThreshold must be a non-negative safe integer/,
+    );
+  }
+});
+
+test("transcript config writes and reloads the selected mode and threshold", async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-transcript-config-write-"));
   try {
     const written = writeTranscriptConfig(dir, {
       editor: "vim",
+      foldThreshold: 45,
       schemaRef: "./mpi-transcript.schema.json",
     });
     assert.equal(written.ok, true);
     assert.deepEqual(JSON.parse(await fs.readFile(transcriptConfigPath(dir), "utf8")), {
       $schema: "./mpi-transcript.schema.json",
       editor: "vim",
+      foldThreshold: 45,
     });
     const loaded = loadTranscriptConfig(dir);
     assert.equal(loaded.ok, true);
@@ -116,7 +134,7 @@ test("config overlay shows a saved editor and marks removed commands unavailable
     requestRender: () => undefined,
     done: () => undefined,
     configPath: "/tmp/mpi-transcript.json",
-    initial: { editor: "nvim" },
+    initial: { editor: "nvim", foldThreshold: 30 },
     options: ["auto", "vim", "builtin"],
     persist: (config) => {
       saved = config.editor;
@@ -134,6 +152,50 @@ test("config overlay shows a saved editor and marks removed commands unavailable
   assert.equal(saved, "vim");
 });
 
+test("config overlay edits a threshold, rejects invalid input, and cancels without saving", () => {
+  const saved: number[] = [];
+  const errors: string[] = [];
+  let doneCalls = 0;
+  const view = createTranscriptConfigOverlay({
+    theme,
+    requestRender: () => undefined,
+    done: () => {
+      doneCalls++;
+    },
+    configPath: "/tmp/mpi-transcript.json",
+    initial: { editor: "auto", foldThreshold: 30 },
+    options: ["auto", "builtin"],
+    persist: (config) => {
+      saved.push(config.foldThreshold);
+      return { ok: true, config };
+    },
+    onError: (message) => errors.push(message),
+  });
+  assert.match(view.render(80).join("\n"), /Fold threshold: 30/);
+  view.handleInput("\x1b[A");
+  view.handleInput("\r");
+  view.handleInput("\x15");
+  view.handleInput("-1");
+  view.handleInput("\r");
+  assert.deepEqual(saved, []);
+  assert.match(errors[0] ?? "", /^Error: .*foldThreshold/);
+  view.handleInput("\x15");
+  view.handleInput("45");
+  view.handleInput("\r");
+  assert.deepEqual(saved, [45]);
+  assert.match(view.render(80).join("\n"), /Fold threshold: 45/);
+
+  view.handleInput("\r");
+  view.handleInput("\x15");
+  view.handleInput("99");
+  view.handleInput("\x1b");
+  assert.deepEqual(saved, [45]);
+  assert.equal(doneCalls, 0);
+  assert.match(view.render(80).join("\n"), /Fold threshold: 45/);
+  view.handleInput("\x1b");
+  assert.equal(doneCalls, 1);
+});
+
 test("config overlay reports save failures without closing", () => {
   const errors: string[] = [];
   let doneCalls = 0;
@@ -144,13 +206,13 @@ test("config overlay reports save failures without closing", () => {
       doneCalls++;
     },
     configPath: "/tmp/mpi-transcript.json",
-    initial: { editor: "auto" },
+    initial: { editor: "auto", foldThreshold: 30 },
     options: ["auto", "builtin"],
     persist: () => ({ ok: false, error: "write failed" }),
     onError: (message) => errors.push(message),
   });
   view.handleInput("\r");
-  assert.deepEqual(errors, ["write failed"]);
+  assert.deepEqual(errors, ["Error: write failed"]);
   assert.equal(doneCalls, 0);
   assert.match(view.render(60).join("\n"), /Auto \(nvim > vim > built-in\)/);
 });
