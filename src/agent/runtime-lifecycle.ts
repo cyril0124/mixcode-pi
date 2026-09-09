@@ -31,7 +31,6 @@ import {
 } from "../core/extension-manager.js";
 import { assertConfiguredOpenTabsReadable, noteTabReplaced } from "../core/open-tabs-store.js";
 import { mixcodeScopedModels } from "../core/pi-models.js";
-import { preferDistExtensionEntries } from "../core/prefer-dist-extension-entries.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import type { AgentRuntimeConfig, MixCodeModel, MixCodeTabInfo } from "../core/types.js";
 import { applyMixCodeSystemPrompt } from "./pi-session-internals.js";
@@ -581,9 +580,8 @@ export async function syncRuntimeChatFromSession(runtimeTab: RuntimeTab): Promis
 export async function createRuntimeServices(
   options: RuntimeServiceOptions,
 ): Promise<AgentSessionServices> {
-  // Compile-binary mpi loads extensions via jiti virtualModules; prefer dist
-  // entries before packageManager.resolve so src+TypeBox packages don't fail.
-  preferDistExtensionEntries(options.agentDir);
+  // Pi's loader owns extension entry resolution. It keeps package manifest
+  // entries unchanged and configures jiti aliases/virtual modules per runtime.
 
   let servicesRef: AgentSessionServices | undefined;
   let latestExtensionManagerEntries: ExtensionManagerEntry[] = [];
