@@ -32,34 +32,84 @@ export function formatInterval(ms: number): string {
   return `${Math.round(ms / 86_400_000)}d`;
 }
 
+export class LoopInputError extends Error {}
+
+/** Validate a total against executed runs. Throws LoopInputError for invalid totals. */
+export function validateRunLimit(maxFireCount: number | null, fireCount: number): void {
+  if (maxFireCount === null) return;
+  if (!Number.isSafeInteger(maxFireCount) || maxFireCount < 1) {
+    throw new LoopInputError("Error: Max runs must be a positive safe integer or unlimited.");
+  }
+  if (maxFireCount < fireCount) {
+    throw new LoopInputError(
+      `Error: Total runs cannot be below the ${fireCount} already executed.`,
+    );
+  }
+}
+
+/** Parse a positive integer or 'unlimited'; invalid totals throw LoopInputError. */
+export function parseMaxRuns(value: string, fireCount = 0): number | null {
+  if (value === "unlimited") return null;
+  if (!/^\d+$/.test(value)) {
+    throw new LoopInputError("Error: Max runs must be a positive safe integer or unlimited.");
+  }
+  const maxFireCount = Number(value);
+  validateRunLimit(maxFireCount, fireCount);
+  return maxFireCount;
+}
+
 export interface ParseResult {
   intervalMs: number;
   intervalLabel: string;
   prompt: string;
+  maxFireCount: number | null;
 }
 
 /**
- * Parse `[interval] <prompt>` using the same priority rules as the original skill:
- * 1. Leading token that matches \d+[smhd]
- * 2. Trailing "every <interval>" clause
- * 3. Default interval (DEFAULT_INTERVAL)
+ * Parse `[interval] [--max-runs N] [--] <prompt>`, preserving internal prompt whitespace.
+ * A leading interval overrides a trailing `every <interval>` clause; otherwise use the default.
+ * `--` makes the remaining prompt literal, including a trailing interval clause.
+ * Options are consumed only before the prompt. Invalid options throw LoopInputError.
  */
 export function parseArgs(input: string): ParseResult | null {
-  const trimmed = input.trim();
-  if (!trimmed) return null;
+  let remaining = input.trim();
+  if (!remaining) return null;
 
-  // Rule 1 — leading token
-  const leading = trimmed.match(/^\S+/)?.[0] ?? "";
+  const leading = remaining.match(/^\S+/)?.[0] ?? "";
   const leadingMs = parseIntervalToken(leading);
-  if (leadingMs !== null) {
-    const prompt = trimmed.slice(leading.length).trim();
-    return { intervalMs: leadingMs, intervalLabel: leading.toLowerCase(), prompt };
+  if (leadingMs !== null) remaining = remaining.slice(leading.length).trim();
+
+  let maxFireCount: number | null = null;
+  if (/^--max-runs(?:\s|$)/.test(remaining)) {
+    remaining = remaining.slice("--max-runs".length).trim();
+    const value = remaining.match(/^\S+/)?.[0] ?? "";
+    maxFireCount = parseMaxRuns(value);
+    if (maxFireCount === null) {
+      throw new LoopInputError("Error: --max-runs requires a positive safe integer.");
+    }
+    remaining = remaining.slice(value.length).trim();
+    if (/^--max-runs(?:\s|$)/.test(remaining)) {
+      throw new LoopInputError("Error: --max-runs may only be specified once.");
+    }
   }
 
-  // Rule 2 — trailing "every <interval>" or "every <number> <unit>"
-  const trailingExact = trimmed.match(
-    /^([\s\S]+?)\s+every\s+(\d+(?:\.\d+)?)(s|m|h|d|seconds?|minutes?|hours?|days?)$/i,
-  );
+  const literalPrompt = /^--(?:\s|$)/.test(remaining);
+  if (literalPrompt) remaining = remaining.slice(2).trim();
+
+  if (leadingMs !== null) {
+    return {
+      intervalMs: leadingMs,
+      intervalLabel: leading.toLowerCase(),
+      prompt: remaining,
+      maxFireCount,
+    };
+  }
+
+  const trailingExact = literalPrompt
+    ? null
+    : remaining.match(
+        /^([\s\S]+?)\s+every\s+(\d+(?:\.\d+)?)\s*(s|m|h|d|seconds?|minutes?|hours?|days?)$/i,
+      );
   if (trailingExact) {
     const rawUnit = trailingExact[3]!.toLowerCase();
     const canonicalUnit = rawUnit.startsWith("s")
@@ -72,12 +122,16 @@ export function parseArgs(input: string): ParseResult | null {
     const token = `${trailingExact[2]}${canonicalUnit}`;
     const ms = parseIntervalToken(token)!;
     const prompt = trailingExact[1]!.trim();
-    return { intervalMs: ms, intervalLabel: token, prompt };
+    return { intervalMs: ms, intervalLabel: token, prompt, maxFireCount };
   }
 
-  // Rule 3 — default
   const defaultMs = parseIntervalToken(DEFAULT_INTERVAL)!;
-  return { intervalMs: defaultMs, intervalLabel: DEFAULT_INTERVAL, prompt: trimmed };
+  return {
+    intervalMs: defaultMs,
+    intervalLabel: DEFAULT_INTERVAL,
+    prompt: remaining,
+    maxFireCount,
+  };
 }
 
 export function formatRelativeTime(date: Date | number): string {

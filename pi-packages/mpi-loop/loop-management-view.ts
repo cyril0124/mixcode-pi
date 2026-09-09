@@ -8,7 +8,7 @@ import {
   visibleWidth,
   wrapTextWithAnsi,
 } from "@earendil-works/pi-tui";
-import { formatRelativeTime } from "./loop-helpers.js";
+import { formatRelativeTime, LoopInputError, parseMaxRuns } from "./loop-helpers.js";
 
 /** Theme surface used by the loop management overlay. */
 type LoopTheme = Pick<Theme, "fg" | "bg">;
@@ -253,17 +253,12 @@ export class LoopManagementView implements Component {
       this.countInputError = null;
     };
     input.onSubmit = (value) => {
-      const trimmed = value.trim();
-      const maxFireCount = trimmed === "" ? null : Number(trimmed);
-      if (
-        maxFireCount !== null &&
-        (!/^\d+$/.test(trimmed) || !Number.isSafeInteger(maxFireCount) || maxFireCount < 1)
-      ) {
-        this.countInputError = "Enter a positive integer, or leave blank for unlimited.";
-        return;
-      }
-      if (maxFireCount !== null && maxFireCount < loop.fireCount) {
-        this.countInputError = `Total runs cannot be below the ${loop.fireCount} already executed.`;
+      let maxFireCount: number | null;
+      try {
+        maxFireCount = parseMaxRuns(value.trim() || "unlimited", loop.fireCount);
+      } catch (error) {
+        if (!(error instanceof LoopInputError)) throw error;
+        this.countInputError = error.message;
         return;
       }
       this.actions.setMaxFireCount(loop.id, maxFireCount);

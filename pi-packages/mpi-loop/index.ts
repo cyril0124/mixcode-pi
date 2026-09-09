@@ -6,7 +6,8 @@
  *
  * Usage:
  * /loop — open management overlay
- * /loop [interval] <prompt> — start a new loop
+ * /loop [interval] [--max-runs N] [--] <prompt> — start a new loop
+ * /loop max-runs <id|name> <N|unlimited> — set total runs
  * /loop stop <id|name> — stop a specific loop
  * /loop interval <id|name> <interval> — reschedule an existing loop
  * /loop prompt <id|name> <prompt> — rewrite an existing loop prompt
@@ -22,29 +23,36 @@ import {
   truncateToWidth,
   visibleWidth,
 } from "@earendil-works/pi-tui";
+import type { ParseResult } from "./loop-helpers.js";
 import {
   DEFAULT_INTERVAL,
-  MAX_AGE_MS,
-  MIN_INTERVAL_MS,
   formatInterval,
   formatRelativeTime,
   generateName,
   isStaleCtxError,
+  LoopInputError,
+  MAX_AGE_MS,
+  MIN_INTERVAL_MS,
   parseArgs,
   parseIntervalToken,
+  parseMaxRuns,
+  validateRunLimit,
 } from "./loop-helpers.js";
 import { LoopManagementView } from "./loop-management-view.js";
 
-const USAGE_MESSAGE = `Usage: /loop [interval] <prompt>
+const USAGE_MESSAGE = `Usage: /loop [interval] [--max-runs N] [--] <prompt>
 
 Run a prompt on a recurring interval.
 
 Intervals: Ns, Nm, Nh, Nd (e.g. 5m, 30m, 2h, 1d). Minimum is 10s.
 If no interval is specified, defaults to ${DEFAULT_INTERVAL}.
+Max runs: positive safe integer, including the immediate first run; omitted means unlimited.
+Place --max-runs before the prompt. Use -- to keep the remaining prompt literal.
 
 Commands:
  /loop — open management overlay
- /loop [interval] <prompt> — start a new loop
+ /loop [interval] [--max-runs N] [--] <prompt> — start a new loop
+ /loop max-runs <id|name> <N|unlimited> — set total runs
  /loop stop <id|name> — stop a specific loop
  /loop interval <id|name> <interval> — reschedule an existing loop
  /loop prompt <id|name> <prompt> — rewrite an existing loop prompt
@@ -56,6 +64,9 @@ Examples:
  /loop check the deploy (defaults to ${DEFAULT_INTERVAL})
  /loop check the deploy every 20m
  /loop interval 1 30s
+ /loop 2h --max-runs 3 check deploy status
+ /loop max-runs 1 5
+ /loop max-runs 1 unlimited
  /loop prompt 1 check deploy status`;
 
 type LoopConflictMode = "skip" | "defer";
@@ -227,6 +238,13 @@ export default function (pi: ExtensionAPI) {
     activeLoops.delete(entry.id);
   };
 
+  const setMaxFireCount = (entry: LoopEntry, maxFireCount: number | null): void => {
+    validateRunLimit(maxFireCount, entry.fireCount);
+    entry.maxFireCount = maxFireCount;
+    if (maxFireCount !== null && entry.fireCount === maxFireCount) cancelLoop(entry);
+    pi.events.emit("loop:change", {});
+  };
+
   /** Replace the recurring timer only — prompt/mode/expiry/pending stay put. */
   const rescheduleLoop = (entry: LoopEntry, intervalMs: number, onTimerTick: () => void): void => {
     clearInterval(entry.timer);
@@ -318,13 +336,18 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.registerCommand("loop", {
-    description: `Run a prompt on a recurring interval. Usage: /loop [interval] <prompt> (default: ${DEFAULT_INTERVAL})`,
+    description: `Run a prompt on a recurring interval. Usage: /loop [interval] [--max-runs N] <prompt> (default: ${DEFAULT_INTERVAL})`,
     getArgumentCompletions: (prefix) => {
       const trimmed = prefix.trim();
 
       // If empty or only whitespace, show subcommands
       if (!trimmed) {
         return [
+          {
+            label: "max-runs <id|name> <N|unlimited>",
+            description: "Set total runs",
+            value: "max-runs ",
+          },
           { label: "stop <id|name>", description: "Stop a running loop", value: "stop " },
           {
             label: "interval <id|name> <interval>",
@@ -340,6 +363,21 @@ export default function (pi: ExtensionAPI) {
           { label: "1m <prompt>", description: "Run prompt every 1 minute", value: "1m " },
           { label: "5m <prompt>", description: "Run prompt every 5 minutes", value: "5m " },
         ];
+      }
+
+      if (/^max-runs(?:\s|$)/.test(trimmed)) {
+        const rest = trimmed.slice("max-runs".length).trim();
+        if (/\s/.test(rest)) return null;
+        const query = rest.toLowerCase();
+        const matched = listLoops().filter(
+          (loop) => loop.id.startsWith(query) || loop.name.toLowerCase().startsWith(query),
+        );
+        if (matched.length === 0) return null;
+        return matched.map((loop) => ({
+          label: `${loop.id} (${loop.name})`,
+          description: `Total: ${loop.maxFireCount ?? "unlimited"}; executed: ${loop.fireCount}`,
+          value: `max-runs ${loop.id} `,
+        }));
       }
 
       // If starts with "stop", show loop IDs
@@ -457,12 +495,7 @@ export default function (pi: ExtensionAPI) {
                 },
                 setMaxFireCount: (id, maxFireCount) => {
                   const entry = activeLoops.get(id);
-                  if (!entry) return;
-                  entry.maxFireCount = maxFireCount;
-                  if (maxFireCount !== null && entry.fireCount >= maxFireCount) {
-                    cancelLoop(entry);
-                  }
-                  pi.events.emit("loop:change", {});
+                  if (entry) setMaxFireCount(entry, maxFireCount);
                 },
                 remove: (id) => {
                   const entry = activeLoops.get(id);
@@ -485,6 +518,36 @@ export default function (pi: ExtensionAPI) {
             },
           },
         );
+        return;
+      }
+
+      if (/^max-runs(?:\s|$)/.test(trimmed)) {
+        const parts = trimmed.split(/\s+/);
+        if (parts.length !== 3) {
+          ctx.ui.notify("Error: Usage: /loop max-runs <id|name> <N|unlimited>", "warning");
+          return;
+        }
+        const entry = findLoop(parts[1]!);
+        if (!entry) {
+          ctx.ui.notify(`Error: No loop found with ID or name "${parts[1]}".`, "warning");
+          return;
+        }
+        let maxFireCount: number | null;
+        try {
+          maxFireCount = parseMaxRuns(parts[2]!, entry.fireCount);
+        } catch (error) {
+          if (!(error instanceof LoopInputError)) throw error;
+          ctx.ui.notify(error.message, "warning");
+          return;
+        }
+        setMaxFireCount(entry, maxFireCount);
+        const stopped = maxFireCount !== null && maxFireCount === entry.fireCount;
+        ctx.ui.notify(
+          `Loop "${entry.name}" (ID: ${entry.id}) total runs: ${maxFireCount ?? "unlimited"}.` +
+            (stopped ? " Stopped: total already reached." : ""),
+          "info",
+        );
+        if (widget) widget.show(ctx);
         return;
       }
 
@@ -584,9 +647,16 @@ export default function (pi: ExtensionAPI) {
       }
 
       // ── Schedule ─────────────────────────────────────────────────────
-      const parsed = parseArgs(trimmed);
+      let parsed: ParseResult | null;
+      try {
+        parsed = parseArgs(trimmed);
+      } catch (error) {
+        if (!(error instanceof LoopInputError)) throw error;
+        ctx.ui.notify(error.message, "warning");
+        return;
+      }
       if (!parsed?.prompt) {
-        ctx.ui.notify(USAGE_MESSAGE, "warning");
+        ctx.ui.notify(`Error: ${USAGE_MESSAGE}`, "warning");
         return;
       }
 
@@ -631,7 +701,7 @@ export default function (pi: ExtensionAPI) {
         intervalMs: effectiveMs,
         intervalLabel: formatInterval(effectiveMs),
         fireCount: 0,
-        maxFireCount: null,
+        maxFireCount: parsed.maxFireCount,
         nextRunAt: Date.now() + effectiveMs,
         mode: "defer",
         pending: false,
@@ -646,6 +716,7 @@ export default function (pi: ExtensionAPI) {
           ` Name: ${name}\n` +
           ` Prompt: "${prompt}"\n` +
           ` Interval: every ${formatInterval(effectiveMs)}\n` +
+          ` Total runs: ${parsed.maxFireCount ?? "unlimited"}\n` +
           ` Conflict: defer (toggle in /loop detail with m)\n` +
           ` Auto-expires: after ${formatInterval(MAX_AGE_MS)}\n` +
           ` Stop with: /loop stop ${id}`,

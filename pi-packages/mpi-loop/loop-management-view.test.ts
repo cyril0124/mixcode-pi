@@ -193,6 +193,29 @@ test("c edits the total run count from loop details", () => {
   assert.match(view.render(60).join("\n"), /Runs: 1\/3/);
 });
 
+test("blank total run input removes the limit", () => {
+  const entry = loop({ maxFireCount: 5 });
+  const view = createView([entry]);
+  view.handleInput(ENTER);
+  view.handleInput("c");
+  view.handleInput(ENTER);
+  assert.equal(entry.maxFireCount, null);
+  assert.match(view.render(60).join("\n"), /Runs: 3\s/);
+});
+
+for (const value of ["0", "2", "1.5", "9007199254740992"]) {
+  test(`total run input rejects ${value} without changing the limit`, () => {
+    const entry = loop({ fireCount: 3, maxFireCount: 5 });
+    const view = createView([entry]);
+    view.handleInput(ENTER);
+    view.handleInput("c");
+    view.handleInput(value);
+    view.handleInput(ENTER);
+    assert.match(view.render(100).join("\n"), /Error:/);
+    assert.equal(entry.maxFireCount, 5);
+  });
+}
+
 test("f fires directly from the list", () => {
   const fired: string[] = [];
   let closed = 0;
