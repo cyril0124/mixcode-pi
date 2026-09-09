@@ -196,7 +196,6 @@ class LoopWidget {
           ? String(loop.fireCount)
           : `${loop.fireCount}/${loop.maxFireCount}`;
       const countText = theme.fg("accent", fitCell(fireCount, 9));
-
       lines.push(
         ` ${statusIcon} ${idText} ${modeText} ${nameText} ${intervalText} ${promptText} ${nextText} ${countText}`,
       );
@@ -204,7 +203,6 @@ class LoopWidget {
 
     container.addChild(new Text(lines.join("\n"), 1, 0));
     container.addChild(new DynamicBorder(borderColor));
-
     return container.render(width);
   }
 
@@ -482,7 +480,7 @@ export default function (pi: ExtensionAPI) {
               theme,
               () => tui.requestRender(),
               () => done(undefined),
-              () => Math.floor(tui.terminal.rows * 0.8) - 6,
+              () => Math.floor(tui.terminal.rows * 0.8),
               {
                 getLoops: listLoops,
                 fire: firePrompt,

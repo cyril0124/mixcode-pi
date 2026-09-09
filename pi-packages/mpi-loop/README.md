@@ -47,6 +47,16 @@ Options are parsed only before the prompt; `check --max-runs 3` remains literal 
 
 Without `--`, the default-interval form can use a trailing interval clause, such as `/loop --max-runs 3 check every 2 hours`. An explicit leading interval takes precedence.
 
+## Management layout
+
+The bottom widget uses the original table layout with `ON`, `ID`, `M`, `NAME`, `INTERVAL`, `PROMPT`, `NEXT`, and `RUNS` columns. The header, active check mark and mode marker make it clear which fields belong to each task. The `NEXT` column shows the more precise countdown, such as `in 1h59m`, and finite totals appear as `1/3`.
+
+The management list uses two rows per task. The first row shows its ID, prompt summary, and right-aligned next run time. The second shows the interval, run count, and conflict mode. Narrow panels omit the mode first, then the interval; the countdown and count take priority over the summary. Both rows of the selected task share the selection background. `waiting` uses the warning color and means the loop is waiting for the agent to become idle.
+
+Details show the next run time and total count above the full, scrollable prompt. Short panels omit secondary metadata before reducing the prompt area. The panel height includes borders and hints, so scrolling keeps complete items and the footer visible. Width pressure removes secondary key hints; the keys still work when their hints are hidden.
+
+Remove and clear confirmations replace the footer while keeping the current task context visible. Only `y` confirms. Every other key cancels the confirmation without also triggering its normal action.
+
 ## Overlay Keybindings
 
 | Key | Action |
@@ -57,6 +67,13 @@ Without `--`, the default-interval form can use a trailing interval clause, such
 | `x` | Remove the selected loop |
 | `c` | Remove all loops after confirmation |
 | `Escape` / `q` | Close the management overlay |
+| `Ctrl+U` (list) | Clear the search query |
+| `Down` / `Up`, `j` / `k` (details) | Scroll the prompt one line |
+| `Ctrl+D` / `Ctrl+U` (details) | Scroll half a prompt page |
+| `PageDown` / `PageUp` (details) | Scroll one prompt page |
+| `End` / `Home`, `G` / `g` (details) | Jump to the end / beginning |
+| `q` (details) | Close the manager |
+| `y` (confirmation) | Confirm removal or clear; every other key cancels |
 | `c` (details) | Set total runs; blank means unlimited |
 | `m` (details) | Toggle conflict mode (`skip` / `defer`) |
 | `f` (details) | Fire the loop immediately |

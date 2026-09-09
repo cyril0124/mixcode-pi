@@ -423,7 +423,9 @@ test("mpi-loop reschedules an existing loop interval without re-firing", async (
     await commandHandler("", ctx);
     assert.ok(overlay);
     overlay.handleInput("\r");
-    assert.match(overlay.render(100).join("\n"), /Interval: 2h\s+Next: in 1h59m/);
+    const details = overlay.render(100).join("\n");
+    assert.match(details, /Interval: 2h/);
+    assert.match(details, /Next: in 1h59m/);
 
     sent.length = 0;
     await commandHandler("interval 1 30s", ctx);
@@ -599,8 +601,8 @@ test("mpi-loop counts the immediate first fire in RUNS", async () => {
     await commandHandler("", overlayCtx);
     assert.ok(overlay);
     const lines = overlay.render(100).join("\n");
-    assert.match(lines, /1 fires/);
-    assert.doesNotMatch(lines, /0 fires/);
+    assert.match(lines, /Runs: 1\/unlimited/);
+    assert.doesNotMatch(lines, /Runs: 0\/unlimited/);
   } finally {
     await shutdownHandler?.({}, idleCtx);
   }
