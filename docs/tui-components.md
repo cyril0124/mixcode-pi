@@ -99,9 +99,11 @@ Layout does not change agent selection, message submission, or draft ownership. 
 
 ## Ownership Boundaries
 
-`createMixCodeTui()` in `src/ui/app.ts` uses Pi's `TuiMainScreen` for the `iterm2` image protocol and `TuiAltScreen` otherwise. The fullscreen path renders the fixed application frame in the terminal's alternate screen, positioning each changed row with absolute coordinates inside synchronized output. Pi owns line diffing, overlays, image placement, cursor placement, and screen restoration on `stop({ preserveScreen: true })`.
+`createMixCodeTui()` in `src/ui/app.ts` uses Pi's `TuiAltScreen`. It renders the fixed application frame in the terminal's alternate screen, positioning each changed row with absolute coordinates inside synchronized output. Pi owns line diffing, overlays, image placement, cursor placement, and screen restoration on `stop({ preserveScreen: true })`. Image support follows the upstream renderer: Kitty graphics are supported; the `iterm2` protocol is disabled, and image components display text placeholders.
 
-MixCode owns chat virtualization and input routing. The fullscreen path uses the Pi patch option `viewportInput: false` to leave scrolling and selection with the host, and `mouse: false` leaves mouse reporting with `MouseReportingTerminal`. The fullscreen painter restores a full-screen origin and scrolling region before writing a frame.
+MixCode owns chat virtualization and input routing. The Pi patch option `viewportInput: false` leaves scrolling and selection with the host, and `mouse: false` leaves mouse reporting with `MouseReportingTerminal`. The fullscreen painter restores a full-screen origin and scrolling region before writing a frame. Absolute navigation to the beginning of chat clears the frozen viewport anchor so height recalculation cannot override the requested position.
+
+The Pi dependency patches skip Mermaid parsing for unfenced messages and check for a possible Setext underline before invoking Marked's heading regex. Matching heading candidates still use the upstream parser.
 
 Renderer handoffs are reversible: `start()` restores the redraw/title bindings and stdout protection removed by `stop()`. `pause()/resume()` preserve these resources while temporarily releasing the terminal.
 

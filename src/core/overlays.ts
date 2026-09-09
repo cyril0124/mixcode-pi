@@ -16,6 +16,10 @@ import { tabIsNonIdle, tabIsWaitingForInput } from "./tab-state.js";
 import { clearScrollFreeze } from "../ui/rendering/agent-surface-scroll.js";
 
 export function scrollChat(tab: MixCodeTabInfo, delta: number): boolean {
+  if (tab.chatAtHome) {
+    tab.chatHomeOffset = Math.max(0, (tab.chatHomeOffset ?? 0) - delta);
+    return true;
+  }
   // Keep the painted tail anchor: a drag can start before the next paint.
   // Discard a scrolled anchor only when returning to the tail is still pending.
   if (
@@ -47,12 +51,18 @@ export function scrollExtensionPanel(tab: MixCodeTabInfo, delta: number): boolea
 
 export function chatHome(tab: MixCodeTabInfo): boolean {
   clearChatScrollAnchor(tab);
-  tab.chatScrollOffset = 1_000_000;
+  // Absolute navigation must not be re-pinned to the previous painted row.
+  tab.chatAtHome = true;
+  tab.chatHomeOffset = 0;
+  clearScrollFreeze(tab);
+  tab.chatScrollOffset = 0;
   return true;
 }
 
 export function chatEnd(tab: MixCodeTabInfo): boolean {
   clearChatScrollAnchor(tab);
+  tab.chatAtHome = false;
+  tab.chatHomeOffset = undefined;
   tab.chatScrollOffset = 0;
   tab.chatJumpToLatestHitRegion = undefined;
   return true;

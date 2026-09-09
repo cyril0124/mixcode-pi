@@ -1,10 +1,8 @@
 import type { SettingsManager } from "@earendil-works/pi-coding-agent";
 import {
-  getCapabilities,
   isKeyRelease,
   ProcessTerminal,
   TuiAltScreen,
-  TuiMainScreen,
   type Terminal,
   type TUI as TuiType,
 } from "@earendil-works/pi-tui";
@@ -106,13 +104,10 @@ export function createMixCodeTui(
   const injecting = new InjectingTerminal(
     withHostStdoutGuard(withMouseReporting(options.terminal ?? new ProcessTerminal())),
   );
-  // Keep iTerm2 images on the upstream renderer that supports them.
-  const tui = (getCapabilities().images === "iterm2"
-    ? new TuiMainScreen(injecting)
-    : new TuiAltScreen(injecting, undefined, undefined, {
-        mouse: false,
-        viewportInput: false,
-      })) as unknown as MixCodeTui;
+  const tui = new TuiAltScreen(injecting, undefined, undefined, {
+    mouse: false,
+    viewportInput: false,
+  }) as unknown as MixCodeTui;
   tui.injectInput = (data) => injecting.inject(data);
   // settings.json showHardwareCursor / terminal.clearOnShrink.
   const settingsManager = options.settingsDeps?.settingsManager;

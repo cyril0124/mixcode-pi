@@ -23,6 +23,8 @@ export function scrollChatToUserEntry(
   const targetLine = chat[targetIndex];
   const offsetChanged =
     tab.chatScrollAnchorEntryId !== entryId || tab.chatScrollAnchorIndex !== targetIndex;
+  tab.chatAtHome = false;
+  tab.chatHomeOffset = undefined;
   tab.chatScrollAnchorEntryId = entryId;
   tab.chatScrollAnchorIndex = targetIndex;
   tab.chatScrollAnchorText = targetLine?.text;

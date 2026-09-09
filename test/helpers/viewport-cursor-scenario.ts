@@ -14,6 +14,7 @@ import {
 const dir = process.argv[2];
 if (!dir) throw new Error("A temporary directory is required");
 const longStreaming = process.argv[3] === "long";
+const homeNavigation = process.argv[3] === "home";
 const state = createInitialState(dir);
 state.tabs = Array.from({ length: 6 }, (_, index) =>
   createTab(index + 1, `cursor-${index}`, dir, { title: `terminal-cursor-example-tab-${index}` }),
@@ -39,6 +40,13 @@ runtimeTab.chat = [
     ).join("\n"),
   },
 ];
+if (homeNavigation) {
+  runtimeTab.chat = Array.from({ length: 100 }, (_, block) => ({
+    role: "assistant",
+    text: Array.from({ length: 20 }, (_, row) => `ROW-${block}-${row}`).join("\n"),
+  }));
+  tab.vimMode = true;
+}
 if (longStreaming) {
   tab.status = "running";
   const chatIndex = runtimeTab.chat.length - 1;
@@ -55,6 +63,14 @@ tab.chatScrollOffset = 10;
 class ScenarioTerminal extends ProcessTerminal {
   override start(onInput: (data: string) => void, onResize: () => void): void {
     super.start((data) => {
+      if (homeNavigation && ["g", "j", "k"].includes(data)) {
+        onInput(data);
+        if (data !== "g" || !tab.vimPendingHome) {
+          tui.renderNow();
+          void saveFrame(data === "g" ? "home" : data === "j" ? "down" : "up");
+        }
+        return;
+      }
       if (data === "p") {
         stopChatSelectionAutoScroll();
         tui.renderNow();

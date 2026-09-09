@@ -309,6 +309,8 @@ export function appendMessageStart(runtimeTab: RuntimeTab, message: AgentMessage
     const images = contentImages(message.content);
     if (!text.trim() && images.length === 0) return;
     clearChatScrollAnchor(runtimeTab.tab);
+    runtimeTab.tab.chatAtHome = false;
+    runtimeTab.tab.chatHomeOffset = undefined;
     runtimeTab.tab.chatScrollOffset = 0;
     runtimeTab.chat.push({
       role: "user",

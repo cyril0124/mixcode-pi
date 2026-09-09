@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { createMermaidMarkdownTransformer } from "@earendil-works/pi-coding-agent";
 import { stripTerminalSequences as stripAnsi } from "@earendil-works/pi-tui";
 import type { ChatLine } from "../src/agent/runtime.js";
 import { renderChatBlock } from "../src/ui/rendering/chat.js";
@@ -7,6 +8,39 @@ import { activeRenderTheme } from "../src/ui/rendering/context.js";
 import { renderMarkdown } from "../src/ui/rendering/markdown.js";
 
 const FLOW = ["```mermaid", "flowchart LR", "  A[Start] --> B[End]", "```"].join("\n");
+
+test("Mermaid scanning preserves unfenced Markdown source", () => {
+  const transform = createMermaidMarkdownTransformer({ getMode: () => "streaming" });
+  const context = { messageType: "assistant" as const, isStreaming: true, availableWidth: 100 };
+  for (const text of [
+    "plain\r\ntext",
+    "[label][target]\n\n[target]: https://example.com\n",
+    "1. first\n2. **second**\n\n> quoted text",
+  ]) {
+    assert.equal(transform(text, context), text);
+  }
+});
+
+test("Mermaid scanning does not double the cost of long unfenced messages", () => {
+  const text = "plain streaming words ".repeat(5500);
+  const measure = (mode: "off" | "streaming") => {
+    const samples: number[] = [];
+    let lines: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      const started = performance.now();
+      lines = renderMarkdown(text, 100, { mermaidRenderingMode: mode, isStreaming: true });
+      samples.push(performance.now() - started);
+    }
+    return { elapsed: Math.min(...samples), lines };
+  };
+  const baseline = measure("off");
+  const enabled = measure("streaming");
+  assert.deepEqual(enabled.lines, baseline.lines);
+  assert.ok(
+    enabled.elapsed <= baseline.elapsed * 1.5 + 10,
+    `Mermaid enabled ${enabled.elapsed.toFixed(1)}ms, disabled ${baseline.elapsed.toFixed(1)}ms`,
+  );
+});
 
 test("renderMarkdown draws flowchart mermaid fences via Pi transformer", () => {
   const out = renderMarkdown(FLOW, 80).join("\n");

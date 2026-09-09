@@ -17,6 +17,7 @@ import {
   type MixCodeTabInfo,
 } from "./helpers/mixcode.js";
 import { renderAgentSurface } from "../src/ui/rendering/agent-surface.js";
+import { handleVimModeKey } from "../src/ui/app-key-handlers.js";
 import { syncAssistantBlocks } from "../src/agent/runtime-events.js";
 import { testRuntimeTab } from "./helpers/runtime-tab.js";
 import { renderConversation } from "../src/ui/rendering/chat.js";
@@ -101,6 +102,32 @@ function buildRunningChatWithHugeStreamingTail(): ChatLine[] {
   return chat;
 }
 
+test("scrolling during long assistant growth stays within a 100ms frame budget", () => {
+  const tab = createTab(1, "growing-scroll-budget", "/repo", { status: "running" });
+  const chat = buildLongChat(80);
+  const tail: ChatLine = { role: "assistant", text: "plain streaming words ".repeat(5500) };
+  chat.push(tail);
+  const runtimeTab = {
+    chat,
+    streamingAssistant: {
+      chatIndex: 80,
+      blockIndices: new Map([[0, 80]]),
+      toolCallIndices: new Map(),
+    },
+  } as never;
+  renderAgentSurface(tab, runtimeTab, WIDTH, HEIGHT, undefined, DEFAULT_SURFACE_OPTIONS);
+  const samples: number[] = [];
+  for (let i = 0; i < 3; i++) {
+    scrollChat(tab, 3);
+    tail.text += " appended words";
+    const started = performance.now();
+    renderAgentSurface(tab, runtimeTab, WIDTH, HEIGHT, undefined, DEFAULT_SURFACE_OPTIONS);
+    samples.push(performance.now() - started);
+  }
+  const median = samples.sort((a, b) => a - b)[1]!;
+  assert.ok(median < 100, `growing-message scroll took ${median.toFixed(1)}ms per frame`);
+});
+
 test("windowed renderer pins to bottom when scrollOffset is 0", () => {
   const chat = buildLongChat(200);
   const tab = createTab(1, "s1", "/repo", { chatScrollOffset: 0 });
@@ -140,6 +167,49 @@ test("windowed renderer reaches top of chat when scrollOffset is the home sentin
   // the user stuck above the content with subsequent scrolls feeling dead.
   assert.ok(tab.chatScrollOffset < 1_000_000);
 });
+
+for (const count of [2, 100]) {
+  for (const viewport of [HEIGHT, HEIGHT + 4]) {
+    test(`Vim gg reaches the first row after a painted tail with ${count} blocks at height ${viewport}`, () => {
+      const chat: ChatLine[] = Array.from({ length: count }, (_, block) => ({
+        role: "assistant",
+        text: Array.from({ length: 20 }, (_, row) => `ROW-${block}-${row}`).join("\n"),
+      }));
+      const tab = createTab(3, `vim-home-${count}-${viewport}`, "/repo", {
+        vimMode: true,
+        extensionUi: {
+          statuses: [],
+          widgets: [],
+          toolsExpanded: false,
+          waitingForInputs: [],
+          workingVisible: true,
+          header: { lines: ["CHAT-HEADER"] },
+        },
+      });
+      const runtimeTab = { chat } as never;
+      const tail = renderAgentSurface(tab, runtimeTab, WIDTH, HEIGHT).map(stripAnsi).join("\n");
+      assert.match(tail, new RegExp(`ROW-${count - 1}-19`));
+      assert.doesNotMatch(tail, /ROW-0-0\b/);
+
+      handleVimModeKey(tab, "g");
+      handleVimModeKey(tab, "g");
+      const top = renderAgentSurface(tab, runtimeTab, WIDTH, viewport).map(stripAnsi);
+      assert.match(top.join("\n"), /CHAT-HEADER/);
+      handleVimModeKey(tab, "j");
+      const afterDown = renderAgentSurface(tab, runtimeTab, WIDTH, viewport)
+        .map(stripAnsi)
+        .join("\n");
+      assert.match(afterDown, /ROW-0-/);
+      assert.doesNotMatch(afterDown, new RegExp(`ROW-${count - 1}-19`));
+      handleVimModeKey(tab, "k");
+      const afterUp = renderAgentSurface(tab, runtimeTab, WIDTH, viewport)
+        .map(stripAnsi)
+        .join("\n");
+      assert.match(afterUp, /ROW-0-/);
+      assert.doesNotMatch(afterUp, new RegExp(`ROW-${count - 1}-19`));
+    });
+  }
+}
 
 test("windowed renderer keeps visible window stable across repeated renders", () => {
   const chat = buildLongChat(200);
@@ -823,6 +893,27 @@ test("running chats with active tool renderers use windowed rendering and still 
   // Active tool renderer at the tail is within the viewport and gets invoked
   assert.equal(rendered, 1);
   assert.match(text, /dynamic tool frame/);
+});
+
+test("idle tool output updates across stable top renders", () => {
+  let output = "before tool update";
+  const chat = buildStreamingAssistantChat(180);
+  chat[0] = {
+    role: "tool",
+    title: "idle",
+    toolCallId: "idle-1",
+    status: "success",
+    text: "",
+    renderToolCall: () => [output],
+  };
+  const tab = createTab(12, "s12", "/repo", { chatScrollOffset: 1_000_000 });
+  const runtimeTab = { chat } as never;
+  const before = renderAgentSurface(tab, runtimeTab, WIDTH, HEIGHT).map(stripAnsi).join("\n");
+  assert.match(before, /before tool update/);
+  output = "after tool update";
+  const after = renderAgentSurface(tab, runtimeTab, WIDTH, HEIGHT).map(stripAnsi).join("\n");
+  assert.match(after, /after tool update/);
+  assert.doesNotMatch(after, /before tool update/);
 });
 
 test("running tool behind extension message still renders correctly", () => {

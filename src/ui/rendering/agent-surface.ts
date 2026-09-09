@@ -177,6 +177,19 @@ function renderAgentSurfaceInner(
   const surfaceWidth = maxHeight === undefined || width < 2 ? width : width - 1;
   const mainWidth = surfaceWidth;
 
+  if (maxHeight !== undefined && runtimeTab && tab.chatAtHome) {
+    return renderAgentSurfaceWindowed(
+      tab,
+      runtimeTab,
+      runtimeTab.chat,
+      width,
+      maxHeight,
+      surfaceWidth,
+      mainWidth,
+      options,
+    );
+  }
+
   if (maxHeight !== undefined && runtimeTab && tab.chatScrollAnchorEntryId) {
     return renderAgentSurfaceAnchored(
       tab,
@@ -462,7 +475,9 @@ function renderAgentSurfaceWindowed(
 
   // Walk chat blocks newest-to-oldest, collecting rendered blocks, then
   // reverse-join into top-to-bottom order. Push+reverse is O(n); unshift was O(n²).
-  const targetRows = viewport + Math.max(0, tab.chatScrollOffset) + WINDOW_OVERSCAN_LINES;
+  const targetRows = tab.chatAtHome
+    ? viewport + (tab.chatHomeOffset ?? 0) + WINDOW_OVERSCAN_LINES
+    : viewport + Math.max(0, tab.chatScrollOffset) + WINDOW_OVERSCAN_LINES;
   const newerFirstBlocks: string[][] = [];
   const newerFirstChatLines: ChatLine[] = [];
   const frameBlockHeights = new Map<ChatLine, number>();
@@ -481,10 +496,12 @@ function renderAgentSurfaceWindowed(
       ));
   let reachedAnchor = anchor === undefined;
   let oldestEmittedIndex = displayChat.length;
-  // Count rows the same way unshift path did: tail first, then each older block
-  // plus a separator when content already exists below.
-  let assembledRows = tailLines.length;
-  for (let i = displayChat.length - 1; i >= 0; i--) {
+  // Tail rows cannot satisfy a viewport collected from the beginning.
+  let assembledRows = tab.chatAtHome ? 0 : tailLines.length;
+  const materializationOrder = tab.chatAtHome
+    ? Array.from({ length: displayChat.length }, (_, index) => index)
+    : Array.from({ length: displayChat.length }, (_, index) => displayChat.length - 1 - index);
+  for (const i of materializationOrder) {
     // New messages can fill the budget before the visible anchor is reached.
     // Retain that block so estimated heights cannot displace the pinned text.
     if (assembledRows >= targetRows && reachedAnchor) break;
@@ -515,14 +532,14 @@ function renderAgentSurfaceWindowed(
   }
 
   // newerFirstBlocks is [newest, ..., oldest]; reverse to oldest-first top-to-bottom.
-  const orderedBlocks = newerFirstBlocks.reverse();
-  const orderedChatLines = newerFirstChatLines.reverse();
+  const orderedBlocks = tab.chatAtHome ? newerFirstBlocks : newerFirstBlocks.reverse();
+  const orderedChatLines = tab.chatAtHome ? newerFirstChatLines : newerFirstChatLines.reverse();
   const olderLines = joinRenderedBlocksTopToBottom(orderedBlocks, chatBlockSeparator(mainWidth));
 
   // When the backward walk reached the very first block, the header sits
   // directly above it (Pi-style). Otherwise it stays part of the virtual
   // prefix counted via estimateTotalHeight's extraRows below.
-  const reachedTop = oldestEmittedIndex === 0;
+  const reachedTop = tab.chatAtHome || oldestEmittedIndex === 0;
   let lines: string[];
   if (reachedTop && headerLines.length) {
     lines = olderLines.length ? [...headerLines, ...olderLines] : [...headerLines];
@@ -556,9 +573,7 @@ function renderAgentSurfaceWindowed(
     frameBlockHeights,
     headerLines.length,
   );
-
-  // Clamp scrollOffset against the estimate so chatHome's 1_000_000 sentinel
-  // settles into a sensible value (treated as "all the way up").
+  // Clamp the estimated range before applying the viewport anchor.
   if (!freezeAdjusted && keepScrolledViewStable(tab, total, surfaceWidth, viewport)) {
     return renderAgentSurfaceWindowed(
       tab,
@@ -603,8 +618,13 @@ function renderAgentSurfaceWindowed(
   // Pick the visible window from the bottom. `lines` is ordered top-to-bottom
   // and ends with the queue preview / latest content. Bottom of window sits
   // at lines.length - clampedOffset.
-  const windowEnd = Math.max(0, lines.length - clampedOffset);
-  const windowStart = Math.max(0, windowEnd - viewport);
+  const windowEnd = tab.chatAtHome
+    ? Math.min(lines.length, (tab.chatHomeOffset ?? 0) + viewport)
+    : Math.max(0, lines.length - clampedOffset);
+  const windowStart = tab.chatAtHome
+    ? Math.min(tab.chatHomeOffset ?? 0, Math.max(0, lines.length - viewport))
+    : Math.max(0, windowEnd - viewport);
+  if (tab.chatAtHome) tab.chatHomeOffset = windowStart;
   let visible = lines.slice(windowStart, windowEnd);
   // If the window extends below the materialized lines (clampedOffset is
   // larger than what we collected because of imprecise estimates), pad with
@@ -614,7 +634,7 @@ function renderAgentSurfaceWindowed(
   // Determine virtual start row for boundary markers / scrollbar.
   // Rows above `lines` (un-rendered prefix) contribute total - lines.length.
   const linesAboveBuffer = Math.max(0, total - lines.length);
-  const start = linesAboveBuffer + windowStart;
+  const start = tab.chatAtHome ? (tab.chatHomeOffset ?? 0) : linesAboveBuffer + windowStart;
 
   rememberChatBlockScrollAnchor(tab, blockLayouts, windowStart, visible, surfaceWidth, viewport);
   const decorated = decorateWindow(visible, start, viewport, mainWidth);

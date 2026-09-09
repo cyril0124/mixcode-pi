@@ -373,7 +373,7 @@ function chatLineRenderCacheKey(
   tab?: MixCodeTabInfo,
   options: RenderChatBlockOptions = {},
 ): string | undefined {
-  // Dynamic renderers must execute every frame for lifecycle correctness.
+  // Dynamic renderers can invalidate their output even after execution completes.
   if (line.renderExtension || line.renderToolCall) return undefined;
   const themeName = activeRenderTheme.name;
   const role = line.role;
@@ -431,8 +431,7 @@ function oversizedPolicyKey(options: RenderChatBlockOptions): string {
   return `${policy.enabled ? 1 : 0}:${policy.maxLines}:${policy.maxBytes}`;
 }
 
-// Stable identity for transformer functions so line-cache keys stay valid while
-// the same extension list is loaded, and invalidate when the list is replaced.
+// Stable transformer identities invalidate keys when the extension list changes.
 const markdownTransformerIdentity = new WeakMap<MarkdownTransformer, number>();
 let nextMarkdownTransformerId = 1;
 

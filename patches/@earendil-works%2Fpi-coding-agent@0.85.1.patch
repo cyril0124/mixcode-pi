@@ -568,3 +568,19 @@ index 5ac4c56..7e9caa7 100644
      let transformedMarkdown = markdown;
      for (const transformer of transformers) {
          try {
+diff --git a/dist/modes/interactive/components/mermaid.js b/dist/modes/interactive/components/mermaid.js
+index 6015ae4..8984f3c 100644
+--- a/dist/modes/interactive/components/mermaid.js
++++ b/dist/modes/interactive/components/mermaid.js
+@@ -51,6 +51,11 @@ export function createMermaidMarkdownTransformer(options) {
+             (context.isStreaming && mode !== "streaming")) {
+             return markdown;
+         }
++        // Unfenced messages cannot contain Mermaid blocks. Preserve their source
++        // and avoid a full Markdown parse before the renderer parses it again.
++        if (!markdown.includes("```") && !markdown.includes("~~~")) {
++            return markdown;
++        }
+         return markdownParser
+             .lexer(markdown)
+             .map((token) => {

@@ -75,6 +75,29 @@ for (const [key, phase] of [
   });
 }
 
+test("Vim gg displays the first chat row after scrolling in a real terminal", {
+  skip: !Bun.which("tmux") && "tmux is required for terminal screen validation",
+}, async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mixcode-viewport-home-"));
+  const socket = `viewport-home-${process.pid}`;
+  const scenario = path.join(import.meta.dir, "helpers/viewport-cursor-scenario.ts");
+  const quote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
+  const command = `env PI_OFFLINE=1 PI_PACKAGE_DIR='' PI_CODING_AGENT_DIR=${quote(dir)} bun ${quote(scenario)} ${quote(dir)} home`;
+  try {
+    await $`tmux -L ${socket} new-session -d -s test -x 100 -y 30 ${command}`.quiet();
+    await waitForFrame(dir, "baseline");
+    await $`tmux -L ${socket} send-keys -t test g g`.quiet();
+    const home = await waitForFrame(dir, "home");
+    const screen = (await $`tmux -L ${socket} capture-pane -p -t test`.text()).split("\n");
+    assert.match(screen[home.bounds.top - 1]!, /ROW-0-0\b/);
+    assert.doesNotMatch(screen.join("\n"), /older above/);
+  } finally {
+    // This socket belongs only to this test.
+    await $`tmux -L ${socket} kill-server`.quiet().nothrow();
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
 for (const longStreaming of [false, true]) {
   test(`selecting ${longStreaming ? "long streaming output" : "the live tail"} keeps terminal rows stationary`, {
     skip: !Bun.which("tmux") && "tmux is required for terminal screen validation",

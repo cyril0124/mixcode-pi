@@ -7,6 +7,18 @@ function syntaxColors(text: string): Set<string> {
   return new Set(text.match(/\x1b\[38;(?:5;\d+|2;\d+;\d+;\d+)m/g) ?? []);
 }
 
+test("Setext headings retain the same rendering as ATX headings", () => {
+  for (const [setext, atx] of [
+    ["Heading\n===", "# Heading"],
+    ["Heading\n---\n", "## Heading"],
+    ["Heading\r\n=\r\n", "# Heading"],
+    ["Heading\n   ---   \t\n", "## Heading"],
+    ["> Heading\n> ---", "> ## Heading"],
+  ]) {
+    assert.deepEqual(renderMarkdown(setext!, 80), renderMarkdown(atx!, 80));
+  }
+});
+
 test("renderMarkdown highlights fenced code blocks with syntax colors", () => {
   const md = [
     "```javascript",

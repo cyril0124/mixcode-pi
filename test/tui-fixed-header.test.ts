@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   getCapabilities,
-  renderImage,
+  Image,
   setCapabilities,
   visibleWidth,
   type Terminal,
@@ -762,7 +762,7 @@ test("createMixCodeTui binds working redraw for Home Agent View spinners", async
   assert.equal(renders, rendersAfterStop);
 });
 
-test("iTerm2 image components remain visible across renderer handoffs", () => {
+test("iTerm2 capabilities use fullscreen image fallback across renderer handoffs", () => {
   const previous = getCapabilities();
   const state = createInitialState("/repo");
   const runtime = {
@@ -784,27 +784,36 @@ test("iTerm2 image components remain visible across renderer handoffs", () => {
   };
   setCapabilities({ images: "iterm2", trueColor: true, hyperlinks: true });
   const tui = createMixCodeTui(state, runtime, { terminal });
-  tui.addChild({
-    render: () => {
-      const image = renderImage(
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
-        { widthPx: 1, heightPx: 1 },
-      );
-      return [image?.sequence ?? "image unavailable"];
-    },
-    invalidate: () => undefined,
-  });
+  tui.addChild(
+    new Image(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+      "image/png",
+      { fallbackColor: (text) => text },
+      { filename: "fixture.png" },
+    ),
+  );
+  const assertFullscreenFallback = () => {
+    assert.match(writes, /\x1b\[\?1049h/, "the renderer must enter the alternate screen");
+    assert.match(
+      writes,
+      /\[Image: fixture\.png/,
+      "unsupported images must retain their text fallback",
+    );
+    assert.doesNotMatch(writes, /\x1b\]1337;File=/);
+  };
   try {
     tui.start();
-    assert.match(writes, /\x1b\]1337;File=/, "initial paint must emit the image");
+    assertFullscreenFallback();
     tui.pause();
+    assert.equal(getCapabilities().images, "iterm2", "handing off restores terminal capabilities");
     writes = "";
     tui.resume();
-    assert.match(writes, /\x1b\]1337;File=/, "resuming must emit the image");
+    assertFullscreenFallback();
     tui.stop({ preserveScreen: true });
+    assert.equal(getCapabilities().images, "iterm2");
     writes = "";
     tui.start();
-    assert.match(writes, /\x1b\]1337;File=/, "restarting must emit the image");
+    assertFullscreenFallback();
   } finally {
     tui.stop({ preserveScreen: true });
     setCapabilities(previous);

@@ -130,6 +130,10 @@ export interface MixCodeTabInfo {
   promptHistory: string[];
   draftInput: string;
   chatScrollOffset: number;
+  /** True while absolute-top navigation is active. */
+  chatAtHome?: boolean;
+  /** Distance from the first row while absolute-top navigation is active. */
+  chatHomeOffset?: number;
   chatScrollAnchorEntryId?: string;
   chatScrollAnchorIndex?: number;
   chatScrollAnchorText?: string;

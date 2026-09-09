@@ -1,3 +1,33 @@
+diff --git a/dist/components/markdown.js b/dist/components/markdown.js
+index 5788d755400164552ed09c7d69bdd67083caa5b1..67d8f1c64772180ac8bf01152b4895bf91afba61 100644
+--- a/dist/components/markdown.js
++++ b/dist/components/markdown.js
+@@ -3,7 +3,15 @@ import { renderLatex } from "../latex.js";
+ import { getCapabilities, hyperlink, isImageLine } from "../terminal-image.js";
+ import { applyBackgroundToLine, visibleWidth, wrapTextWithAnsi } from "../utils.js";
+ const STRICT_STRIKETHROUGH_REGEX = /^(~~)(?=[^\s~])((?:\\.|[^\\])*?(?:\\.|[^\s~\\]))\1(?=[^~]|$)/;
+-class StrictStrikethroughTokenizer extends Tokenizer {
++class TerminalMarkdownTokenizer extends Tokenizer {
++    lheading(src) {
++        // Setext headings require an underline on a following line. Avoid the
++        // expensive heading regex when a growing paragraph has no candidate.
++        if (!/\n[ \t]*[=-]+[ \t]*(?:\n|$)/.test(src)) {
++            return undefined;
++        }
++        return super.lheading(src);
++    }
+     del(src) {
+         const match = STRICT_STRIKETHROUGH_REGEX.exec(src);
+         if (!match) {
+@@ -144,7 +152,7 @@ function trimPartialClosingFences(tokens) {
+ }
+ const markdownParser = new Marked();
+ markdownParser.setOptions({
+-    tokenizer: new StrictStrikethroughTokenizer(),
++    tokenizer: new TerminalMarkdownTokenizer(),
+ });
+ markdownParser.use({ extensions: [...LATEX_MARKDOWN_EXTENSIONS] });
+ export class Markdown {
 diff --git a/dist/index.d.ts b/dist/index.d.ts
 index 1460dd1160f1d8ccf9abf201844f7d9f01bc0fde..50b697f7b8597f0e54d3ccc35d3a368b897f792c 100644
 --- a/dist/index.d.ts
