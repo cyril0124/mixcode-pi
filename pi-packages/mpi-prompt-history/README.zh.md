@@ -31,7 +31,7 @@ MixCode prompt 召回文件的唯一生产者,并提供 `/prompt-history` 浏览
 | `/prompt-history` | 以 **Session** 范围打开浏览器。 |
 | `/prompt-history config` | 编辑下方配置：选 `maxBytes` 输入新大小，或重置为默认值。 |
 
-按 `/` 搜索。方向键仍可移动。`j`、`k`、`c`、`q` 会写入查询。`Ctrl+G` 切换 Session 和 Global，查询还在。
+按 `/` 使用大小写不敏感的 JavaScript 正则表达式搜索。非法表达式会显示在浏览器中。方向键仍可移动。`j`、`k`、`c`、`q` 会写入查询。`Ctrl+G` 切换 Session 和 Global，查询还在。
 
 | 按键 | 作用 |
 | --- | --- |

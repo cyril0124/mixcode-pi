@@ -7,6 +7,34 @@ const theme = {
   fg: (_color: string, text: string) => text,
 };
 
+test("search uses a case-insensitive regular expression", () => {
+  const results: Array<string | null> = [];
+  const browser = createPromptHistoryBrowserComponent({
+    tui: { terminal: { columns: 80, rows: 24 }, requestRender: () => undefined },
+    theme: theme as never,
+    items: [{ text: "alpha 123" }, { text: "beta" }, { text: "ALPHA 456" }],
+    done: (result) => results.push(result),
+  });
+
+  browser.handleInput("/");
+  for (const ch of "alpha \\d+") browser.handleInput(ch);
+  browser.handleInput("\r");
+  assert.deepEqual(results, ["ALPHA 456"]);
+});
+
+test("invalid regular expressions are shown in the browser", () => {
+  const browser = createPromptHistoryBrowserComponent({
+    tui: { terminal: { columns: 80, rows: 24 }, requestRender: () => undefined },
+    theme: theme as never,
+    items: [{ text: "alpha" }],
+    done: () => undefined,
+  });
+
+  browser.handleInput("/");
+  for (const ch of "[") browser.handleInput(ch);
+  assert.match(browser.render(80).join("\n"), /Invalid regex:/);
+});
+
 test("Enter on empty filter stays open instead of closing", () => {
   const results: Array<string | null> = [];
   const browser = createPromptHistoryBrowserComponent({

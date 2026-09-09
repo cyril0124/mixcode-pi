@@ -31,7 +31,7 @@ The pointer block contains paths only, never history content.
 | `/prompt-history` | Open the browser in **Session** scope. |
 | `/prompt-history config` | Edit the config below: pick `maxBytes` to enter a new size, or reset it to the default. |
 
-Press `/` to search. Arrow keys still move. `j`, `k`, `c`, and `q` type into the query. `Ctrl+G` switches Session and Global and keeps the query.
+Press `/` to search with a case-insensitive JavaScript regular expression. Invalid expressions are shown in the browser. Arrow keys still move. `j`, `k`, `c`, and `q` type into the query. `Ctrl+G` switches Session and Global and keeps the query.
 
 | Key | Action |
 | --- | --- |

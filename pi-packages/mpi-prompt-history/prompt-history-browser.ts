@@ -33,7 +33,7 @@ import { Key, matchesKey, truncateToWidth, visibleWidth } from "@earendil-works/
 interface PromptItem {
   index: number; // Sequence number (newest = highest)
   text: string;
-  searchText: string; // Lowercase for matching
+  searchText: string; // Original text for regex matching
   timeDisplay: string; // Formatted time string
 }
 
@@ -44,6 +44,7 @@ interface BrowserState {
   query: string;
   scope: Scope;
   searching: boolean;
+  queryCursor: number;
 }
 
 /**
@@ -110,10 +111,20 @@ function buildItems(rawItems: Array<{ text: string; timestamp?: string }>): Prom
 
 // ─── Search Filter ───────────────────────────────────────────────────────────
 
-function filterItems(items: PromptItem[], rawQuery: string): PromptItem[] {
-  const query = rawQuery.trim().toLowerCase();
-  if (query === "") return items;
-  return items.filter((item) => item.searchText.includes(query));
+function filterItems(
+  items: PromptItem[],
+  rawQuery: string,
+): { items: PromptItem[]; error?: string } {
+  const query = rawQuery.trim();
+  if (query === "") return { items };
+
+  let pattern: RegExp;
+  try {
+    pattern = new RegExp(query, "i");
+  } catch (error: unknown) {
+    return { items: [], error: error instanceof Error ? error.message : String(error) };
+  }
+  return { items: items.filter((item) => pattern.test(item.searchText)) };
 }
 
 // ─── Rendering ───────────────────────────────────────────────────────────────
@@ -146,10 +157,20 @@ function panelTitle(scope: Scope, count: string): string {
   return `Prompt History — ${label} (${count})`;
 }
 
-function renderSearchLine(query: string, searching: boolean, theme: Theme, width: number): string {
-  const label = theme.fg("muted", " Search: ");
-  const cursor = searching ? "\x1b[7m \x1b[27m" : "";
-  return truncateToWidth(`${label}${query}${cursor}`, width);
+function renderSearchLine(
+  query: string,
+  cursorPosition: number,
+  searching: boolean,
+  theme: Theme,
+  width: number,
+): string {
+  const before = query.slice(0, cursorPosition);
+  const atCursor = query[cursorPosition] ?? " ";
+  const after = query.slice(cursorPosition + (cursorPosition < query.length ? 1 : 0));
+  return truncateToWidth(
+    `${theme.fg("muted", " Search: ")}${before}${searching ? `\x1b[7m${atCursor}\x1b[27m` : ""}${after}`,
+    width,
+  );
 }
 
 function padVisible(text: string, width: number): string {
@@ -243,9 +264,18 @@ export function createPromptHistoryBrowserComponent(config: PromptHistoryBrowser
 } {
   const { tui, theme, done, copy, loadGlobalItems } = config;
   const sessionItems = buildItems(config.items);
-  const state: BrowserState = { selectedIndex: 0, query: "", scope: "session", searching: false };
+  const state: BrowserState = {
+    selectedIndex: 0,
+    query: "",
+    scope: "session",
+    searching: false,
+    queryCursor: 0,
+  };
   let globalLoad: GlobalLoad = { kind: "idle" };
   let closed = false;
+  let filterCache:
+    | { items: PromptItem[]; query: string; result: { items: PromptItem[]; error?: string } }
+    | undefined;
 
   function finish(result: string | null): void {
     closed = true;
@@ -257,7 +287,17 @@ export function createPromptHistoryBrowserComponent(config: PromptHistoryBrowser
     return globalLoad.kind === "ready" ? globalLoad.items : [];
   }
 
-  const visibleItems = (): PromptItem[] => filterItems(scopeItems(), state.query);
+  const filteredItems = (): { items: PromptItem[]; error?: string } => {
+    const items = scopeItems();
+    if (filterCache?.items === items && filterCache.query === state.query)
+      return filterCache.result;
+    const result = filterItems(items, state.query);
+    filterCache = { items, query: state.query, result };
+    return result;
+  };
+
+  const visibleItems = (): PromptItem[] => filteredItems().items;
+  const searchError = (): string | undefined => filteredItems().error;
 
   function startGlobalLoad(): void {
     if (!loadGlobalItems) return;
@@ -345,10 +385,32 @@ export function createPromptHistoryBrowserComponent(config: PromptHistoryBrowser
       return;
     }
 
+    if (state.searching && matchesKey(data, Key.left)) {
+      state.queryCursor = Math.max(0, state.queryCursor - 1);
+      tui.requestRender();
+      return;
+    }
+    if (state.searching && matchesKey(data, Key.right)) {
+      state.queryCursor = Math.min(state.query.length, state.queryCursor + 1);
+      tui.requestRender();
+      return;
+    }
+    if (state.searching && matchesKey(data, Key.home)) {
+      state.queryCursor = 0;
+      tui.requestRender();
+      return;
+    }
+    if (state.searching && matchesKey(data, Key.end)) {
+      state.queryCursor = state.query.length;
+      tui.requestRender();
+      return;
+    }
+
     const browsing = !state.searching;
 
     if (browsing && matchesKey(data, "/")) {
       state.searching = true;
+      state.queryCursor = state.query.length;
       tui.requestRender();
       return;
     }
@@ -400,7 +462,9 @@ export function createPromptHistoryBrowserComponent(config: PromptHistoryBrowser
 
     if (matchesKey(data, Key.backspace)) {
       if (state.query.length > 0) {
-        state.query = state.query.slice(0, -1);
+        state.query =
+          state.query.slice(0, state.queryCursor - 1) + state.query.slice(state.queryCursor);
+        state.queryCursor -= 1;
         state.selectedIndex = 0;
         tui.requestRender();
       }
@@ -409,7 +473,9 @@ export function createPromptHistoryBrowserComponent(config: PromptHistoryBrowser
 
     const ch = printableChar(data);
     if (ch !== undefined) {
-      state.query += ch;
+      state.query =
+        state.query.slice(0, state.queryCursor) + ch + state.query.slice(state.queryCursor);
+      state.queryCursor += ch.length;
       state.selectedIndex = 0;
       tui.requestRender();
     }
@@ -421,7 +487,7 @@ export function createPromptHistoryBrowserComponent(config: PromptHistoryBrowser
       const pending = state.scope === "global" && globalLoad.kind !== "ready";
       const body: string[] = [""];
       if (state.searching || state.query.length > 0) {
-        body.push(renderSearchLine(state.query, state.searching, theme, inner));
+        body.push(renderSearchLine(state.query, state.queryCursor, state.searching, theme, inner));
       }
 
       const maxVisible = maxVisibleRows();
@@ -430,7 +496,12 @@ export function createPromptHistoryBrowserComponent(config: PromptHistoryBrowser
       } else if (state.scope === "global" && globalLoad.kind === "error") {
         body.push(truncateToWidth(` ${theme.fg("error", globalLoad.message)}`, inner));
       } else {
-        body.push(...renderList(visibleItems(), state.selectedIndex, theme, inner, maxVisible));
+        const error = searchError();
+        if (error) {
+          body.push(truncateToWidth(` ${theme.fg("error", `Invalid regex: ${error}`)}`, inner));
+        } else {
+          body.push(...renderList(visibleItems(), state.selectedIndex, theme, inner, maxVisible));
+        }
       }
       body.push("");
 
