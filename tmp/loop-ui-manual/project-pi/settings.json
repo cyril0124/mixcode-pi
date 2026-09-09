@@ -1,6 +1,0 @@
-{
-  "defaultProvider": "loop-ui-demo",
-  "defaultModel": "alpha",
-  "defaultThinkingLevel": "off",
-  "retry": { "enabled": false }
-}
