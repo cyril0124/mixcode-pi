@@ -31,6 +31,7 @@ export type LocalCommand =
   | "vim"
   | "toggle-zen-mode"
   | "toggle-inline-widgets"
+  | "widgets"
   | "new-session"
   | "resume"
   | "login"
@@ -358,6 +359,12 @@ export const LOCAL_COMMANDS: Array<{
     name: "toggle-inline-widgets",
     description: "Toggle showing extension widgets in chat (bottom; Steer/Follow-up stays last)",
     palette: { label: "Toggle Inline Widgets", requires: "session" },
+  },
+  {
+    name: "widgets",
+    description: "Expand or collapse inline widgets",
+    argumentHint: "[expand|collapse|toggle] [key]",
+    palette: { label: "Control Widgets", requires: "session" },
   },
   {
     name: "new-session",

@@ -104,6 +104,7 @@ export function createTab(
     vimEnterArmedAt: undefined,
     zenMode: false,
     inlineWidgets: false,
+    inlineWidgetCollapsed: new Map(),
     pendingEscapeArmedAt: undefined,
     lastEscapeTime: undefined,
     unreadDone: false,

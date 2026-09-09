@@ -57,6 +57,7 @@ import { InjectingTerminal, withMouseReporting } from "./terminal.js";
 import { installStdoutScreenGuard, withHostStdoutGuard } from "./stdout-screen-guard.js";
 import { noteActiveExtensionThemeId } from "../agent/runtime-extension-theme.js";
 import { loginArgumentCompletions } from "./pi-auth.js";
+import { widgetArgumentCompletions } from "./app-submit-ui.js";
 import { setTheme, themeForId } from "./themes.js";
 import { workspaceNameCompletions } from "./workspace-actions.js";
 
@@ -279,6 +280,10 @@ export function createMixCodeTui(
           argumentHint: "[provider]",
           getArgumentCompletions: (prefix: string) =>
             loginArgumentCompletions(runtime.getSharedModelRuntime(), prefix),
+        },
+        {
+          name: "widgets",
+          getArgumentCompletions: (prefix: string) => widgetArgumentCompletions(active, prefix),
         },
         {
           name: "restore-workspace",

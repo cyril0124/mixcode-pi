@@ -46,7 +46,21 @@ Inline widgets mode moves widget rendering to the tail of the conversation log:
 4. **Side Panel Coexistence**:
    - When the extension side panel is open (`Right` on empty editor), inline widgets in the chat column yield to side-panel rendering rules.
 
-## Commands Reference
+## Widget display and slash commands
+
+Inline widgets are expanded by default. The title shares a row with the first content line to reduce vertical space. Collapsed widgets show only the title and one summary line; expanded output is limited to 20 lines.
+
+Use slash commands to control the current tab:
+
+| Command | Action |
+|---|---|
+| `/widgets` | Toggle all widgets between collapsed and expanded |
+| `/widgets expand [key]` | Expand all widgets or the widget with the given key |
+| `/widgets collapse [key]` | Collapse all widgets or the widget with the given key |
+| `/widgets toggle [key]` | Toggle all widgets or the widget with the given key |
+
+The collapse state is session-only. Docked widgets and the side panel keep their existing full-content behavior.
+
 
 | Command | Action |
 |---|---|

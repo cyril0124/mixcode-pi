@@ -1038,10 +1038,21 @@ export function renderExtensionWidgets(
   return renderWithTheme(theme, () => renderExtensionWidgetsInner(tab, width, placement));
 }
 
+const INLINE_WIDGET_EXPANDED_MAX_LINES = 20;
+
+/** Inline-only presentation; dock and panel callers retain their own row budgets. */
+export function renderInlineExtensionWidgets(tab: MixCodeTabInfo, width: number): string[] {
+  return [
+    ...renderExtensionWidgetsInner(tab, width, "aboveEditor", true),
+    ...renderExtensionWidgetsInner(tab, width, "belowEditor", true),
+  ];
+}
+
 function renderExtensionWidgetsInner(
   tab: MixCodeTabInfo,
   width: number,
   placement: "aboveEditor" | "belowEditor",
+  inline = false,
 ): string[] {
   const widgets = tab.extensionUi.widgets.filter((widget) => widget.placement === placement);
   if (!widgets.length) return [];
@@ -1050,7 +1061,24 @@ function renderExtensionWidgetsInner(
     const bodyWidth = Math.max(1, width - 2);
     const widgetLines =
       widget.render?.(bodyWidth) ?? wrapExtensionWidgetLines(widget.lines, bodyWidth);
-    lines.push(...widgetLines.map((line) => renderSingleLineExtensionSlot(line, width)));
+    if (!inline) {
+      lines.push(...widgetLines.map((line) => renderSingleLineExtensionSlot(line, width)));
+      return;
+    }
+    if (widgetLines.length === 0) return;
+    const collapsed = tab.inlineWidgetCollapsed.get(widget.key) === true;
+    const budget = collapsed ? 1 : INLINE_WIDGET_EXPANDED_MAX_LINES;
+    lines.push(renderSingleLineExtensionSlot(widgetSectionHeader(widget.key, bodyWidth), width));
+    if (collapsed) return;
+    lines.push(
+      ...widgetLines.slice(0, budget).map((line) => renderSingleLineExtensionSlot(line, width)),
+    );
+    if (widgetLines.length > budget) {
+      const hint = collapsed
+        ? `… /widgets expand ${widget.key}`
+        : `… ${widgetLines.length - budget} more in widget panel`;
+      lines.push(renderSingleLineExtensionSlot(hint, width));
+    }
   });
   return lines;
 }

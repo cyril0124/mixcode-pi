@@ -38,7 +38,7 @@ import {
   renderConversationEmptyState,
   renderStartupBlock,
 } from "./chat.js";
-import { renderExtensionHeader, renderExtensionWidgets } from "./chrome.js";
+import { renderExtensionHeader, renderInlineExtensionWidgets } from "./chrome.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
 import { renderHeaderKeyHints } from "../components/header-hints.js";
 import { fitScrolledLinesWithInfo, type ScrolledLinesResult } from "./layout.js";
@@ -127,10 +127,7 @@ function shouldRenderInlineWidgets(tab: MixCodeTabInfo): boolean {
 
 function renderInlineWidgetLines(tab: MixCodeTabInfo, width: number): string[] {
   if (!shouldRenderInlineWidgets(tab)) return [];
-  const lines = [
-    ...renderExtensionWidgets(tab, width, "aboveEditor"),
-    ...renderExtensionWidgets(tab, width, "belowEditor"),
-  ];
+  const lines = renderInlineExtensionWidgets(tab, width);
   // Lift the chat-tail band off the transcript. Dock/panel keep dim-only chrome.
   return lines.map((line) => activeRenderTheme.surface(line));
 }
