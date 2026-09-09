@@ -226,9 +226,12 @@ test("global key input toggles MixCode overlays and passes through regular input
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[6~", tui), { consume: true });
   assert.equal(tab.chatScrollOffset, 0);
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[H", tui), { consume: true });
-  assert.equal(tab.chatScrollOffset, 1_000_000);
+  assert.deepEqual([tab.chatAtHome, tab.chatHomeOffset, tab.chatScrollOffset], [true, 0, 0]);
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[F", tui), { consume: true });
-  assert.equal(tab.chatScrollOffset, 0);
+  assert.deepEqual(
+    [tab.chatAtHome, tab.chatHomeOffset, tab.chatScrollOffset],
+    [false, undefined, 0],
+  );
   overlayOpen = true;
   assert.equal(handleMixCodeKeyInput(state, "\x1b[5~", tui), undefined);
   assert.equal(handleMixCodeKeyInput(state, "\x1b[<64;20;6M", tui), undefined);

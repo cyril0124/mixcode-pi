@@ -624,9 +624,12 @@ test("vim mode consumes editor input, scrolls chat, and exits with q", async () 
   assert.deepEqual(handleMixCodeKeyInput(state, "g", tui), { consume: true });
   assert.equal(tab.vimPendingHome, true);
   assert.deepEqual(handleMixCodeKeyInput(state, "g", tui), { consume: true });
-  assert.equal(tab.chatScrollOffset, 1_000_000);
+  assert.deepEqual([tab.chatAtHome, tab.chatHomeOffset, tab.chatScrollOffset], [true, 0, 0]);
   assert.deepEqual(handleMixCodeKeyInput(state, "G", tui), { consume: true });
-  assert.equal(tab.chatScrollOffset, 0);
+  assert.deepEqual(
+    [tab.chatAtHome, tab.chatHomeOffset, tab.chatScrollOffset],
+    [false, undefined, 0],
+  );
   assert.deepEqual(handleMixCodeKeyInput(state, "x", tui), { consume: true });
   assert.equal(text, "");
   assert.deepEqual(prompts, []);

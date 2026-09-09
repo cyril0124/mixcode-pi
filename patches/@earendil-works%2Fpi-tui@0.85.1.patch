@@ -295,3 +295,19 @@ index 887f5e8bd3c3ba9b467f9f6c6b5eb4af8a63f7f3..61d9bab9cd3e7a77036763e09e0f8038
          this.beforeTerminalStart();
          this.terminal.start((data) => this.handleTerminalInput(data), () => this.requestRender());
          this.afterTerminalStart();
+diff --git a/dist/utils.js b/dist/utils.js
+index 7b148e9e3efb6c49611be7bf416cb9a4e7d2f663..4725da7966a5c8eb0c10a0a196b0a116231dd8f6 100644
+--- a/dist/utils.js
++++ b/dist/utils.js
+@@ -712,7 +712,10 @@ function splitIntoTokensWithAnsi(text) {
+         while (end < text.length && !extractAnsiCode(text, end)) {
+             end++;
+         }
+-        for (const { segment } of graphemeSegmenter.segment(text.slice(i, end))) {
++        const chunk = text.slice(i, end);
++        const segments = isPrintableAscii(chunk) ? chunk : graphemeSegmenter.segment(chunk);
++        for (const item of segments) {
++            const segment = typeof item === "string" ? item : item.segment;
+             const segmentIsSpace = segment === " ";
+             if (!segmentIsSpace && cjkBreakRegex.test(segment)) {
+                 flushCurrent();
