@@ -24,10 +24,10 @@ Inline widgets mode moves widget rendering to the tail of the conversation log:
 ┌─ Inline Widgets View (`/toggle-inline-widgets`) ─────────────────────────┐
 │ [Chat Message Stream]                                                    │
 │                                                                          │
-│ [Inline Widget Chrome]                                                   │
-│ Goal (active) | 3 tasks remaining | tokens: 12.4k                        │
+│ ▸ Inline · Goal (active) ─────────────────────────────────────────────── │
+│ 3 tasks remaining | tokens: 12.4k                                         │
 │                                                                          │
-│ ── [INL] ───────────────────────────────────────────────── Agent-01 ──── │
+│ ▸ Inline · Goal (active) ───────────────────────────────── Agent-01 ──── │
 │ > prompt editor (Expanded vertical room)                                 │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
@@ -37,9 +37,9 @@ Inline widgets mode moves widget rendering to the tail of the conversation log:
 1. **Natural Scroll Integration**:
    - Widgets render directly after the last conversation message and before pending steer/follow-up queues.
    - When scrolling historical chat messages (PageUp/Vim mode), inline widgets scroll naturally out of the viewport.
-2. **Editor Top Border Badge (`[INL]`)**:
-   - The editor top border clearly displays the `[INL]` badge when active.
-   - Editor left badges render as `[VIM] [ZEN] [INL]`; `[sys]` follows the title.
+2. **Inline Widget Header (`▸ Inline`)**:
+   - Each inline widget starts with a `▸ Inline · <key>` header at the widget's top-left.
+   - The editor top border no longer carries an inline-mode badge; `[VIM]`, `[ZEN]`, and `[sys]` keep their existing roles.
 3. **Session-Level & Global Configuration**:
    - **Per-Session Toggle**: Run `/toggle-inline-widgets` to switch for the current tab.
    - **Global Default**: Set `"ui.inlineWidgets": true` in `mixcode_settings.json` or toggle via `/settings` ("Inline widgets").

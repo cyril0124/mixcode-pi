@@ -24,10 +24,10 @@ MixCode Pi 提供 **内联组件模式 (Inline Widgets Mode)**（`/toggle-inline
 ┌─ 内联组件视图 (`/toggle-inline-widgets`) ────────────────────────────────┐
 │ [Chat 对话流视口]                                                        │
 │                                                                          │
-│ [内联组件内容]                                                           │
-│ Goal (active) | 3 tasks remaining | tokens: 12.4k                        │
+│ ▸ Inline · Goal (active) ─────────────────────────────────────────────── │
+│ 3 tasks remaining | tokens: 12.4k                                         │
 │                                                                          │
-│ ── [INL] ───────────────────────────────────────────────── Agent-01 ──── │
+│ ▸ Inline · Goal (active) ───────────────────────────────── Agent-01 ──── │
 │ > prompt 输入框 (获得完整垂直高度)                                       │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
@@ -37,9 +37,9 @@ MixCode Pi 提供 **内联组件模式 (Inline Widgets Mode)**（`/toggle-inline
 1. **自然跟随滚动**：
    - 组件渲染在最后一条消息之后、排队中的 Steer/Follow-up 队列之前。
    - 向上翻页或在 Vim 模式下浏览历史记录时，内联组件随内容自然滚出视口。
-2. **编辑器顶部角标 (`[INL]`)**：
-   - 激活时编辑器顶部边框显式展示 `[INL]` 角标。
-   - 左侧角标顺序为 `[VIM] [ZEN] [INL]`；`[sys]` 跟在标题后面。
+2. **内联组件标题 (`▸ Inline`)**：
+   - 每个内联组件左上角显示 `▸ Inline · <key>` 标题。
+   - 编辑器顶部不再显示内联模式角标；`[VIM]`、`[ZEN]` 和 `[sys]` 保持原有作用。
 3. **会话级与全局配置**：
    - **单 Tab 切换**：运行 `/toggle-inline-widgets` 仅切换当前 Tab。
    - **全局默认**：在 `mixcode_settings.json` 中配置 `"ui.inlineWidgets": true`，或在 `/settings` 中勾选 “Inline widgets”。

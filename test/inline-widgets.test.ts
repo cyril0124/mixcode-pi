@@ -294,8 +294,8 @@ test("windowed inline widgets stay between messages and the queue", () => {
   const tab = widgetTab({ pendingMessages: ["steer-me"] });
   const text = stripAnsi(renderAgentSurface(tab, { chat } as never, 80, 20).join("\n"));
   const last = text.indexOf("long-59");
-  const aboveAt = text.indexOf("─ above ─");
-  const belowAt = text.indexOf("─ below ─");
+  const aboveAt = text.indexOf("▸ Inline · above");
+  const belowAt = text.indexOf("▸ Inline · below");
   const steerAt = text.indexOf("Steer");
   assert.ok(last >= 0 && aboveAt > last);
   assert.ok(belowAt > aboveAt && steerAt > belowAt);
@@ -391,13 +391,17 @@ test("inline widgets stay in the chat column, not the editor dock", () => {
   assert.equal(full.split("above body").length - 1, 1);
 });
 
-test("inline mode embeds [INL] on the default editor top border", () => {
+test("inline mode labels the widget header instead of the editor border", () => {
   const line = border({ width: 40, title: "Agent-1", inlineWidgets: true });
-  assert.match(line, /^── \[INL\] /);
+  assert.doesNotMatch(line, /\[INL\]/);
   assert.match(line, /Agent-1/);
+
+  const tab = widgetTab();
+  const text = stripAnsi(renderAgentSurface(tab, { chat: [] } as never, 80).join("\n"));
+  assert.match(text, /▸ Inline · above/);
 });
 
-test("VIM ZEN INL badges share the left slot in that order", () => {
+test("VIM and ZEN badges remain in the editor border", () => {
   const line = border({
     width: 56,
     title: "Agent-1",
@@ -405,10 +409,10 @@ test("VIM ZEN INL badges share the left slot in that order", () => {
     zenMode: true,
     inlineWidgets: true,
   });
-  assert.match(line, /^── \[VIM\] \[ZEN\] \[INL\] /);
+  assert.match(line, /^── \[VIM\] \[ZEN\] /);
 });
 
-test("narrow borders drop [INL] before [ZEN] and [VIM]", () => {
+test("narrow borders omit inline mode from the editor border", () => {
   const line = border({
     width: 18,
     title: "Agent-1",
@@ -420,14 +424,14 @@ test("narrow borders drop [INL] before [ZEN] and [VIM]", () => {
   assert.match(line, /\[VIM\]|\[ZEN\]|Agent-1/);
 });
 
-test("default editor chrome shows [INL] when inline widgets are on", () => {
+test("default editor chrome omits the inline widget label", () => {
   const { slot } = makeSlot();
   const plain = stripAnsi(slot.render(64).join("\n"));
-  assert.match(plain, /\[INL\]/);
+  assert.doesNotMatch(plain, /\[INL\]/);
   assert.match(plain, /Agent-01/);
 });
 
-test("setEditorComponent body stays unlabeled; [INL] moves to the separator", () => {
+test("setEditorComponent body and separator omit the inline widget label", () => {
   const { slot } = makeSlot();
   const width = 56;
   const plainTop = "─".repeat(width);
@@ -442,11 +446,11 @@ test("setEditorComponent body stays unlabeled; [INL] moves to the separator", ()
       agentChrome: { title: "Agent-01" },
     }).join("\n"),
   );
-  assert.match(separator, /\[INL\]/);
+  assert.doesNotMatch(separator, /\[INL\]/);
   assert.match(separator, /Agent-01/);
 });
 
-test("temporary input override does not receive [INL]", () => {
+test("temporary input override omits the inline widget label", () => {
   const { slot, state } = makeSlot();
   slot.setInputComponent(
     {
@@ -464,7 +468,7 @@ test("temporary input override does not receive [INL]", () => {
   assert.doesNotMatch(separator, /\[INL\]/);
 });
 
-test("custom()/dialog takeover hides [INL] on the separator until restore", () => {
+test("custom()/dialog takeover keeps the editor border free of inline labels", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo", {
     title: "Agent-01",
@@ -492,13 +496,12 @@ test("custom()/dialog takeover hides [INL] on the separator until restore", () =
   assert.match(during, /Agent-01/);
   assert.doesNotMatch(during, /\[INL\]/);
 
-  tab.extensionUi.waitingForInputs = [];
   const restored = stripAnsi(main.render(80).join("\n"));
-  assert.match(restored, /\[INL\]/);
+  assert.doesNotMatch(restored, /\[INL\]/);
   assert.match(restored, /Agent-01/);
 });
 
-test("setInputComponent takeover hides [INL] on a permanent-skin separator", () => {
+test("setInputComponent takeover keeps the editor border free of inline labels", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo", { title: "Agent-01", inlineWidgets: true });
   state.tabs = [tab];
@@ -520,10 +523,10 @@ test("setInputComponent takeover hides [INL] on a permanent-skin separator", () 
 
   inputOpen = false;
   const restored = stripAnsi(main.render(80).join("\n"));
-  assert.match(restored, /\[INL\]/);
+  assert.doesNotMatch(restored, /\[INL\]/);
 });
 
-test("turning inline widgets off restores the dock and drops [INL]", () => {
+test("turning inline widgets off restores the dock", () => {
   const { layout, main, tab } = buildLayout(24);
   tab.extensionUi.widgets = [{ key: "above", placement: "aboveEditor", lines: ["above"] }];
   tab.inlineWidgets = true;
@@ -537,7 +540,7 @@ test("turning inline widgets off restores the dock and drops [INL]", () => {
   assert.doesNotMatch(border({ width: 40, title: "Agent-1" }), /\[INL\]/);
 });
 
-test("zen + custom editor keeps status dots and [INL] on one separator", () => {
+test("zen + custom editor keeps status dots without an inline label", () => {
   const line = stripAnsi(
     renderTabBarSeparator(64, {
       zenMode: true,
@@ -547,15 +550,15 @@ test("zen + custom editor keeps status dots and [INL] on one separator", () => {
     }).join("\n"),
   );
   assert.match(line, /●/);
-  assert.match(line, /\[INL\]/);
+  assert.doesNotMatch(line, /\[INL\]/);
   assert.match(line, /Agent-17/);
 });
 
-test("side panel leaves [INL] on the default editor", () => {
+test("side panel omits the inline widget label on the default editor", () => {
   const { slot, tab } = makeSlot();
   tab.panelOpen = true;
   const plain = stripAnsi(slot.render(64).join("\n"));
-  assert.match(plain, /\[INL\]/);
+  assert.doesNotMatch(plain, /\[INL\]/);
 });
 
 test("anchored chat still places widgets before the queue", () => {

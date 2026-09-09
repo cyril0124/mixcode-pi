@@ -42,4 +42,4 @@ MixCode Pi 为 Pi 扩展提供完整的 UI 宿主原语支持（`src/agent/runti
 
 ## 3. 内联组件模式 (`/toggle-inline-widgets`)
 
-组件迁移、`[INL]` 角标与设置见 [内联组件模式](inline-widgets.zh.md)。
+组件迁移、`▸ Inline · <key>` 标题与设置见 [内联组件模式](inline-widgets.zh.md)。
