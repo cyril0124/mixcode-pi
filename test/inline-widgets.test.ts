@@ -355,8 +355,8 @@ test("an open side panel keeps widgets out of the chat tail", () => {
 test("inline mode removes docked widgets and grows the chat surface", () => {
   const { layout, tab } = buildLayout(24);
   tab.extensionUi.widgets = [
-    { key: "above", placement: "aboveEditor", lines: ["above"] },
-    { key: "below", placement: "belowEditor", lines: ["below"] },
+    { key: "above", placement: "aboveEditor", lines: ["above body"] },
+    { key: "below", placement: "belowEditor", lines: ["below body"] },
   ];
 
   layout.render(80);
@@ -371,13 +371,13 @@ test("inline mode removes docked widgets and grows the chat surface", () => {
   const inlinedChat = tab.chatSurfaceBounds?.height ?? 0;
   assert.match(inlinedText, /above/);
   assert.match(inlinedText, /editor-line-0/);
-  assert.equal(inlinedText.split("above").length - 1, 1, "widgets must not render twice");
+  assert.equal(inlinedText.split("above body").length - 1, 1, "widgets must not render twice");
   assert.ok(inlinedChat > dockedChat, `chat should grow: ${inlinedChat} vs ${dockedChat}`);
 });
 
 test("inline widgets stay in the chat column, not the editor dock", () => {
   const { layout, main, tab } = buildLayout(24);
-  tab.extensionUi.widgets = [{ key: "above", placement: "aboveEditor", lines: ["above"] }];
+  tab.extensionUi.widgets = [{ key: "above", placement: "aboveEditor", lines: ["above body"] }];
 
   const dockedMain = stripAnsi(main.render(80).join("\n"));
   assert.doesNotMatch(dockedMain, /above/);
@@ -388,7 +388,7 @@ test("inline widgets stay in the chat column, not the editor dock", () => {
 
   layout.render(80);
   const full = stripAnsi(layout.render(80).join("\n"));
-  assert.equal(full.split("above").length - 1, 1);
+  assert.equal(full.split("above body").length - 1, 1);
 });
 
 test("inline mode embeds [INL] on the default editor top border", () => {

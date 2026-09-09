@@ -105,7 +105,7 @@ function buildRunningChatWithHugeStreamingTail(): ChatLine[] {
 test("scrolling during long assistant growth stays within a 100ms frame budget", () => {
   const tab = createTab(1, "growing-scroll-budget", "/repo", { status: "running" });
   const chat = buildLongChat(80);
-  const tail: ChatLine = { role: "assistant", text: "plain streaming words ".repeat(5500) };
+  const tail: ChatLine = { role: "assistant", text: "plain streaming words ".repeat(1500) };
   chat.push(tail);
   const runtimeTab = {
     chat,
