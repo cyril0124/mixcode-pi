@@ -52,8 +52,10 @@ export function renderMarkdown(
     getMode: () => options.mermaidRenderingMode ?? "streaming",
     theme: currentExtensionTheme(),
   });
-  // Pi InteractiveMode: mermaid first, then extensionRunner.getMarkdownTransformers().
-  const transformers: MarkdownTransformer[] = [mermaidTransformer, ...(options.transformers ?? [])];
+  const needsTransformers = options.transformers !== undefined || text.includes("```");
+  const transformers: MarkdownTransformer[] = needsTransformers
+    ? [mermaidTransformer, ...(options.transformers ?? [])]
+    : [];
   const markdown = new Markdown(
     text,
     1,
@@ -67,16 +69,20 @@ export function renderMarkdown(
       renderLatex: options.renderLatex !== false,
       preserveOrderedListMarkers: options.preserveOrderedListMarkers,
       preserveBackslashEscapes: options.preserveBackslashEscapes,
-      transform: (source, availableWidth) =>
-        applyMarkdownTransformers(
-          source,
-          {
-            messageType: options.messageType ?? "assistant",
-            isStreaming: options.isStreaming ?? false,
-            availableWidth,
-          },
-          transformers,
-        ),
+      ...(needsTransformers
+        ? {
+            transform: (source: string, availableWidth: number) =>
+              applyMarkdownTransformers(
+                source,
+                {
+                  messageType: options.messageType ?? "assistant",
+                  isStreaming: options.isStreaming ?? false,
+                  availableWidth,
+                },
+                transformers,
+              ),
+          }
+        : {}),
     },
   );
   return markdown.render(width).map((line) => padRenderedMarkdownLine(line, width));
