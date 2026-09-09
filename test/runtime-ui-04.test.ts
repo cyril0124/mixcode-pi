@@ -329,6 +329,43 @@ test("submitted clear fires session replacement without blocking the caller", as
   assert.equal(state.activeTabId, "cleared");
 });
 
+test("submitted clear honors extension cancellation before wiping the conversation", async () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo");
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  let projectionCleared = false;
+  let replacementStarted = false;
+
+  await handleSubmittedInput(
+    state,
+    {
+      canClearTab: async () => false,
+      clearTab: async () => {
+        replacementStarted = true;
+        throw new Error("clear must not start after cancellation");
+      },
+      clearTabChatProjection: () => {
+        projectionCleared = true;
+      },
+      getTab: () => ({
+        chat: ["existing"],
+        agentSession: { isStreaming: false, isBashRunning: false },
+        session: { getBranch: () => [] },
+      }),
+    } as unknown as RuntimeType,
+    "/clear",
+    {
+      requestRender: () => undefined,
+      showOverlay: () => ({}) as never,
+    },
+  );
+
+  await Bun.sleep(50);
+  assert.equal(projectionCleared, false);
+  assert.equal(replacementStarted, false);
+  assert.equal(state.activeTabId, "s1");
+});
 test("submitted clear resets tab state when replacement fails", async () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo", {
