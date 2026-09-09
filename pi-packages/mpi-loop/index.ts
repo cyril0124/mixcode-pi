@@ -165,11 +165,11 @@ class LoopWidget {
       const clipped = truncateToWidth(value.replace(/[\r\n]+/g, " "), cellWidth, "...");
       return clipped + " ".repeat(Math.max(0, cellWidth - visibleWidth(clipped)));
     };
-    const tableWidth = Math.max(57, width - 6);
-    const flexibleWidth = Math.max(20, tableWidth - 37);
+    const tableWidth = Math.max(58, width - 6);
+    const flexibleWidth = Math.max(20, tableWidth - 38);
     const nameWidth = Math.min(15, Math.max(8, Math.floor(flexibleWidth / 3)));
     const promptWidth = Math.min(28, Math.max(12, flexibleWidth - nameWidth));
-    const header = ` ${fitCell("ON", 2)} ${fitCell("ID", 3)} ${fitCell("M", 1)} ${fitCell("NAME", nameWidth)} ${fitCell("INTERVAL", 8)} ${fitCell("PROMPT", promptWidth)} ${fitCell("NEXT", 8)} ${fitCell("RUNS", 9)}`;
+    const header = ` ${fitCell("ON", 2)} ${fitCell("ID", 3)} ${fitCell("M", 1)} ${fitCell("NAME", nameWidth)} ${fitCell("INTERVAL", 8)} ${fitCell("PROMPT", promptWidth)} ${fitCell("NEXT", 9)} ${fitCell("RUNS", 9)}`;
     const lines: string[] = [theme.fg("dim", header)];
     for (const loop of loops) {
       const statusIcon = theme.fg("success", fitCell("✓", 2));
@@ -179,7 +179,7 @@ class LoopWidget {
       const intervalText = theme.fg("dim", fitCell(loop.intervalLabel, 8));
       const promptText = theme.fg("dim", fitCell(loop.prompt, promptWidth));
       const nextLabel = loop.pending ? "waiting" : formatRelativeTime(loop.nextRunAt);
-      const nextText = fitCell(nextLabel, 8);
+      const nextText = fitCell(nextLabel, 9);
       const fireCount =
         loop.maxFireCount === null
           ? String(loop.fireCount)

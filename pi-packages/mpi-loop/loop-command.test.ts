@@ -367,6 +367,9 @@ test("mpi-loop reschedules an existing loop interval without re-firing", async (
   const realSetTimeout = globalThis.setTimeout;
   const realClearTimeout = globalThis.clearTimeout;
   let nextTimerId = 1;
+  const realNow = Date.now;
+  let now = 1_700_000_000_000;
+  Date.now = () => now;
   globalThis.setInterval = ((fn: () => void, ms?: number) => {
     intervalCalls.push({ fn, ms: ms ?? 0 });
     return nextTimerId++ as unknown as ReturnType<typeof setInterval>;
@@ -410,11 +413,17 @@ test("mpi-loop reschedules an existing loop interval without re-firing", async (
     loopExtension(pi);
     assert.ok(commandHandler);
 
-    await commandHandler("10m reschedule-me", ctx);
+    await commandHandler("2h reschedule-me", ctx);
     assert.deepEqual(sent, ["reschedule-me"]);
     assert.equal(intervalCalls.length, 1);
-    assert.equal(intervalCalls[0]!.ms, 10 * 60_000);
+    assert.equal(intervalCalls[0]!.ms, 2 * 3_600_000);
     const originalTimerId = 1;
+
+    now += 1_000;
+    await commandHandler("", ctx);
+    assert.ok(overlay);
+    overlay.handleInput("\r");
+    assert.match(overlay.render(100).join("\n"), /Interval: 2h\s+Next: in 1h59m/);
 
     sent.length = 0;
     await commandHandler("interval 1 30s", ctx);
@@ -428,8 +437,9 @@ test("mpi-loop reschedules an existing loop interval without re-firing", async (
     assert.ok(overlay);
     const list = overlay.render(100).join("\n");
     assert.match(list, /30s/);
-    assert.doesNotMatch(list, /\b10m\b/);
+    assert.doesNotMatch(list, /\b2h\b/);
   } finally {
+    Date.now = realNow;
     await shutdownHandler?.({}, ctx);
     globalThis.setInterval = realSetInterval;
     globalThis.clearInterval = realClearInterval;

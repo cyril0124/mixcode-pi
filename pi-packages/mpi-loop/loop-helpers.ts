@@ -91,11 +91,16 @@ export function formatRelativeTime(date: Date | number): string {
   const hours = Math.floor(minutes / 60);
   const days = Math.floor(hours / 24);
 
+  // Keep the smaller unit so nearly two hours does not appear as only one hour.
   let timeStr: string;
   if (days > 0) {
+    const remainingHours = hours % 24;
     timeStr = `${days}d`;
+    if (remainingHours > 0) timeStr += `${remainingHours}h`;
   } else if (hours > 0) {
+    const remainingMinutes = minutes % 60;
     timeStr = `${hours}h`;
+    if (remainingMinutes > 0) timeStr += `${remainingMinutes}m`;
   } else if (minutes > 0) {
     timeStr = `${minutes}m`;
   } else {
