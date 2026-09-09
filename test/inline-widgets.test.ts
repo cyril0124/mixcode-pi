@@ -181,6 +181,17 @@ test("/widgets controls inline widget collapse state by key", async () => {
   assert.equal(tab.inlineWidgetCollapsed.get("below"), false);
 });
 
+test("collapsed inline widget header shows its expand command", () => {
+  const tab = widgetTab();
+  tab.inlineWidgetCollapsed.set("above", true);
+  const text = stripAnsi(
+    renderAgentSurface(tab, { chat: [{ role: "user", text: "hello-user" }] } as never, 80).join(
+      "\n",
+    ),
+  );
+  assert.match(text, /▸ Inline · above .*\/widgets expand above/);
+});
+
 test("activateTab keeps inlineWidgets scoped to each tab", () => {
   const state = createInitialState("/repo");
   const first = createTab(1, "s1", "/repo", { inlineWidgets: true });
