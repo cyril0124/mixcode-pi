@@ -76,10 +76,22 @@ const handleReset: LocalCommandHandler = ({ state, active, runtime, tui }) => {
   return SKIP_FINALIZE;
 };
 
-const handleClear: LocalCommandHandler = ({ state, active, runtime, tui }) => {
+const handleClear: LocalCommandHandler = async ({ state, active, runtime, tui }) => {
   // Home send keeps activeTabId=home while overriding the target tab; stay there
   // after clear instead of following completeAgentTabClear's activateTab(next).
   const stayOnHome = state.activeTabId === HOME_TAB_ID;
+  try {
+    if (runtime.canClearTab && !(await runtime.canClearTab(active!.sessionId)))
+      return SKIP_FINALIZE;
+  } catch (error: unknown) {
+    appendActiveSystemMessage(
+      state,
+      runtime,
+      `Clear failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    tui.requestRender();
+    return SKIP_FINALIZE;
+  }
   let prepared: PreparedAgentTabClear;
   try {
     prepared = prepareAgentTabClear(state, runtime, active!.sessionId);

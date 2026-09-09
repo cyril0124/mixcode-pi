@@ -47,6 +47,7 @@ import {
   applyRuntimeTabModel,
   disposeChatRenderers,
   entriesToChatLines,
+  emitBeforeSwitch,
   inspectSessionImport,
   isNothingToCompactError,
   resetTabForNewSession,
@@ -327,6 +328,12 @@ export class MixCodeRuntime {
       throw error;
     }
     return runtimeTab;
+  }
+
+  async canClearTab(sessionId: string): Promise<boolean> {
+    const runtimeTab = this.requireTab(sessionId);
+    const result = await emitBeforeSwitch(runtimeTab, "new");
+    return !result.cancelled;
   }
 
   async clearTab(
