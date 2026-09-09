@@ -318,6 +318,33 @@ function createMockHost(
   };
 }
 
+test("batch context-limit preflight rejects invalid later requests before any tab effects", async () => {
+  for (const contextLimit of [0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+    const host = createMockHost([{ title: "existing", sessionId: "keep" }]);
+    await assert.rejects(
+      () =>
+        applyBatchRequests(
+          [
+            { name: "new-tab", prompt: "must not run" },
+            { name: "existing", mode: "delete", contextLimit },
+          ],
+          host,
+        ),
+      /Error: Invalid context limit.*existing/,
+    );
+    assert.deepEqual(
+      {
+        created: host.created,
+        deleted: host.deleted,
+        cleared: host.cleared,
+        configured: host.configured,
+        inputs: host.inputs,
+      },
+      { created: [], deleted: [], cleared: [], configured: [], inputs: [] },
+    );
+  }
+});
+
 test("applyBatchRequests creates new tabs and sends prompts", async () => {
   const host = createMockHost();
   const requests: BatchTabRequest[] = [
@@ -794,7 +821,10 @@ test("runBatchDryRun prints plan without writing state file", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "batch-dry-"));
   try {
     const scriptPath = path.join(dir, "s.lua");
-    await fsPromises.writeFile(scriptPath, 'mixcode.open_tab({ name = "only", prompt = "hi" })\n');
+    await fsPromises.writeFile(
+      scriptPath,
+      'mixcode.open_tab({ name = "only", context_limit = "32k", prompt = "hi" })\n',
+    );
     // Isolate agent/state under temp so dry-run cannot touch the real agent dir.
     const prevAgent = process.env.PI_CODING_AGENT_DIR;
     process.env.PI_CODING_AGENT_DIR = path.join(dir, "agent");
@@ -817,7 +847,7 @@ test("runBatchDryRun prints plan without writing state file", async () => {
       if (prevAgent === undefined) delete process.env.PI_CODING_AGENT_DIR;
       else process.env.PI_CODING_AGENT_DIR = prevAgent;
     }
-    assert.match(out, /name=only/);
+    assert.match(out, /name=only context_limit=32000/);
     assert.match(out, /prompt: hi/);
     // State dir is <agentDir>/mixcode-pi — must stay absent (no mkdir/save).
     const { access } = await import("node:fs/promises");

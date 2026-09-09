@@ -10,7 +10,7 @@ import { MixCodeRuntime } from "../src/agent/runtime.js";
 import { createBatchExecutorHost } from "../src/cli/batch-host.js";
 import { applyBatchRequests, contextFromState, loadBatchRequests } from "../src/core/batch-lua.js";
 import { createInitialState, createTab } from "../src/core/defaults.js";
-import { modelToRef } from "../src/core/models.js";
+import { modelToRef, registerModels } from "../src/core/models.js";
 
 test("batch input rejects MixCode local commands instead of prompting the agent", async () => {
   const state = createInitialState("/repo");
@@ -190,6 +190,122 @@ for (const extension of ["lua", "ts"]) {
         [[{ type: "text", text: "fresh context" }], [{ type: "text", text: "second prompt" }]],
       );
     });
+  });
+}
+
+test("batch context limits apply without prompts across reuse modes and remain isolated", async () => {
+  await withBatchRuntime(async (runtime, state) => {
+    const host = createBatchExecutorHost({ state, runtime, tui: { requestRender() {} } });
+    await applyBatchRequests([{ name: "peer" }], host);
+    const peer = runtime.getTab(state.tabs[0]!.sessionId)!;
+    const baseline = peer.agentSession.settingsManager.getCompactionSettings();
+
+    await applyBatchRequests([{ name: "limited", contextLimit: 8_000 }], host);
+    const tab = state.tabs[1]!;
+    const originalId = tab.sessionId;
+    const session = runtime.getTab(originalId)!.agentSession;
+    assert.deepEqual(
+      {
+        ui: tab.contextLimit,
+        window: session.model?.contextWindow,
+        overridden: tab.contextLimitOverridden,
+      },
+      { ui: 8_000, window: 8_000, overridden: true },
+    );
+    assert.deepEqual(session.settingsManager.getCompactionSettings(), {
+      ...baseline,
+      reserveTokens: 800,
+      keepRecentTokens: 2_000,
+    });
+
+    await applyBatchRequests([{ name: "limited", contextLimit: 32_000 }], host);
+    await applyBatchRequests([{ name: "limited" }], host);
+    assert.equal(tab.contextLimit, 32_000);
+    assert.equal(session.model?.contextWindow, 32_000);
+
+    await applyBatchRequests([{ name: "limited", mode: "clear", contextLimit: 64_000 }], host);
+    assert.equal(tab.sessionId, originalId);
+    assert.equal(session.model?.contextWindow, 64_000);
+    assert.deepEqual(session.settingsManager.getCompactionSettings(), {
+      ...baseline,
+      reserveTokens: 6_400,
+      keepRecentTokens: 16_000,
+    });
+
+    await applyBatchRequests([{ name: "limited", contextLimit: "reset" }], host);
+    assert.equal(tab.contextLimitOverridden, false);
+    assert.equal(session.model?.contextWindow, MIXCODE_FAUX_MODEL.contextWindow);
+    assert.deepEqual(session.settingsManager.getCompactionSettings(), baseline);
+
+    await applyBatchRequests([{ name: "limited", contextLimit: 400_000 }], host);
+    assert.equal(session.model?.contextWindow, 400_000);
+    assert.equal(tab.model.contextWindow, MIXCODE_FAUX_MODEL.contextWindow);
+    assert.equal(tab.toast?.type, "warning");
+    assert.match(tab.toast!.message, /exceeds model capacity/);
+
+    await applyBatchRequests([{ name: "limited", mode: "delete", contextLimit: 16_000 }], host);
+    const replacement = state.tabs.find((item) => item.title === "limited")!;
+    assert.notEqual(replacement.sessionId, originalId);
+    assert.equal(replacement.contextLimit, 16_000);
+    assert.equal(runtime.getTab(replacement.sessionId)!.agentSession.model?.contextWindow, 16_000);
+    assert.deepEqual(peer.agentSession.settingsManager.getCompactionSettings(), baseline);
+    assert.equal(peer.agentSession.model?.contextWindow, MIXCODE_FAUX_MODEL.contextWindow);
+    assert.equal(peer.tab.contextLimit, MIXCODE_FAUX_MODEL.contextWindow);
+  });
+});
+
+for (const extension of ["lua", "ts"]) {
+  test(`batch ${extension} applies each limit after model selection and before provider input`, async () => {
+    const observed: Array<{ model: string; window: number }> = [];
+    await withBatchRuntime(
+      async (runtime, state, dir) => {
+        const firstModel = {
+          ...MIXCODE_FAUX_MODEL,
+          provider: "batch-context-test",
+          api: "batch-context-test",
+        };
+        const secondModel = { ...firstModel, id: "faux-second" };
+        registerModels([firstModel, secondModel]);
+        state.model = modelToRef(firstModel);
+        state.availableModels = [state.model, modelToRef(secondModel)];
+        const source =
+          extension === "lua"
+            ? `mixcode.open_tab({ name = "ordered", context_limit = "32k", prompt = "first" })
+           mixcode.open_tab({ name = "ordered", model = "batch-context-test/faux-second", context_limit = 64000, prompt = "second" })
+           mixcode.open_tab({ name = "ordered", prompt = "keep" })
+           mixcode.open_tab({ name = "ordered", context_limit = "reset", prompt = "reset" })
+           mixcode.open_tab({ name = "ordered", context_limit = 32000 })
+           mixcode.open_tab({ name = "ordered", model = "batch-context-test/faux-1", prompt = "model default" })`
+            : `export default (mixcode) => {
+             mixcode.openTab({ name: "ordered", contextLimit: "32k", prompt: "first" });
+             mixcode.openTab({ name: "ordered", model: "batch-context-test/faux-second", contextLimit: 64000, prompt: "second" });
+             mixcode.openTab({ name: "ordered", prompt: "keep" });
+             mixcode.openTab({ name: "ordered", contextLimit: "reset", prompt: "reset" });
+             mixcode.openTab({ name: "ordered", contextLimit: 32000 });
+             mixcode.openTab({ name: "ordered", model: "batch-context-test/faux-1", prompt: "model default" });
+           };`;
+        const scriptPath = path.join(dir, `context-order.${extension}`);
+        await Bun.write(scriptPath, source);
+        const plan = await loadBatchRequests(scriptPath, contextFromState(state));
+        await applyBatchRequests(
+          plan.requests,
+          createBatchExecutorHost({ state, runtime, tui: { requestRender() {} } }),
+        );
+        assert.deepEqual(observed, [
+          { model: "faux-1", window: 32_000 },
+          { model: "faux-second", window: 64_000 },
+          { model: "faux-second", window: 64_000 },
+          { model: "faux-second", window: 200_000 },
+          { model: "faux-1", window: 200_000 },
+        ]);
+      },
+      {
+        streamFn: (model, context, options) => {
+          observed.push({ model: model.id, window: model.contextWindow });
+          return mixcodeFauxStream(model, context, options);
+        },
+      },
+    );
   });
 }
 

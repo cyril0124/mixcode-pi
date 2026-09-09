@@ -35,7 +35,7 @@ mpi --batch script.ts --batch-dry-run -- packages/core
 脚本跑完（.lua 走 fengari | .ts/.js 走动态导入）
    │  收集 open_tab / openTab
    v
-validate (model / thinking / mode)
+validate (model / thinking / context limit / mode)
    │
    ├─ --batch-dry-run → 打印 plan → 退出
    │
@@ -72,6 +72,7 @@ apply
 | `workdir` | 否 | 该 tab 工作目录 |
 | `model` | 否 | 如 `anthropic/claude-sonnet-4-20250514` |
 | `thinking` | 否 | 依模型能力：`off` / `minimal` / `low` / … / `max` |
+| `context_limit` | 否 | `number \| string`；会话 token 预算或 `"reset"`，见[上下文限制](#上下文限制) |
 | `system_prompt` | 否 | 仅替换 base/identity（同 SYSTEM.md 槽位）；tools/AGENTS.md/skills 仍由 MixCode 组装。需要新建 tab 或 `mode="delete"`。与 `mode="clear"` 组合始终报错，即使没有同名 tab；`append` 复用已有会话也会报错 |
 | `mode` | 否 | 已存在 tab 时：`append`（默认）/ `clear` / `delete` |
 
@@ -81,13 +82,21 @@ apply
 - `clear`：与交互式 `/reset` 一样，先将当前分支重置到会话根部，再发送 prompt。保留标题、session ID/文件、工作目录和系统提示词；旧历史仍在 `/tree`，但不进入新对话上下文。不重载扩展或重建服务。agent 正在流式输出或 bash 正在运行时拒绝重置
 - `delete`：删 tab + session 文件后新建
 
-没有同名 tab 时新建 tab。`clear` + `system_prompt` 在任何 tab 操作前的校验阶段始终被拒绝，包括系统提示词为空字符串的情况。同名重复请求仅由第一条决定新建/重置/删除行为。交互式 `/clear` 仍会替换会话并重置标题。
+没有同名 tab 时新建 tab。`clear` + `system_prompt` 在任何 tab 操作前的校验阶段始终被拒绝，包括系统提示词为空字符串的情况。同名重复请求仅由第一条决定新建/重置/删除行为。每条请求都按 model/thinking、上下文限制、可选 prompt 的顺序执行，同名请求之间严格串行。后续请求不会再次新建/重置/删除。交互式 `/clear` 仍会替换会话并重置标题。
 
 prompt 使用[共用输入分发](architecture.zh.md#运行时映射)，支持普通文本、文件路径、
 skills、prompt templates、extension commands 和 `!shell` / `!!shell`。
 已注册的 MixCode 本地 slash command 会在 prompt 分发阶段被拒绝，须在交互式 TUI 中执行。
 
 设置了 `system_prompt` 的 tab，编辑器标题旁显示 `[sys]` 角标。
+
+### 上下文限制
+
+Lua 的 `context_limit` 与 TypeScript/JavaScript 的 `contextLimit` 接受数字或字符串。数字必须是正的安全整数 token 数。字符串沿用 `/context-limit` 解析器（`parseContextLimitValue`），接受 `"32000"`、`"32k"`、`"32.5k"` 和 `"reset"`，去除首尾空白并忽略大小写。数字字符串保留该命令的取整行为；归一化后的 token 数必须是正的安全整数。TS/JS 的 `undefined`、`null` 与 Lua 的 `nil` 都视为省略。
+
+每条请求在应用 model/thinking 后、发送 prompt 前应用该值，包括省略 prompt 的请求和后续同名请求。新建 tab 及 `append`/`clear`/`delete` 所有模式均可使用。`"reset"` 恢复所选模型的规范上下文窗口。省略时，新 tab 使用模型默认值；复用 tab 保留当前限制，除非显式选择模型将其重置。
+
+该覆盖值同步当前运行时会话的 `contextWindow`、UI 和压缩预算，仅影响当前会话，不修改全局配置。超过模型容量的值会被接受并显示现有警告，但不会扩大 provider 容量。非法输入在任何 tab 变更前失败，错误包含 `Error:` 和 tab 名称；脚本加载器补充脚本路径。
 
 ### 示例
 
@@ -102,12 +111,13 @@ for _, pkg in ipairs(pkgs) do
     name = "lint-" .. pkg,
     workdir = pkg,
     thinking = "low",
+    context_limit = "32k",
     prompt = render("Run lint and typecheck in {pkg}. Fix errors only.", { pkg = pkg }),
   })
 end
 
--- 重置已有同名 tab，不发送 prompt
-mixcode.open_tab({ name = "review", mode = "clear" })
+-- 重置已有同名 tab 并恢复模型的规范窗口，不发送 prompt
+mixcode.open_tab({ name = "review", mode = "clear", context_limit = "reset" })
 ```
 
 更多见 [`examples/batch/`](../examples/batch/)。
@@ -125,6 +135,7 @@ const script: MixCodeBatchScript = async (mixcode) => {
       name: `lint-${pkg}`,
       workdir: pkg,
       thinking: "low",
+      contextLimit: "32k",
       prompt: `Run lint and typecheck in ${pkg}. Fix errors only.`,
     });
   }
@@ -140,6 +151,7 @@ export default script;
 | Lua | TypeScript |
 |-----|------------|
 | `mixcode.open_tab(opts)` | `mixcode.openTab(opts)` |
+| `opts.context_limit` | `opts.contextLimit` |
 | `opts.system_prompt` | `opts.systemPrompt` |
 | `mixcode.args()`（1-indexed table） | `mixcode.args()`（`string[]`） |
 | `mixcode.current_workdir()` | `mixcode.currentWorkdir()` |
@@ -151,7 +163,7 @@ export default script;
 
 字段语义、`mode`、`systemPrompt` 的新会话规则、prompt 支持范围与校验都与上方 Lua 一致。
 
-脚本写错时抛错：缺少默认导出或默认导出不是函数、`name` 缺失或非非空字符串、任意选项字段非字符串、`openTab` 传入未知字段（如误写 Lua 的 `system_prompt`）。脚本加载与运行失败会包装为 `Batch script error in <path>`。
+脚本写错时抛错：缺少默认导出或默认导出不是函数、`name` 缺失或非非空字符串、非法选项类型或上下文限制、`openTab` 传入未知字段（如误写 Lua 的 `system_prompt` 或 `context_limit`）。脚本加载与运行失败会包装为 `Batch script error in <path>`。
 
 **无沙箱**：TypeScript 脚本在 MixCode 进程内以完整宿主权限运行（文件系统、网络、`process`）。把批处理脚本当作你亲自执行的本地可信代码。
 
@@ -193,13 +205,13 @@ dry-run 使用相同的选择规则，并在 `model=...` 中显示解析后的�
 
 ```text
 Batch dry-run: 2 request(s)
-1. name=lint-packages/core thinking=low workdir=packages/core
+1. name=lint-packages/core thinking=low context_limit=32000 workdir=packages/core
    prompt: Run lint and typecheck in packages/core. Fix errors only.
-2. name=scratch
+2. name=scratch context_limit=reset
    prompt: (none)
 ```
 
-仍会做 model / thinking 校验；非法配置会失败退出。
+仍会做 model / thinking / context limit 校验；非法配置会失败退出。传入的限制以归一化形式显示：`"32k"` 显示为 `context_limit=32000`，`"reset"` 显示为 `context_limit=reset`。启动前，将这些值与请求选项和 prompt 一并核对。
 
 ## 边界
 
@@ -211,4 +223,4 @@ Batch dry-run: 2 request(s)
 | CLI 参数 + 环境变量（`os.getenv`、`process.env`） | 第二套配置格式（JSON/YAML） |
 | Lua（`.lua`）与 TypeScript/JavaScript（`.ts`/`.mts`/`.js`/`.mjs`） | 为 TypeScript 脚本做沙箱 |
 
-出错时：脚本语法/运行错误、未知 model、非法 thinking/mode → 抛错；apply 失败写 stderr 并设 `exitCode=1`。
+出错时：脚本语法/运行错误、未知 model、非法 thinking/context limit/mode → 抛错；apply 失败写 stderr 并设 `exitCode=1`。

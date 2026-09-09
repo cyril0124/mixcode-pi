@@ -11,6 +11,7 @@ mixcode = {}
 ---@field workdir? string Working directory for new tabs (defaults to launch workdir); reuse/clear keeps the existing directory
 ---@field model? string Model identifier from list_models().id; omitted means keep existing or use launch model for a new tab
 ---@field thinking? "off"|"minimal"|"low"|"medium"|"high"|"xhigh"|"max" Supported thinking level; omitted means keep existing or use launch default for a new tab
+---@field context_limit? number|string Session context budget: positive safe integer tokens or a /context-limit string such as "32000", "32k", "32.5k", or "reset"; nil means omitted. See open_tab for parsing and application rules.
 ---@field system_prompt? string Base/identity system prompt only (same slot as SYSTEM.md). Tools, AGENTS.md, and skills stay assembled by MixCode. Requires a new tab or mode="delete"; rejected with mode="clear" even without a matching tab.
 ---@field mode? "append"|"clear"|"delete" Reuse behavior when tab exists (default: "append")
 
@@ -42,9 +43,17 @@ mixcode = {}
 ---session with mode="append", or with mode="clear" even without a matching tab.
 ---Clear + system_prompt (including an empty string) fails validation before any tab changes.
 ---For repeated names, only the first request controls creation/reset/deletion.
+---Each request applies model/thinking, then context_limit, then its optional prompt.
+---context_limit works in all modes, including requests without a prompt and later same-name requests.
+---Strings trim whitespace, ignore case, and use /context-limit numeric rounding;
+---resulting tokens must be positive safe integers. "reset" restores the selected model's canonical window.
+---Omission uses the model default for new tabs and retains a reused tab's limit unless explicit model selection resets it.
+---The limit synchronizes session contextWindow, UI, and compaction budgets for this session only; no global config change.
+---Above-capacity values warn without expanding provider capacity.
+---Invalid context_limit values fail before any tab changes with Error: and the tab name; the script loader adds the script path.
 ---Interactive /clear still replaces the session and resets its title.
 ---
----Throws on failure (missing name, unknown model, invalid thinking level, invalid system_prompt use).
+---Throws on failure (missing name, invalid option type or context_limit, unknown model, invalid thinking level, invalid system_prompt use).
 ---@param opts mixcode.OpenTabOptions
 function mixcode.open_tab(opts) end
 

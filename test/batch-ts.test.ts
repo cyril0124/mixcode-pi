@@ -121,6 +121,89 @@ test("Lua and TS reject clear with empty system prompt during preflight", async 
   }
 });
 
+for (const extension of ["lua", "ts"]) {
+  test(`${extension} normalizes context limits and includes them in dry-run`, async () => {
+    const cases = [
+      { input: 32_000, expected: 32_000 },
+      { input: Number.MAX_SAFE_INTEGER, expected: Number.MAX_SAFE_INTEGER },
+      { input: "32.5K", expected: 32_500 },
+      { input: " 32000 ", expected: 32_000 },
+      { input: "32.5", expected: 33 },
+      { input: " RESET ", expected: "reset" },
+    ];
+    const calls = cases.map(({ input }, index) =>
+      extension === "lua"
+        ? `mixcode.open_tab({ name = "tab-${index}", context_limit = ${JSON.stringify(input)} })`
+        : `mixcode.openTab({ name: "tab-${index}", contextLimit: ${JSON.stringify(input)} });`,
+    );
+    const source =
+      extension === "lua"
+        ? calls.join("\n")
+        : `export default (mixcode) => { ${calls.join("\n")} };`;
+    await withScript(`limits.${extension}`, source, async (scriptPath) => {
+      const plan = await loadBatchRequests(scriptPath, testContext());
+      assert.deepEqual(
+        plan.requests.map((request) => request.contextLimit),
+        cases.map(({ expected }) => expected),
+      );
+      const output = formatBatchPlan(plan);
+      assert.match(output, /name=tab-0 context_limit=32000/);
+      assert.match(output, /name=tab-5 context_limit=reset/);
+    });
+  });
+
+  test(`${extension} treats nullish context limits as omitted`, async () => {
+    const source =
+      extension === "lua"
+        ? 'mixcode.open_tab({ name = "omitted", context_limit = nil })'
+        : 'export default (mixcode) => { mixcode.openTab({ name: "omitted", contextLimit: null }); mixcode.openTab({ name: "undefined", contextLimit: undefined }); };';
+    await withScript(`omitted.${extension}`, source, async (scriptPath) => {
+      const plan = await loadBatchRequests(scriptPath, testContext());
+      assert.deepEqual(
+        plan.requests.map((request) => request.contextLimit),
+        extension === "lua" ? [undefined] : [undefined, undefined],
+      );
+      assert.doesNotMatch(formatBatchPlan(plan), /context_limit=/);
+    });
+  });
+
+  test(`${extension} rejects invalid context limits with script and tab identity`, async () => {
+    const invalid = [
+      "0",
+      "-1",
+      "1.5",
+      "true",
+      '"bad"',
+      '"0k"',
+      '"1e3"',
+      '"999999999999999999999k"',
+      "9007199254740992",
+    ];
+    invalid.push(
+      "{}",
+      extension === "lua" ? "0/0" : "NaN",
+      extension === "lua" ? "math.huge" : "Infinity",
+    );
+    for (const value of invalid) {
+      const source =
+        extension === "lua"
+          ? `mixcode.open_tab({ name = "invalid-limit", context_limit = ${value} })`
+          : `export default (mixcode) => mixcode.openTab({ name: "invalid-limit", contextLimit: ${value} });`;
+      await withScript(`invalid-limit.${extension}`, source, async (scriptPath) => {
+        await assert.rejects(
+          () => loadBatchRequests(scriptPath, testContext()),
+          (error: unknown) => {
+            assert.ok(error instanceof Error);
+            assert.ok(error.message.includes(scriptPath));
+            assert.match(error.message, /Error: Invalid context limit.*invalid-limit/);
+            return true;
+          },
+        );
+      });
+    }
+  });
+}
+
 test("loadBatchRequests awaits async .ts scripts", async () => {
   const plan = await withScript(
     "async.ts",

@@ -9,7 +9,7 @@ import type {
   BatchTabRequest,
 } from "./batch-lua.js";
 import { resolveBatchModel } from "./batch-models.js";
-import { renderTemplate } from "./batch-lua.js";
+import { parseBatchContextLimit, renderTemplate } from "./batch-lua.js";
 
 /**
  * TypeScript mirror of the Lua `mixcode` global table. Fields are camelCase
@@ -27,6 +27,8 @@ export interface MixCodeBatchOpenTabOptions {
   workdir?: string;
   model?: string;
   thinking?: ThinkingLevel;
+  /** Positive integer tokens, /context-limit text (e.g. "32k"), or "reset". */
+  contextLimit?: number | string;
   systemPrompt?: string;
   mode?: BatchReuseMode;
 }
@@ -115,6 +117,7 @@ const OPEN_TAB_FIELDS = [
   "workdir",
   "model",
   "thinking",
+  "contextLimit",
   "systemPrompt",
   "mode",
 ] as const satisfies ReadonlyArray<keyof MixCodeBatchOpenTabOptions>;
@@ -143,8 +146,10 @@ function toTabRequest(options: MixCodeBatchOpenTabOptions, scriptPath: string): 
   if (typeof name !== "string" || name.length === 0) {
     throw new Error(`mixcode.openTab: 'name' must be a non-empty string (${scriptPath})`);
   }
+  const contextLimit = parseBatchContextLimit(options.contextLimit, name);
   return {
     name,
+    ...(contextLimit !== undefined ? { contextLimit } : {}),
     prompt: optionalString(options.prompt, "prompt", name, scriptPath),
     workdir: optionalString(options.workdir, "workdir", name, scriptPath),
     model: optionalString(options.model, "model", name, scriptPath),

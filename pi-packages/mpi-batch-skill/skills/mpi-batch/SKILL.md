@@ -11,9 +11,9 @@ With no task or script attached, ask what tabs and prompts the user wants. Defau
 ## Workflow
 
 1. Identify the script path, launch directory, tab names, workdirs, and prompts. Read existing scripts before editing and preserve their language. Use Lua for new scripts when the user does not specify a language. Read the matching API reference below before writing requests. Use absolute paths when directories differ.
-2. Use distinct tab names for independent work. For existing tabs, default to `append`; obtain authorization before clearing or deleting sessions. Leave model and thinking unset unless requested. Choose explicit models from `mpi --list-models --json` or the script API's model snapshot.
+2. Use distinct tab names for independent work. For existing tabs, default to `append`; obtain authorization before clearing or deleting sessions. Leave model, thinking, and context limit unset unless requested. Choose explicit models from `mpi --list-models --json` or the script API's model snapshot.
 3. Write the tab requests using the API reference. Use `mode="clear"` to start a new conversation in the same named tab while retaining its session and tree history. To change `system_prompt` / `systemPrompt`, use a new tab or `mode="delete"`; combining it with `clear` fails before any tab changes, even without a matching tab. Keep script evaluation limited to collecting requests and reading necessary inputs. Before running an existing script, inspect its imports and side effects; dry-run executes them too.
-4. Run dry-run from the intended launch directory. Require exit code zero and check that the printed requests match the intended titles, prompts, workdirs, models, thinking levels, and modes. Correct failures before launching. If `mpi` is unavailable, report that validation could not run.
+4. Run dry-run from the intended launch directory. Require exit code zero and check that the printed requests match the intended titles, prompts, workdirs, models, thinking levels, context limits, and modes. Check normalized `context_limit=32000` or `context_limit=reset` when supplied. Correct failures before launching. If `mpi` is unavailable, report that validation could not run.
 5. Return the script's absolute path, dry-run result, and launch command. When execution is requested, launch in an isolated tmux session, capture its screen, and provide the attach command. Report tab dispatch separately from completed agent work.
 
 ## API references
@@ -36,6 +36,14 @@ local model = mixcode.resolve_model("claude-sonnet-4-5")
 ```
 
 Pass the result as the tab's `model`. Check the selected provider in dry-run output. Use a full `provider/modelId` when the provider must be fixed; see the API reference for selection rules and errors.
+
+## Context limits
+
+Use `contextLimit` in TypeScript/JavaScript and `context_limit` in Lua. Both accept `number | string`: numbers must be positive safe integer token counts; strings use `/context-limit` parsing, including `"32000"`, `"32k"`, `"32.5k"`, and `"reset"`. Parsing trims surrounding whitespace, ignores case, and keeps the command's numeric-string rounding. Normalized token counts must be positive safe integers. TS/JS `undefined` or `null` and Lua `nil` mean omitted.
+
+Every request applies its context limit after model/thinking and before its optional prompt, including later same-name requests and all `append`/`clear`/`delete` modes. `"reset"` restores the selected model's canonical window. Omission uses the model default for new tabs; reuse retains the current limit unless explicit model selection resets it.
+
+The limit synchronizes runtime session `contextWindow`, UI, and compaction budgets for the current session only, without global config changes. Values above model capacity are accepted with the existing warning; they do not expand provider capacity. Invalid inputs fail before any tab changes, with `Error:` and the tab name; the script loader adds the script path.
 
 ## CLI
 
@@ -62,7 +70,7 @@ tmux -L <unique-socket> capture-pane -p -t batch
 tmux -L <unique-socket> attach-session -t batch
 ```
 
-A successful dry-run prints `Batch dry-run: N request(s)` followed by each request's options and prompt. An omitted prompt is shown as `prompt: (none)`. Dry-run executes script code but does not apply the plan or write batch sessions. It is not a sandbox and does not prove authentication or prompt dispatch will succeed.
+A successful dry-run prints `Batch dry-run: N request(s)` followed by each request's options and prompt. An omitted prompt is shown as `prompt: (none)`. A supplied context limit is normalized as `context_limit=32000` for `"32k"`, or `context_limit=reset`. Dry-run executes script code but does not apply the plan or write batch sessions. It is not a sandbox and does not prove authentication or prompt dispatch will succeed.
 
 ## Script examples
 
@@ -76,6 +84,7 @@ export default (mixcode) => {
     mixcode.openTab({
       name: `review-${workdir}`,
       workdir,
+      contextLimit: "32k",
       prompt: "Review this directory for correctness issues. Report file references; do not edit.",
     });
   }
@@ -89,6 +98,7 @@ for _, workdir in ipairs(mixcode.args()) do
   mixcode.open_tab({
     name = "review-" .. workdir,
     workdir = workdir,
+    context_limit = "32k",
     prompt = "Review this directory for correctness issues. Report file references; do not edit.",
   })
 end
@@ -97,20 +107,20 @@ end
 ## Reset a named tab
 
 ```lua
-mixcode.open_tab({ name = "review", mode = "clear" })
+mixcode.open_tab({ name = "review", mode = "clear", context_limit = "reset" })
 ```
 
-This resets without sending a prompt; add `prompt` to submit the next task. Batch `clear` uses interactive `/reset` semantics, not interactive `/clear`. See the language reference for retained state and busy-session errors.
+This resets the conversation and restores the model's canonical context window without sending a prompt; add `prompt` to submit the next task. Batch `clear` uses interactive `/reset` semantics, not interactive `/clear`. See the language reference for retained state and busy-session errors.
 
 ## Execution and errors
 
 Batch collects requests, validates them, then applies the plan. It cannot wait for agent results or branch on responses. Introspection reads the startup snapshot; collecting a request does not update it. Tab creation and resets run serially. Prompt dispatch runs in parallel across distinct titles and serially within each title. There is no dependency graph or configurable concurrency limit.
 
-For repeated requests with the same title, the first request controls creation, clearing, or deletion. Later requests configure model/thinking and submit prompts in order; they are not additional reset steps. Put creation options on the first request.
+For repeated requests with the same title, the first request controls creation, clearing, or deletion. Later requests configure model/thinking, apply context limits, and submit optional prompts in that order; they are not additional reset steps. Put creation options on the first request.
 
 Prompts support plain text, skills, prompt templates, extension commands, and `!shell` / `!!shell`. Batch rejects registered MixCode local commands during prompt dispatch. Pi handles other slash input; unmatched input, including absolute paths and `/unknown`, becomes message text.
 
-Script syntax and runtime errors identify the script path. Invalid tab options fail validation. JS scripts also reject missing or non-function default exports and unknown option names, including the Lua spelling `system_prompt`.
+Script syntax and runtime errors identify the script path. Invalid tab options fail validation. JS scripts also reject missing or non-function default exports and unknown option names, including the Lua spellings `system_prompt` and `context_limit`.
 
 Apply failures appear in a TUI notice and set the process exit code to 1 without immediately exiting. Inspect the captured screen for errors. Tabs already created and prompts already dispatched are not rolled back.
 

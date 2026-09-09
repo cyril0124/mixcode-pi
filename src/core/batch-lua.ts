@@ -1,6 +1,7 @@
 import * as path from "node:path";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { resolveBatchModel } from "./batch-models.js";
+import { parseContextLimitValue } from "./context-limit.js";
 import { modelRefId } from "./models.js";
 import { isThinkingLevelAvailable, validThinkingLevelsMessage } from "./thinking-levels.js";
 import type { MixCodeModelRef, MixCodeState } from "./types.js";
@@ -49,6 +50,8 @@ export interface BatchTabRequest {
   workdir?: string;
   model?: string;
   thinking?: string;
+  /** Normalized per-session tokens or reset; applied after model selection, before input. */
+  contextLimit?: number | "reset";
   /**
    * Base/identity system prompt only (same slot as SYSTEM.md / MIXCODE_SYSTEM_PROMPT).
    * Tools, append, project context, and skills remain assembled by MixCode.
@@ -72,10 +75,10 @@ export interface BatchExecutorHost {
   state: MixCodeState;
   findTabByTitle(title: string): { sessionId: string } | undefined;
   createNewTab(request: BatchTabRequest): Promise<string>;
-  /** Apply model/thinking overrides before submitting input. */
+  /** Apply model/thinking/context overrides before submitting input. */
   configureTab(
     sessionId: string,
-    options: { model?: MixCodeModelRef; thinking?: ThinkingLevel },
+    options: { model?: MixCodeModelRef; thinking?: ThinkingLevel; contextLimit?: number | "reset" },
   ): Promise<void>;
   /** Reset to the session root, preserving id, file, title, and historical branches. */
   clearTab(sessionId: string): Promise<void>;
@@ -176,7 +179,33 @@ export async function runLuaScript(
         to_jsstring,
       ) as BatchReuseMode | null) ?? undefined;
 
-    requests.push({ name, prompt, workdir, model, thinking, systemPrompt, mode });
+    lua.lua_getfield(L, 1, to_luastring("context_limit"));
+    const limitType = lua.lua_type(L, -1);
+    // Preserve numeric inputs as numbers; Lua string coercion would hide invalid types.
+    let rawLimit: unknown;
+    if (limitType === lua.LUA_TNUMBER) rawLimit = lua.lua_tonumber(L, -1);
+    else if (limitType === lua.LUA_TSTRING) rawLimit = to_jsstring(lua.lua_tostring(L, -1));
+    else if (limitType !== lua.LUA_TNIL) rawLimit = false;
+    lua.lua_pop(L, 1);
+
+    let contextLimit: BatchTabRequest["contextLimit"];
+    try {
+      contextLimit = parseBatchContextLimit(rawLimit, name);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return lauxlib.luaL_error(L, to_luastring("%s"), to_luastring(message));
+    }
+
+    requests.push({
+      name,
+      prompt,
+      workdir,
+      model,
+      thinking,
+      systemPrompt,
+      mode,
+      ...(contextLimit !== undefined ? { contextLimit } : {}),
+    });
     return 0;
   });
   lua.lua_setfield(L, -2, to_luastring("open_tab"));
@@ -277,6 +306,25 @@ export async function runLuaScript(
 }
 
 /**
+ * Normalize an external Lua/JS context limit. Nullish values mean omitted;
+ * strings use /context-limit syntax, while numbers must be positive safe integers.
+ * Throws with the tab name on unsupported types or out-of-range token counts.
+ */
+export function parseBatchContextLimit(
+  input: unknown,
+  tabName: string,
+): BatchTabRequest["contextLimit"] {
+  if (input === undefined || input === null) return undefined;
+  const value = typeof input === "string" ? parseContextLimitValue(input) : input;
+  if (value === "reset") return value;
+  if (typeof value === "number" && Number.isSafeInteger(value) && value > 0) return value;
+  throw new Error(
+    `Error: Invalid context limit for tab '${tabName}'. ` +
+      `Use positive safe integer tokens, a token string (e.g. "32k"), or "reset".`,
+  );
+}
+
+/**
  * Apply collected batch requests to the host.
  * For each request: reuse existing tab (by exact title match) or create new.
  * Different tabs run in parallel; requests for the same tab run sequentially.
@@ -290,6 +338,8 @@ export function validateBatchRequests(
   const resolvedModels = new Map<BatchTabRequest, MixCodeModelRef>();
   const effectiveModels = new Map<string, MixCodeModelRef>();
   for (const request of requests) {
+    // Also guard plans supplied directly by callers before any session mutation.
+    parseBatchContextLimit(request.contextLimit, request.name);
     if (request.mode === "clear" && request.systemPrompt !== undefined) {
       throw new Error(
         `Error: system_prompt for tab '${request.name}' cannot be used with mode="clear"; ` +
@@ -411,7 +461,10 @@ export async function applyBatchRequests(
     [...groups.entries()].map(async ([name, group]) => {
       const sessionId = groupSessions.get(name)!;
       for (const { request, model, thinking } of group) {
-        if (model || thinking) await host.configureTab(sessionId, { model, thinking });
+        const { contextLimit } = request;
+        if (model || thinking || contextLimit !== undefined) {
+          await host.configureTab(sessionId, { model, thinking, contextLimit });
+        }
         if (request.prompt !== undefined) await host.submitInput(sessionId, request.prompt);
       }
     }),
@@ -426,6 +479,7 @@ export function formatBatchPlan(plan: BatchPlan): string {
     if (req.mode) parts.push(`mode=${req.mode}`);
     if (req.model) parts.push(`model=${req.model}`);
     if (req.thinking) parts.push(`thinking=${req.thinking}`);
+    if (req.contextLimit !== undefined) parts.push(`context_limit=${req.contextLimit}`);
     if (req.workdir) parts.push(`workdir=${req.workdir}`);
     if (req.systemPrompt) parts.push("system_prompt=yes");
     lines.push(parts.join(" "));

@@ -35,7 +35,7 @@ Execution model:
 script completes (.lua via fengari | .ts/.js via dynamic import)
    │  collect open_tab / openTab calls
    v
-validate (model / thinking / mode)
+validate (model / thinking / context limit / mode)
    │
    ├─ --batch-dry-run → print plan → exit
    │
@@ -72,6 +72,7 @@ Standard Lua libraries are available (including `os.getenv`, `io`, etc.). The ro
 | `workdir` | No | Working directory for this tab |
 | `model` | No | e.g. `anthropic/claude-sonnet-4-20250514` |
 | `thinking` | No | Based on model capability: `off` / `minimal` / `low` / … / `max` |
+| `context_limit` | No | `number \| string`; session token budget or `"reset"`. See [context limits](#context-limits) |
 | `system_prompt` | No | Replaces base/identity only (same as SYSTEM.md slot); tools/AGENTS.md/skills are still assembled by MixCode. Requires a new tab or `mode="delete"`. Rejected with `mode="clear"`, even without a matching tab, and with `append` on an existing session |
 | `mode` | No | When tab already exists: `append` (default) / `clear` / `delete` |
 
@@ -81,7 +82,7 @@ Standard Lua libraries are available (including `os.getenv`, `io`, etc.). The ro
 - `clear`: Reset the current branch to session root before sending the prompt, like interactive `/reset`. Keeps the title, session ID/file, workdir, and system prompt; earlier history remains in `/tree` but is excluded from the new conversation context. Does not reload extensions or rebuild services. Refused while the agent is streaming or bash is running
 - `delete`: Delete tab + session files before recreating
 
-With no matching tab, a new tab is created. `clear` + `system_prompt` is always rejected during validation before any tab changes, including when `system_prompt` is an empty string. For repeated names, only the first request controls creation/reset/deletion. Interactive `/clear` still replaces the session and resets its title.
+With no matching tab, a new tab is created. `clear` + `system_prompt` is always rejected during validation before any tab changes, including when `system_prompt` is an empty string. For repeated names, only the first request controls creation/reset/deletion. Every request applies its model/thinking, then context limit, then optional prompt, in order within the same title. Later requests do not repeat creation/reset/deletion. Interactive `/clear` still replaces the session and resets its title.
 
 Prompts use the [shared input dispatch](architecture.md#runtime-mapping), including
 plain text, paths, skills, prompt templates, extension commands, and `!shell` / `!!shell`.
@@ -89,6 +90,14 @@ Registered MixCode local slash commands are rejected during prompt dispatch;
 use the interactive TUI to execute them.
 
 Tabs with a custom `system_prompt` display a `[sys]` badge beside the editor title.
+
+### Context limits
+
+`context_limit` in Lua and `contextLimit` in TypeScript/JavaScript accept a number or string. Numbers must be positive safe integer token counts. Strings use the existing `/context-limit` parser (`parseContextLimitValue`): `"32000"`, `"32k"`, `"32.5k"`, and `"reset"` are accepted, with surrounding whitespace trimmed and case ignored. Numeric strings retain the command's rounding behavior; normalized token counts must be positive safe integers. TS/JS `undefined` or `null` and Lua `nil` mean omitted.
+
+The value applies after each request's model/thinking and before its prompt, including requests without a prompt and later same-name requests. It works for new tabs and all `append`/`clear`/`delete` modes. `"reset"` restores the selected model's canonical context window. When omitted, new tabs use the model default; reused tabs retain their current limit unless explicit model selection resets it.
+
+The override synchronizes runtime session `contextWindow`, UI, and compaction budgets for the current session only; it changes no global config. Values above model capacity are accepted with the existing warning and do not expand provider capacity. Invalid inputs fail before any tab changes. The error includes `Error:` and the tab name; the script loader adds the script path.
 
 ### Example
 
@@ -103,12 +112,13 @@ for _, pkg in ipairs(pkgs) do
     name = "lint-" .. pkg,
     workdir = pkg,
     thinking = "low",
+    context_limit = "32k",
     prompt = render("Run lint and typecheck in {pkg}. Fix errors only.", { pkg = pkg }),
   })
 end
 
--- Reset an existing named tab without submitting a prompt
-mixcode.open_tab({ name = "review", mode = "clear" })
+-- Reset an existing named tab and restore its model's canonical window, without a prompt
+mixcode.open_tab({ name = "review", mode = "clear", context_limit = "reset" })
 ```
 
 See [`examples/batch/`](../examples/batch/) for more examples.
@@ -126,6 +136,7 @@ const script: MixCodeBatchScript = async (mixcode) => {
       name: `lint-${pkg}`,
       workdir: pkg,
       thinking: "low",
+      contextLimit: "32k",
       prompt: `Run lint and typecheck in ${pkg}. Fix errors only.`,
     });
   }
@@ -141,6 +152,7 @@ Names map one-to-one; TypeScript uses camelCase:
 | Lua | TypeScript |
 |-----|------------|
 | `mixcode.open_tab(opts)` | `mixcode.openTab(opts)` |
+| `opts.context_limit` | `opts.contextLimit` |
 | `opts.system_prompt` | `opts.systemPrompt` |
 | `mixcode.args()` (1-indexed table) | `mixcode.args()` (`string[]`) |
 | `mixcode.current_workdir()` | `mixcode.currentWorkdir()` |
@@ -152,7 +164,7 @@ Names map one-to-one; TypeScript uses camelCase:
 
 Field semantics, `mode`, the `systemPrompt` fresh-session rule, prompt support, and validation are identical to the Lua tables above.
 
-Errors thrown for malformed scripts: missing or non-function default export, `name` missing or not a non-empty string, any non-string option field, and unknown `openTab` fields (for example the Lua spelling `system_prompt`). Script load and runtime failures are wrapped as `Batch script error in <path>`.
+Errors thrown for malformed scripts: missing or non-function default export, `name` missing or not a non-empty string, invalid option types or context limits, and unknown `openTab` fields (for example the Lua spellings `system_prompt` and `context_limit`). Script load and runtime failures are wrapped as `Batch script error in <path>`.
 
 **No sandbox**: a TypeScript script runs in the MixCode process with full host privileges (file system, network, `process`). Treat batch scripts as trusted local code, exactly like the shell commands you would run yourself.
 
@@ -194,13 +206,13 @@ Dry-run uses the same selection rules and displays the resolved reference in `mo
 
 ```text
 Batch dry-run: 2 request(s)
-1. name=lint-packages/core thinking=low workdir=packages/core
+1. name=lint-packages/core thinking=low context_limit=32000 workdir=packages/core
    prompt: Run lint and typecheck in packages/core. Fix errors only.
-2. name=scratch
+2. name=scratch context_limit=reset
    prompt: (none)
 ```
 
-Performs model and thinking validation; invalid configurations fail and exit.
+Performs model, thinking, and context-limit validation; invalid configurations fail and exit. A supplied limit is printed in normalized form: `context_limit=32000` for `"32k"`, or `context_limit=reset`. Check these values along with the request options and prompts before launching.
 
 ## Boundaries
 
@@ -212,4 +224,4 @@ Performs model and thinking validation; invalid configurations fail and exit.
 | CLI arguments + environment variables (`os.getenv`, `process.env`) | Second configuration format (JSON/YAML) |
 | Lua (`.lua`) and TypeScript/JavaScript (`.ts`/`.mts`/`.js`/`.mjs`) | Sandboxing TypeScript scripts |
 
-Errors: script syntax/runtime errors, unknown models, invalid thinking/mode throw errors; apply failures write to stderr and set `exitCode=1`.
+Errors: script syntax/runtime errors, unknown models, invalid thinking/context limit/mode throw errors; apply failures write to stderr and set `exitCode=1`.

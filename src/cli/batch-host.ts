@@ -2,6 +2,7 @@ import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { MixCodeRuntime } from "../agent/runtime.js";
 import type { BatchExecutorHost, BatchTabRequest } from "../core/batch-lua.js";
 import { parseInput } from "../core/commands.js";
+import { applyContextLimitToSession } from "../core/context-limit.js";
 import { assertModelEnabled, findModelRef } from "../core/models.js";
 import type { MixCodeState } from "../core/types.js";
 import {
@@ -59,6 +60,11 @@ export function createBatchExecutorHost(options: {
       if (!tab) throw new Error(`Cannot configure unknown tab: ${sessionId}`);
       if (config.model) await applyModelSelection(state, tab, config.model, runtime);
       if (config.thinking) applyThinkingLevel(state, tab, config.thinking, runtime);
+      if (config.contextLimit !== undefined) {
+        // Model selection resets the window; apply the request's limit afterward.
+        const runtimeTab = runtime.requireTab(sessionId);
+        applyContextLimitToSession(tab, config.contextLimit, runtimeTab.agentSession);
+      }
     },
     async clearTab(sessionId) {
       try {

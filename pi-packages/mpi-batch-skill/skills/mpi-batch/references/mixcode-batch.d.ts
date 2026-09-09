@@ -6,7 +6,7 @@
  * ```ts
  * /// <reference path="/path/to/mixcode-batch.d.ts" />
  * const script: MixCodeBatchScript = (mixcode) => {
- *   mixcode.openTab({ name: "review", prompt: "Review the current branch." });
+ *   mixcode.openTab({ name: "review", contextLimit: "32k", prompt: "Review the current branch." });
  * };
  * export default script;
  * ```
@@ -35,6 +35,21 @@ interface MixCodeBatchOpenTabOptions {
   model?: string;
   /** Supported thinking level; omitted means keep existing or use launch default for a new tab. */
   thinking?: MixCodeBatchThinkingLevel;
+  /**
+   * Session context budget: a positive safe integer token count, or a /context-limit
+   * string such as "32000", "32k", "32.5k", or "reset". Strings trim whitespace,
+   * ignore case, and use /context-limit numeric rounding; resulting tokens must
+   * be positive safe integers. Runtime null/undefined mean omitted.
+   * Applied after each request's model/thinking and before its optional prompt,
+   * including later same-name requests and all modes. "reset" restores the
+   * selected model's canonical window. Omission uses the model default for a new
+   * tab and retains a reused tab's limit unless explicit model selection resets it.
+   * Synchronizes session contextWindow, UI, and compaction budgets for this session
+   * only; no global config change. Above-capacity values warn without expanding
+   * provider capacity. Invalid values fail before any tab changes with Error: and
+   * the tab name; the script loader adds the script path.
+   */
+  contextLimit?: number | string;
   /**
    * Base/identity system prompt only (same slot as SYSTEM.md). Tools, AGENTS.md,
    * and skills stay assembled by MixCode. Requires a new tab or mode "delete";
@@ -89,10 +104,11 @@ interface MixCodeBatchApi {
    * `mode: "clear"` even without a matching tab. Clear + systemPrompt (including
    * an empty string) fails validation before any tab changes.
    * For repeated names, only the first request controls creation/reset/deletion.
+   * Each request applies model/thinking, then contextLimit, then its optional prompt.
    * Interactive /clear still replaces the session and resets its title.
    *
-   * Throws on a missing/empty `name`, a non-string option field, an unknown
-   * field name, an unknown model, an invalid thinking level, or
+   * Throws on a missing/empty `name`, an invalid option type or contextLimit,
+   * an unknown field name, an unknown model, an invalid thinking level, or
    * invalid `systemPrompt` use.
    */
   openTab(options: MixCodeBatchOpenTabOptions): void;
