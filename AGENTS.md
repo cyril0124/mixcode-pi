@@ -10,7 +10,9 @@
 
 - Before writing, reorganizing, reviewing, or trimming repository docs, read `.agents/skills/doc-standards/SKILL.md`.
 - Proactively document design decisions, architecture, workflows, API contracts, and usage. Give each fact, rule, and schema one authoritative home; link instead of duplicating.
-- All docs except skill instructions require synchronized English (`<name>.md`) and Chinese (`<name>.zh.md`) versions. Skill instructions live only in `SKILL.md`, never `SKILL.zh.md`.
+- Require synchronized English (`<name>.md`) and Chinese (`<name>.zh.md`) versions for docs outside `demo/` and `scripts/`, except skill instructions.
+- Documentation under `demo/` and `scripts/` uses English by default; add Chinese versions only when explicitly requested.
+- Skill instructions live only in `SKILL.md`, never `SKILL.zh.md`.
 - Extension docs belong in `pi-packages/<name>/README.md` and `README.zh.md`, not standalone `docs/` topics. Core architecture, runtime specifications, and product workflows belong in `docs/`.
 - Describe current behavior with exact paths, flags, types, errors, and invariant boundaries. History belongs in commits and PR notes.
 - Comments, JSDoc, and docs describe complete caller/callee contracts (inputs, side effects, throws, concurrency, ownership), not code walkthroughs. Update affected docs/JSDoc with public behavior, config, or command changes; delete obsolete docs with obsolete code.
