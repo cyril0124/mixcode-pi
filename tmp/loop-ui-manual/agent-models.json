@@ -1,0 +1,17 @@
+{
+  "providers": {
+    "loop-ui-demo": {
+      "api": "openai-completions",
+      "baseUrl": "http://127.0.0.1:1",
+      "apiKey": "local-only",
+      "models": [
+        {
+          "id": "alpha",
+          "name": "Loop UI Offline",
+          "contextWindow": 128000,
+          "maxTokens": 16384
+        }
+      ]
+    }
+  }
+}

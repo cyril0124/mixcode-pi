@@ -137,7 +137,10 @@ test("max-runs updates by id and name without firing, resetting runs, or resched
   h.advance(60_000);
   await h.run("max-runs 1 4");
   const byId = await h.detail();
-  assert.match(byId.render(100).join("\n"), /Interval: 2h\s+Next: in 1h59m\s+Runs: 2\/4/);
+  const details = byId.render(100).join("\n");
+  assert.match(details, /Interval: 2h/);
+  assert.match(details, /Next: in 1h59m/);
+  assert.match(details, /Runs: 2\/4/);
   await h.run("max-runs review 3");
   assert.equal(h.sent.length, 2);
   assert.deepEqual([...h.timers.keys()], timersBefore);
@@ -154,7 +157,7 @@ test("unlimited removes a limit and the UI can set it again", async (t) => {
   h.tick();
   assert.equal(h.sent.length, 3);
   const view = await h.detail();
-  assert.match(view.render(100).join("\n"), /Runs: 3\s/);
+  assert.match(view.render(100).join("\n"), /Runs: 3\/unlimited/);
   view.handleInput("c");
   view.handleInput("4");
   view.handleInput("\r");

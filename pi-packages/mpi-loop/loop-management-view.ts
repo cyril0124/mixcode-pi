@@ -55,7 +55,8 @@ export class LoopManagementView implements Component {
     private theme: LoopTheme,
     private requestRender: () => void,
     private done: () => void,
-    private getMaxVisibleRows: () => number,
+    /** Total panel rows, including borders, metadata and footer. */
+    private getMaxHeight: () => number,
     private actions: LoopManagementActions,
   ) {
     this.loops = actions.getLoops();
@@ -103,19 +104,15 @@ export class LoopManagementView implements Component {
   private handleConfirmInput(data: string): void {
     const confirm = this.confirm;
     if (!confirm) return;
-
-    // Esc/q cancel like n: back to the list, do not close the whole manager.
-    if (matchesKey(data, "escape") || matchesKey(data, "q") || matchesKey(data, "n")) {
-      this.confirm = null;
-      this.requestRender();
-      return;
-    }
+    this.confirm = null;
     if (matchesKey(data, "y")) {
       if (confirm.kind === "remove") this.actions.remove(confirm.id);
       else this.actions.clear();
-      this.confirm = null;
       this.refresh();
+      return;
     }
+    // Every other key cancels without falling through to search or another action.
+    this.requestRender();
   }
 
   private handleNormalInput(data: string): void {
@@ -164,6 +161,12 @@ export class LoopManagementView implements Component {
       }
       return;
     }
+    if (matchesKey(data, "ctrl+u")) {
+      this.query = "";
+      this.selectedIndex = 0;
+      this.requestRender();
+      return;
+    }
     if (data === "\u007f" || matchesKey(data, "backspace")) {
       this.query = this.query.slice(0, -1);
       this.selectedIndex = 0;
@@ -181,6 +184,10 @@ export class LoopManagementView implements Component {
     if (this.countInput) {
       this.countInput.handleInput(data);
       this.requestRender();
+      return;
+    }
+    if (matchesKey(data, "q")) {
+      this.done();
       return;
     }
     if (matchesKey(data, "escape") || matchesKey(data, "left")) {
@@ -218,11 +225,11 @@ export class LoopManagementView implements Component {
       }
       return;
     }
-    if (matchesKey(data, "down")) {
+    if (matchesKey(data, "down") || matchesKey(data, "j")) {
       this.scrollPrompt(1);
       return;
     }
-    if (matchesKey(data, "up")) {
+    if (matchesKey(data, "up") || matchesKey(data, "k")) {
       this.scrollPrompt(-1);
       return;
     }
@@ -234,12 +241,20 @@ export class LoopManagementView implements Component {
       this.scrollPrompt(-this.detailPromptRows);
       return;
     }
-    if (matchesKey(data, "home")) {
+    if (matchesKey(data, "ctrl+d")) {
+      this.scrollPrompt(Math.max(1, Math.floor(this.detailPromptRows / 2)));
+      return;
+    }
+    if (matchesKey(data, "ctrl+u")) {
+      this.scrollPrompt(-Math.max(1, Math.floor(this.detailPromptRows / 2)));
+      return;
+    }
+    if (matchesKey(data, "home") || data === "g") {
       this.promptScrollOffset = 0;
       this.requestRender();
       return;
     }
-    if (matchesKey(data, "end")) {
+    if (matchesKey(data, "end") || data === "G") {
       this.promptScrollOffset = Math.max(0, this.detailPromptLineCount - this.detailPromptRows);
       this.requestRender();
     }
@@ -278,38 +293,19 @@ export class LoopManagementView implements Component {
   }
 
   render(width: number): string[] {
-    if (this.confirm?.kind === "remove") {
-      return this.renderPanel(
-        [
-          this.theme.fg("warning", ` Remove loop "${this.confirm.name}"?`),
-          "",
-          this.theme.fg("dim", "  y confirm  n cancel"),
-        ],
-        width,
-      );
-    }
-    if (this.confirm?.kind === "cleanup") {
-      return this.renderPanel(
-        [
-          this.theme.fg("warning", ` Remove all ${this.loops.length} loops?`),
-          "",
-          this.theme.fg("dim", "  y confirm  n cancel"),
-        ],
-        width,
-      );
-    }
-
-    const innerWidth = Math.max(1, width - 2);
+    const innerWidth = Math.max(0, width - 2);
     if (this.mode === "detail") return this.renderDetail(innerWidth, width);
+    const footer = this.renderFooter(innerWidth, false);
+    const bodyRows = this.availableBodyRows(footer.length);
+    const header =
+      bodyRows >= 4
+        ? [this.theme.fg("dim", ` Search: ${this.query || "_"}`), this.separator(innerWidth)]
+        : [];
     return this.renderPanel(
-      [
-        ` ${this.theme.fg("accent", ">")} ${this.query || " "}`,
-        this.theme.fg("border", "─".repeat(innerWidth)),
-        ...this.renderRows(innerWidth),
-        "",
-        this.theme.fg("dim", "  ↑↓ select  ⏎ view  f fire  x remove  c clear  esc close"),
-      ],
+      [...header, ...this.renderRows(innerWidth, bodyRows - header.length)],
+      footer,
       width,
+      `Loops (${this.loops.length})`,
     );
   }
 
@@ -321,98 +317,208 @@ export class LoopManagementView implements Component {
     }
     if (this.countInput) {
       const current = loop.maxFireCount === null ? "unlimited" : String(loop.maxFireCount);
+      const errorLines = this.countInputError
+        ? wrapTextWithAnsi(this.countInputError, Math.max(1, innerWidth - 2)).map((line) =>
+            this.theme.fg("error", ` ${line}`),
+          )
+        : [];
       return this.renderPanel(
         [
           ` Executed: ${loop.fireCount}  Current total: ${current}`,
           " Total runs (blank = unlimited):",
           ...this.countInput.render(Math.max(1, innerWidth - 2)).map((line) => ` ${line}`),
-          ...(this.countInputError ? [this.theme.fg("error", ` ${this.countInputError}`)] : []),
-          "",
-          this.theme.fg("dim", "  Enter save  esc cancel"),
+          ...errorLines,
         ],
+        [this.fitHints(innerWidth, "Enter save", [], "esc cancel", "Enter  esc")],
         width,
         `Loop ${loop.id} - Count`,
       );
     }
-
-    const promptWidth = Math.max(1, innerWidth - 2);
-    const wrappedPrompt = wrapTextWithAnsi(loop.prompt, promptWidth);
-    const promptLines = wrappedPrompt.length > 0 ? wrappedPrompt : [""];
-    const promptRows = Math.max(1, this.getMaxVisibleRows() - 3);
-    const maxOffset = Math.max(0, promptLines.length - promptRows);
-    this.promptScrollOffset = Math.min(this.promptScrollOffset, maxOffset);
+    const footer = this.renderFooter(innerWidth, true);
+    const bodyRows = this.availableBodyRows(footer.length);
+    const next = this.theme.fg(loop.pending ? "warning" : "accent", this.nextLabel(loop));
+    // Drop secondary metadata on short terminals before sacrificing prompt rows.
+    const metadata = [
+      ` Next: ${next}  Runs: ${this.runCount(loop)}`,
+      this.theme.fg("dim", ` Interval: ${loop.intervalLabel}  When busy: ${loop.mode}`),
+    ].slice(0, Math.max(0, bodyRows - 4));
+    const promptBoxWidth = Math.max(4, innerWidth - 2);
+    const promptContentWidth = Math.max(1, promptBoxWidth - 4);
+    const wrapped = wrapTextWithAnsi(loop.prompt, promptContentWidth);
+    const promptLines = wrapped.length > 0 ? wrapped : [""];
+    const promptRows = Math.max(
+      1,
+      bodyRows - metadata.length - (bodyRows - metadata.length >= 5 ? 3 : 2),
+    );
+    this.promptScrollOffset = Math.min(
+      this.promptScrollOffset,
+      Math.max(0, promptLines.length - promptRows),
+    );
     this.detailPromptLineCount = promptLines.length;
     this.detailPromptRows = promptRows;
     const visiblePrompt = promptLines.slice(
       this.promptScrollOffset,
       this.promptScrollOffset + promptRows,
     );
-    const rangeStart = this.promptScrollOffset + 1;
-    const rangeEnd = this.promptScrollOffset + visiblePrompt.length;
-    const nextLabel = loop.pending ? "waiting" : formatRelativeTime(loop.nextRunAt);
-    const modeLabel = loop.mode === "defer" ? "defer" : "skip";
+    const range = `${this.promptScrollOffset + 1}-${this.promptScrollOffset + visiblePrompt.length}/${promptLines.length}`;
     return this.renderPanel(
       [
-        ` Name: ${loop.name}`,
-        ` Interval: ${loop.intervalLabel}  Next: ${nextLabel}  Runs: ${loop.fireCount}${loop.maxFireCount === null ? "" : `/${loop.maxFireCount}`}`,
-        ` Mode: ${modeLabel}${loop.pending ? " (pending)" : ""}`,
-        this.theme.fg("border", "─".repeat(innerWidth)),
-        ` ${this.theme.fg("accent", "Prompt")}  ${this.theme.fg("dim", `Lines ${rangeStart}-${rangeEnd}/${promptLines.length}`)}`,
-        ...visiblePrompt.map((line) => `  ${line}`),
-        "",
-        this.theme.fg("dim", "  ↑↓ scroll  PgUp/PgDn page  Home/End jump"),
-        this.theme.fg("dim", "  c total runs  m mode  f fire  x remove  ←/esc back"),
+        ...metadata,
+        ...(bodyRows - metadata.length >= 3 ? [""] : []),
+        `  ┌─ Prompt ${this.theme.fg("dim", `Lines ${range}`)} ${"─".repeat(Math.max(0, promptBoxWidth - visibleWidth(`  ┌─ Prompt Lines ${range} `) - 1))}┐`,
+        ...(bodyRows - metadata.length >= 5 ? [""] : []),
+        ...visiblePrompt.map((line) => `  │ ${line} │`),
+        `  └${"─".repeat(Math.max(0, promptBoxWidth - 2))}┘`,
       ],
+      footer,
       width,
       `Loop ${loop.id}`,
     );
   }
 
-  private renderRows(width: number): string[] {
+  private renderRows(width: number, rowBudget: number): string[] {
     const loops = this.filteredLoops();
-    if (loops.length === 0) return [this.theme.fg("dim", "  No matching loops")];
-
-    const remaining = Math.max(0, width - 6);
-    const nameWidth = Math.max(8, Math.floor(remaining * 0.32));
-    const intervalWidth = Math.max(6, Math.floor(remaining * 0.16));
-    const detailWidth = Math.max(8, remaining - nameWidth - intervalWidth);
-    const maxVisible = Math.min(15, Math.max(1, this.getMaxVisibleRows()));
+    if (loops.length === 0) return [this.theme.fg("dim", " No matching loops")];
+    // Each selection is one complete two-line item; never clip its second row.
+    const maxVisible = Math.min(15, Math.max(0, Math.floor(rowBudget / (rowBudget >= 6 ? 3 : 2))));
+    if (maxVisible === 0) return [];
     const start = Math.min(
       Math.max(0, this.selectedIndex - maxVisible + 1),
       Math.max(0, loops.length - maxVisible),
     );
-
-    return loops.slice(start, start + maxVisible).map((loop, visibleIndex) => {
-      const selected = start + visibleIndex === this.selectedIndex;
-      const marker = selected ? "› " : "  ";
-      const modeTag = loop.mode === "defer" ? "D" : "S";
-      const name = truncateToWidth(`${loop.id}  ${modeTag}  ${loop.name}`, nameWidth, "…");
-      const interval = truncateToWidth(loop.intervalLabel, intervalWidth, "…");
-      const nextLabel = loop.pending ? "waiting" : formatRelativeTime(loop.nextRunAt);
-      const fireCount =
-        loop.maxFireCount === null
-          ? `${loop.fireCount} fires`
-          : `${loop.fireCount}/${loop.maxFireCount} fires`;
-      const detail = truncateToWidth(
-        `${loop.prompt}  ·  ${nextLabel}  ·  ${fireCount}`,
-        detailWidth,
-        "…",
+    return loops.slice(start, start + maxVisible).flatMap((loop, index) => {
+      const selected = start + index === this.selectedIndex;
+      const nextLabel = this.nextLabel(loop);
+      const rowWidth = Math.max(0, width - 1);
+      const nextWidth = Math.min(visibleWidth(nextLabel), rowWidth);
+      const summaryWidth = Math.max(0, rowWidth - nextWidth - 1);
+      const summary = `${selected ? "› " : "  "}#${loop.id} ${truncateToWidth(loop.prompt.replace(/[\r\n]+/g, " "), 24, "…")}`;
+      const next = this.theme.fg(
+        loop.pending ? "warning" : "accent",
+        this.pad(nextLabel, nextWidth),
       );
-      const row = `${marker}${this.pad(name, nameWidth)}  ${this.pad(interval, intervalWidth)}  ${this.theme.fg("dim", detail)}`;
-      const padded = this.pad(row, width);
-      return selected ? this.theme.bg("selectedBg", padded) : padded;
+      const top = summaryWidth > 0 ? `${this.pad(summary, summaryWidth)} ${next}` : next;
+      const runs = `Runs: ${this.runCount(loop)}`;
+      const interval = `Every ${loop.intervalLabel}`;
+      const mode = `When busy: ${loop.mode}`;
+      let metadata = `${interval}  ${runs}  ${mode}`;
+      const metadataWidth = Math.max(0, width - 4);
+      if (visibleWidth(metadata) > metadataWidth) metadata = `${interval}  ${runs}`;
+      if (visibleWidth(metadata) > metadataWidth) metadata = runs;
+      if (visibleWidth(metadata) > metadataWidth) {
+        metadata = loop.maxFireCount === null ? `${loop.fireCount} runs` : this.runCount(loop);
+      }
+      const bottom = this.theme.fg("dim", `    ${metadata}`);
+      const renderedRows = [top, bottom].map((line) => {
+        const padded = this.pad(line, width);
+        return selected ? this.theme.bg("selectedBg", padded) : padded;
+      });
+      if (index < maxVisible - 1 && rowBudget >= maxVisible * 3)
+        renderedRows.push(this.pad("", width));
+      return renderedRows;
     });
   }
 
-  private renderPanel(lines: string[], width: number, panelTitle = "Loops"): string[] {
-    const innerWidth = Math.max(0, width - 2);
+  private nextLabel(loop: LoopViewEntry): string {
+    return loop.pending ? "waiting" : formatRelativeTime(loop.nextRunAt);
+  }
+
+  private runCount(loop: LoopViewEntry): string {
+    return loop.maxFireCount === null
+      ? `${loop.fireCount}/unlimited`
+      : `${loop.fireCount}/${loop.maxFireCount}`;
+  }
+
+  private renderFooter(width: number, detail: boolean): string[] {
+    if (this.confirm) {
+      const question =
+        this.confirm.kind === "remove"
+          ? `Remove loop "${this.confirm.name}"?`
+          : `Remove all ${this.loops.length} loops?`;
+      return [
+        this.theme.fg("warning", this.pad(` ${question}`, width)),
+        this.theme.fg(
+          "warning",
+          this.pad(
+            width >= 34 ? " y confirm  any other key cancels" : "y yes  other cancel",
+            width,
+          ),
+        ),
+      ];
+    }
+    if (!detail) {
+      return [
+        this.fitHints(
+          width,
+          "↑↓ select",
+          ["Enter view", "f fire", "x remove", "c clear"],
+          "q close",
+          "↑↓  q close",
+        ),
+      ];
+    }
+    const navigation = this.fitHints(
+      width,
+      "↑↓/jk scroll",
+      ["^D/U half", "g/G ends"],
+      "q close",
+      "↑↓/jk  q close",
+    );
+    if (this.getMaxHeight() < 10) return [navigation];
+    return [
+      "",
+      navigation,
+      this.fitHints(width, "c runs", ["m mode", "f fire", "x remove"], "←/esc back", "c  esc back"),
+    ];
+  }
+
+  private fitHints(
+    width: number,
+    first: string,
+    middle: string[],
+    last: string,
+    compact: string,
+  ): string {
+    const options = [...middle];
+    const contentWidth = Math.max(0, width - 2);
+    let text = [first, ...options, last].join("  ");
+    while (visibleWidth(text) > contentWidth && options.length > 0) {
+      options.pop();
+      text = [first, ...options, last].join("  ");
+    }
+    if (visibleWidth(text) > contentWidth) text = compact;
+    return this.theme.fg("dim", this.pad(` ${text}`, width));
+  }
+
+  private availableBodyRows(footerRows: number): number {
+    return Math.max(0, Math.floor(this.getMaxHeight()) - 2 - footerRows);
+  }
+
+  private separator(width: number): string {
+    return this.theme.fg("border", "─".repeat(Math.max(0, width)));
+  }
+
+  private renderPanel(
+    body: string[],
+    footer: string[],
+    width: number,
+    panelTitle: string,
+  ): string[] {
+    const maxHeight = Math.max(0, Math.floor(this.getMaxHeight()));
+    if (width <= 0 || maxHeight === 0) return [];
+    if (width < 2 || maxHeight < 3) {
+      return [...body, ...footer].slice(-maxHeight).map((line) => this.pad(line, width));
+    }
+    const innerWidth = width - 2;
+    const footerRows = Math.min(footer.length, maxHeight - 2);
+    const lines = [...body.slice(0, maxHeight - 2 - footerRows), ...footer.slice(-footerRows)];
     const title = ` ${panelTitle} `;
     const top = `${title}${"─".repeat(Math.max(0, innerWidth - visibleWidth(title)))}`;
     const border = (text: string) => this.theme.fg("border", text);
     return [
       `${border("┌")}${border(this.pad(top, innerWidth))}${border("┐")}`,
       ...lines.map((line) => `${border("│")}${this.pad(line, innerWidth)}${border("│")}`),
-      `${border("└")}${border("─".repeat(innerWidth))}${border("┘")}`,
+      `${border("└")}${this.separator(innerWidth)}${border("┘")}`,
     ];
   }
 
