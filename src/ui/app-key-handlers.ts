@@ -422,6 +422,7 @@ export function handleVimModeKey(active: MixCodeState["tabs"][number], data: str
   if (!active.vimMode) return false;
   if (matchesKey(data, "tab") || matchesKey(data, "shift+tab")) return false;
   if (matchesKey(data, "ctrl+t")) return false;
+  if (data === "\u000f" || matchesKey(data, "ctrl+o")) return false;
   if (data === "q") {
     active.vimMode = false;
     active.vimPendingHome = false;

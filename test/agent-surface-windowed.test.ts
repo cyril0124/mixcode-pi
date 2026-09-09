@@ -168,6 +168,12 @@ test("windowed renderer reaches top of chat when scrollOffset is the home sentin
   assert.ok(tab.chatScrollOffset < 1_000_000);
 });
 
+test("Vim Ctrl+O passes through to the global shortcut handler", () => {
+  const tab = createTab(1, "vim-ctrl-o", "/repo", { vimMode: true });
+
+  assert.equal(handleVimModeKey(tab, "\u000f"), false);
+});
+
 for (const count of [2, 100]) {
   for (const viewport of [HEIGHT, HEIGHT + 4]) {
     test(`Vim gg reaches the first row after a painted tail with ${count} blocks at height ${viewport}`, () => {
