@@ -465,12 +465,12 @@ def drive_right_widget(label: str, session: str) -> None:
 def drive_inline_widget(label: str, session: str) -> None:
     """Extension inline widget in the message flow.
 
-    Shows: /toggle-inline-widgets enables the [INL] marker line; the
+    Shows: /toggle-inline-widgets enables the Inline widget mode; the
     pi-tasks summary block renders inside the chat at the end of the
     seeded alpha/beta/gamma conversation. PPage/NPage scroll the history
     so the widget moves with the flow.
 
-    Recording: /toggle-inline-widgets -> Enter -> wait [INL] ->
+    Recording: /toggle-inline-widgets -> Enter -> wait Inline mode ->
     PPage x2 -> NPage x2.
     """
     time.sleep(0.8)
@@ -478,7 +478,7 @@ def drive_inline_widget(label: str, session: str) -> None:
     send_l(label, session, "/toggle-inline-widgets")
     time.sleep(0.3)
     send_k(label, session, "Enter")
-    wait_pane(label, session, r"\[INL\]", 8.0)
+    wait_pane(label, session, r"Inline", 8.0)
     wait_pane(label, session, "Add delete command|Add due dates", 8.0)
     time.sleep(1.4)
     send_k(label, session, "PPage")
