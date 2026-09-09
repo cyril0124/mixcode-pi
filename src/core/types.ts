@@ -151,6 +151,8 @@ export interface MixCodeTabInfo {
    * Non-persisted; migrates with the active agent like zen/vim.
    */
   inlineWidgets: boolean;
+  /** Non-persisted collapse state for inline extension widgets, keyed by widget key. */
+  inlineWidgetCollapsed: Map<string, boolean>;
   pendingEscapeArmedAt?: number;
   /** Timestamp of last Escape press for double-escape tree detection */
   lastEscapeTime?: number;
@@ -272,10 +274,9 @@ export interface ExtensionWidgetLine {
   placement: ExtensionWidgetPlacement;
   lines: string[];
   /**
-   * Render the widget at a given width. `maxLines` caps the output: when
-   * omitted the host applies its default editor-area cap (with a "truncated"
-   * marker); when provided (e.g. by the side panel) the lines are clipped
-   * silently to that budget so the caller renders its own overflow indicator.
+   * Render the widget at a given width. An omitted `maxLines` preserves every
+   * row; a supplied budget silently clips output so the caller owns overflow
+   * indicators. The component itself still renders its complete output.
    */
   render?: (width: number, maxLines?: number) => string[];
   dispose?: () => void;

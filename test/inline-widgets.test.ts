@@ -55,8 +55,8 @@ function widgetTab(overrides: Parameters<typeof createTab>[3] = {}): ReturnType<
     extensionUi: {
       statuses: [],
       widgets: [
-        { key: "above", placement: "aboveEditor", lines: ["INLINE-ABOVE"] },
-        { key: "below", placement: "belowEditor", lines: ["INLINE-BELOW"] },
+        { key: "above", placement: "aboveEditor", lines: ["above"] },
+        { key: "below", placement: "belowEditor", lines: ["below"] },
       ],
       toolsExpanded: false,
       waitingForInputs: [],
@@ -164,6 +164,23 @@ test("/toggle-inline-widgets flips inlineWidgets on the active tab", async () =>
   assert.equal(tab.inlineWidgets, false);
 });
 
+test("/widgets controls inline widget collapse state by key", async () => {
+  const state = createInitialState("/repo");
+  const tab = widgetTab();
+  state.tabs.push(tab);
+  state.activeTabId = tab.sessionId;
+  const runtime = { getTab: () => undefined } as unknown as MixCodeRuntime;
+  const tui = { requestRender: () => undefined } as unknown as OverlayTui;
+
+  await handleSubmittedInput(state, runtime, "/widgets expand above", tui);
+  assert.equal(tab.inlineWidgetCollapsed.get("above"), false);
+  await handleSubmittedInput(state, runtime, "/widgets collapse above", tui);
+  assert.equal(tab.inlineWidgetCollapsed.get("above"), true);
+  await handleSubmittedInput(state, runtime, "/widgets", tui);
+  assert.equal(tab.inlineWidgetCollapsed.get("above"), false);
+  assert.equal(tab.inlineWidgetCollapsed.get("below"), false);
+});
+
 test("activateTab keeps inlineWidgets scoped to each tab", () => {
   const state = createInitialState("/repo");
   const first = createTab(1, "s1", "/repo", { inlineWidgets: true });
@@ -222,7 +239,7 @@ test("inline widgets use a surface wash that dock widgets do not", () => {
   const dock = renderExtensionWidgets(tab, 80, "aboveEditor").join("\n");
   assert.match(inline, /\x1b\[48;/);
   assert.doesNotMatch(dock, /\x1b\[48;/);
-  assert.match(stripAnsi(inline), /INLINE-ABOVE/);
+  assert.match(stripAnsi(inline), /above/);
 });
 
 test("inline widgets sit after messages and before the queue preview", () => {
@@ -233,8 +250,8 @@ test("inline widgets sit after messages and before the queue preview", () => {
     ),
   );
   const userAt = text.indexOf("hello-user");
-  const aboveAt = text.indexOf("INLINE-ABOVE");
-  const belowAt = text.indexOf("INLINE-BELOW");
+  const aboveAt = text.indexOf("above");
+  const belowAt = text.indexOf("below");
   const steerAt = text.indexOf("Steer");
   assert.ok(userAt >= 0 && aboveAt > userAt, "above widget follows the message");
   assert.ok(belowAt > aboveAt, "below widget follows above widget");
@@ -248,8 +265,8 @@ test("a new message does not push inline widgets above the chat tail", () => {
     { role: "user" as const, text: "second-msg" },
   ];
   const text = stripAnsi(renderAgentSurface(tab, { chat } as never, 80).join("\n"));
-  assert.ok(text.indexOf("second-msg") < text.indexOf("INLINE-ABOVE"));
-  assert.ok(text.indexOf("INLINE-BELOW") < text.indexOf("Steer"));
+  assert.ok(text.indexOf("second-msg") < text.indexOf("above"));
+  assert.ok(text.indexOf("below") < text.indexOf("Steer"));
 });
 
 test("scrolling up moves the queue then inline widgets off the bottom", () => {
@@ -259,14 +276,14 @@ test("scrolling up moves the queue then inline widgets off the bottom", () => {
   }));
   const tab = widgetTab({ pendingMessages: ["steer-me"] });
   const bottom = stripAnsi(renderAgentSurface(tab, { chat } as never, 80, 8).join("\n"));
-  assert.match(bottom, /INLINE-ABOVE/);
-  assert.match(bottom, /INLINE-BELOW/);
+  assert.match(bottom, /above/);
+  assert.match(bottom, /below/);
   assert.match(bottom, /Steer/);
 
   tab.chatScrollOffset = 1_000_000;
   const top = stripAnsi(renderAgentSurface(tab, { chat } as never, 80, 8).join("\n"));
   assert.match(top, /msg-00/);
-  assert.doesNotMatch(top, /INLINE-ABOVE|INLINE-BELOW|Steer/);
+  assert.doesNotMatch(top, /above|below|Steer/);
 });
 
 test("windowed inline widgets stay between messages and the queue", () => {
@@ -275,10 +292,10 @@ test("windowed inline widgets stay between messages and the queue", () => {
     text: `long-${String(i).padStart(2, "0")}`,
   }));
   const tab = widgetTab({ pendingMessages: ["steer-me"] });
-  const text = stripAnsi(renderAgentSurface(tab, { chat } as never, 80, 12).join("\n"));
+  const text = stripAnsi(renderAgentSurface(tab, { chat } as never, 80, 20).join("\n"));
   const last = text.indexOf("long-59");
-  const aboveAt = text.indexOf("INLINE-ABOVE");
-  const belowAt = text.indexOf("INLINE-BELOW");
+  const aboveAt = text.indexOf("─ above ─");
+  const belowAt = text.indexOf("─ below ─");
   const steerAt = text.indexOf("Steer");
   assert.ok(last >= 0 && aboveAt > last);
   assert.ok(belowAt > aboveAt && steerAt > belowAt);
@@ -295,7 +312,7 @@ test("full and windowed tails leave the same gap between widgets and the queue",
       ).join("\n"),
     );
   const gap = (text: string) => {
-    const start = text.indexOf("INLINE-BELOW");
+    const start = text.indexOf("below");
     const end = text.indexOf("Steer");
     assert.ok(start >= 0 && end > start);
     return text.slice(start, end).split("\n").length;
@@ -318,10 +335,10 @@ test("vim keeps inline widgets in the chat tail with the queue", () => {
       "\n",
     ),
   );
-  assert.match(text, /INLINE-ABOVE/);
-  assert.match(text, /INLINE-BELOW/);
+  assert.match(text, /above/);
+  assert.match(text, /below/);
   assert.match(text, /Steer/);
-  assert.ok(text.indexOf("INLINE-BELOW") < text.indexOf("Steer"));
+  assert.ok(text.indexOf("below") < text.indexOf("Steer"));
 });
 
 test("an open side panel keeps widgets out of the chat tail", () => {
@@ -331,47 +348,47 @@ test("an open side panel keeps widgets out of the chat tail", () => {
       "\n",
     ),
   );
-  assert.doesNotMatch(text, /INLINE-ABOVE|INLINE-BELOW/);
+  assert.doesNotMatch(text, /above|below/);
   assert.match(text, /Steer/);
 });
 
 test("inline mode removes docked widgets and grows the chat surface", () => {
   const { layout, tab } = buildLayout(24);
   tab.extensionUi.widgets = [
-    { key: "above", placement: "aboveEditor", lines: ["INLINE-ABOVE"] },
-    { key: "below", placement: "belowEditor", lines: ["INLINE-BELOW"] },
+    { key: "above", placement: "aboveEditor", lines: ["above"] },
+    { key: "below", placement: "belowEditor", lines: ["below"] },
   ];
 
   layout.render(80);
   const docked = layout.render(80);
   const dockedChat = tab.chatSurfaceBounds?.height ?? 0;
-  assert.match(stripAnsi(docked.join("\n")), /INLINE-ABOVE/);
+  assert.match(stripAnsi(docked.join("\n")), /above/);
 
   tab.inlineWidgets = true;
   layout.render(80);
   const inlined = layout.render(80);
   const inlinedText = stripAnsi(inlined.join("\n"));
   const inlinedChat = tab.chatSurfaceBounds?.height ?? 0;
-  assert.match(inlinedText, /INLINE-ABOVE/);
+  assert.match(inlinedText, /above/);
   assert.match(inlinedText, /editor-line-0/);
-  assert.equal(inlinedText.split("INLINE-ABOVE").length - 1, 1, "widgets must not render twice");
+  assert.equal(inlinedText.split("above").length - 1, 1, "widgets must not render twice");
   assert.ok(inlinedChat > dockedChat, `chat should grow: ${inlinedChat} vs ${dockedChat}`);
 });
 
 test("inline widgets stay in the chat column, not the editor dock", () => {
   const { layout, main, tab } = buildLayout(24);
-  tab.extensionUi.widgets = [{ key: "above", placement: "aboveEditor", lines: ["INLINE-ABOVE"] }];
+  tab.extensionUi.widgets = [{ key: "above", placement: "aboveEditor", lines: ["above"] }];
 
   const dockedMain = stripAnsi(main.render(80).join("\n"));
-  assert.doesNotMatch(dockedMain, /INLINE-ABOVE/);
+  assert.doesNotMatch(dockedMain, /above/);
 
   tab.inlineWidgets = true;
   const inlinedMain = stripAnsi(main.render(80).join("\n"));
-  assert.match(inlinedMain, /INLINE-ABOVE/);
+  assert.match(inlinedMain, /above/);
 
   layout.render(80);
   const full = stripAnsi(layout.render(80).join("\n"));
-  assert.equal(full.split("INLINE-ABOVE").length - 1, 1);
+  assert.equal(full.split("above").length - 1, 1);
 });
 
 test("inline mode embeds [INL] on the default editor top border", () => {
@@ -508,15 +525,15 @@ test("setInputComponent takeover hides [INL] on a permanent-skin separator", () 
 
 test("turning inline widgets off restores the dock and drops [INL]", () => {
   const { layout, main, tab } = buildLayout(24);
-  tab.extensionUi.widgets = [{ key: "above", placement: "aboveEditor", lines: ["INLINE-ABOVE"] }];
+  tab.extensionUi.widgets = [{ key: "above", placement: "aboveEditor", lines: ["above"] }];
   tab.inlineWidgets = true;
   layout.render(80);
-  assert.match(stripAnsi(main.render(80).join("\n")), /INLINE-ABOVE/);
+  assert.match(stripAnsi(main.render(80).join("\n")), /above/);
 
   tab.inlineWidgets = false;
   layout.render(80);
-  assert.doesNotMatch(stripAnsi(main.render(80).join("\n")), /INLINE-ABOVE/);
-  assert.match(stripAnsi(layout.render(80).join("\n")), /INLINE-ABOVE/);
+  assert.doesNotMatch(stripAnsi(main.render(80).join("\n")), /above/);
+  assert.match(stripAnsi(layout.render(80).join("\n")), /above/);
   assert.doesNotMatch(border({ width: 40, title: "Agent-1" }), /\[INL\]/);
 });
 
@@ -552,7 +569,7 @@ test("anchored chat still places widgets before the queue", () => {
   ];
   const text = stripAnsi(renderAgentSurface(tab, { chat } as never, 80, 20).join("\n"));
   const laterAt = text.indexOf("later-msg");
-  const aboveAt = text.indexOf("INLINE-ABOVE");
+  const aboveAt = text.indexOf("above");
   const steerAt = text.indexOf("Steer");
   assert.ok(laterAt >= 0 && aboveAt > laterAt);
   assert.ok(steerAt > aboveAt);

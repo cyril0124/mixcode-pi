@@ -74,6 +74,57 @@ const handleToggleInlineWidgets: LocalCommandHandler = ({ active }) => {
   return undefined;
 };
 
+export function widgetArgumentCompletions(
+  active: MixCodeState["tabs"][number] | undefined,
+  prefix: string,
+): Array<{ value: string; label: string; description?: string }> {
+  const normalized = prefix.trimStart();
+  const actionMatch = /^(expand|collapse|toggle)\s+(.*)$/u.exec(normalized);
+  if (actionMatch) {
+    const keyPrefix = actionMatch[2]!.toLowerCase();
+    return (active?.extensionUi.widgets ?? [])
+      .map((widget) => widget.key)
+      .filter((key, index, keys) => keys.indexOf(key) === index)
+      .filter((key) => key.toLowerCase().startsWith(keyPrefix))
+      .map((key) => ({ value: `${actionMatch[1]} ${key}`, label: key }));
+  }
+  if (/^(expand|collapse|toggle)\s*$/u.test(normalized)) {
+    return (active?.extensionUi.widgets ?? []).map((widget) => ({
+      value: `${normalized.trim()} ${widget.key}`,
+      label: widget.key,
+    }));
+  }
+  return [
+    { value: "expand", label: "expand", description: "Expand widgets" },
+    { value: "collapse", label: "collapse", description: "Collapse widgets" },
+    { value: "toggle", label: "toggle", description: "Toggle widgets" },
+  ].filter((item) => item.value.startsWith(normalized.toLowerCase()));
+}
+
+const handleWidgets: LocalCommandHandler = ({ active, args }) => {
+  const tab = active!;
+  const input = args.trim();
+  const match = /^(expand|collapse|toggle)(?:\s+(.*))?$/.exec(input);
+  const action = match?.[1] ?? "toggle";
+  // The remainder is an exact widget key, including spaces. Explicit `toggle`
+  // also addresses keys named after an action (e.g. /widgets toggle expand).
+  const key = match ? match[2]?.trim() : input;
+  const widgets = key
+    ? tab.extensionUi.widgets.filter((widget) => widget.key === key)
+    : tab.extensionUi.widgets;
+  if (widgets.length === 0) {
+    throw new Error(key ? `Error: Unknown widget: ${key}` : "Error: No widgets in this tab");
+  }
+
+  // A mixed group expands together; a fully expanded group collapses together.
+  const allExpanded = widgets.every((widget) => tab.inlineWidgetCollapsed.get(widget.key) !== true);
+  const collapse = action === "collapse" || (action === "toggle" && allExpanded);
+  for (const widget of widgets) {
+    tab.inlineWidgetCollapsed.set(widget.key, collapse);
+  }
+  return undefined;
+};
+
 const handleToggleHiddenMessages: LocalCommandHandler = ({ active, runtime, tui }) => {
   const runtimeTab = runtime.getTab(active!.sessionId);
   if (!runtimeTab) {
@@ -190,6 +241,7 @@ export const UI_COMMAND_HANDLERS = {
   vim: handleVim,
   "toggle-zen-mode": handleToggleZenMode,
   "toggle-inline-widgets": handleToggleInlineWidgets,
+  widgets: handleWidgets,
   help: handleHotkeys,
   hotkeys: handleHotkeys,
   palette: handlePalette,
