@@ -29,7 +29,7 @@ When running under constrained widths (<80 columns) or short vertical heights, M
    - Compresses long working directory paths progressively (e.g. `~/w/p/m/packages/cli`).
    - Model names degrade smoothly: `provider/modelId` → `modelId` → truncated string.
 3. **Editor Badge Drop Order**:
-   - When editor width is tight, top border badges are dropped in strict non-essential order: `[INL]` → `[ZEN]` → `[VIM]` → `[sys]`.
+   - When editor width is tight, the top border keeps `[ZEN]`, `[VIM]`, and `[sys]` according to their existing priority.
 4. **Widget Row Caps & Truncation**:
    - Above/below editor docks enforce strict row caps (`… (widgets truncated)`) to guarantee the chat surface and prompt editor always retain visible typing space.
 

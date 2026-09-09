@@ -1068,7 +1068,10 @@ function renderExtensionWidgetsInner(
     if (widgetLines.length === 0) return;
     const collapsed = tab.inlineWidgetCollapsed.get(widget.key) === true;
     const budget = collapsed ? 1 : INLINE_WIDGET_EXPANDED_MAX_LINES;
-    lines.push(renderSingleLineExtensionSlot(widgetSectionHeader(widget.key, bodyWidth), width));
+    const header = inline
+      ? inlineWidgetSectionHeader(widget.key, bodyWidth)
+      : widgetSectionHeader(widget.key, bodyWidth);
+    lines.push(renderSingleLineExtensionSlot(header, width));
     if (collapsed) return;
     lines.push(
       ...widgetLines.slice(0, budget).map((line) => renderSingleLineExtensionSlot(line, width)),
@@ -1211,8 +1214,15 @@ function renderExtensionPanelInner(
  */
 function widgetSectionHeader(key: string, bodyWidth: number): string {
   const label = truncateToWidth(sanitizeWidgetLine(key), Math.max(1, bodyWidth - 4), "...");
-  const rule = "\u2500".repeat(Math.max(0, bodyWidth - visibleWidth(label) - 3));
-  return activeRenderTheme.dim(`\u2500 ${label} ${rule}`);
+  const rule = "─".repeat(Math.max(0, bodyWidth - visibleWidth(label) - 3));
+  return activeRenderTheme.dim(`─ ${label} ${rule}`);
+}
+
+function inlineWidgetSectionHeader(key: string, bodyWidth: number): string {
+  const label = truncateToWidth(sanitizeWidgetLine(key), Math.max(1, bodyWidth - 16), "...");
+  const inlineLabel = `▸ Inline · ${label}`;
+  const rule = "─".repeat(Math.max(0, bodyWidth - visibleWidth(inlineLabel) - 1));
+  return activeRenderTheme.dim(`${inlineLabel} ${rule}`);
 }
 
 export function renderExtensionFooter(tab: MixCodeTabInfo | undefined, width: number): string[] {

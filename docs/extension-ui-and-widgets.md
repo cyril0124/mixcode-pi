@@ -42,4 +42,4 @@ The side panel is a display mode, not a mount zone. There is no dedicated extens
 
 ## 3. Inline Widgets Mode (`/toggle-inline-widgets`)
 
-Widget relocation, `[INL]` badge, and settings live in [Inline Widgets](inline-widgets.md).
+Widget relocation, the `▸ Inline · <key>` header, and settings live in [Inline Widgets](inline-widgets.md).
