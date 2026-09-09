@@ -420,13 +420,28 @@ function entryToChatLines(entry: SessionEntry, runtimeTab: RuntimeTab): ChatLine
       {
         role: "system",
         text: entry.summary,
-        compactionSummary: true,
-        compactionTokensBefore: entry.tokensBefore,
+        summaryMessage: {
+          role: "compactionSummary",
+          summary: entry.summary,
+          tokensBefore: entry.tokensBefore,
+          timestamp: Date.parse(entry.timestamp),
+        },
       },
     ];
   }
   if (entry.type === "branch_summary") {
-    return [{ role: "system", text: entry.summary, branchSummary: true }];
+    return [
+      {
+        role: "system",
+        text: entry.summary,
+        summaryMessage: {
+          role: "branchSummary",
+          summary: entry.summary,
+          fromId: entry.fromId,
+          timestamp: Date.parse(entry.timestamp),
+        },
+      },
+    ];
   }
   if (entry.type === "custom_message") {
     const line = customMessageToChatLine(

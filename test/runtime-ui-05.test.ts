@@ -245,7 +245,7 @@ test("runtime creates sessions, streams responses, restores chat, and supports c
     });
     await runtime.compactSession("s1", "preserve user intent");
     assert.equal(runtimeTab.session.getBranch().at(-1)?.type, "compaction");
-    assert.ok(runtimeTab.chat.some((line) => line.compactionSummary === true));
+    assert.ok(runtimeTab.chat.some((line) => line.summaryMessage?.role === "compactionSummary"));
 
     const forked = await runtime.forkSession("s1", "s2");
     assert.equal(forked.getSessionId(), "s2");
