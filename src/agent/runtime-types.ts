@@ -1,3 +1,4 @@
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type {
   Context,
   ImageContent,
@@ -69,6 +70,11 @@ export type SystemPromptOverride = NonNullable<
   CreateAgentSessionServicesOptions["resourceLoaderOptions"]
 >["systemPromptOverride"];
 
+export type ChatSummaryMessage = Extract<
+  AgentMessage,
+  { role: "branchSummary" | "compactionSummary" }
+>;
+
 export interface ChatLine {
   role: "user" | "assistant" | "thinking" | "tool" | "system" | "extension";
   text: string;
@@ -92,9 +98,8 @@ export interface ChatLine {
   toolRenderShell?: "default" | "self";
   toolResult?: ToolResultLike;
   toolIsPartial?: boolean;
-  branchSummary?: boolean;
-  compactionSummary?: boolean;
-  compactionTokensBefore?: number;
+  /** Pi summary payload; text mirrors its summary for host search and previews. */
+  summaryMessage?: ChatSummaryMessage;
   /** True for Pi-style transient status lines that coalesce when consecutive. */
   systemStatus?: boolean;
   /** Display-only notices that must not suppress the empty-run notice. */

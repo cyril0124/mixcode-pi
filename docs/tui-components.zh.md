@@ -99,6 +99,14 @@ Home 使用当前主题的语义颜色。`src/ui/home-actions.ts` 在列表标�
 
 布局不改变会话选择、消息发送或草稿归属。不新增快捷键或按钮焦点循环；`Tab` 仍切换标签页，没有打开会话时也能通过 `Ctrl+P` 或斜杠命令执行这两个操作。交互契约见 [Home 按键](keybindings-and-escape.zh.md) 和 [鼠标支持](mouse-support.zh.md)。
 
+## 会话卡片
+
+`src/ui/rendering/message-cards.ts` 使用 Pi 的 `SkillInvocationMessageComponent`、`BranchSummaryMessageComponent` 和 `CompactionSummaryMessageComponent`。卡片使用 Pi 的配色、间距和快捷键提示。`chat.ts` 使用 Pi 的 `parseSkillBlock`；MixCode 保留 skill 时间戳、用户参数和图片附件。没有参数的 skill 在卡片标签行显示时间戳；有参数时，时间戳显示在单独的用户消息区域。
+
+`ChatLine.summaryMessage` 携带 Pi 所需的摘要数据。`runtime-chat.ts` 从会话条目构造它，并保留摘要文本、时间戳、分支来源和压缩 token 数。零是有效的 token 数。`ChatLine.text` 继续供宿主搜索和预览使用。会话文件沿用 Pi 的现有格式。
+
+MixCode 管理展开状态和每行渲染缓存。卡片渲染时临时应用当前主题和共享快捷键管理器，结束后恢复两者。缓存键包含展开快捷键，因此重新加载快捷键后，下一次渲染会更新提示。展开卡片保留配置的代码块缩进和 Mermaid 处理；用户参数区域保留既有 Markdown 与图片设置。
+
 ## 所有权边界
 
 `src/ui/app.ts` 中的 `createMixCodeTui()` 使用 Pi 的 `TuiAltScreen`。它在终端备用屏幕中绘制固定应用画面，在同步输出块内用绝对坐标定位每个变化的行。行差分、浮层合成、图片与光标定位，以及 `stop({ preserveScreen: true })` 时的原屏幕恢复，均由 Pi 负责。图片支持遵循上游渲染器：支持 Kitty 图片协议；禁用 `iterm2` 协议，其图片组件显示文字占位。

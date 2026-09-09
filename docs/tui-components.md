@@ -97,7 +97,15 @@ Home uses the active theme's semantic colors. `src/ui/home-actions.ts` paints a 
 
 Layout does not change agent selection, message submission, or draft ownership. No new keybindings or button focus cycle are added; `Tab` still switches tabs, and both actions are available through `Ctrl+P` or slash commands even without an open session. Interaction contracts: [Home keys](keybindings-and-escape.md) and [mouse support](mouse-support.md).
 
-## Ownership Boundaries
+## Conversation cards
+
+`src/ui/rendering/message-cards.ts` uses Pi's `SkillInvocationMessageComponent`, `BranchSummaryMessageComponent`, and `CompactionSummaryMessageComponent`. The cards use Pi's colors, spacing, and keybinding hints. `chat.ts` uses Pi's `parseSkillBlock`; MixCode keeps skill timestamps, user arguments, and image attachments. A skill without arguments places its timestamp on the card label. A skill with arguments places the timestamp on the separate user message.
+
+`ChatLine.summaryMessage` carries the summary data needed by Pi. `runtime-chat.ts` builds it from the session entry and preserves the summary text, timestamp, branch source, and compaction token count. Zero is a valid token count. `ChatLine.text` remains available to host search and previews. Session files keep Pi's existing format.
+
+MixCode owns expansion state and the per-line render cache. Card rendering temporarily applies the active theme and the shared keybinding manager, then restores both. Cache keys include the expansion binding, so a reloaded shortcut changes the hint on the next render. Expanded cards keep the configured code-block indentation and Mermaid handling. User argument blocks keep their existing Markdown and image settings.
+
+## Ownership boundaries
 
 `createMixCodeTui()` in `src/ui/app.ts` uses Pi's `TuiAltScreen`. It renders the fixed application frame in the terminal's alternate screen, positioning each changed row with absolute coordinates inside synchronized output. Pi owns line diffing, overlays, image placement, cursor placement, and screen restoration on `stop({ preserveScreen: true })`. Image support follows the upstream renderer: Kitty graphics are supported; the `iterm2` protocol is disabled, and image components display text placeholders.
 

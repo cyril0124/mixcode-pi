@@ -305,7 +305,7 @@ test("runtime compacts without custom instructions", async () => {
         : "";
     assert.doesNotMatch(summary, /Extractive summary/);
     assert.doesNotMatch(summary, /Custom compaction instruction/);
-    assert.ok(runtimeTab.chat.some((line) => line.compactionSummary === true));
+    assert.ok(runtimeTab.chat.some((line) => line.summaryMessage?.role === "compactionSummary"));
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }

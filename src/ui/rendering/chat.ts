@@ -1,8 +1,13 @@
 import type { ImageContent } from "@earendil-works/pi-ai";
-import type { MarkdownTransformer } from "@earendil-works/pi-coding-agent";
+import {
+  type MarkdownTransformer,
+  parseSkillBlock,
+  type ParsedSkillBlock,
+} from "@earendil-works/pi-coding-agent";
 import {
   getCapabilities,
   Image,
+  stripTerminalSequences,
   truncateToWidth,
   visibleWidth,
   wrapTextWithAnsi,
@@ -10,6 +15,7 @@ import {
 import {
   currentExtensionTheme,
   ensureExtensionThemeInitialized,
+  MIXCODE_EXTENSION_KEYBINDINGS_MANAGER,
 } from "../../agent/runtime-extension-theme.js";
 import type { ChatLine } from "../../agent/runtime.js";
 import type { OversizedAssistantMessageSettings } from "../../core/mixcode-settings.js";
@@ -17,38 +23,12 @@ import type { MermaidRenderingMode, MixCodeTabInfo } from "../../core/types.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
 import { formatDuration } from "./chrome.js";
 import { renderMarkdown } from "./markdown.js";
+import { renderSkillCard, renderSummaryCard } from "./message-cards.js";
 import {
   isOversizedAssistantMessageText,
   renderOversizedAssistantMessageBlock,
 } from "./oversized-assistant-message.js";
 import { padLine, renderBackgroundLine, sanitizeTerminalText } from "./primitives.js";
-
-/**
- * Parsed skill block from a user message.
- * Matches the format produced by Pi's native skill expansion
- * (AgentSession._expandSkillCommand):
- * `<skill name="..." location="...">\n...\n</skill>[\n\nuserMessage]`
- */
-interface ParsedSkillBlock {
-  name: string;
-  location: string;
-  content: string;
-  userMessage: string | undefined;
-}
-
-const SKILL_BLOCK_RE =
-  /^<skill name="([^"]+)" location="([^"]+)">\n([\s\S]*?)\n<\/skill>(?:\n\n([\s\S]+))?$/;
-
-function parseSkillBlock(text: string): ParsedSkillBlock | null {
-  const match = text.match(SKILL_BLOCK_RE);
-  if (!match) return null;
-  return {
-    name: match[1]!,
-    location: match[2]!,
-    content: match[3]!,
-    userMessage: match[4]?.trim() || undefined,
-  };
-}
 
 const OSC133_ZONE_START = "\x1b]133;A\x07";
 const OSC133_ZONE_END = "\x1b]133;B\x07";
@@ -334,11 +314,8 @@ function renderMessageBlockUncached(
   if (line.role === "extension") {
     return renderExtensionBlock(line, width);
   }
-  if (line.branchSummary) {
-    return renderBranchSummaryBlock(text, width, tab);
-  }
-  if (line.compactionSummary) {
-    return renderCompactionSummaryBlock(text, width, line.compactionTokensBefore, tab);
+  if (line.summaryMessage) {
+    return renderSummaryCard(line.summaryMessage, width, tab?.extensionUi.toolsExpanded ?? false);
   }
   return renderSystemBlock(text, width, line.variant, line.systemStatus === true);
 }
@@ -399,7 +376,8 @@ function chatLineRenderCacheKey(
     const imageKey = userImagesCacheKey(line.images);
     const mermaidKey = options.mermaidRenderingMode ?? "streaming";
     const transformersKey = markdownTransformersCacheKey(options.markdownTransformers);
-    return `u${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${expanded ? 1 : 0}${KEY_SEP}${line.timestamp ?? ""}${KEY_SEP}${showImages}${KEY_SEP}${options.imageWidthCells ?? 60}${KEY_SEP}${mermaidKey}${KEY_SEP}${transformersKey}${KEY_SEP}${imageKey}${KEY_SEP}${line.text}`;
+    const hint = line.text.startsWith("<skill ") ? cardExpansionCacheKey() : "";
+    return `u${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${expanded ? 1 : 0}${KEY_SEP}${hint}${KEY_SEP}${line.timestamp ?? ""}${KEY_SEP}${showImages}${KEY_SEP}${options.imageWidthCells ?? 60}${KEY_SEP}${mermaidKey}${KEY_SEP}${transformersKey}${KEY_SEP}${imageKey}${KEY_SEP}${line.text}`;
   }
   if (role === "extension") {
     return `e${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${line.title ?? ""}${KEY_SEP}${line.customType ?? ""}${KEY_SEP}${line.text}`;
@@ -415,14 +393,17 @@ function chatLineRenderCacheKey(
     // Generic (non-renderer) tool block: depends on status/title/args/text.
     return `t${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${line.status ?? ""}${KEY_SEP}${line.title ?? ""}${KEY_SEP}${stableArgs(line.args)}${KEY_SEP}${line.text}`;
   }
-  // role === "system" path can also surface branch-summary and compaction-summary blocks.
-  if (line.branchSummary) {
-    return `bs${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${expanded ? 1 : 0}${KEY_SEP}${line.text}`;
-  }
-  if (line.compactionSummary) {
-    return `cs${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${expanded ? 1 : 0}${KEY_SEP}${line.compactionTokensBefore ?? 0}${KEY_SEP}${line.text}`;
+  const summary = line.summaryMessage;
+  if (summary) {
+    const tokens = summary.role === "compactionSummary" ? summary.tokensBefore : "";
+    return `summary${KEY_SEP}${summary.role}${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${expanded ? 1 : 0}${KEY_SEP}${cardExpansionCacheKey()}${KEY_SEP}${tokens}${KEY_SEP}${summary.summary}`;
   }
   return `s${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${line.variant ?? ""}${KEY_SEP}${line.systemStatus ? 1 : 0}${KEY_SEP}${line.text}`;
+}
+
+function cardExpansionCacheKey(): string {
+  // A reload can change the upstream card hint without changing the message.
+  return MIXCODE_EXTENSION_KEYBINDINGS_MANAGER.getKeys("app.tools.expand").join(",");
 }
 
 function oversizedPolicyKey(options: RenderChatBlockOptions): string {
@@ -642,49 +623,6 @@ function renderSystemBlock(
   return lines.map((part) => padLine(part, width));
 }
 
-function renderBranchSummaryBlock(text: string, width: number, tab?: MixCodeTabInfo): string[] {
-  const expanded = tab?.extensionUi.toolsExpanded ?? false;
-  const title = activeRenderTheme.accent(activeRenderTheme.bold("[branch]"));
-  const lines: string[] = ["", ` ${title}`];
-  if (expanded) {
-    lines.push(
-      "",
-      ...renderMarkdown(text.trim(), Math.max(1, width - 1)).map((line) => ` ${line}`),
-    );
-  } else {
-    lines.push(` ${activeRenderTheme.dim("Branch summary (ctrl+o to expand)")}`);
-  }
-  lines.push("");
-  return lines.map((part) => renderBackgroundLine(part, width, activeRenderTheme.systemBackground));
-}
-
-function renderCompactionSummaryBlock(
-  text: string,
-  width: number,
-  tokensBefore: number | undefined,
-  tab?: MixCodeTabInfo,
-): string[] {
-  const expanded = tab?.extensionUi.toolsExpanded ?? false;
-  const title = activeRenderTheme.accent(activeRenderTheme.bold("[compaction]"));
-  const lines: string[] = ["", ` ${title}`];
-  if (expanded) {
-    const header = tokensBefore
-      ? `**Compacted from ${tokensBefore.toLocaleString()} tokens**\n\n`
-      : "";
-    lines.push(
-      "",
-      ...renderMarkdown((header + text).trim(), Math.max(1, width - 1)).map((line) => ` ${line}`),
-    );
-  } else {
-    const tokenInfo = tokensBefore
-      ? `Compacted from ${tokensBefore.toLocaleString()} tokens`
-      : "Compacted";
-    lines.push(` ${activeRenderTheme.dim(`${tokenInfo} (ctrl+o to expand)`)}`);
-  }
-  lines.push("");
-  return lines.map((part) => renderBackgroundLine(part, width, activeRenderTheme.systemBackground));
-}
-
 /**
  * Render the tab-level startup resource summary ([Context]/[Skills]/...).
  * Called from the agent surface header slot, not the chat block renderer —
@@ -888,10 +826,8 @@ function userImagesCacheKey(images: ImageContent[] | undefined): string {
 }
 
 /**
- * Render a skill invocation user message with a background box.
- * Collapsed: [skill] name (ctrl+o to expand)
- * Expanded: [skill] name + full skill content as markdown
- * User args (if any) are rendered as a separate user message block below.
+ * Pi owns the skill card's collapsed/expanded presentation.
+ * User args and images follow as a separate MixCode user message block.
  */
 function renderSkillUserMessage(
   skillBlock: ParsedSkillBlock,
@@ -902,30 +838,20 @@ function renderSkillUserMessage(
   images: ImageContent[] = [],
 ): string[] {
   const expanded = tab?.extensionUi.toolsExpanded ?? false;
-  const innerWidth = Math.max(1, width - 2);
-  const lines: string[] = [];
+  const lines = renderSkillCard(skillBlock, width, expanded);
 
-  // Skill block with background box
-  const boxLines: string[] = [];
-  if (expanded) {
-    // Expanded: [skill] label + name + full content
-    const label = ` ${activeRenderTheme.bold("[skill]")} ${activeRenderTheme.bold(skillBlock.name)}`;
-    boxLines.push("", label, "");
-    const contentLines = renderMarkdown(skillBlock.content.trim(), innerWidth);
-    for (const line of contentLines) boxLines.push(` ${line}`);
-    boxLines.push("");
-  } else {
-    // Collapsed: [skill] name (ctrl+o to expand)
-    const label = ` ${activeRenderTheme.bold("[skill]")} ${skillBlock.name} ${activeRenderTheme.dim("(ctrl+o to expand)")}`;
-    boxLines.push("", label, "");
-  }
-  // Skill-only (no args): pin clock on the label line, keep blank top spacing.
+  // Pi owns the card; MixCode adds the clock only when there is no argument row.
   const skillClock = !skillBlock.userMessage ? formatUserMessageTime(timestamp) : "";
-  if (skillClock && boxLines[1]) {
-    boxLines[1] = withRightClock(boxLines[1]!, skillClock, width);
-  }
-  for (const part of boxLines) {
-    lines.push(renderBackgroundLine(part, width, activeRenderTheme.customMessageBg));
+  if (skillClock && lines[1]) {
+    // Pi pads its label to the viewport width. Remove that padding before
+    // reserving clock space, otherwise an untruncated label gains an ellipsis.
+    const labelWidth = visibleWidth(stripTerminalSequences(lines[1]).trimEnd());
+    const label = truncateToWidth(lines[1], labelWidth, "");
+    lines[1] = renderBackgroundLine(
+      withRightClock(label, skillClock, width),
+      width,
+      activeRenderTheme.customMessageBg,
+    );
   }
 
   // Render user message (args) as a separate user block below (Markdown + images).

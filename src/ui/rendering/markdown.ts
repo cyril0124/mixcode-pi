@@ -3,6 +3,7 @@ import {
   createMermaidMarkdownTransformer,
   type MarkdownTransformContext,
   type MarkdownTransformer,
+  type Theme,
 } from "@earendil-works/pi-coding-agent";
 import { Markdown, type MarkdownTheme, visibleWidth } from "@earendil-works/pi-tui";
 import {
@@ -88,7 +89,7 @@ export function renderMarkdown(
   return markdown.render(width).map((line) => padRenderedMarkdownLine(line, width));
 }
 
-function getMarkdownTheme(): MarkdownTheme {
+export function getMarkdownTheme(): MarkdownTheme {
   // Sync global Pi theme once, then use Pi md* tokens so third-party themes apply.
   ensureExtensionThemeInitialized();
   const pi = getPiMarkdownTheme();
@@ -101,6 +102,18 @@ function getMarkdownTheme(): MarkdownTheme {
       return highlightCode(code, lang);
     },
   };
+}
+
+// Pi's collapsible cards accept a MarkdownTheme, but no transform callback.
+// Preserve the existing card diagram behavior before handing their body to Pi.
+export function transformMessageCardMarkdown(text: string, width: number, theme: Theme): string {
+  if (!text.includes("```")) return text;
+  const transform = createMermaidMarkdownTransformer({ getMode: () => "streaming", theme });
+  return transform(text, {
+    messageType: "assistant",
+    isStreaming: false,
+    availableWidth: Math.max(1, width - 2),
+  });
 }
 
 function padRenderedMarkdownLine(line: string, width: number): string {
