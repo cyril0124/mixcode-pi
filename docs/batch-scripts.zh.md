@@ -49,7 +49,7 @@ mpi --batch script.ts --batch-dry-run -- packages/core
 脚本跑完（.lua 走 fengari | .ts/.js 走动态导入）
    │  收集 open_tab / openTab
    v
-validate (model / thinking / mode)
+validate (model / thinking / context limit / mode)
    │
    ├─ --batch-dry-run → 打印 plan → 退出
    │
@@ -86,7 +86,7 @@ Lua 每次调用都会重新读取并执行文件，提供 `os.getenv`、`io` �
 | `workdir` | 否 | 新 tab 工作目录；默认值和相对路径以调用目录为基准。复用/clear 保留已有目录 |
 | `model` | 否 | 如 `anthropic/claude-sonnet-4-20250514` |
 | `thinking` | 否 | 依模型能力：`off` / `minimal` / `low` / … / `max` |
-| `context_limit` | 否 | 正数 token 上限、`/context-limit` 值或 `reset`，仅作用于该 session |
+| `context_limit` | 否 | `number \| string`；会话 token 预算或 `"reset"`，见[上下文限制](#上下文限制) |
 | `system_prompt` | 否 | 仅替换 base/identity（同 SYSTEM.md 槽位）；tools/AGENTS.md/skills 仍由 MixCode 组装。需要新建 tab 或 `mode="delete"`。与 `mode="clear"` 组合始终报错，即使没有同名 tab；`append` 复用已有会话也会报错 |
 | `mode` | 否 | 已存在 tab 时：`append`（默认）/ `clear` / `delete` |
 
@@ -106,6 +106,14 @@ skills、prompt templates、extension commands 和 `!shell` / `!!shell`。
 其他 slash 输入和路径原样交给 Pi；未匹配的输入，例如 `/unknown`，成为消息文本。
 
 设置了 `system_prompt` 的 tab，编辑器标题旁显示 `[sys]` 角标。
+
+### 上下文限制
+
+Lua 的 `context_limit` 与 TypeScript/JavaScript 的 `contextLimit` 接受数字或字符串。数字必须是正的安全整数 token 数。字符串沿用 `/context-limit` 解析器（`parseContextLimitValue`），接受 `"32000"`、`"32k"`、`"32.5k"` 和 `"reset"`，去除首尾空白并忽略大小写。数字字符串保留该命令的取整行为；归一化后的 token 数必须是正的安全整数。TS/JS 的 `undefined`、`null` 与 Lua 的 `nil` 都视为省略。
+
+每条请求在应用 model/thinking 后、发送 prompt 前应用该值，包括省略 prompt 的请求和后续同名请求。新建 tab 及 `append`/`clear`/`delete` 所有模式均可使用。`"reset"` 恢复所选模型的规范上下文窗口。省略时，新 tab 使用模型默认值；复用 tab 保留当前限制，除非显式选择模型将其重置。
+
+该覆盖值同步当前运行时会话的 `contextWindow`、UI 和压缩预算，仅影响当前会话，不修改全局配置。超过模型容量的值会被接受并显示现有警告，但不会扩大 provider 容量。非法输入在任何 tab 变更前失败，错误包含 `Error:` 和 tab 名称；脚本加载器补充脚本路径。
 
 ### 示例
 
@@ -158,6 +166,7 @@ export default script;
 | Lua | TypeScript |
 |-----|------------|
 | `mixcode.open_tab(opts)` | `mixcode.openTab(opts)` |
+| `opts.context_limit` | `opts.contextLimit` |
 | `opts.system_prompt` | `opts.systemPrompt` |
 | `mixcode.args()`（1-indexed table） | `mixcode.args()`（`string[]`） |
 | `mixcode.current_workdir()` | `mixcode.currentWorkdir()` |
@@ -169,7 +178,7 @@ export default script;
 
 字段语义、`mode`、`systemPrompt` 的新会话规则、prompt 支持范围与校验都与上方 Lua 一致。
 
-脚本写错时抛错：缺少默认导出或默认导出不是函数、`name` 缺失或非非空字符串、任意选项字段非字符串、`openTab` 传入未知字段（如误写 Lua 的 `system_prompt`）。脚本加载与运行失败会包装为 `Batch script error in <path>`。
+脚本写错时抛错：缺少默认导出或默认导出不是函数、`name` 缺失或非非空字符串、选项类型或上下文限制非法、`openTab` 传入未知字段（如误写 Lua 的 `system_prompt` 或 `context_limit`）。脚本加载与运行失败会包装为 `Batch script error in <path>`。
 
 TypeScript 脚本拥有宿主的文件、网络和进程访问权限。只执行可信脚本；dry-run 也会执行其中的代码。
 
@@ -217,7 +226,7 @@ Batch dry-run: 2 request(s)
    prompt: (none)
 ```
 
-仍会做 model / thinking 校验；非法配置会失败退出。
+仍会做 model / thinking / context limit 校验；非法配置会失败退出。指定的限制以归一化形式输出，如 `"32k"` 输出 `context_limit=32000`，重置输出 `context_limit=reset`。
 
 ## 执行与错误
 

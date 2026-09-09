@@ -49,7 +49,7 @@ Execution model:
 script completes (.lua via fengari | .ts/.js via dynamic import)
    │  collect open_tab / openTab calls
    v
-validate (model / thinking / mode)
+validate (model / thinking / context limit / mode)
    │
    ├─ --batch-dry-run → print plan → exit
    │
@@ -86,7 +86,7 @@ Lua rereads and executes the file on each invocation. Standard libraries such as
 | `workdir` | No | New-tab directory; defaults and relative paths use the invocation directory. Reuse/clear preserves the existing directory |
 | `model` | No | e.g. `anthropic/claude-sonnet-4-20250514` |
 | `thinking` | No | Based on model capability: `off` / `minimal` / `low` / … / `max` |
-| `contextLimit` | No | Positive token limit, a `/context-limit` value, or `reset`; applies to the session only |
+| `context_limit` | No | `number \| string`; session token budget or `"reset"`. See [context limits](#context-limits) |
 | `system_prompt` | No | Replaces base/identity only (same as SYSTEM.md slot); tools/AGENTS.md/skills are still assembled by MixCode. Requires a new tab or `mode="delete"`. Rejected with `mode="clear"`, even without a matching tab, and with `append` on an existing session |
 | `mode` | No | When tab already exists: `append` (default) / `clear` / `delete` |
 
@@ -107,6 +107,14 @@ use the interactive TUI to execute them. Other slash input and paths pass unchan
 unmatched input such as `/unknown` becomes message text.
 
 Tabs with a custom `system_prompt` display a `[sys]` badge beside the editor title.
+
+### Context limits
+
+`context_limit` in Lua and `contextLimit` in TypeScript/JavaScript accept a number or string. Numbers must be positive safe integer token counts. Strings use the existing `/context-limit` parser (`parseContextLimitValue`): `"32000"`, `"32k"`, `"32.5k"`, and `"reset"` are accepted, with surrounding whitespace trimmed and case ignored. Numeric strings retain the command's rounding behavior; normalized token counts must be positive safe integers. TS/JS `undefined` or `null` and Lua `nil` mean omitted.
+
+The value applies after each request's model/thinking and before its prompt, including requests without a prompt and later same-name requests. It works for new tabs and all `append`/`clear`/`delete` modes. `"reset"` restores the selected model's canonical context window. When omitted, new tabs use the model default; reused tabs retain their current limit unless explicit model selection resets it.
+
+The override synchronizes runtime session `contextWindow`, UI, and compaction budgets for the current session only; it changes no global config. Values above model capacity are accepted with the existing warning and do not expand provider capacity. Invalid inputs fail before any tab changes. The error includes `Error:` and the tab name; the script loader adds the script path.
 
 ### Example
 
@@ -159,6 +167,7 @@ Names map one-to-one; TypeScript uses camelCase:
 | Lua | TypeScript |
 |-----|------------|
 | `mixcode.open_tab(opts)` | `mixcode.openTab(opts)` |
+| `opts.context_limit` | `opts.contextLimit` |
 | `opts.system_prompt` | `opts.systemPrompt` |
 | `mixcode.args()` (1-indexed table) | `mixcode.args()` (`string[]`) |
 | `mixcode.current_workdir()` | `mixcode.currentWorkdir()` |
@@ -170,7 +179,7 @@ Names map one-to-one; TypeScript uses camelCase:
 
 Field semantics, `mode`, the `systemPrompt` fresh-session rule, prompt support, and validation are identical to the Lua tables above.
 
-Errors thrown for malformed scripts: missing or non-function default export, `name` missing or not a non-empty string, any non-string option field, and unknown `openTab` fields (for example the Lua spelling `system_prompt`). Script load and runtime failures are wrapped as `Batch script error in <path>`.
+Errors thrown for malformed scripts: missing or non-function default export, `name` missing or not a non-empty string, invalid option types or context limits, and unknown `openTab` fields (for example the Lua spellings `system_prompt` and `context_limit`). Script load and runtime failures are wrapped as `Batch script error in <path>`.
 
 TypeScript scripts run with full host access to files, the network, and processes. Execute only trusted scripts; dry-run executes their code too.
 
@@ -218,7 +227,7 @@ Batch dry-run: 2 request(s)
    prompt: (none)
 ```
 
-Performs model and thinking validation; invalid configurations fail and exit.
+Performs model, thinking, and context-limit validation; invalid configurations fail and exit. Supplied limits print as `context_limit=32000` for `"32k"`, or `context_limit=reset`.
 
 ## Execution and errors
 

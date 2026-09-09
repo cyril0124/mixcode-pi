@@ -35,7 +35,20 @@ interface MixCodeBatchOpenTabOptions {
   model?: string;
   /** Supported thinking level; omitted means keep existing or use the instance default for a new tab. */
   thinking?: MixCodeBatchThinkingLevel;
-  /** Positive integer tokens, /context-limit text, or "reset". */
+  /**
+   * Session context budget: a positive safe integer token count, or a /context-limit
+   * string such as "32000", "32k", "32.5k", or "reset". Strings trim whitespace,
+   * ignore case, and use /context-limit numeric rounding; resulting tokens must
+   * be positive safe integers. Runtime null/undefined mean omitted.
+   * Applied after each request's model/thinking and before its optional prompt,
+   * including later same-name requests and all modes. "reset" restores the
+   * selected model's canonical window. Omission uses the model default for a new
+   * tab and retains a reused tab's limit unless explicit model selection resets it.
+   * Synchronizes session contextWindow, UI, and compaction budgets for this session
+   * only; no global config change. Above-capacity values warn without expanding
+   * provider capacity. Invalid values fail before any tab changes with Error: and
+   * the tab name; the script loader adds the script path.
+   */
   contextLimit?: number | string;
   /**
    * Base/identity system prompt only (same slot as SYSTEM.md). Tools, AGENTS.md,
@@ -97,8 +110,8 @@ interface MixCodeBatchApi {
    * For repeated names, only the first request controls creation/reset/deletion.
    * Interactive /clear still replaces the session and resets its title.
    *
-   * Throws on a missing/empty name, a non-string option field, or an unknown
-   * field name. Model, thinking, mode, contextLimit, and systemPrompt validation
+   * Throws on a missing/empty name, invalid option types or contextLimit, or an
+   * unknown field name. Model, thinking, mode, and systemPrompt validation
    * happens after collection, before tab changes.
    */
   openTab(options: MixCodeBatchOpenTabOptions): void;

@@ -12,7 +12,7 @@ mixcode = {}
 ---@field workdir? string New-tab directory; defaults and relative paths use current_workdir(). Reuse/clear keeps the existing directory
 ---@field model? string Model identifier from list_models().id; omitted means keep existing or use the instance default for a new tab
 ---@field thinking? "off"|"minimal"|"low"|"medium"|"high"|"xhigh"|"max" Supported thinking level; omitted means keep existing or use the instance default for a new tab
----@field context_limit? number|string Positive token limit, a /context-limit value, or "reset"
+---@field context_limit? number|string Session context budget: positive safe integer tokens or a /context-limit string such as "32000", "32k", "32.5k", or "reset"; nil means omitted. See open_tab for parsing and application rules.
 ---@field system_prompt? string Base/identity system prompt only (same slot as SYSTEM.md). Tools, AGENTS.md, and skills stay assembled by MixCode. Requires a new tab or mode="delete"; rejected with mode="clear" even without a matching tab.
 ---@field mode? "append"|"clear"|"delete" Reuse behavior when tab exists (default: "append")
 
@@ -49,10 +49,16 @@ mixcode = {}
 ---For repeated names, only the first request controls creation/reset/deletion.
 ---Interactive /clear still replaces the session and resets its title.
 ---Each request applies model/thinking, then context_limit, then its optional prompt.
----context_limit works in all modes and updates this session only.
+---context_limit works in all modes, including requests without a prompt and later same-name requests.
+---Strings trim whitespace, ignore case, and use /context-limit numeric rounding;
+---resulting tokens must be positive safe integers. "reset" restores the selected model's canonical window.
+---Omission uses the model default for new tabs and retains a reused tab's limit unless explicit model selection resets it.
+---The limit synchronizes session contextWindow, UI, and compaction budgets for this session only; no global config change.
+---Above-capacity values warn without expanding provider capacity.
+---Invalid context_limit values fail before any tab changes with Error: and the tab name; the script loader adds the script path.
 ---
----Throws on a missing name or non-string option field. Model, thinking, mode,
----and system_prompt validation happens after collection, before tab changes.
+---Throws on a missing name, invalid option types or context_limit. Model, thinking,
+---mode, and system_prompt validation happens after collection, before tab changes.
 ---@param opts mixcode.OpenTabOptions
 function mixcode.open_tab(opts) end
 

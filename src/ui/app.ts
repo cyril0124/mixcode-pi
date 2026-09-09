@@ -107,6 +107,7 @@ export function createMixCodeTui(
   );
   const tui = new TuiAltScreen(injecting, undefined, undefined, {
     mouse: false,
+    viewportInput: false,
   }) as unknown as MixCodeTui;
   tui.injectInput = (data) => injecting.inject(data);
   // settings.json showHardwareCursor / terminal.clearOnShrink.
