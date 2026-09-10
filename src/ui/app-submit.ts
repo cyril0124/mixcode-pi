@@ -21,8 +21,6 @@ import {
   SKIP_FINALIZE,
 } from "./app-types.js";
 
-export { renderSessionInfoText } from "./app-submit-session.js";
-
 export async function handleSubmittedInput(
   state: MixCodeState,
   runtime: MixCodeSubmitRuntime,

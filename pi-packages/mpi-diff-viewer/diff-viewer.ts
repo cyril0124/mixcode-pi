@@ -1849,7 +1849,3 @@ export class DiffViewer {
     return rendered;
   }
 }
-
-export function createDiffViewerComponent(config: DiffViewerConfig): DiffViewer {
-  return new DiffViewer(config);
-}

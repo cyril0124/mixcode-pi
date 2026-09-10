@@ -32,13 +32,18 @@ import {
 import { getCurrentUiTheme, renderWithTheme } from "./rendering/context.js";
 import { themeForId, type MixCodeTheme } from "./themes.js";
 
+type OwnedPresentation = "picker" | "confirm";
+
 const activeAppOverlays = new WeakMap<
   object,
-  { handle: OverlayHandle; component: Component; capturing: boolean }
+  {
+    handle: OverlayHandle;
+    component: Component;
+    capturing: boolean;
+    /** Set when this overlay was presented by `syncOwnedAppOverlay`. */
+    owned?: OwnedPresentation;
+  }
 >();
-
-type OwnedPresentation = "picker" | "confirm";
-const presentedOwnedOverlay = new WeakMap<object, OwnedPresentation>();
 
 export const DEFAULT_OVERLAY_MAX_HEIGHT_PERCENT = 80;
 
@@ -254,16 +259,26 @@ export function closeAppOverlay(tui: OverlayTui): void {
   if (!active) return;
   active.handle.hide();
   activeAppOverlays.delete(tui);
-  presentedOwnedOverlay.delete(tui);
+}
+
+/** Which picker/confirm overlay this tui currently presents on behalf of a tab. */
+function ownedAppOverlayKind(tui: OverlayTui): OwnedPresentation | undefined {
+  return activeAppOverlays.get(tui)?.owned;
+}
+
+/** Mark the just-shown overlay as the tab-owned picker/confirm presentation. */
+function markOwnedAppOverlay(tui: OverlayTui, kind: OwnedPresentation): void {
+  const active = activeAppOverlays.get(tui);
+  if (active) active.owned = kind;
 }
 
 /** Show or hide the tab-owned picker/confirm to match the focused tab. */
 export function syncOwnedAppOverlay(state: MixCodeState, tui: OverlayTui): void {
   if (isInstanceOverlayOpen(state)) return;
   if (pickerIsLive(state)) {
-    if (presentedOwnedOverlay.get(tui) !== "picker" || !hasAppOverlay(tui)) {
+    if (ownedAppOverlayKind(tui) !== "picker") {
       showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
-      presentedOwnedOverlay.set(tui, "picker");
+      markOwnedAppOverlay(tui, "picker");
     }
     tui.requestRender();
     return;
@@ -271,19 +286,19 @@ export function syncOwnedAppOverlay(state: MixCodeState, tui: OverlayTui): void 
   const confirm = state.sessionActionConfirm;
   if (confirm && sessionActionConfirmIsLive(state)) {
     const tab = state.tabs.find((item) => item.sessionId === confirm.sessionId);
-    if (tab && (presentedOwnedOverlay.get(tui) !== "confirm" || !hasAppOverlay(tui))) {
+    if (tab && ownedAppOverlayKind(tui) !== "confirm") {
       showLinesOverlay(
         tui,
         (width) =>
           renderSessionActionConfirm(width, themeForId(state.theme), confirm.action, tab.title),
         quitOverlayOptions(),
       );
-      presentedOwnedOverlay.set(tui, "confirm");
+      markOwnedAppOverlay(tui, "confirm");
     }
     tui.requestRender();
     return;
   }
-  if (presentedOwnedOverlay.has(tui)) closeAppOverlay(tui);
+  if (ownedAppOverlayKind(tui)) closeAppOverlay(tui);
 }
 
 export function hasAppOverlay(tui: OverlayTui): boolean {

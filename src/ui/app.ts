@@ -67,10 +67,7 @@ export {
   bindRuntimeRendering,
   bindWorkingRedraw,
 } from "./app-runtime.js";
-export {
-  handleSubmittedInput,
-  renderSessionInfoText,
-} from "./app-submit.js";
+export { handleSubmittedInput } from "./app-submit.js";
 export { renderHotkeysText } from "./hotkeys.js";
 export { renderSystemToolsText } from "./system-tools.js";
 export interface MixCodeTuiOptions {

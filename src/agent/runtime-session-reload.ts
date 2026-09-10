@@ -12,7 +12,6 @@ import type { ChatLine, RuntimeTab } from "./runtime-types.js";
 
 export interface ReloadSessionResult {
   reloaded: boolean;
-  reason?: "streaming" | "compacting" | "no-file";
 }
 
 /**
@@ -24,10 +23,10 @@ export interface ReloadSessionResult {
  * cross-process turn lock so a remote instance cannot append during our turn.
  */
 export function reloadRuntimeSessionFromDisk(runtimeTab: RuntimeTab): ReloadSessionResult {
-  if (runtimeTab.agentSession.isStreaming) return { reloaded: false, reason: "streaming" };
-  if (runtimeTab.agentSession.isCompacting) return { reloaded: false, reason: "compacting" };
+  if (runtimeTab.agentSession.isStreaming) return { reloaded: false };
+  if (runtimeTab.agentSession.isCompacting) return { reloaded: false };
   const file = runtimeTab.session.getSessionFile();
-  if (!file) return { reloaded: false, reason: "no-file" };
+  if (!file) return { reloaded: false };
   // A fresh session has a file PATH but no file on disk until its first flush.
   // SessionManager.setSessionFile() treats a non-existent path as "start a new
   // session" and mints a NEW session id (keeping the old filename), which
@@ -37,7 +36,7 @@ export function reloadRuntimeSessionFromDisk(runtimeTab: RuntimeTab): ReloadSess
   // new id, so its widget never renders until /reload). Nothing on disk means
   // no external appends to reconcile, so skip the reload entirely.
   // Sync API; Bun.file().exists() is async-only.
-  if (!fs.existsSync(file)) return { reloaded: false, reason: "no-file" };
+  if (!fs.existsSync(file)) return { reloaded: false };
 
   // Capture the pre-reload leaf and known entry ids. setSessionFile rebuilds the
   // index and unconditionally moves the leaf to the file's LAST entry — correct

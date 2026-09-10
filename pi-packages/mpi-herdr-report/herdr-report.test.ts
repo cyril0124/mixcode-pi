@@ -28,7 +28,6 @@ import {
   releaseSession,
   resolveHerdrPaneId,
   retainSession,
-  sessionKeyFrom,
   socketEndpoint,
   WAITING_FOR_INPUT_EVENT,
 } from "./index.js";
@@ -112,7 +111,6 @@ test("readCtxIdle swallows only session-replacement stale errors", () => {
 
 test("busy ledger survives resume without undoing a later agent_start", () => {
   const busy = new Set<string>();
-  assert.equal(sessionKeyFrom({ agent_session_id: "old" }), "old");
   applySessionStart(busy, "old", false);
   applySessionShutdown(busy, "old");
   assert.equal(busy.size, 0);

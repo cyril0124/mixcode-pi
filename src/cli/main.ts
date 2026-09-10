@@ -54,10 +54,7 @@ export function isBuiltinExtensionsOnlyEnabled(flagValue?: boolean, env = proces
   return raw !== "0" && raw !== "false" && raw !== "off" && raw !== "no";
 }
 
-export type MainCommand = "tui" | "status";
-
 export interface MainArgs {
-  command: MainCommand;
   workdir: string;
   batch?: string;
   batchArgs?: string[];
@@ -140,7 +137,6 @@ export function parseMainArgs(args: string[], fallbackWorkdir: string): MainArgs
     throw new Error("--batch-dry-run requires --batch <file>");
   }
   return {
-    command: "tui",
     workdir,
     batch: batchPath ? path.resolve(workdir, batchPath) : undefined,
     batchArgs,
@@ -169,7 +165,7 @@ function parseStatusArgs(args: string[], baseWorkdir: string): MainArgs {
     }
     throw new Error(`Unknown status argument: ${arg}`);
   }
-  return { command: "status", workdir: baseWorkdir, json, statusWorkdir };
+  return { workdir: baseWorkdir, json, statusWorkdir };
 }
 
 export async function runStatusCommand(args: MainArgs): Promise<void> {

@@ -411,7 +411,7 @@ function renderAgentSurfaceAnchored(
   const visible = lines.slice(windowStart, windowStart + viewport);
   while (visible.length < viewport) visible.push(chatBlockSeparator(mainWidth));
 
-  const total = estimateTotalHeight(chat, tailLines.length, mainWidth, frameBlockHeights);
+  const total = estimateTotalHeight(chat, tailLines.length, frameBlockHeights);
   const start = Math.min(
     Math.max(0, total - visible.length),
     anchorIndex * BLOCK_HEIGHT_FALLBACK + windowStart,
@@ -566,7 +566,6 @@ function renderAgentSurfaceWindowed(
   const total = estimateTotalHeight(
     displayChat,
     tailLines.length,
-    mainWidth,
     frameBlockHeights,
     headerLines.length,
   );

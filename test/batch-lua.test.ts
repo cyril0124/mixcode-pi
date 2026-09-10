@@ -836,7 +836,6 @@ test("runBatchDryRun prints plan without writing state file", async () => {
     }) as typeof process.stdout.write;
     try {
       await runBatchDryRun({
-        command: "tui",
         workdir: dir,
         batch: scriptPath,
         batchArgs: [],

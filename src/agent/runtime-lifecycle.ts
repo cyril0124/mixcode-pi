@@ -152,7 +152,7 @@ export function applyMixCodeSessionDefaults(settingsManager: SettingsManager): v
   settingsManager.applyOverrides({ steeringMode: "all", followUpMode: "all" });
   configureMixCodeRetrySettings(settingsManager);
 }
-export async function createRuntimeTab(
+async function createRuntimeTab(
   tab: MixCodeTabInfo,
   session: SessionManager,
   config: RuntimeTabConfig,
@@ -295,7 +295,7 @@ export async function createRuntimeTabWithFallback(
   }
 }
 
-export async function createAgentSessionForReplacement(
+async function createAgentSessionForReplacement(
   sessionManager: SessionManager,
   config: RuntimeTabConfig & { sessionStartEvent: SessionStartEvent },
   context: RuntimeLifecycleContext,
@@ -669,7 +669,7 @@ export async function createRuntimeServices(
 /** Cached search tool availability, detected once at module load. */
 const cachedSearchTools: SearchToolAvailability = detectSearchTools();
 
-export async function bindRuntimeExtensions(
+async function bindRuntimeExtensions(
   runtimeTab: RuntimeTab,
   context: RuntimeLifecycleContext,
 ): Promise<void> {

@@ -58,7 +58,6 @@ try {
 `;
 
 const cache = new Map<string, CachedListing>();
-const rootCache = new Map<string, SessionInfo[]>();
 const inFlight = new Map<string, Promise<SessionInfo[]>>();
 
 // Per-root snapshots (name + size + mtime). Other instances appending to an
@@ -75,9 +74,6 @@ export function listSessionsInBackground(
   signal?: AbortSignal,
 ): Promise<SessionInfo[]> {
   if (signal?.aborted) return Promise.reject(abortError());
-
-  const seeded = listingFromRootCache(request);
-  if (seeded) return Promise.resolve(copySessions(seeded));
 
   const key = requestKey(request);
   const cached = cache.get(key);
@@ -109,7 +105,6 @@ export function listSessionsInBackground(
 }
 
 export function invalidateSessionCatalog(root: string): void {
-  rootCache.delete(root);
   for (const [key, entry] of cache) {
     if (entry.roots.includes(root)) cache.delete(key);
   }
@@ -294,22 +289,6 @@ async function catalogRootSnapshot(root: string): Promise<string[] | undefined> 
     }
   }
   return lines;
-}
-
-function listingFromRootCache(request: SessionCatalogRequest): SessionInfo[] | undefined {
-  if (request.mode === "current") return rootCache.get(request.sessionsRoot);
-  const listings = request.sessionDirs.map((root) => rootCache.get(root));
-  if (listings.some((sessions) => sessions === undefined)) return undefined;
-  const seen = new Set<string>();
-  const sessions = listings
-    .flatMap((listing) => listing ?? [])
-    .filter((session) => {
-      if (seen.has(session.path)) return false;
-      seen.add(session.path);
-      return true;
-    });
-  sessions.sort((left, right) => right.modified.getTime() - left.modified.getTime());
-  return sessions;
 }
 
 function requestKey(request: SessionCatalogRequest): string {

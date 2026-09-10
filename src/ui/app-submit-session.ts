@@ -524,7 +524,7 @@ function syncTabContextUsage(
   tab.currentContextTokens = contextUsage.tokens === null ? undefined : contextUsage.tokens;
 }
 
-export function renderSessionInfoText(
+function renderSessionInfoText(
   runtimeTab: RuntimeTab,
   info: SessionStatsInfo = runtimeTab.agentSession.getSessionStats(),
   identity: { tabTitle: string; workdir: string },

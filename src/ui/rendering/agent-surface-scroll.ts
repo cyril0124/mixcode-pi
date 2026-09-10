@@ -335,11 +335,9 @@ function findScrollFreezeAnchorIndex(
 export function estimateTotalHeight(
   chat: ChatLine[],
   queueRows: number,
-  width: number,
   frameBlockHeights: ReadonlyMap<ChatLine, number>,
   extraRows = 0,
 ): number {
-  void width;
   let total = queueRows + Math.max(0, extraRows);
   let nonEmpty = 0;
   for (const line of chat) {

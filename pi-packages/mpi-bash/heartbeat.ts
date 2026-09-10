@@ -70,7 +70,6 @@ interface StallState {
 
 /** One stalled job: what the model reads, and what the chat panel renders. */
 export interface StallReport {
-  content: string;
   jobs: StallDetails[];
   /** Advance backoff only for jobs actually delivered, once per report. */
   markDelivered(jobIds: readonly number[], now?: number): void;
@@ -128,7 +127,6 @@ export class StallMonitor {
 
     const due: StallDetails[] = [];
     const dueStates = new Map<number, StallState>();
-    const contents: string[] = [];
     for (const run of runs) {
       let stats: fs.Stats;
       try {
@@ -182,11 +180,9 @@ export class StallMonitor {
         tail,
       };
       due.push(job);
-      contents.push(formatStallNotice({ ...job, logPath: run.logPath }));
     }
     if (due.length === 0) return undefined;
     return {
-      content: contents.join("\n\n"),
       jobs: due,
       markDelivered: (jobIds, deliveredAt = Date.now()) => {
         for (const id of jobIds) {

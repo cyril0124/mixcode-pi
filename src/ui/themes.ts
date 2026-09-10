@@ -844,16 +844,6 @@ let lastLoaderThemes: Theme[] = [];
 /** Cached MixCodeTheme adapters for third-party / non-builtin ids. */
 const mixCodeThemeCache = new Map<string, MixCodeTheme>();
 
-function builtinPiById(id: string): Theme | undefined {
-  if (id === "mixcode-dark" || id === "terminal") return MIXCODE_EXTENSION_THEME;
-  if (id === "claude-warm") return MIXCODE_EXTENSION_CLAUDE_WARM_THEME;
-  if (id === "tokyo-night") return MIXCODE_EXTENSION_TOKYO_NIGHT_THEME;
-  if (id === "catppuccin") return MIXCODE_EXTENSION_CATPPUCCIN_THEME;
-  if (id === "kanagawa") return MIXCODE_EXTENSION_KANAGAWA_THEME;
-  if (id === "rose-pine") return MIXCODE_EXTENSION_ROSE_PINE_THEME;
-  return undefined;
-}
-
 function publishRegistry(next: Map<string, Theme>): void {
   themeRegistry = next;
   // Pi registry keys by Theme.name only — unique named instances.
@@ -898,7 +888,7 @@ registerMixCodeThemes();
 export function resolvePiTheme(themeId: string): Theme | undefined {
   const canonical = themeId.trim();
   if (!canonical) return undefined;
-  return themeRegistry.get(canonical) ?? builtinPiById(canonical) ?? getThemeByName(canonical);
+  return themeRegistry.get(canonical) ?? getThemeByName(canonical);
 }
 
 export function listThemeInfos(): ThemeInfo[] {

@@ -85,7 +85,6 @@ export class ProviderWatchdog {
   private readonly timers = new Set<Timer>();
   private readonly removeAbortListener?: () => void;
   private _state: ProviderWatchdogState;
-  private _timeoutKind: ProviderWatchdogTimeoutKind | undefined;
   private disposed = false;
   private readonly onCooldownAtStart: boolean;
 
@@ -102,14 +101,6 @@ export class ProviderWatchdog {
 
   get state(): ProviderWatchdogState {
     return this._state;
-  }
-
-  get timeoutKind(): ProviderWatchdogTimeoutKind | undefined {
-    return this._timeoutKind;
-  }
-
-  get timerCount(): number {
-    return this.timers.size;
   }
 
   /** Start one request. A cooldown only changes the first-event timeout. */
@@ -151,7 +142,6 @@ export class ProviderWatchdog {
   timeout(kind: ProviderWatchdogTimeoutKind): void {
     if (this.disposed || (this._state !== "idle" && this._state !== "streaming")) return;
     this.clearRequestTimers();
-    this._timeoutKind = kind;
     this.options.cooldowns.set(
       this.options.providerId,
       this.options.modelId,

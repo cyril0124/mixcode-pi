@@ -53,7 +53,6 @@ const processInfo = (pid: number): ProcessIdentity => liveProcesses.get(pid) ?? 
 
 test("parseMainArgs parses status subcommand without launching TUI args", () => {
   const args = parseMainArgs(["status", "--json", "--workdir", "repo"], "/home/user");
-  assert.equal(args.command, "status");
   assert.equal(args.json, true);
   assert.equal(args.statusWorkdir, "/home/user/repo");
   assert.equal(args.workdir, "/home/user");

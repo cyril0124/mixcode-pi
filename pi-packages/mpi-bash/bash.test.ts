@@ -8,7 +8,6 @@ import bashExtension, {
   appendBashTimeoutNote,
   createDetachingBashOperations,
   formatCompletionNotice,
-  formatRunChoice,
   type DetachedRun,
   type DetachedStart,
   pruneOldLogs,
@@ -327,44 +326,6 @@ test("foreground window rejects a malformed value instead of defaulting", () => 
     () => resolveForegroundSeconds({ MPI_BASH_FOREGROUND_SECONDS: "soon" }),
     /MPI_BASH_FOREGROUND_SECONDS/,
   );
-});
-
-test("/bash-logs rows line up in columns and stay unique per run", () => {
-  const now = 100_000;
-  const rows = [
-    formatRunChoice(
-      { id: 111, command: "bun run check", startedAt: now - 8_000, logPath: "/tmp/a.log" },
-      now,
-    ),
-    formatRunChoice({
-      id: 222,
-      command: "bun run check",
-      startedAt: now - 12_000,
-      logPath: "/tmp/b.log",
-      exitCode: 0,
-      timedOut: false,
-      endedAt: now - 1_000,
-      logPending: false,
-    }),
-    formatRunChoice({
-      id: 333,
-      command: "pytest -k slow",
-      startedAt: now - 30_000,
-      logPath: "/tmp/c.log",
-      exitCode: 137,
-      timedOut: true,
-      endedAt: now,
-      logPending: false,
-    }),
-  ];
-
-  assert.deepEqual(rows, [
-    `● running      8s  bun run check${" ".repeat(35)}  #111`,
-    `✓ exit 0      11s  bun run check${" ".repeat(35)}  #222`,
-    `⏱ timeout     30s  pytest -k slow${" ".repeat(34)}  #333`,
-  ]);
-  // Same command twice must not collapse into one list row.
-  assert.equal(new Set(rows).size, rows.length);
 });
 
 test("the widget spends one line per run at any width", () => {

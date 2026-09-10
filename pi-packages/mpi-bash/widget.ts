@@ -8,9 +8,6 @@ import { type DetachedRun, type DetachedStart, formatElapsed } from "./exec.js";
  * the `/bash-logs` overlay, and the session's record of what has been detached.
  */
 
-/** Marks a still-running command in the `/bash-logs` list. */
-const RUNNING_DOT = "●";
-
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const;
 const SPINNER_INTERVAL_MS = 80;
 
@@ -226,29 +223,6 @@ export function hasEnded(run: DetachedStart | FinishedRun): run is FinishedRun {
 const HISTORY_LIMIT = 50;
 /** Log bytes shown by `/bash-logs`; the file itself keeps everything. */
 const LOG_VIEW_BYTES = 200_000;
-
-/** Command column of a `/bash-logs` row; the rest is fixed-width. */
-const CHOICE_COMMAND_WIDTH = 48;
-
-/**
- * One `/bash-logs` list row, laid out in fixed columns so the list reads as a
- * table: `<icon> <state> <time>  <command>  #<pid>`.
- *
- * The pid also keeps rows unique when the same command is run twice.
- */
-export function formatRunChoice(run: DetachedStart | FinishedRun, now = Date.now()): string {
-  const command = run.command.replace(/\s+/g, " ").trim();
-  const [icon, state, elapsed] = hasEnded(run)
-    ? [
-        run.timedOut ? "⏱" : run.exitCode === 0 ? "✓" : "✗",
-        run.timedOut ? "timeout" : `exit ${run.exitCode ?? "?"}`,
-        formatElapsed(run.endedAt - run.startedAt),
-      ]
-    : [RUNNING_DOT, "running", formatElapsed(now - run.startedAt)];
-  const text = truncateToWidth(command, CHOICE_COMMAND_WIDTH, "…");
-  const padding = " ".repeat(Math.max(1, CHOICE_COMMAND_WIDTH - visibleWidth(text)));
-  return `${icon} ${state.padEnd(8)} ${elapsed.padStart(6)}  ${text}${padding}  #${run.id}`;
-}
 
 /**
  * Read up to the last `limit` bytes of a log. `size` and `mtimeMs` come from

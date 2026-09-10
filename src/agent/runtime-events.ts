@@ -302,7 +302,7 @@ export function syncQueueState(
   runtimeTab.queuedFollowUpCount = followUp.length;
 }
 
-export function appendMessageStart(runtimeTab: RuntimeTab, message: AgentMessage): void {
+function appendMessageStart(runtimeTab: RuntimeTab, message: AgentMessage): void {
   if (message.role === "user") {
     // Pi getUserMessageText + separate image blocks for TUI.
     const text = userMessageText(message.content);
@@ -509,7 +509,7 @@ export function syncAssistantBlocks(
   return { chatIndex, blockIndices, toolCallIndices };
 }
 
-export function upsertToolExecution(
+function upsertToolExecution(
   runtimeTab: RuntimeTab,
   toolCallId: string,
   toolName: string,

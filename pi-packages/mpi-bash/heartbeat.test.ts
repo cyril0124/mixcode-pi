@@ -19,6 +19,20 @@ const plainTheme = {
   bold: (text: string) => text,
 } as unknown as Parameters<typeof renderStallMessage>[1];
 
+/** Formatted notice text for every job a report carries, or "" when none. */
+function noticeText(
+  report: Awaited<ReturnType<StallMonitor["check"]>>,
+  runs: Parameters<StallMonitor["check"]>[0],
+): string {
+  if (!report) return "";
+  return report.jobs
+    .map((job) => {
+      const run = runs.find((candidate) => candidate.id === job.id);
+      return run ? formatStallNotice({ ...job, logPath: run.logPath }) : "";
+    })
+    .join("\n\n");
+}
+
 /** Notice text for the single job a check reported, or "" when none was. */
 async function notice(
   monitor: StallMonitor,
@@ -30,7 +44,7 @@ async function notice(
     report.jobs.map((job) => job.id),
     now,
   );
-  return report?.content ?? "";
+  return noticeText(report, runs);
 }
 
 const MINUTE = 60_000;
@@ -131,12 +145,12 @@ test("an undelivered reminder stays due and delivery alone advances backoff", as
   const monitor = new StallMonitor(6000);
   try {
     const first = await monitor.check([run], start + 7000);
-    assert.match(first?.content ?? "", /waiting/);
+    assert.match(noticeText(first, [run]), /waiting/);
     const retry = await monitor.check([run], start + 8000);
-    assert.match(retry?.content ?? "", /waiting/, "a deferred report must remain due");
+    assert.match(noticeText(retry, [run]), /waiting/, "a deferred report must remain due");
     retry!.markDelivered([run.id], start + 8000);
     assert.equal(await monitor.check([run], start + 19000), undefined);
-    assert.match((await monitor.check([run], start + 20000))?.content ?? "", /waiting/);
+    assert.match(noticeText(await monitor.check([run], start + 20000), [run]), /waiting/);
   } finally {
     fs.rmSync(path.dirname(run.logPath), { recursive: true, force: true });
   }
@@ -171,11 +185,11 @@ test("fresh output invalidates an old undelivered reminder", async () => {
   const monitor = new StallMonitor(6000);
   try {
     const old = await monitor.check([run], start + 7000);
-    assert.match(old?.content ?? "", /waiting/);
+    assert.match(noticeText(old, [run]), /waiting/);
     write("resumed\n", start + 8000);
     assert.equal(await monitor.check([run], start + 9000), undefined);
     old!.markDelivered([run.id], start + 9000);
-    assert.match((await monitor.check([run], start + 14000))?.content ?? "", /resumed/);
+    assert.match(noticeText(await monitor.check([run], start + 14000), [run]), /resumed/);
   } finally {
     fs.rmSync(path.dirname(run.logPath), { recursive: true, force: true });
   }

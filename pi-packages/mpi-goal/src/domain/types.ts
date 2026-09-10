@@ -157,7 +157,6 @@ export type GoalQueueSteeringSender = (
 ) => boolean;
 
 export type MutationResult = {
-  ok: boolean;
   goal: GoalState | null;
   telemetry: GoalTelemetrySnapshot | null;
 };

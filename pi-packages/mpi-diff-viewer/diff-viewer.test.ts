@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
-import { createDiffViewerComponent, type ReviewEditor } from "./diff-viewer.js";
+import { DiffViewer, type ReviewEditor } from "./diff-viewer.js";
 import type { ReviewDraft } from "./review.js";
 import type { DiffFile, DiffRow, SessionDiff } from "./session-diff.js";
 
@@ -100,7 +100,7 @@ function createViewer(
   let closed = 0;
   let renders = 0;
   const submissions: ReviewDraft[] = [];
-  const component = createDiffViewerComponent({
+  const component = new DiffViewer({
     tui: {
       terminal: { columns, rows },
       requestRender: () => renders++,

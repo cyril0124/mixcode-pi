@@ -74,14 +74,6 @@ export function readCtxIdle(ctx: { isIdle: () => boolean }): boolean | undefined
   }
 }
 
-export function sessionKeyFrom(extra: Record<string, unknown>): string | undefined {
-  const path = extra.agent_session_path;
-  if (typeof path === "string" && path.length > 0) return path;
-  const id = extra.agent_session_id;
-  if (typeof id === "string" && id.length > 0) return id;
-  return undefined;
-}
-
 export function applySessionStart(
   busy: Set<string>,
   key: string | undefined,

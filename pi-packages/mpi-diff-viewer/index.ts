@@ -1,5 +1,5 @@
 import type { ExtensionCommandContext, ExtensionFactory } from "@earendil-works/pi-coding-agent";
-import { createDiffViewerComponent } from "./diff-viewer.js";
+import { DiffViewer } from "./diff-viewer.js";
 import { composeReviewPrompt, type ReviewDraft } from "./review.js";
 import {
   buildGitDiff,
@@ -47,7 +47,7 @@ async function openDiff(
   }
 
   const review = await ctx.ui.custom<ReviewDraft | undefined>(
-    (tui, theme, _keybindings, done) => createDiffViewerComponent({ tui, theme, diff, done }),
+    (tui, theme, _keybindings, done) => new DiffViewer({ tui, theme, diff, done }),
     {
       overlay: true,
       overlayOptions: {

@@ -32,7 +32,7 @@ import {
 import { MIXCODE_EXTENSION_KEYBINDINGS_MANAGER } from "./runtime-extension-theme.js";
 
 // The shape we depend on from a pi-tui module instance.
-export interface PiTuiKeybindingsModule {
+interface PiTuiKeybindingsModule {
   setKeybindings: (manager: unknown) => void;
   getKeybindings: () => unknown;
 }
