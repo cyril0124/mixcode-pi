@@ -1042,10 +1042,13 @@ const INLINE_WIDGET_EXPANDED_MAX_LINES = 20;
 
 /** Inline-only presentation; dock and panel callers retain their own row budgets. */
 export function renderInlineExtensionWidgets(tab: MixCodeTabInfo, width: number): string[] {
-  return [
-    ...renderExtensionWidgetsInner(tab, width, "aboveEditor", true),
-    ...renderExtensionWidgetsInner(tab, width, "belowEditor", true),
-  ];
+  const above = renderExtensionWidgetsInner(tab, width, "aboveEditor", true);
+  const below = renderExtensionWidgetsInner(tab, width, "belowEditor", true);
+  if (above.length === 0) return below;
+  if (below.length === 0) return above;
+  // Blank row between the two placements, matching the spacing inside each
+  // group, so above/below widgets do not read as one block.
+  return [...above, renderSingleLineExtensionSlot("", width), ...below];
 }
 
 function renderExtensionWidgetsInner(
@@ -1066,6 +1069,9 @@ function renderExtensionWidgetsInner(
       return;
     }
     if (widgetLines.length === 0) return;
+    // Stacked inline widgets get a blank row between them so a header never
+    // looks like the body of the widget above it.
+    if (lines.length > 0) lines.push(renderSingleLineExtensionSlot("", width));
     const collapsed = tab.inlineWidgetCollapsed.get(widget.key) === true;
     const budget = collapsed ? 1 : INLINE_WIDGET_EXPANDED_MAX_LINES;
     const header = inline
