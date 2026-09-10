@@ -40,6 +40,15 @@ runtimeTab.chat = [
     ).join("\n"),
   },
 ];
+if (process.argv[3] === "prompt-zones") {
+  runtimeTab.chat = [
+    { role: "thinking", text: "Let me write." },
+    {
+      role: "assistant",
+      text: '**依据主要在 `IHI0050H` 的 3 个地方（按贴合度排序），另外要明确一点：CHI 没有"MakeInvalid 前必须先发 Evict"这种要求，这是个合法但非必需的 stimulus。**',
+    },
+  ];
+}
 if (homeNavigation) {
   runtimeTab.chat = Array.from({ length: 100 }, (_, block) => ({
     role: "assistant",
@@ -61,6 +70,19 @@ tab.startupSummaryCompact = undefined;
 tab.chatScrollOffset = 10;
 
 class ScenarioTerminal extends ProcessTerminal {
+  private output = "";
+
+  override write(data: string): void {
+    this.output += data;
+    super.write(data);
+  }
+
+  takeOutput(): string {
+    const output = this.output;
+    this.output = "";
+    return output;
+  }
+
   override start(onInput: (data: string) => void, onResize: () => void): void {
     super.start((data) => {
       if (homeNavigation && ["g", "j", "k"].includes(data)) {
@@ -133,7 +155,8 @@ class ScenarioTerminal extends ProcessTerminal {
     }, onResize);
   }
 }
-const tui = createMixCodeTui(state, runtime, { terminal: new ScenarioTerminal() });
+const terminal = new ScenarioTerminal();
+const tui = createMixCodeTui(state, runtime, { terminal });
 async function saveFrame(phase: string): Promise<void> {
   const file = path.join(dir!, "frame.json");
   await Bun.write(
@@ -143,6 +166,7 @@ async function saveFrame(phase: string): Promise<void> {
       lines: phase === "stopped" ? [] : tui.render(tui.terminal.columns),
       bounds: tab.chatSurfaceBounds,
       scrollOffset: tab.chatScrollOffset,
+      terminalOutput: terminal.takeOutput(),
     }),
   );
   await fs.rename(`${file}.tmp`, file);

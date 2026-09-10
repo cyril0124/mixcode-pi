@@ -4,7 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
 import { $ } from "bun";
-import { sliceByColumn, stripTerminalSequences } from "@earendil-works/pi-tui";
+import { sliceByColumn, stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
 import type { ChatSurfaceBounds } from "../src/core/chat-selection.js";
 
 interface Frame {
@@ -12,6 +12,7 @@ interface Frame {
   lines: string[];
   bounds: ChatSurfaceBounds;
   scrollOffset: number;
+  terminalOutput: string;
 }
 
 async function waitForFrame(dir: string, phase: string): Promise<Frame> {
@@ -148,6 +149,41 @@ for (const longStreaming of [false, true]) {
     }
   });
 }
+
+test("selecting within the first Markdown row preserves terminal cells without prompt-zone escapes", {
+  skip: !Bun.which("tmux") && "tmux is required for terminal screen validation",
+}, async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mixcode-viewport-prompt-zones-"));
+  const socket = `viewport-prompt-zones-${process.pid}`;
+  const scenario = path.join(import.meta.dir, "helpers/viewport-cursor-scenario.ts");
+  const quote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
+  const command = `env PI_OFFLINE=1 PI_PACKAGE_DIR='' PI_CODING_AGENT_DIR=${quote(dir)} bun ${quote(scenario)} ${quote(dir)} prompt-zones`;
+  const readScreen = async () =>
+    (await $`tmux -L ${socket} capture-pane -p -t test`.text()).split("\n");
+  try {
+    await $`tmux -L ${socket} new-session -d -s test -x 180 -y 30 ${command}`.quiet();
+    await waitForFrame(dir, "baseline");
+    const before = await readScreen();
+    const row = before.findIndex((line) => line.includes("MakeInvalid"));
+    assert.ok(row >= 0, "the complete word must appear before selection");
+    const line = before[row]!;
+    const start = line.indexOf("没有");
+    assert.ok(start >= 0, "the selection starts in the mixed CJK/ASCII paragraph");
+    const column = visibleWidth(line.slice(0, start)) + 1;
+    for (const input of [`\x1b[<0;${column};${row + 1}M`, `\x1b[<32;${column + 13};${row + 1}M`]) {
+      await $`tmux -L ${socket} send-keys -t test -l ${input}`.quiet();
+    }
+    await $`tmux -L ${socket} send-keys -t test p`.quiet();
+    const dragged = await waitForFrame(dir, "dragged");
+    assert.deepEqual(await readScreen(), before, "highlighting must not move or split text");
+    assert.match(Bun.stripANSI(dragged.terminalOutput), /MakeInvalid/);
+    assert.doesNotMatch(dragged.terminalOutput, /\x1b\]133;/);
+  } finally {
+    // This socket belongs only to this test.
+    await $`tmux -L ${socket} kill-server`.quiet().nothrow();
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
 
 test("chat drags use the host viewport and preserve the parent terminal screen", {
   skip: !Bun.which("tmux") && "tmux is required for terminal screen validation",

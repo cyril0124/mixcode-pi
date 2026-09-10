@@ -102,6 +102,8 @@ Dragging with the left mouse button across the Chat surface, Input Editor, or No
 - **Block Background Overlay**: The same helper reapplies `theme.selectedBg` after every SGR in the selected slice so tool/thinking card backgrounds cannot hide the highlight.
 - **Edge Auto-Scroll**: Dragging to the top or bottom edge of the chat viewport automatically scrolls and extends the selection. At the top of the conversation, the selection can include the first text row.
 
+The `pi-tui` fullscreen renderer removes OSC 133 `A`/`B`/`C` prompt-zone markers from every output row after composing highlights and overlays, and from the final document printed on exit. The document retains these markers for navigation. Column slicing can repeat them inside a selected span; they must never reach the terminal and trigger shell-integration cursor movement.
+
 Mouse selection uses the text currently displayed. Pressing in the chat pins the current viewport, including at the live tail; appended output preserves those rows when viewport dimensions and the rendering of existing text remain unchanged. Markdown reflow or oversized-message folding can change those rows. Wheel and edge scrolling still move the viewport deliberately. After release, output accumulated below remains behind Jump to latest; a viewport still at the end continues following normally.
 
 Streaming messages retain their complete Markdown context during scrolling and selection, subject to the oversized-message policy. Windowed rendering retains the visible anchor block when new messages arrive, so changes in estimated history height cannot replace the selected rows.
