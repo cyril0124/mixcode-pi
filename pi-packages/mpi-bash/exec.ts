@@ -83,13 +83,23 @@ export function formatDetachNotice(options: {
   seconds: number;
   pid: number | undefined;
   logPath: string;
+  runningPids?: readonly number[];
 }): string {
   return (
     `\n[mpi-bash] Still running after ${options.seconds}s - detached to the background (pid ${options.pid ?? "unknown"}).\n` +
     `Its complete output, including everything shown above, is being written to ${options.logPath}.\n` +
     `Follow it with \`tail -n 50 ${options.logPath}\`, stop it with \`kill -- -${options.pid ?? ""}\` (the whole process group).\n` +
-    `Its exit code will be delivered to you automatically; do not poll for it - continue with other work.\n`
+    `Its exit code will be delivered to you automatically; do not poll for it - continue with other work.\n` +
+    (options.runningPids ? `${formatRunningJobs(options.runningPids)}\n` : "")
   );
+}
+
+/** Shared notification footer; PIDs belong to this session at send time. */
+export function formatRunningJobs(pids: readonly number[]): string {
+  const count = pids.length;
+  const jobs = count === 1 ? "1 job" : `${count} jobs`;
+  const list = count > 0 ? ` · PIDs: ${pids.join(", ")}` : "";
+  return `Still running: ${jobs}${list} · at notification time`;
 }
 
 export function formatElapsed(ms: number): string {
@@ -107,17 +117,20 @@ export function xmlElement(name: string, value: string, attrs = ""): string {
   return `  <${name}${attrs ? ` ${attrs}` : ""}>${escapeXmlText(value)}</${name}>`;
 }
 
-export function formatCompletionNotice(run: {
-  id: number;
-  command: string;
-  exitCode: number | null;
-  timedOut: boolean;
-  logPath: string;
-  logError?: string;
-  tail: string;
-  tailTruncated: boolean;
-  elapsedMs: number;
-}): string {
+export function formatCompletionNotice(
+  run: {
+    id: number;
+    command: string;
+    exitCode: number | null;
+    timedOut: boolean;
+    logPath: string;
+    logError?: string;
+    tail: string;
+    tailTruncated: boolean;
+    elapsedMs: number;
+  },
+  runningPids?: readonly number[],
+): string {
   const elapsed = formatElapsed(run.elapsedMs);
   const outcome = run.timedOut ? "timeout" : run.exitCode === 0 ? "success" : "failure";
   const summary =
@@ -145,6 +158,7 @@ export function formatCompletionNotice(run: {
         : `Read ${run.logPath} for the complete output.`,
     ),
   );
+  if (runningPids) lines.push(xmlElement("running_jobs", formatRunningJobs(runningPids)));
   lines.push("</bash_completion>");
   return lines.join("\n");
 }
@@ -327,6 +341,8 @@ export function createDetachingBashOperations(options: {
   shellPath: string | undefined;
   foregroundSeconds: number;
   onDetached?: (start: DetachedStart) => void;
+  /** Called after onDetached, immediately before writing the detach notice. */
+  getRunningPids?: () => readonly number[];
   onDetachedProcessExit?: (run: DetachedRun) => void;
   onDetachedExit: (run: DetachedRun) => void;
 }): BashOperations {
@@ -490,13 +506,19 @@ export function createDetachingBashOperations(options: {
       // Aborting the turn must not kill a command that already left the foreground.
       if (signal) signal.removeEventListener("abort", onAbort);
       child.unref();
+      const runId = child.pid ?? Date.now();
+      // Register first so the snapshot includes the newly detached command.
+      options.onDetached?.({ id: runId, command, startedAt, logPath });
       onData(
         Buffer.from(
-          formatDetachNotice({ seconds: options.foregroundSeconds, pid: child.pid, logPath }),
+          formatDetachNotice({
+            seconds: options.foregroundSeconds,
+            pid: child.pid,
+            logPath,
+            runningPids: options.getRunningPids?.(),
+          }),
         ),
       );
-      const runId = child.pid ?? Date.now();
-      options.onDetached?.({ id: runId, command, startedAt, logPath });
 
       const reportExit = async (exitCode: number | null) => {
         const run: DetachedRun = {

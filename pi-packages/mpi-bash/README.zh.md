@@ -40,7 +40,11 @@ Bash 执行策略：默认超时、前台窗口、到期自动转后台、结束
 
 标题行给出正在运行的条数，并标明 `/bash-logs` 可打开日志。每一条是 `warning` 色 spinner、`accent` 加粗的时长、`dim` 的命令，以及 pid。超出终端宽度的命令会省略，每条恰好一行。最后一条结束后组件消失。
 
-后台命令结束后，聊天里先是一行 `Background job finished` 标题，再是运行时长和命令本身；有输出时中间一条分隔线，下面是带行号的最后 10 行。上面还有输出时写 `… N lines omitted (full log at <路径>)`。
+每条转后台、完成和停滞通知都附带 `Still running: N jobs · PIDs: ... · at notification time`。这是本会话已转后台任务的快照，按开始时间排序；不包含前台命令和其他会话。刚转后台的任务计入；进程退出且标准输出、标准错误收完后从运行列表移除，即使日志还在写入也不计入。没有剩余任务时显示 `Still running: 0 jobs · at notification time`，省略 PID 列表。
+
+模型正文和聊天界面使用同一份发送时快照。聊天中的长 PID 列表自动换行，不省略条目；任务结束后，旧通知不会跟着变化。批量停滞提醒只附带一份快照，其中也包含仍在持续输出的任务。底部组件继续显示实时状态。
+
+后台命令结束后，聊天里先是一行 `Background job finished · PID <pid>` 标题，再是运行时长和命令本身；有输出时中间一条分隔线，下面是带行号的最后 10 行。上面还有输出时写 `… N lines omitted (full log at <路径>)`。
 
 模型收到 XML 风格的完成消息。格式化器会转义命令、路径、错误和输出中的 `&`、`<`、`>`，这些值无法闭合或插入 XML 元素。
 
@@ -54,6 +58,7 @@ Bash 执行策略：默认超时、前台窗口、到期自动转后台、结束
   <log_path>/tmp/mpi-bash-109-1.log</log_path>
   <output truncated="false">Build complete.</output>
   <logs_hint>Read /tmp/mpi-bash-109-1.log for the complete output.</logs_hint>
+  <running_jobs>Still running: 2 jobs · PIDs: 111, 222 · at notification time</running_jobs>
 </bash_completion>
 ```
 
@@ -67,6 +72,7 @@ Bash 执行策略：默认超时、前台窗口、到期自动转后台、结束
   <log_path>/tmp/mpi-bash-108-1.log</log_path>
   <output truncated="false">FAILED tests/retry.rs</output>
   <logs_hint>Read /tmp/mpi-bash-108-1.log for the complete output.</logs_hint>
+  <running_jobs>Still running: 1 job · PIDs: 111 · at notification time</running_jobs>
 </bash_completion>
 ```
 
@@ -79,28 +85,34 @@ Bash 执行策略：默认超时、前台窗口、到期自动转后台、结束
   <log_path>/tmp/mpi-bash-107-1.log</log_path>
   <output truncated="false"></output>
   <logs_hint>Read /tmp/mpi-bash-107-1.log for the complete output.</logs_hint>
+  <running_jobs>Still running: 0 jobs · at notification time</running_jobs>
 </bash_completion>
 ```
 
 未知退出状态也使用 `outcome="failure"`。进程没有提供退出码时，格式化器省略 `<exit_code>`；完整日志写入失败时增加 `<log_error>`；只保留最后 2000 字节时设置 `<output truncated="true">`。聊天渲染器读取 `details`，不显示 XML 正文：
 
 ```text
- Background job finished
+ Background job finished · PID 1258366
  ✓ 12s printf "FOREGROUND-OUTPUT"; sleep 12; printf 'done'
  ────────────────────────────────
  … 16 lines omitted (full log at /tmp/mpi-bash-1258366-1.log)
  24 │ tick 23/24 at 21:16:43
  25 │ tick 24/24 at 21:16:44
  26 │ done
+ Still running: 2 jobs · PIDs: 111, 222 · at notification time
 
- Background job finished
+ Background job finished · PID 108
  ✗ 3s cargo test                                            1
  ────────────────────────────────
  18 │ FAILED tests/retry.rs
+ Still running: 1 job · PIDs: 111 · at notification time
 
- Background job finished
+ Background job finished · PID 107
  ⏱ 5m00s pytest -k slow                               timeout
+ Still running: 0 jobs · at notification time
 ```
+
+完成消息的 `details` 用 `id` 保存子进程 PID，用 `runningPids: number[]` 保存快照；任务数量直接取数组长度。停滞消息的 `details` 为 `{ jobs: StallDetails[], runningPids: number[] }`。缺少 `id`/`runningPids` 的已存储完成消息，以及仅含 `StallDetails[]` 的已存储停滞消息仍能渲染，不补造运行数量。
 
 ## 停滞提醒
 
@@ -120,10 +132,11 @@ Bash 执行策略：默认超时、前台窗口、到期自动转后台、结束
 聊天面板沿用完成回报的布局，完成回报放退出码的位置，这里放静默时长：
 
 ```text
- Background job stalled
+ Background job stalled · PID 1258366
  ⏳ 8s printf 'connecting to build-box...'; sleep 45; …           silent 6s
  ────────────────────────────────
  connecting to build-box...
+ Still running: 2 jobs · PIDs: 1258366, 1258367 · at notification time
 ```
 
 模型收到 `<bash_stall>`。其中包含任务编号、命令、静默时长、总运行时长、日志最后 2000 字节中的至多三行非空输出，以及查看日志和终止进程的命令。如果截取起点落在一行中间，第一行可能不完整：
@@ -140,7 +153,11 @@ Bash 执行策略：默认超时、前台窗口、到期自动转后台、结束
   <stop_hint>Use kill -- -1258366 to stop the whole process group.</stop_hint>
   <action_hint>Ignore this event if long periods without output are expected for this command.</action_hint>
 </bash_stall>
+
+  <running_jobs>Still running: 2 jobs · PIDs: 1258366, 1258367 · at notification time</running_jobs>
 ```
+
+共用的 `<running_jobs>` 元素放在本消息全部 `<bash_stall>` 元素之后。
 
 发送 `followUp` 提醒前，扩展再次确认会话空闲、任务仍在运行。检查使用当前日志状态，不在忙碌期间排入提醒文本。读取日志期间会话变忙时，延后投递，提醒间隔不变。仍满足条件的任务共用一条消息、一轮模型调用。会话关闭时取消待检查工作。
 

@@ -40,7 +40,11 @@ While at least one command runs in the background, a widget above the editor lis
 
 The header shows how many jobs are running and that `/bash-logs` opens their logs. Each run is a `warning` spinner, bold `accent` elapsed time, a `dim` command, and its pid. A command too wide for the terminal is elided so every run costs exactly one line. The widget disappears when the last run finishes.
 
-When a background command ends, the chat shows a `Background job finished` heading, how long it ran, the command, and, if there is output, a rule then the last 10 lines with their log line numbers. Earlier output is marked `… N lines omitted (full log at <path>)`.
+Every detach, completion, and stall notice includes `Still running: N jobs · PIDs: ... · at notification time`. This is a snapshot of this session's detached commands, oldest first; foreground commands and other sessions are excluded. A newly detached command is included, and a command removed from the running list after exit/stdio drain is excluded even while its log is flushing. With no remaining jobs the footer reads `Still running: 0 jobs · at notification time`, without a PID list.
+
+The model text and chat use the same send-time snapshot. Long PID lists wrap in the chat without dropping entries; old notices do not change when jobs finish. A batch of stall reminders has one shared footer, including jobs that are still producing output. The live widget remains the current-state view.
+
+When a background command ends, the chat shows a `Background job finished · PID <pid>` heading, how long it ran, the command, and, if there is output, a rule then the last 10 lines with their log line numbers. Earlier output is marked `… N lines omitted (full log at <path>)`.
 
 The model receives XML-style completion messages. The formatter escapes `&`, `<`, and `>` in commands, paths, errors, and output so those values cannot close or add elements.
 
@@ -54,6 +58,7 @@ A successful command sets `outcome="success"`.
   <log_path>/tmp/mpi-bash-109-1.log</log_path>
   <output truncated="false">Build complete.</output>
   <logs_hint>Read /tmp/mpi-bash-109-1.log for the complete output.</logs_hint>
+  <running_jobs>Still running: 2 jobs · PIDs: 111, 222 · at notification time</running_jobs>
 </bash_completion>
 ```
 
@@ -67,6 +72,7 @@ A non-zero exit sets `outcome="failure"`.
   <log_path>/tmp/mpi-bash-108-1.log</log_path>
   <output truncated="false">FAILED tests/retry.rs</output>
   <logs_hint>Read /tmp/mpi-bash-108-1.log for the complete output.</logs_hint>
+  <running_jobs>Still running: 1 job · PIDs: 111 · at notification time</running_jobs>
 </bash_completion>
 ```
 
@@ -79,28 +85,34 @@ A background command killed by its timeout sets `outcome="timeout"`.
   <log_path>/tmp/mpi-bash-107-1.log</log_path>
   <output truncated="false"></output>
   <logs_hint>Read /tmp/mpi-bash-107-1.log for the complete output.</logs_hint>
+  <running_jobs>Still running: 0 jobs · at notification time</running_jobs>
 </bash_completion>
 ```
 
 An unknown exit also uses `outcome="failure"`. The formatter omits `<exit_code>` when the process provides no code, adds `<log_error>` when it cannot write the complete log, and sets `<output truncated="true">` when it keeps only the last 2000 bytes. The chat renderer reads `details` and does not display the XML body:
 
 ```text
- Background job finished
+ Background job finished · PID 1258366
  ✓ 12s printf "FOREGROUND-OUTPUT"; sleep 12; printf 'done'
  ────────────────────────────────
  … 16 lines omitted (full log at /tmp/mpi-bash-1258366-1.log)
  24 │ tick 23/24 at 21:16:43
  25 │ tick 24/24 at 21:16:44
  26 │ done
+ Still running: 2 jobs · PIDs: 111, 222 · at notification time
 
- Background job finished
+ Background job finished · PID 108
  ✗ 3s cargo test                                            1
  ────────────────────────────────
  18 │ FAILED tests/retry.rs
+ Still running: 1 job · PIDs: 111 · at notification time
 
- Background job finished
+ Background job finished · PID 107
  ⏱ 5m00s pytest -k slow                               timeout
+ Still running: 0 jobs · at notification time
 ```
+
+Completion `details` carries `id` for the child PID and `runningPids: number[]` for the snapshot; the count is the array length. Stall `details` is `{ jobs: StallDetails[], runningPids: number[] }`. Stored completion messages without `id`/`runningPids`, and stored stall messages containing only `StallDetails[]`, still render without inventing a running count.
 
 ## Stall reminders
 
@@ -120,10 +132,11 @@ Silence is measured from the log's mtime. The reminder interval changes as follo
 The chat panel uses the completion panel's layout, with the silence where a finished job shows its exit code:
 
 ```text
- Background job stalled
+ Background job stalled · PID 1258366
  ⏳ 8s printf 'connecting to build-box...'; sleep 45; …           silent 6s
  ────────────────────────────────
  connecting to build-box...
+ Still running: 2 jobs · PIDs: 1258366, 1258367 · at notification time
 ```
 
 The model receives `<bash_stall>`. It includes the job ID, command, silence duration, total runtime, up to the last three non-empty lines from the final 2000 bytes of log output, and commands to inspect the log or stop the process. A line may be partial when the tail starts mid-line:
@@ -140,7 +153,11 @@ The model receives `<bash_stall>`. It includes the job ID, command, silence dura
   <stop_hint>Use kill -- -1258366 to stop the whole process group.</stop_hint>
   <action_hint>Ignore this event if long periods without output are expected for this command.</action_hint>
 </bash_stall>
+
+  <running_jobs>Still running: 2 jobs · PIDs: 1258366, 1258367 · at notification time</running_jobs>
 ```
+
+The shared `<running_jobs>` element follows all `<bash_stall>` elements in the message.
 
 Before sending a `followUp` reminder, the extension rechecks that the session is idle and the jobs are running. The idle check reads current log state; reminder text is not queued during a busy period. If the session becomes busy during a log read, delivery waits without advancing the reminder interval. Jobs still due share one message and one model turn. Shutdown cancels pending checks.
 

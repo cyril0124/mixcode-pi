@@ -18,9 +18,11 @@ import {
   BASH_DEFAULT_TIMEOUT_SECONDS,
   createDetachingBashOperations,
   formatCompletionNotice,
+  formatRunningJobs,
   killTree,
   pruneOldLogs,
   resolveForegroundSeconds,
+  xmlElement,
 } from "./exec.js";
 import {
   formatStallNotice,
@@ -37,6 +39,7 @@ import {
   renderCompletionMessage,
   renderStallMessage,
   type StallDetails,
+  type StallMessageDetails,
 } from "./widget.js";
 
 export * from "./exec.js";
@@ -85,14 +88,18 @@ const bashExtension: ExtensionFactory = (pi) => {
         const running = new Map(backgroundStatus.running().map((run) => [run.id, run]));
         const jobs = report.jobs.filter((job) => running.has(job.id));
         if (jobs.length === 0) continue;
-        pi.sendMessage<StallDetails[]>(
+        const runningPids = [...running.keys()];
+        const notices = jobs.map((job) =>
+          formatStallNotice({ ...job, logPath: running.get(job.id)!.logPath }),
+        );
+        pi.sendMessage<StallMessageDetails>(
           {
             customType: BASH_STALL_CUSTOM_TYPE,
-            content: jobs
-              .map((job) => formatStallNotice({ ...job, logPath: running.get(job.id)!.logPath }))
-              .join("\n\n"),
+            content: [...notices, xmlElement("running_jobs", formatRunningJobs(runningPids))].join(
+              "\n\n",
+            ),
             display: true,
-            details: jobs,
+            details: { jobs, runningPids },
           },
           { triggerTurn: true, deliverAs: "followUp" },
         );
@@ -136,14 +143,20 @@ const bashExtension: ExtensionFactory = (pi) => {
     },
   );
 
-  pi.registerMessageRenderer<StallDetails[]>(BASH_STALL_CUSTOM_TYPE, (message, _options, theme) => {
-    const jobs = message.details;
-    if (!jobs) return undefined;
-    return {
-      render: (width: number) => renderStallMessage(jobs, theme, width),
-      invalidate: () => {},
-    };
-  });
+  pi.registerMessageRenderer<StallMessageDetails | StallDetails[]>(
+    BASH_STALL_CUSTOM_TYPE,
+    (message, _options, theme) => {
+      const details = message.details;
+      if (!details) return undefined;
+      // Stored stall messages used a bare job array, without a running snapshot.
+      const jobs = Array.isArray(details) ? details : details.jobs;
+      const runningPids = Array.isArray(details) ? undefined : details.runningPids;
+      return {
+        render: (width: number) => renderStallMessage(jobs, theme, width, runningPids),
+        invalidate: () => {},
+      };
+    },
+  );
 
   pi.on("tool_call", (event: ToolCallEvent) => {
     if (event.toolName !== "bash") return;
@@ -219,17 +232,22 @@ const bashExtension: ExtensionFactory = (pi) => {
           shellPath: settings.getShellPath(),
           foregroundSeconds: resolveForegroundSeconds(),
           onDetached: (start) => backgroundStatus.add(start),
+          getRunningPids: () => backgroundStatus.running().map((run) => run.id),
           onDetachedProcessExit: (run) => backgroundStatus.finish(run),
           onDetachedExit: (run) => {
             backgroundStatus.completeLog(run.logPath);
+            // Capture once after log flush; both model and UI retain this snapshot.
+            const runningPids = backgroundStatus.running().map((live) => live.id);
             try {
               // Starts a turn so the model can act on the exit code.
               pi.sendMessage(
                 {
                   customType: BASH_DETACHED_EXIT_CUSTOM_TYPE,
-                  content: formatCompletionNotice(run),
+                  content: formatCompletionNotice(run, runningPids),
                   display: true,
                   details: {
+                    id: run.id,
+                    runningPids,
                     command: run.command,
                     exitCode: run.exitCode,
                     timedOut: run.timedOut,

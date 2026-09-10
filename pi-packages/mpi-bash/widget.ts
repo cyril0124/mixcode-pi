@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import type { ExtensionContext, Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
-import { Container, Text, truncateToWidth, type TUI, visibleWidth } from "@earendil-works/pi-tui";
-import { type DetachedRun, type DetachedStart, formatElapsed } from "./exec.js";
+import { Container, Text, type TUI, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { type DetachedRun, type DetachedStart, formatElapsed, formatRunningJobs } from "./exec.js";
 
 /**
  * Surfaces for background commands: the widget above the editor, the rows of
@@ -56,6 +56,10 @@ export function renderBackgroundWidget(
 
 /** Structured fields on the `bash-detached-exit` custom message. */
 export interface DetachedExitDetails {
+  /** Child PID; absent in stored messages created before PID details were added. */
+  id?: number;
+  /** Send-time snapshot, absent in stored messages without a running count. */
+  runningPids?: readonly number[];
   command: string;
   exitCode: number | null;
   timedOut: boolean;
@@ -143,6 +147,16 @@ function renderJobPanel(
   return container.render(width).map((line) => truncateToWidth(line, Math.max(1, width)));
 }
 
+function renderRunningJobs(
+  pids: readonly number[] | undefined,
+  theme: Theme,
+  width: number,
+): string[] {
+  if (!pids) return [];
+  // Pi Text wraps long lists so narrow terminals retain every PID.
+  return new Text(theme.fg("dim", formatRunningJobs(pids)), 1, 0).render(width);
+}
+
 /** Chat render of a finished background command. */
 export function renderCompletionMessage(
   details: DetachedExitDetails,
@@ -155,8 +169,11 @@ export function renderCompletionMessage(
       ? (["✓", "success", ""] as const)
       : (["✗", "error", String(details.exitCode ?? "?")] as const);
 
-  return renderJobPanel(theme, width, {
-    title: "Background job finished",
+  const panel = renderJobPanel(theme, width, {
+    title:
+      details.id === undefined
+        ? "Background job finished"
+        : `Background job finished · PID ${details.id}`,
     icon,
     color,
     elapsedMs: details.elapsedMs,
@@ -164,6 +181,7 @@ export function renderCompletionMessage(
     right,
     body: (inner) => completionLogLines(details, theme, inner),
   });
+  return [...panel, ...renderRunningJobs(details.runningPids, theme, width)];
 }
 
 /** Structured fields on the `bash-detached-stall` message, one per job. */
@@ -177,6 +195,12 @@ export interface StallDetails {
   tail: string;
 }
 
+/** One stall batch shares a single send-time snapshot across all its jobs. */
+export interface StallMessageDetails {
+  jobs: StallDetails[];
+  runningPids: readonly number[];
+}
+
 /** Lines of output quoted under a stalled job's status row. */
 const STALL_TAIL_LINES = 3;
 
@@ -184,13 +208,18 @@ const STALL_TAIL_LINES = 3;
  * Chat render of jobs that stopped writing. Reuses the completion panel's
  * layout, putting the silence where a finished job shows its exit code.
  */
-export function renderStallMessage(jobs: StallDetails[], theme: Theme, width: number): string[] {
-  return jobs.flatMap((job, index) => [
+export function renderStallMessage(
+  jobs: StallDetails[],
+  theme: Theme,
+  width: number,
+  runningPids?: readonly number[],
+): string[] {
+  const panels = jobs.flatMap((job, index) => [
     // One check can report several jobs in one message; without this the next
     // title sits directly under the previous panel's output.
     ...(index > 0 ? [""] : []),
     ...renderJobPanel(theme, width, {
-      title: "Background job stalled",
+      title: `Background job stalled · PID ${job.id}`,
       icon: "⏳",
       color: "warning",
       elapsedMs: job.elapsedMs,
@@ -204,6 +233,7 @@ export function renderStallMessage(jobs: StallDetails[], theme: Theme, width: nu
       },
     }),
   ]);
+  return [...panels, ...renderRunningJobs(runningPids, theme, width)];
 }
 
 /** A detached run that has ended; kept so `/bash-logs` can still reach its log. */
