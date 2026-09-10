@@ -30,7 +30,7 @@ MixCode built-in recurring prompt execution engine with timer conflict handling,
 /loop max-runs 1 unlimited
 ```
 
-`--max-runs N` sets the total at creation. Place it after the optional interval and before the prompt; omitting it means unlimited runs. `N` must be a decimal positive safe integer, at most `9007199254740991`. Missing values, invalid counts, and duplicate options before the prompt report `Error:` without creating a loop.
+`--max-runs N` sets the total at creation. Place it before the prompt; the interval may appear before or after it, so `30m --max-runs 3 x` and `--max-runs 3 30m x` are equivalent. Omitting the option means unlimited runs. `N` must be a decimal positive safe integer, at most `9007199254740991`. Missing values, invalid counts, and duplicate options before the prompt report `Error:` without creating a loop.
 
 The immediate first run and subsequent timer or deferred deliveries count toward the total. Reaching the limit removes the loop and cancels its timers. Skipped ticks and manual `f` fires do not change the counter. A limit of `1` delivers only the immediate first run.
 
@@ -45,7 +45,7 @@ Options are parsed only before the prompt; `check --max-runs 3` remains literal 
 /loop --max-runs 3 -- check every 2h
 ```
 
-Without `--`, the default-interval form can use a trailing interval clause, such as `/loop --max-runs 3 check every 2 hours`. An explicit leading interval takes precedence.
+Without `--`, the default-interval form can use a trailing interval clause, such as `/loop --max-runs 3 check every 2 hours`. An interval token right after `--max-runs N`, or an explicit leading interval, takes precedence.
 
 ## Management layout
 

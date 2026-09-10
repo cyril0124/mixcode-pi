@@ -11,6 +11,25 @@ const parseCases = [
   },
   { input: "--max-runs 3 check", intervalMs: 600_000, maxFireCount: 3, prompt: "check" },
   {
+    input: "--max-runs 4 30m 严格按照xxx",
+    intervalMs: 1_800_000,
+    maxFireCount: 4,
+    prompt: "严格按照xxx",
+  },
+  {
+    input: "--max-runs 3 2h check each",
+    intervalMs: 7_200_000,
+    maxFireCount: 3,
+    prompt: "check each",
+  },
+  { input: "--max-runs 3 30m", intervalMs: 1_800_000, maxFireCount: 3, prompt: "" },
+  {
+    input: "--max-runs 3 -- 30m x",
+    intervalMs: 600_000,
+    maxFireCount: 3,
+    prompt: "30m x",
+  },
+  {
     input: "--max-runs 3 check every 20m",
     intervalMs: 1_200_000,
     maxFireCount: 3,

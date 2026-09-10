@@ -67,16 +67,18 @@ export interface ParseResult {
 
 /**
  * Parse `[interval] [--max-runs N] [--] <prompt>`, preserving internal prompt whitespace.
+ * The interval may sit before or after `--max-runs N`; both `30m --max-runs 4 x` and
+ * `--max-runs 4 30m x` resolve to interval `30m` with prompt `x`.
  * A leading interval overrides a trailing `every <interval>` clause; otherwise use the default.
- * `--` makes the remaining prompt literal, including a trailing interval clause.
+ * `--` makes the remaining prompt literal, including an interval-looking first token.
  * Options are consumed only before the prompt. Invalid options throw LoopInputError.
  */
 export function parseArgs(input: string): ParseResult | null {
   let remaining = input.trim();
   if (!remaining) return null;
 
-  const leading = remaining.match(/^\S+/)?.[0] ?? "";
-  const leadingMs = parseIntervalToken(leading);
+  let leading = remaining.match(/^\S+/)?.[0] ?? "";
+  let leadingMs = parseIntervalToken(leading);
   if (leadingMs !== null) remaining = remaining.slice(leading.length).trim();
 
   let maxFireCount: number | null = null;
@@ -95,6 +97,21 @@ export function parseArgs(input: string): ParseResult | null {
 
   const literalPrompt = /^--(?:\s|$)/.test(remaining);
   if (literalPrompt) remaining = remaining.slice(2).trim();
+
+  // The interval is also accepted after `--max-runs N`, since a leading interval
+  // token in prompt position is otherwise silently kept as prompt text.
+  if (leadingMs === null && !literalPrompt) {
+    const token = remaining.match(/^\S+/)?.[0] ?? "";
+    const ms = parseIntervalToken(token);
+    if (ms !== null) {
+      leading = token;
+      leadingMs = ms;
+      remaining = remaining.slice(token.length).trim();
+      if (/^--max-runs(?:\s|$)/.test(remaining)) {
+        throw new LoopInputError("Error: --max-runs may only be specified once.");
+      }
+    }
+  }
 
   if (leadingMs !== null) {
     return {

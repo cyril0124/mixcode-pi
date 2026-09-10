@@ -47,7 +47,8 @@ Run a prompt on a recurring interval.
 Intervals: Ns, Nm, Nh, Nd (e.g. 5m, 30m, 2h, 1d). Minimum is 10s.
 If no interval is specified, defaults to ${DEFAULT_INTERVAL}.
 Max runs: positive safe integer, including the immediate first run; omitted means unlimited.
-Place --max-runs before the prompt. Use -- to keep the remaining prompt literal.
+Place --max-runs before the prompt; the interval may appear before or after it.
+Use -- to keep the remaining prompt literal.
 
 Commands:
  /loop — open management overlay
@@ -65,6 +66,7 @@ Examples:
  /loop check the deploy every 20m
  /loop interval 1 30s
  /loop 2h --max-runs 3 check deploy status
+ /loop --max-runs 3 2h check deploy status
  /loop max-runs 1 5
  /loop max-runs 1 unlimited
  /loop prompt 1 check deploy status`;
