@@ -73,7 +73,6 @@ Tab 之间可以直接对话——同一 TUI，或其他 `mpi` 进程——无�
 - **`mpi-stuck-guard`**：防护范围过大的递归搜索、相同工具调用的连续重复、Provider 流停滞和反复参数校验失败。配置与统计：`/stuck-guard config`、`/stuck-guard stats`。
 - **`mpi-length-resume`**：回答因输出长度截断时自动续跑（原生压缩后与 run 结束时两类恢复）。
 - **`mpi-herdr-report`**：向 Herdr 窗格上报 Agent 运行与就绪状态（`HERDR_ENV=1`）。
-- **`mpi-image-hoist`**：自动提升输入中的图片路径为原生多模态消息。
 - **`mpi-bash`**：为 Bash 工具调用注入默认超时，并在前台窗口到期后把长命令转入后台，结束时自动回报退出码；`/bash-logs` 可查看任意后台命令的完整日志。
 
 <p align="center">

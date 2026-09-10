@@ -73,7 +73,6 @@ Install community extensions directly through Pi package declarations (`settings
 - **`mpi-stuck-guard`**: Guards oversized recursive searches, repeated identical tool calls, stalled provider streams, and repeated parameter-validation failures. Configuration and statistics: `/stuck-guard config`, `/stuck-guard stats`.
 - **`mpi-length-resume`**: Auto-continue after length-truncated answers (post-compact and settled-run resume).
 - **`mpi-herdr-report`**: Real-time status reporting to Herdr agent panes (`HERDR_ENV=1`).
-- **`mpi-image-hoist`**: Lift image paths into native multimodal message parts.
 - **`mpi-bash`**: Default bash timeout plus a foreground window that detaches long commands to the background and reports their exit code when they finish; `/bash-logs` opens any background command's full log.
 
 <p align="center">

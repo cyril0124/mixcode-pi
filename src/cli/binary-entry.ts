@@ -65,10 +65,6 @@ import clankolasImagePath from "../../node_modules/@earendil-works/pi-coding-age
 import photonWasmPath from "../../node_modules/@silvia-odwyer/photon-node/photon_rs_bg.wasm" with {
   type: "file",
 };
-import imageHoistIndex from "../../pi-packages/mpi-image-hoist/index.ts" with { type: "text" };
-import imageHoistPackageJson from "../../pi-packages/mpi-image-hoist/package.json" with {
-  type: "text",
-};
 import diffViewerIndex from "../../pi-packages/mpi-diff-viewer/index.ts" with { type: "text" };
 import diffViewerSessionDiff from "../../pi-packages/mpi-diff-viewer/session-diff.ts" with {
   type: "text",
@@ -573,10 +569,6 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
   photonWasmPath,
   packageJson,
   builtinPackages: {
-    "mpi-image-hoist": {
-      "index.ts": imageHoistIndex,
-      "package.json": imageHoistPackageJson,
-    },
     "mpi-diff-viewer": {
       "index.ts": diffViewerIndex,
       "session-diff.ts": diffViewerSessionDiff,
