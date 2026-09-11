@@ -206,8 +206,6 @@ export interface RuntimeTab {
   services: AgentSessionServices;
   session: SessionManager;
   chat: ChatLine[];
-  /** True when startup intentionally rendered only the bounded restored tail. */
-  chatIsRestoredWindowed?: boolean;
   /** Count of runtime-mirrored steer messages at the tail of tab.pendingMessages. */
   queuedPromptCount: number;
   /** Count of runtime-mirrored follow-up messages at the tail of tab.pendingFollowUps. */
