@@ -56,7 +56,7 @@ Image display, Mermaid rendering, code-block indent, cache-miss notices, and the
 | `showCacheMissNotices` | boolean | `false` | Show transcript warnings for significant prompt-cache misses, including re-billed tokens and estimated excess cost when it is at least `$0.01`. |
 | `defaultTools` | string array of tool names | unset (`read`, `bash`, `edit`, `write`) | Built-in tools active at session start. Narrowing it removes built-ins, including MixCode's own `bash` wrapper, from every new session; extension-registered tools stay active, matching Pi. Edit `settings.json` directly; `/settings` does not expose this row. |
 | `externalEditor` | command string | unset → `$VISUAL`/`$EDITOR`, else `nano` (`notepad` on Windows) | Editor command for Ctrl+G, `/editor`, `/system-prompt`, and `/system-tools`. `/console-history` checks the project value, global value, `$VISUAL`, and `$EDITOR`; if all are unset, it tries `nvim`, `vim`, then the built-in viewer. |
-| `editorPaddingX` | non-negative integer | unset → `1` | Horizontal padding of the prompt editor. |
+| `editorPaddingX` | non-negative integer | unset → `1` | Horizontal body padding inside the prompt editor's side borders. |
 | `autocompleteMaxVisible` | positive integer | unset → `8` | Max visible autocomplete rows in the prompt editor and extension editor overlays. |
 | `treeFilterMode` | `default` \| `no-tools` \| `user-only` \| `labeled-only` \| `all` | `default` | Initial filter of the session tree selector (double-Esc tree, `/tree`). |
 | `showHardwareCursor` | boolean | `false` (or `PI_HARDWARE_CURSOR=1`) | Show the terminal hardware cursor instead of the drawn cursor. |

@@ -97,6 +97,16 @@ Home uses the active theme's semantic colors. `src/ui/home-actions.ts` paints a 
 
 Layout does not change agent selection, message submission, or draft ownership. No new keybindings or button focus cycle are added; `Tab` still switches tabs, and both actions are available through `Ctrl+P` or slash commands even without an open session. Interaction contracts: [Home keys](keybindings-and-escape.md) and [mouse support](mouse-support.md).
 
+## Input editor
+
+`CompactPromptEditor` in `src/ui/app-editor.ts` renders a rounded input frame. Its top edge groups the agent name and exact context usage on the right, with active `[VIM]`, `[SHELL]`, `[ZEN]`, `[sys]`, and hidden-line indicators on the left. Narrow layouts drop mode labels and context before truncating the name. Context usage takes the warning color at 85% of the configured limit.
+
+An empty or single-line draft occupies three rows. Additional lines grow the body up to Pi's scroll limit. [`editorPaddingX`](mixcode-settings.md) controls horizontal padding inside the side borders. Below eight columns, the editor retains the draft and cursor while hiding the frame and text. The frame uses the tab's `thinkingBorder` color, overridden by `vimBorder` in Vim mode. Text and labels use theme foreground colors over the terminal background.
+
+Empty input shows dim hints for `@ files` and `/ commands`. Agent tabs also show `← Home · → widgets`; Vim mode shows navigation instructions instead. These hints disappear while the draft contains text and truncate to the available width. The bottom edge is reserved for the count of editable draft lines below the viewport. Completion choices appear beneath the frame.
+
+Pi owns editing and wrapping. Its `Editor.renderTopBorder()` and `renderBottomBorder()` hooks supply hidden-line counts; the widened bottom edge separates body rows from completion rows. MixCode preserves hardware cursor markers and translates mouse columns to the inner editor coordinates. `EditorSlot` delegates rendering to custom editors and temporary input components; custom-editor agent labels appear on the tab-bar separator.
+
 ## Conversation cards
 
 `src/ui/rendering/message-cards.ts` uses Pi's `SkillInvocationMessageComponent`, `BranchSummaryMessageComponent`, and `CompactionSummaryMessageComponent`. The cards use Pi's colors, spacing, and keybinding hints. `chat.ts` uses Pi's `parseSkillBlock`; MixCode keeps skill timestamps, user arguments, and image attachments. A skill without arguments places its timestamp on the card label. A skill with arguments places the timestamp on the separate user message.

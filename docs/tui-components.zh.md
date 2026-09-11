@@ -99,6 +99,16 @@ Home 使用当前主题的语义颜色。`src/ui/home-actions.ts` 在列表标�
 
 布局不改变会话选择、消息发送或草稿归属。不新增快捷键或按钮焦点循环；`Tab` 仍切换标签页，没有打开会话时也能通过 `Ctrl+P` 或斜杠命令执行这两个操作。交互契约见 [Home 按键](keybindings-and-escape.zh.md) 和 [鼠标支持](mouse-support.zh.md)。
 
+## 输入编辑器
+
+`src/ui/app-editor.ts` 中的 `CompactPromptEditor` 绘制圆角输入框。上边框右侧显示 Agent 名称和精确上下文用量，左侧显示生效的 `[VIM]`、`[SHELL]`、`[ZEN]`、`[sys]` 及隐藏行数指示。窄屏先省略模式标签和上下文，再截断名称。上下文用量达到配置上限的 85% 时使用警告色。
+
+空草稿或单行草稿占三行，更多正文行使输入区增高，直到 Pi 的滚动上限。[`editorPaddingX`](mixcode-settings.zh.md) 控制侧边框内的水平内边距。宽度不足八列时，编辑器保留草稿和光标，暂时隐藏边框与正文。边框使用当前 thinking 等级的 `thinkingBorder` 颜色，Vim 模式下改用 `vimBorder`。正文和标签使用主题前景色，底色沿用终端背景。
+
+空输入区以 dim 样式提示 `@ files` 和 `/ commands`，Agent 标签页还显示 `← Home · → widgets`；Vim 模式改为显示导航说明。草稿非空时隐藏这些提示，宽度不足时截断。下边框仅用于显示视口下方的可编辑草稿行数。补全候选项显示在输入框下方。
+
+Pi 负责编辑和折行。`Editor.renderTopBorder()` 和 `renderBottomBorder()` 提供隐藏行数，加宽的下边框用于区分正文行与补全行。MixCode 保留硬件光标标记，并将鼠标列坐标转换为编辑器内部坐标。`EditorSlot` 将渲染交给自定义编辑器和临时输入组件；自定义编辑器的 Agent 标签显示在标签栏分隔线上。
+
 ## 会话卡片
 
 `src/ui/rendering/message-cards.ts` 使用 Pi 的 `SkillInvocationMessageComponent`、`BranchSummaryMessageComponent` 和 `CompactionSummaryMessageComponent`。卡片使用 Pi 的配色、间距和快捷键提示。`chat.ts` 使用 Pi 的 `parseSkillBlock`；MixCode 保留 skill 时间戳、用户参数和图片附件。没有参数的 skill 在卡片标签行显示时间戳；有参数时，时间戳显示在单独的用户消息区域。

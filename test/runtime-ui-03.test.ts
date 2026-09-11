@@ -279,11 +279,14 @@ test("createMixCodeTui editor slot renders the input cursor while focused", () =
     const emptySurface = layout.editor.render(80).join("\n");
     assert.equal(emptySurface.includes(CURSOR_MARKER), true);
     assert.match(emptySurface, /\x1b\[7m \x1b\[0m/);
-    assert.match(stripAnsi(emptySurface), /Send message to Agent-01/);
-    // Context usage sits after the title (e.g. "· ?/200k") when known/unknown.
-    assert.match(stripAnsi(emptySurface).split("\n")[0]!, /^─+ Agent-01(?: · \S+)? ──$/);
+    assert.match(
+      stripAnsi(emptySurface),
+      /Describe your next change\.\.\.\s+@ files\s+\/ commands/,
+    );
+    // Identity and context share the right edge of the frame.
+    assert.match(stripAnsi(emptySurface).split("\n")[0]!, /^╭─+ Agent-01 · \S+ ─╮$/);
     assert.equal(visibleWidth(stripAnsi(emptySurface).split("\n")[0]!), 80);
-    assert.equal(stripAnsi(emptySurface).split("\n").at(-1), "─".repeat(80));
+    assert.equal(stripAnsi(emptySurface).split("\n").at(-1), `╰${"─".repeat(78)}╯`);
     assert.doesNotMatch(stripAnsi(emptySurface), /^\s*> /m);
 
     layout.editor.handleInput("a");
@@ -301,8 +304,8 @@ test("createMixCodeTui editor slot renders the input cursor while focused", () =
     tab.vimMode = true;
     const vimSurface = layout.editor.render(80).join("\n");
     assert.equal(vimSurface.includes(CURSOR_MARKER), false);
-    assert.match(stripAnsi(vimSurface), /^ Vim: → newer · Shift\+→ older · j\/k scroll · q exit/m);
-    assert.match(stripAnsi(vimSurface).split("\n")[0]!, /^── \[VIM\] ─+ Agent-01(?: · \S+)? ──$/);
+    assert.match(stripAnsi(vimSurface), /^│ Vim: → newer · Shift\+→ older · j\/k scroll · q exit/m);
+    assert.match(stripAnsi(vimSurface).split("\n")[0]!, /^╭─ \[VIM\] ─+ Agent-01 · \S+ ─╮$/);
     layout.editor.setText("draft");
     layout.editor.handleInput("x");
     assert.equal(layout.editor.current.getText(), "draft");

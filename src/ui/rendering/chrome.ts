@@ -108,19 +108,16 @@ export const ZEN_STATUS_MARKER_CAP = 5;
 export type ZenStatusMarker = "working" | "waiting" | "done" | "error";
 
 /**
- * Full-width horizontal rule rendered directly under the tab bar (agent view
- * only), replacing the former blank interval row. Its color tracks the active
- * tab's input-editor border so the two read as one frame: vim mode uses
- * `vimBorder`, otherwise the thinking-level border (matching app-editor's
- * normal-mode `borderColor`). Shell mode is intentionally not tracked — it is
- * driven by transient editor text and would make this top rule flicker.
+ * Full-width horizontal rule directly under the agent tab bar. Vim mode uses
+ * `vimBorder`; other modes use the active tab's thinking-level color, matching
+ * the default input frame. Its color is independent of the draft text.
  * In zen mode, meaningful states from other agents are left-anchored as
  * space-separated solid dots: accent for working, warning for pending input,
  * green for done, and red for errors. The cluster is capped at five markers,
  * then `[+N]`; dashes keep the frame color.
  * When `agentChrome` is set (custom setEditorComponent skins), the rule carries
- * the active agent title / optional override context / VIM|ZEN|INL|sys badges so
- * EditorSlot does not paint a second label strip above the input editor.
+ * the agent title, optional context usage, and [VIM], [ZEN], and [sys] badges.
+ * Custom editors render their own input body.
  */
 export function renderTabBarSeparator(
   width: number,
