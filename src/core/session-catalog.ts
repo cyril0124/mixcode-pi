@@ -64,10 +64,13 @@ const inFlight = new Map<string, Promise<SessionInfo[]>>();
 // existing jsonl must invalidate too; names-only leaves /resume previews and
 // search text stale. Poll replaces fs.watch (inotify is a scarce per-user quota).
 const DEFAULT_CATALOG_POLL_INTERVAL_MS = 5_000;
-const rootSnapshots = new Map<
-  string,
-  { timer: ReturnType<typeof setInterval>; names: string[] | undefined }
->();
+const MAX_CATALOG_CACHE_ENTRIES = 128;
+type RootSnapshot = {
+  timer: ReturnType<typeof setInterval>;
+  names: string[] | undefined;
+};
+
+const rootSnapshots = new Map<string, RootSnapshot>();
 
 export function listSessionsInBackground(
   request: SessionCatalogRequest,
@@ -88,6 +91,12 @@ export function listSessionsInBackground(
   for (const root of roots) ensureSessionCatalogPoll(root);
   const listing = runBackgroundListing(request, signal).then((sessions) => {
     cache.set(key, { roots, sessions });
+    for (const root of roots) ensureSessionCatalogPoll(root);
+    while (cache.size > MAX_CATALOG_CACHE_ENTRIES) {
+      const oldestKey = cache.keys().next().value as string | undefined;
+      if (oldestKey === undefined) break;
+      cache.delete(oldestKey);
+    }
     return sessions;
   });
   if (signal) return listing;
@@ -107,6 +116,13 @@ export function listSessionsInBackground(
 export function invalidateSessionCatalog(root: string): void {
   for (const [key, entry] of cache) {
     if (entry.roots.includes(root)) cache.delete(key);
+  }
+  if (![...cache.values()].some((entry) => entry.roots.includes(root))) {
+    const snapshot = rootSnapshots.get(root);
+    if (snapshot) {
+      clearInterval(snapshot.timer);
+      rootSnapshots.delete(root);
+    }
   }
 }
 
@@ -246,14 +262,21 @@ export function ensureSessionCatalogPoll(
   intervalMs = DEFAULT_CATALOG_POLL_INTERVAL_MS,
 ): void {
   if (rootSnapshots.has(root)) return;
-  const entry: { timer: ReturnType<typeof setInterval>; names: string[] | undefined } = {
+  const entry: RootSnapshot = {
     timer: undefined as unknown as ReturnType<typeof setInterval>,
     names: undefined,
   };
   rootSnapshots.set(root, entry);
   const poll = async () => {
     const names = await catalogRootSnapshot(root);
-    if (!names) return; // Root may not exist yet; keep polling.
+    if (!names) {
+      const current = rootSnapshots.get(root);
+      if (current) {
+        clearInterval(current.timer);
+        rootSnapshots.delete(root);
+      }
+      return;
+    }
     const current = rootSnapshots.get(root);
     if (!current) return;
     if (current.names === undefined) {

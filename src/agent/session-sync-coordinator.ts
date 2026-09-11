@@ -23,7 +23,9 @@ export interface FileFingerprint {
   ino?: number;
 }
 
-export type StatFingerprintFn = (filePath: string) => FileFingerprint | undefined;
+export type StatFingerprintFn = (
+  filePath: string,
+) => FileFingerprint | undefined | Promise<FileFingerprint | undefined>;
 
 export interface SessionSyncCoordinatorOptions {
   sessionsRoot: string;
@@ -42,9 +44,9 @@ export interface SessionSyncCoordinatorOptions {
 const DEFAULT_DEBOUNCE_MS = 250;
 const DEFAULT_POLL_INTERVAL_MS = 2_000;
 
-const defaultStatFingerprint: StatFingerprintFn = (filePath) => {
+const defaultStatFingerprint: StatFingerprintFn = async (filePath) => {
   try {
-    const s = fs.statSync(filePath);
+    const s = await fs.promises.stat(filePath);
     return { size: s.size, mtimeMs: s.mtimeMs, ctimeMs: s.ctimeMs, ino: s.ino };
   } catch {
     return undefined;
@@ -67,6 +69,7 @@ export class SessionSyncCoordinator {
 
   private readonly bySessionId = new Map<string, TrackedSession>();
   private pollTimer?: ReturnType<typeof setInterval>;
+  private pollInFlight = false;
   private disposed = false;
 
   constructor(options: SessionSyncCoordinatorOptions) {
@@ -83,12 +86,13 @@ export class SessionSyncCoordinator {
     if (this.disposed) return;
     this.unregister(sessionId);
     const fileName = path.basename(sessionFile);
-    const tracked: TrackedSession = {
-      sessionId,
-      fileName,
-      fingerprint: this.statFingerprint(path.join(this.sessionsRoot, fileName)),
-    };
+    const tracked: TrackedSession = { sessionId, fileName };
     this.bySessionId.set(sessionId, tracked);
+    void Promise.resolve(this.statFingerprint(path.join(this.sessionsRoot, fileName))).then(
+      (fingerprint) => {
+        if (this.bySessionId.get(sessionId) === tracked) tracked.fingerprint = fingerprint;
+      },
+    );
     this.ensurePolling();
   }
 
@@ -111,7 +115,11 @@ export class SessionSyncCoordinator {
       clearTimeout(tracked.debounceTimer);
       tracked.debounceTimer = undefined;
     }
-    tracked.fingerprint = this.statFingerprint(path.join(this.sessionsRoot, tracked.fileName));
+    void Promise.resolve(this.statFingerprint(path.join(this.sessionsRoot, tracked.fileName))).then(
+      (fingerprint) => {
+        if (this.bySessionId.get(sessionId) === tracked) tracked.fingerprint = fingerprint;
+      },
+    );
   }
 
   private ensurePolling(): void {
@@ -121,20 +129,32 @@ export class SessionSyncCoordinator {
   }
 
   /** Re-check every tracked session's fingerprint; changed files debounce a reload. */
-  private poll(): void {
-    if (this.disposed) return;
-    for (const tracked of this.bySessionId.values()) this.considerReload(tracked);
+  private async poll(): Promise<void> {
+    if (this.disposed || this.pollInFlight) return;
+    this.pollInFlight = true;
+    try {
+      await Promise.all(
+        [...this.bySessionId.values()].map((tracked) => this.considerReload(tracked)),
+      );
+    } finally {
+      this.pollInFlight = false;
+    }
   }
 
   /** Reload only if the file's fingerprint actually changed. */
-  private considerReload(tracked: TrackedSession): void {
-    const next = this.statFingerprint(path.join(this.sessionsRoot, tracked.fileName));
+  private async considerReload(tracked: TrackedSession): Promise<void> {
+    const next = await Promise.resolve(
+      this.statFingerprint(path.join(this.sessionsRoot, tracked.fileName)),
+    );
     if (next && fingerprintsEqual(tracked.fingerprint, next)) return;
     if (tracked.debounceTimer) clearTimeout(tracked.debounceTimer);
-    tracked.debounceTimer = setTimeout(() => {
+    tracked.debounceTimer = setTimeout(async () => {
       tracked.debounceTimer = undefined;
+      if (this.bySessionId.get(tracked.sessionId) !== tracked || this.disposed) return;
       // Capture the fingerprint at fire time; the reload itself only reads.
-      const atFireTime = this.statFingerprint(path.join(this.sessionsRoot, tracked.fileName));
+      const atFireTime = await Promise.resolve(
+        this.statFingerprint(path.join(this.sessionsRoot, tracked.fileName)),
+      );
       // Consume the change only once the reload applied it. A refused reload
       // must leave the fingerprint stale, or the peer append behind it (a new
       // turn, or a rename carried by session_info) is dropped until the file

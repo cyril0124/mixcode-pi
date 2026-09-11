@@ -4,17 +4,34 @@ import { FooterDataProvider } from "@earendil-works/pi-coding-agent";
  * One Pi FooterDataProvider per workdir.
  * Shares watchers between chrome badge and extension footerData adapters.
  */
-const providers = new Map<string, FooterDataProvider>();
+type ProviderEntry = {
+  provider: FooterDataProvider;
+  subscribers: number;
+};
 
-function providerFor(workdir: string): FooterDataProvider | undefined {
+const MAX_PROVIDER_ENTRIES = 128;
+const providers = new Map<string, ProviderEntry>();
+
+function providerFor(workdir: string): ProviderEntry | undefined {
   const key = workdir.trim();
   if (!key) return undefined;
-  let provider = providers.get(key);
-  if (!provider) {
-    provider = new FooterDataProvider(key);
-    providers.set(key, provider);
+  let entry = providers.get(key);
+  if (!entry) {
+    entry = { provider: new FooterDataProvider(key), subscribers: 0 };
+    providers.set(key, entry);
+    while (providers.size > MAX_PROVIDER_ENTRIES) {
+      const oldestKey = providers.keys().next().value as string | undefined;
+      if (oldestKey === undefined) break;
+      const oldest = providers.get(oldestKey);
+      if (oldest?.subscribers === 0) {
+        oldest.provider.dispose();
+        providers.delete(oldestKey);
+      } else {
+        break;
+      }
+    }
   }
-  return provider;
+  return entry;
 }
 
 /**
@@ -23,7 +40,7 @@ function providerFor(workdir: string): FooterDataProvider | undefined {
  * First call may resolve HEAD synchronously; watchers keep it fresh.
  */
 export function gitBranchForWorkdir(workdir: string): string {
-  return providerFor(workdir)?.getGitBranch() ?? "";
+  return providerFor(workdir)?.provider.getGitBranch() ?? "";
 }
 
 /**
@@ -31,7 +48,20 @@ export function gitBranchForWorkdir(workdir: string): string {
  * Returns unsubscribe.
  */
 export function onGitBranchChange(workdir: string, callback: () => void): () => void {
-  const provider = providerFor(workdir);
-  if (!provider) return () => undefined;
-  return provider.onBranchChange(callback);
+  const entry = providerFor(workdir);
+  if (!entry) return () => undefined;
+  entry.subscribers += 1;
+  entry.provider.getGitBranch();
+  const unsubscribeProvider = entry.provider.onBranchChange(callback);
+  let unsubscribed = false;
+  return () => {
+    if (unsubscribed) return;
+    unsubscribed = true;
+    unsubscribeProvider();
+    entry.subscribers -= 1;
+    if (entry.subscribers === 0 && providers.get(workdir.trim()) === entry) {
+      entry.provider.dispose();
+      providers.delete(workdir.trim());
+    }
+  };
 }
