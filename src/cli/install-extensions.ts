@@ -52,6 +52,11 @@ export const RECOMMENDED: RecommendedExtension[] = [
     hint: "cron / delayed prompts",
   },
   {
+    source: "npm:@aliou/pi-processes",
+    label: "pi-processes",
+    hint: "long-running background processes",
+  },
+  {
     source: "npm:@tintinweb/pi-subagents",
     label: "pi-subagents",
     hint: "spawn and manage subagents",
