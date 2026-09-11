@@ -208,7 +208,9 @@ def focus_agent(label: str, session: str) -> None:
     deadline = time.monotonic() + 20.0
     while time.monotonic() < deadline:
         pane = capture(label, session)
-        if re.search(r"\[idle\]|Send message to Agent", pane, re.IGNORECASE) and not re.search(
+        # Agent view is ready when the editor shows its idle placeholder (the
+        # compact frame dropped the old per-tab "Send message to <title>" text).
+        if re.search(r"\[idle\]|Describe your next change|No messages yet", pane, re.IGNORECASE) and not re.search(
                 r"\[Not Ready\]|Error", pane, re.IGNORECASE):
             break
         time.sleep(0.25)
@@ -369,7 +371,8 @@ def drive_multi_tab(label: str, session: str) -> None:
     wait_pane(label, session, "1/6 tabs", 6.0)
     time.sleep(0.8)
     send_k(label, session, "Enter")
-    wait_pane(label, session, "Send message to API-Gateway", 8.0)
+    # The editor border title tracks the active tab, so it proves the jump.
+    wait_pane(label, session, "API-Gateway ·", 8.0)
     time.sleep(1.5)
 
 
