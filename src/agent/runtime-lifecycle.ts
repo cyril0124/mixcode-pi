@@ -11,6 +11,7 @@ import {
   type LoadExtensionsResult,
   type ModelRuntime,
   type ResourceDiagnostic,
+  type SessionEntry,
   type SessionManager,
   type SessionShutdownEvent,
   type SessionStartEvent,
@@ -178,6 +179,16 @@ async function createRuntimeTab(
   );
 }
 
+// The agent keeps the complete branch for model context; the UI only needs a
+// bounded tail during startup so restoring a large session cannot monopolize the
+// event loop before the first usable frame.
+export const RESTORED_CHAT_ENTRY_LIMIT = 200;
+
+export function entriesForRestoredChat(entries: SessionEntry[]): SessionEntry[] {
+  if (entries.length <= RESTORED_CHAT_ENTRY_LIMIT) return entries;
+  return entries.slice(-RESTORED_CHAT_ENTRY_LIMIT);
+}
+
 async function createRuntimeTabWithServices(
   tab: MixCodeTabInfo,
   session: SessionManager,
@@ -229,7 +240,8 @@ async function createRuntimeTabWithServices(
   try {
     activateMixCodeTools(agentSession);
     applyMixCodeSystemPrompt(agentSession, cachedSearchTools);
-    const restoredChat = entriesToChatLines(runtimeTab.session.getBranch(), runtimeTab);
+    const restoredEntries = entriesForRestoredChat(runtimeTab.session.getBranch());
+    const restoredChat = entriesToChatLines(restoredEntries, runtimeTab, restoredEntries);
     runtimeTab.chat = restoredChat;
     await bindRuntimeExtensions(runtimeTab, context);
     applyMixCodeSystemPrompt(agentSession, cachedSearchTools);

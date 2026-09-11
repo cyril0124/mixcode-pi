@@ -512,12 +512,16 @@ function bashExecutionToChatLine(
   };
 }
 
-export function entriesToChatLines(entries: SessionEntry[], runtimeTab: RuntimeTab): ChatLine[] {
+export function entriesToChatLines(
+  entries: SessionEntry[],
+  runtimeTab: RuntimeTab,
+  cacheMissEntries = runtimeTab.session.getEntries?.() ?? entries,
+): ChatLine[] {
   const chat: ChatLine[] = [];
   const toolCallIndices = new Map<string, number>();
   // Match Pi: derive misses from the full session, then inject only for rendered entries.
   const cacheMisses = runtimeTab.agentSession.settingsManager.getShowCacheMissNotices()
-    ? collectCacheMisses(runtimeTab.session.getEntries(), runtimeTab.agentSession.modelRuntime)
+    ? collectCacheMisses(cacheMissEntries, runtimeTab.agentSession.modelRuntime)
     : new Map<AssistantMessage, CacheMiss>();
   for (const entry of entries) {
     if (entry.type === "message" && entry.message.role === "toolResult") {
