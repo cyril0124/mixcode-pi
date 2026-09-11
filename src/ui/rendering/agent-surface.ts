@@ -859,7 +859,7 @@ function renderOneQueueBox(
     `${title}  ${shortcuts}`,
     ...shown.map((message) => `↳ ${normalizePendingMessage(message, itemWidth)}`),
   ];
-  return box(label, body, width);
+  return box(label, body, width, activeRenderTheme, true);
 }
 
 function normalizePendingMessage(message: string, width: number): string {

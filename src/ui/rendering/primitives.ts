@@ -161,8 +161,9 @@ export function box(
   lines: string[],
   width: number,
   theme: MixCodeTheme = activeRenderTheme,
+  rounded = false,
 ): string[] {
-  return drawBox({ title, lines, width, theme });
+  return drawBox({ title, lines, width, theme, rounded });
 }
 
 export function renderBoxTop(
