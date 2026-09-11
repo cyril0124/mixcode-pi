@@ -74,7 +74,7 @@ async function openConfigOverlay(
 
 async function openStatsOverlay(
   ctx: ExtensionCommandContext,
-  stats: StuckGuardStats,
+  getStats: () => StuckGuardStats,
 ): Promise<void> {
   if (!ctx.hasUI) {
     ctx.ui.notify("Error: stuck-guard stats requires the interactive UI", "error");
@@ -85,14 +85,14 @@ async function openStatsOverlay(
       createStuckGuardStatsOverlay({
         tui,
         theme,
-        stats: () => stats.snapshot(),
+        stats: () => getStats().snapshot(),
         done: () => done(undefined),
       }),
     { overlay: false },
   );
 }
 
-export function registerStuckGuardCommand(pi: ExtensionAPI, stats: StuckGuardStats): void {
+export function registerStuckGuardCommand(pi: ExtensionAPI, getStats: () => StuckGuardStats): void {
   pi.registerCommand("stuck-guard", {
     description: "Open stuck-guard configuration or stats",
     ...({ argumentHint: "[config|stats]" } as Record<string, unknown>),
@@ -113,7 +113,7 @@ export function registerStuckGuardCommand(pi: ExtensionAPI, stats: StuckGuardSta
       }
       try {
         if (subcommand === "stats") {
-          await openStatsOverlay(ctx, stats);
+          await openStatsOverlay(ctx, getStats);
           return;
         }
         const loaded = loadStuckGuardConfig(getAgentDir());

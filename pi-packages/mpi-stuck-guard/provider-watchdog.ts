@@ -19,6 +19,7 @@ function cooldownKey(providerId: string, modelId: string): string {
 export class ProviderCooldownStore {
   private readonly timers = new Map<string, Timer>();
   private readonly expires = new Map<string, number>();
+  private disposed = false;
 
   isOnCooldown(providerId: string, modelId: string): boolean {
     const key = cooldownKey(providerId, modelId);
@@ -45,7 +46,16 @@ export class ProviderCooldownStore {
     this.expires.clear();
   }
 
+  /** Retire a session's cooldowns. In-flight requests may finish later, but must not
+   * rearm retention timers after their owning session has been removed.
+   */
+  dispose(): void {
+    this.disposed = true;
+    this.clearAll();
+  }
+
   set(providerId: string, modelId: string, durationMs: number): void {
+    if (this.disposed) return;
     const key = cooldownKey(providerId, modelId);
     this.clear(providerId, modelId);
     if (durationMs === 0) {

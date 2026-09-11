@@ -45,6 +45,19 @@ test("zero cooldown keeps the short-window state until explicitly cleared", () =
   cooldowns.clearAll();
 });
 
+test("disposed cooldown store ignores timeout retention from an in-flight watchdog", () => {
+  const cooldowns = new ProviderCooldownStore();
+  const watchdog = new ProviderWatchdog(options({ cooldowns, knownTimeoutCooldownMs: 0 }));
+  watchdog.beginAttempt();
+  cooldowns.dispose();
+
+  watchdog.timeout("start");
+  const replacement = new ProviderWatchdog(options({ cooldowns }));
+  assert.equal(replacement.state, "idle");
+  watchdog.dispose();
+  replacement.dispose();
+});
+
 test("cooldown store is instance-local", () => {
   const a = new ProviderCooldownStore();
   const b = new ProviderCooldownStore();

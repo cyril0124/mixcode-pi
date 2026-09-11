@@ -28,7 +28,13 @@ export interface ProviderWrapperOptions {
   cooldowns: ProviderCooldownStore;
   onStateChange?: (providerId: string, modelId: string, state: ProviderWatchdogState) => void;
   onTimeout?: (providerId: string, modelId: string, kind: "start" | "idle") => void;
+  /** Release watchdog resources on termination, or immediately when protection is bypassed. */
+  onSettled?: () => void;
 }
+
+export type ProviderWrapperOptionsResolver = (
+  options: StreamOptions | SimpleStreamOptions | undefined,
+) => ProviderWrapperOptions;
 
 function emptyMessage(model: Model<Api>): AssistantMessage {
   return {
@@ -79,7 +85,13 @@ function wrapStream(
   open: (options: StreamOptions | SimpleStreamOptions | undefined) => AssistantMessageEventStream,
   watchdogOptions: ProviderWrapperOptions,
 ): AssistantMessageEventStream {
-  if (!watchdogOptions.enabled) return open(options);
+  if (!watchdogOptions.enabled) {
+    try {
+      return open(options);
+    } finally {
+      watchdogOptions.onSettled?.();
+    }
+  }
   const output = createAssistantMessageEventStream();
   const parentSignal = options?.signal;
   const requestController = new AbortController();
@@ -95,6 +107,7 @@ function wrapStream(
     watchdog.dispose();
     parentSignal?.removeEventListener("abort", abortRequest);
     output.push(event);
+    watchdogOptions.onSettled?.();
   };
   const closeIterator = (): void => {
     try {
@@ -190,10 +203,17 @@ function wrapStream(
   return output;
 }
 
-/** Wrap a complete public Provider while preserving all non-stream capabilities. */
-export function wrapProvider(provider: Provider, options: ProviderWrapperOptions): Provider {
+/** Wrap both public stream entry points while preserving the provider's other capabilities.
+ * Each stream captures its policy and callbacks at open time and retains them through
+ * subsequent configuration reloads or session replacement.
+ */
+export function wrapProvider(
+  provider: Provider,
+  options: ProviderWrapperOptions | ProviderWrapperOptionsResolver,
+): Provider {
   const marked = provider as WatchdogProvider;
   if (marked[WATCHDOG_WRAPPED]) return provider;
+  const resolveOptions = typeof options === "function" ? options : () => options;
   const wrapped = Object.create(provider) as WatchdogProvider;
   Object.defineProperty(wrapped, "stream", {
     value: (model: Model<Api>, context: Context, streamOptions?: StreamOptions) =>
@@ -203,7 +223,7 @@ export function wrapProvider(provider: Provider, options: ProviderWrapperOptions
         context,
         streamOptions,
         (forwarded) => provider.stream(model, context, forwarded as StreamOptions),
-        options,
+        { ...resolveOptions(streamOptions) },
       ),
   });
   Object.defineProperty(wrapped, "streamSimple", {
@@ -214,7 +234,7 @@ export function wrapProvider(provider: Provider, options: ProviderWrapperOptions
         context,
         streamOptions,
         (forwarded) => provider.streamSimple(model, context, forwarded as SimpleStreamOptions),
-        options,
+        { ...resolveOptions(streamOptions) },
       ),
   });
   Object.defineProperty(wrapped, WATCHDOG_WRAPPED, { value: true });

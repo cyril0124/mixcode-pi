@@ -132,6 +132,24 @@ test("provider wrapper forwards partial events before terminal completion", asyn
   assert.equal(second.value?.type, "done");
 });
 
+test("request-owned cooldown is released after a watchdog timeout", async () => {
+  const cooldowns = new ProviderCooldownStore();
+  const provider = makeProvider(() => createAssistantMessageEventStream());
+  const model = modelOf(provider);
+  const wrapped = wrapProvider(
+    provider,
+    options({
+      cooldowns,
+      knownTimeoutCooldownMs: 0,
+      onSettled: () => cooldowns.dispose(),
+    }),
+  );
+  const result = await wrapped.streamSimple(model, context).result();
+  assert.equal(result.stopReason, "error");
+  assert.match(result.errorMessage ?? "", /start timeout/);
+  assert.equal(cooldowns.isOnCooldown(provider.id, model.id), false);
+});
+
 test("provider wrapper keeps user abort distinct from watchdog timeout", async () => {
   const controller = new AbortController();
   const source = createAssistantMessageEventStream();
