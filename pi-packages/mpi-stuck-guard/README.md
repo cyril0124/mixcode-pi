@@ -45,6 +45,16 @@ When the same tool fails parameter validation on `schemaHintFailureThreshold` (d
 
 The watchdog wraps the public `Provider.stream` and `Provider.streamSimple` APIs. Normal events pass through unchanged. Each request has independent start, idle, abort, and completion state.
 
+### Provider registration and session ownership
+
+Each provider in the shared `ModelRuntime` has at most one native watchdog registration. `session_start` and `before_agent_start` find and reuse it through `getRegisteredNativeProvider`.
+
+Each stream uses `StreamOptions.sessionId` to select its configuration, counters, and cooldown store. Missing or unknown IDs, including independently generated summary routing IDs, receive request-local protection with no session counters or retained cooldowns. Each request keeps the policy and callbacks captured when its stream opened.
+
+`session_shutdown` removes the matching session state and clears its cooldown timers. A delayed shutdown from an earlier instance preserves the replacement session's state. Disabling the watchdog or narrowing `providerIds` restores the previous native, configured, or default registration only if the current registration is still the extension's wrapper. Registrations installed by other extensions are preserved.
+
+Boolean-only watchdog registrations require a host restart because they lack the original registration metadata. The extension reports `Error: Restart the host to replace an older watchdog registration` and preserves the registration. After background tasks finish, exit normally and launch the updated executable in the same workdir to restore saved sessions. `/reload` retains the model runtime and may retain these wrapper chains.
+
 ### Provider stream states
 
 | State | Meaning | Terminal? |

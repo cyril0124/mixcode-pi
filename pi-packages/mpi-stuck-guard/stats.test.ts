@@ -54,7 +54,7 @@ test("stats command opens a current-session counter view", async () => {
   stats.recordProviderState("idle");
   stats.recordProviderTimeout("start");
   const harness = makeHarness();
-  registerStuckGuardCommand(harness.pi as never, stats);
+  registerStuckGuardCommand(harness.pi as never, () => stats);
   await harness.command!.handler("stats", harness.ctx);
   assert.match(harness.rendered, /Stuck Guard Stats/);
   assert.match(harness.rendered, /Provider attempts: 1/);

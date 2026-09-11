@@ -45,6 +45,16 @@ search guard 在执行前拦截 `bash`、`grep`、`find` 工具调用，阻止�
 
 watchdog 包装公共 `Provider.stream` 和 `Provider.streamSimple` API。正常事件原样转发。每个请求独立维护首事件、空闲、abort 和完成状态。
 
+### Provider 注册与 session 归属
+
+共享的 `ModelRuntime` 中，每个 provider 最多有一层原生 watchdog 注册。`session_start` 和 `before_agent_start` 通过 `getRegisteredNativeProvider` 查找并复用它。
+
+每个流通过 `StreamOptions.sessionId` 选择配置、计数器和冷却状态。缺失或未知的 ID，包括独立生成的摘要路由 ID，使用请求级保护，不计入会话统计，冷却状态在请求结束时释放。每个请求持续使用流启动时保存的策略和回调。
+
+`session_shutdown` 删除对应会话状态并清除冷却计时器。旧实例迟到的关闭回调会保留同一 ID 的新会话状态。关闭 watchdog 或缩小 `providerIds` 时，只有当前注册仍是本扩展的包装器，才恢复此前的原生、配置或默认注册；其他扩展安装的注册会被保留。
+
+只有布尔标记的 watchdog 注册缺少原注册元数据，需要重启宿主。扩展会报告 `Error: Restart the host to replace an older watchdog registration`，并保留该注册。等待后台任务完成后正常退出，再在同一工作目录启动更新后的可执行文件，即可恢复已保存会话。`/reload` 会保留模型运行时，可能保留这些包装链。
+
 ### Provider 流状态
 
 | 状态 | 含义 | 是否终态 |
