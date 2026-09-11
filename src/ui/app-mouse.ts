@@ -26,6 +26,7 @@ import {
   moveTabJumpSelection,
   openTabJump,
   scrollChat,
+  scrollChatWithExpansion,
   scrollExtensionPanel,
 } from "../core/overlays.js";
 import { pushToast } from "../core/toast.js";
@@ -205,7 +206,7 @@ export function handleMouseInput(
   data: string,
   tui: OverlayTui,
   _shellManager?: unknown,
-  runtime?: Pick<MixCodeKeyRuntime, "appendSystemMessage">,
+  runtime?: Pick<MixCodeKeyRuntime, "appendSystemMessage" | "getTab" | "expandChatWindow">,
   copyToClipboard: ClipboardWriter = writeClipboard,
 ): boolean {
   const mouse = parseSgrMouseInput(data);
@@ -214,7 +215,7 @@ export function handleMouseInput(
   if (handleChromeMouse(state, active, mouse, tui)) return true;
   if (!active) return false;
   if (mouse.wheel && active.extensionUi.waitingForInputs.length > 0) {
-    scrollChat(active, mouse.wheel === "up" ? 3 : -3);
+    scrollChatWithExpansion(runtime, active, mouse.wheel === "up" ? 3 : -3);
     tui.requestRender();
     return true;
   }
@@ -246,7 +247,7 @@ export function handleMouseInput(
     return true;
   }
   if (mouse.wheel && state.activeTabId !== HOME_TAB_ID) {
-    scrollChat(active, mouse.wheel === "up" ? 3 : -3);
+    scrollChatWithExpansion(runtime, active, mouse.wheel === "up" ? 3 : -3);
     tui.requestRender();
     return true;
   }

@@ -92,7 +92,11 @@ export function reloadRuntimeSessionFromDisk(runtimeTab: RuntimeTab): ReloadSess
 
   // Keep in-memory-only Pi UI notifications when the disk entry set is unchanged.
   // Rebuilding chat here would erase ctx.ui.notify() lines before every local prompt.
-  if (entriesChanged) {
+  // A windowed restore must also expand: the reload is the authoritative moment
+  // the chat projection covers the whole on-disk branch.
+  const chatNeedsExpansion = (runtimeTab.chatWindowStartIndex ?? 0) > 0;
+  if (entriesChanged || chatNeedsExpansion) {
+    runtimeTab.chatWindowStartIndex = 0;
     // The agent's LLM context must reflect the reloaded branch, or the next turn
     // would send a stale message list even though the UI looks up to date.
     runtimeTab.agentSession.agent.state.messages =

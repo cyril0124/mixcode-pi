@@ -717,7 +717,7 @@ function handleAgentSurfaceKeys(
     state.activeTabId !== HOME_TAB_ID &&
     !hasAnyOverlay(tui) &&
     !isPendingEditorTakeover(active, editorActions) &&
-    handleVimModeKey(active, data)
+    handleVimModeKey(active, data, runtime)
   ) {
     clearPendingEscape(active);
     tui.requestRender();
@@ -780,7 +780,7 @@ function handleEditorControlKeys(
     !hasAnyOverlay(tui) &&
     active.extensionUi.waitingForInputs.length === 0 &&
     !shouldRouteLineBoundaryKeyToEditor(data, editorActions) &&
-    handleChatScrollKey(active, data)
+    handleChatScrollKey(active, data, runtime)
   ) {
     clearPendingEscape(active);
     tui.requestRender();

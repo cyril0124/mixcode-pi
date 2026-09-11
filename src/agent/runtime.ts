@@ -89,6 +89,7 @@ import {
   syncRuntimeChatFromSession,
   updateRuntimeTabWorkdir,
   type RuntimeLifecycleContext,
+  CHAT_WINDOW_EXPAND_CHUNK,
 } from "./runtime-lifecycle.js";
 import { resolveRuntimeModel, resolveRuntimeModelFromSession } from "./runtime-model.js";
 import {
@@ -415,6 +416,25 @@ export class MixCodeRuntime {
     const runtimeTab = this.requireTab(sessionId);
     disposeChatRenderers(runtimeTab.chat);
     runtimeTab.chat = entriesToChatLines(runtimeTab.session.getBranch(), runtimeTab);
+    runtimeTab.chatWindowStartIndex = 0;
+  }
+
+  /**
+   * Materialize one chunk of older history into a bounded restored chat
+   * window. Returns the number of newly included branch entries (0 when the
+   * chat already covers the full branch). The rebuild recreates every ChatLine
+   * object; the scroll-freeze anchor re-pins the viewport by entry id.
+   */
+  expandChatWindow(sessionId: string, chunkEntries = CHAT_WINDOW_EXPAND_CHUNK): number {
+    const runtimeTab = this.requireTab(sessionId);
+    const start = runtimeTab.chatWindowStartIndex ?? 0;
+    if (start === 0) return 0;
+    const branch = runtimeTab.session.getBranch();
+    const nextStart = Math.max(0, start - Math.max(1, chunkEntries));
+    disposeChatRenderers(runtimeTab.chat);
+    runtimeTab.chat = entriesToChatLines(branch.slice(nextStart), runtimeTab);
+    runtimeTab.chatWindowStartIndex = nextStart === 0 ? undefined : nextStart;
+    return start - nextStart;
   }
 
   /**

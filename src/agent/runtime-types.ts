@@ -206,6 +206,12 @@ export interface RuntimeTab {
   services: AgentSessionServices;
   session: SessionManager;
   chat: ChatLine[];
+  /**
+   * Leading branch entries omitted from the bounded restored chat window.
+   * 0 (or undefined) once the chat covers the full branch. Scroll-to-top
+   * expansion decreases it in chunks; a disk reload clears it.
+   */
+  chatWindowStartIndex?: number;
   /** Count of runtime-mirrored steer messages at the tail of tab.pendingMessages. */
   queuedPromptCount: number;
   /** Count of runtime-mirrored follow-up messages at the tail of tab.pendingFollowUps. */

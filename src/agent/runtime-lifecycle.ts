@@ -184,6 +184,9 @@ async function createRuntimeTab(
 // event loop before the first usable frame.
 export const RESTORED_CHAT_ENTRY_LIMIT = 200;
 
+/** Older-history chunk materialized by one scroll-to-top expansion. */
+export const CHAT_WINDOW_EXPAND_CHUNK = 200;
+
 export function entriesForRestoredChat(entries: SessionEntry[]): SessionEntry[] {
   if (entries.length <= RESTORED_CHAT_ENTRY_LIMIT) return entries;
   return entries.slice(-RESTORED_CHAT_ENTRY_LIMIT);
@@ -240,8 +243,15 @@ async function createRuntimeTabWithServices(
   try {
     activateMixCodeTools(agentSession);
     applyMixCodeSystemPrompt(agentSession, cachedSearchTools);
-    const restoredChat = entriesToChatLines(runtimeTab.session.getBranch(), runtimeTab);
+    const branch = runtimeTab.session.getBranch();
+    const restoredEntries = entriesForRestoredChat(branch);
+    const restoredChat = entriesToChatLines(restoredEntries, runtimeTab, restoredEntries);
     runtimeTab.chat = restoredChat;
+    // Leading branch entries omitted from the startup window; scrolling to the
+    // top of the window expands older history in chunks (expandChatWindow), and
+    // a disk reload materializes the full branch.
+    runtimeTab.chatWindowStartIndex =
+      restoredEntries.length < branch.length ? branch.length - restoredEntries.length : 0;
     await bindRuntimeExtensions(runtimeTab, context);
     applyMixCodeSystemPrompt(agentSession, cachedSearchTools);
     refreshStartupHeader(runtimeTab);

@@ -10,7 +10,6 @@ import {
   acceptCommandPaletteSelection,
   acceptTabJumpSelection,
   chatEnd,
-  chatHome,
   closeCommandPalette,
   closeTabJump,
   pickerIsLive,
@@ -21,6 +20,9 @@ import {
   moveCommandPaletteSelection,
   moveTabJumpSelection,
   scrollChat,
+  type ChatScrollExpansionRuntime,
+  chatHomeWithExpansion,
+  scrollChatWithExpansion,
   toggleTabJumpNonIdleOnly,
   updateCommandPaletteQuery,
   updateTabJumpQuery,
@@ -418,7 +420,11 @@ export function handleTabJumpKey(state: MixCodeState, data: string, tui: Overlay
   return true;
 }
 
-export function handleVimModeKey(active: MixCodeState["tabs"][number], data: string): boolean {
+export function handleVimModeKey(
+  active: MixCodeState["tabs"][number],
+  data: string,
+  runtime?: ChatScrollExpansionRuntime,
+): boolean {
   if (!active.vimMode) return false;
   if (matchesKey(data, "tab") || matchesKey(data, "shift+tab")) return false;
   if (matchesKey(data, "ctrl+t")) return false;
@@ -430,26 +436,31 @@ export function handleVimModeKey(active: MixCodeState["tabs"][number], data: str
   }
   if (data === "g" && active.vimPendingHome) {
     active.vimPendingHome = false;
-    return chatHome(active);
+    return chatHomeWithExpansion(runtime, active);
   }
   if (data === "g") {
     active.vimPendingHome = true;
     return true;
   }
   active.vimPendingHome = false;
-  if (matchesKey(data, "up") || data === "k") return scrollChat(active, 3);
+  if (matchesKey(data, "up") || data === "k") return scrollChatWithExpansion(runtime, active, 3);
   if (matchesKey(data, "down") || data === "j") return scrollChat(active, -3);
-  if (matchesKey(data, "pageUp") || matchesKey(data, "ctrl+u")) return scrollChat(active, 10);
+  if (matchesKey(data, "pageUp") || matchesKey(data, "ctrl+u"))
+    return scrollChatWithExpansion(runtime, active, 10);
   if (matchesKey(data, "pageDown") || matchesKey(data, "ctrl+d")) return scrollChat(active, -10);
-  if (matchesKey(data, "home")) return chatHome(active);
+  if (matchesKey(data, "home")) return chatHomeWithExpansion(runtime, active);
   if (matchesKey(data, "end") || data === "G") return chatEnd(active);
   return true;
 }
 
-export function handleChatScrollKey(active: MixCodeState["tabs"][number], data: string): boolean {
-  if (matchesKey(data, "pageUp")) return scrollChat(active, 10);
+export function handleChatScrollKey(
+  active: MixCodeState["tabs"][number],
+  data: string,
+  runtime?: ChatScrollExpansionRuntime,
+): boolean {
+  if (matchesKey(data, "pageUp")) return scrollChatWithExpansion(runtime, active, 10);
   if (matchesKey(data, "pageDown")) return scrollChat(active, -10);
-  if (matchesKey(data, "home")) return chatHome(active);
+  if (matchesKey(data, "home")) return chatHomeWithExpansion(runtime, active);
   if (matchesKey(data, "end")) return chatEnd(active);
   return false;
 }

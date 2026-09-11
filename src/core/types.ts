@@ -189,6 +189,8 @@ export interface MixCodeTabInfo {
   lastRenderedChatLines?: string[];
   /** Offset of lastRenderedChatLines; chatScrollOffset can already contain pending input. */
   lastRenderedChatScrollOffset?: number;
+  /** True when the last paint clamped the offset at the top of the materialized chat. */
+  lastRenderedChatAtTop?: boolean;
   /** Non-persisted: last chat scroll metrics for scrollbar and edge-drag mapping. */
   lastChatScrollMetrics?: {
     total: number;

@@ -38,6 +38,58 @@ export function scrollChat(tab: MixCodeTabInfo, delta: number): boolean {
   return true;
 }
 
+/** Runtime surface needed to expand a bounded restored chat window. */
+export interface ChatScrollExpansionRuntime {
+  getTab(sessionId: string): { chatWindowStartIndex?: number } | undefined;
+  expandChatWindow(sessionId: string): number;
+}
+
+function chatWindowHasOlderHistory(
+  runtime: ChatScrollExpansionRuntime,
+  tab: MixCodeTabInfo,
+): boolean {
+  return (runtime.getTab(tab.sessionId)?.chatWindowStartIndex ?? 0) > 0;
+}
+
+/**
+ * True when the user is pinned at the top of the materialized chat while older
+ * history is still windowed off. Home mode pins by chatHomeOffset === 0.
+ */
+function chatWindowNeedsExpansion(
+  runtime: ChatScrollExpansionRuntime,
+  tab: MixCodeTabInfo,
+): boolean {
+  if (!chatWindowHasOlderHistory(runtime, tab)) return false;
+  return tab.chatAtHome ? (tab.chatHomeOffset ?? 0) === 0 : tab.lastRenderedChatAtTop === true;
+}
+
+/**
+ * scrollChat with lazy older-history expansion: an up-scroll pinned at the top
+ * of a bounded restored window first materializes one chunk, then applies the
+ * delta. The scroll-freeze anchor re-pins the viewport across the rebuild.
+ */
+export function scrollChatWithExpansion(
+  runtime: ChatScrollExpansionRuntime | undefined,
+  tab: MixCodeTabInfo,
+  delta: number,
+): boolean {
+  if (runtime && delta > 0 && chatWindowNeedsExpansion(runtime, tab)) {
+    runtime.expandChatWindow(tab.sessionId);
+  }
+  return scrollChat(tab, delta);
+}
+
+/** chatHome that first expands one chunk when already pinned at the window top. */
+export function chatHomeWithExpansion(
+  runtime: ChatScrollExpansionRuntime | undefined,
+  tab: MixCodeTabInfo,
+): boolean {
+  if (runtime && chatWindowNeedsExpansion(runtime, tab)) {
+    runtime.expandChatWindow(tab.sessionId);
+  }
+  return chatHome(tab);
+}
+
 /**
  * Scroll the widget side panel by `delta` rows. Only the lower bound is clamped
  * here (>= 0); the upper bound depends on rendered content height and is

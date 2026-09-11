@@ -243,6 +243,7 @@ function renderAgentSurfaceInner(
   applyScrollFreezeAnchor(tab, lines, viewport, surfaceWidth, true);
   applyPendingScrollUserDelta(tab);
   if (tab.chatScrollOffset > maxOffset) tab.chatScrollOffset = maxOffset;
+  tab.lastRenderedChatAtTop = tab.chatScrollOffset >= maxOffset;
   const fitted = fitScrolledLinesWithInfo(lines, maxHeight, surfaceWidth, tab.chatScrollOffset);
   // The shared pager substitutes boundary rows. Chat keeps the original bottom
   // row so the floating jump label can cover only its own cells, not the whole row.
@@ -610,6 +611,7 @@ function renderAgentSurfaceWindowed(
   applyPendingScrollUserDelta(tab);
   if (tab.chatScrollOffset > maxOffset) tab.chatScrollOffset = maxOffset;
   const clampedOffset = Math.max(0, Math.min(tab.chatScrollOffset, maxOffset));
+  tab.lastRenderedChatAtTop = tab.chatScrollOffset >= maxOffset;
 
   // Pick the visible window from the bottom. `lines` is ordered top-to-bottom
   // and ends with the queue preview / latest content. Bottom of window sits
