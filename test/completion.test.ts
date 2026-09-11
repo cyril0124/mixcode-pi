@@ -313,9 +313,13 @@ test("editor @ completion offers peer tabs, not the prompt-target tab itself", a
       await Bun.sleep(10);
     }
     assert.ok(layout.editor.isShowingAutocomplete());
-    const rendered = stripAnsi(layout.editor.current.render(80).join("\n"));
-    assert.match(rendered, /Peer-Tab\//);
-    assert.doesNotMatch(rendered, /Self-Tab/);
+    const rendered = layout.editor.current.render(80).map(stripAnsi);
+    // The card title names the current tab; only rows below it are suggestions.
+    const cardBottom = rendered.findIndex((line) => line.startsWith("╰"));
+    assert.notEqual(cardBottom, -1);
+    const suggestions = rendered.slice(cardBottom + 1).join("\n");
+    assert.match(suggestions, /Peer-Tab\//);
+    assert.doesNotMatch(suggestions, /Self-Tab/);
     layout.editor.handleInput("\r");
     assert.equal(layout.editor.getText(), "@Peer-Tab/ ");
   } finally {

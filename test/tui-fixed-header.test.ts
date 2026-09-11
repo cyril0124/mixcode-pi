@@ -25,6 +25,7 @@ import { createInitialState, createTab } from "../src/core/defaults.js";
 import type { MixCodeTabInfo } from "../src/core/types.js";
 import { openCommandPalette } from "../src/core/overlays.js";
 import type { MixCodeRuntime } from "../src/agent/runtime.js";
+import { themeForId } from "../src/ui/themes.js";
 
 function createMixCodeTui(
   ...args: Parameters<typeof createProductionMixCodeTui>
@@ -315,7 +316,7 @@ test("createMixCodeTui renders the combined layout with editor and extension foo
   try {
     const lines = tui.render(80);
     const plainLines = lines.map(stripAnsi);
-    const inputLine = plainLines.findIndex((line) => /Send message to Agent-01/.test(line));
+    const inputLine = plainLines.findIndex((line) => /Describe your next change/.test(line));
     // Extension header no longer pins above the tab bar; the tab bar is the
     // top row and the header scrolls inside the agent surface, above the chat.
     assert.match(plainLines[0] ?? "", /MixCode Home/);
@@ -326,12 +327,13 @@ test("createMixCodeTui renders the combined layout with editor and extension foo
     assert.ok(headerRow < chatRow);
     assert.match(plainLines.join("\n"), /extension footer/);
     assert.notEqual(inputLine, -1);
-    assert.match(plainLines[inputLine - 1] ?? "", /^─+ Agent-01\b.*──$/);
-    assert.equal(plainLines[inputLine + 1], "─".repeat(80));
+    assert.match(plainLines[inputLine - 1] ?? "", /^╭─+ Agent-01\b.*─╮$/);
+    assert.equal(plainLines[inputLine + 1], `╰${"─".repeat(78)}╯`);
     assert.match(plainLines[inputLine - 2] ?? "", /Working/);
-    // No blank row between working indicator and editor (gap removed)
-    assert.match(lines[inputLine - 1] ?? "", /\x1b\[38;2;217;119;87m─/);
-    assert.match(plainLines.join("\n"), /Send message to Agent-01\.\.\./);
+    // The working indicator sits directly above the thinking-colored card.
+    const frame = themeForId(state.theme).thinkingBorder(state.tabs[0]!.thinkingLevel);
+    assert.ok(lines[inputLine - 1]!.startsWith(frame("╭─")));
+    assert.match(plainLines.join("\n"), /Describe your next change\.\.\./);
     assert.doesNotMatch(plainLines.join("\n"), /▊|▔|▁/);
     assert.doesNotMatch(plainLines.join("\n"), /Ctrl\+P/);
   } finally {
@@ -416,12 +418,13 @@ test("createMixCodeTui keeps a blank line between above-editor widgets and edito
   const lines = tui.render(80);
   const plainLines = lines.map(stripAnsi);
   const widgetLine = plainLines.findIndex((line) => /task five/.test(line));
-  const inputLine = plainLines.findIndex((line) => /Send message to Agent-01/.test(line));
+  const inputLine = plainLines.findIndex((line) => /Describe your next change/.test(line));
   assert.notEqual(widgetLine, -1);
   assert.notEqual(inputLine, -1);
-  assert.match(plainLines[inputLine - 1] ?? "", /^─+ Agent-01\b.*──$/);
+  assert.match(plainLines[inputLine - 1] ?? "", /^╭─+ Agent-01\b.*─╮$/);
   assert.equal(plainLines[inputLine - 2]?.trim(), "");
-  assert.match(lines[inputLine - 1] ?? "", /\x1b\[38;2;217;119;87m─/);
+  const frame = themeForId(state.theme).thinkingBorder(state.tabs[0]!.thinkingLevel);
+  assert.ok(lines[inputLine - 1]!.startsWith(frame("╭─")));
   assert.equal(inputLine, widgetLine + 3);
 });
 
@@ -444,10 +447,10 @@ test("createMixCodeTui keeps a blank line between idle content and editor", () =
   const tui = createMixCodeTui(state, runtime, { terminal: silentTerminal() });
 
   const plainLines = tui.render(80).map(stripAnsi);
-  const inputLine = plainLines.findIndex((line) => /Send message to Agent-01/.test(line));
+  const inputLine = plainLines.findIndex((line) => /Describe your next change/.test(line));
   assert.notEqual(inputLine, -1);
   assert.match(plainLines.slice(0, inputLine).join("\n"), /last visible answer/);
-  assert.match(plainLines[inputLine - 1] ?? "", /^─+ Agent-01\b.*──$/);
+  assert.match(plainLines[inputLine - 1] ?? "", /^╭─+ Agent-01\b.*─╮$/);
   assert.equal(plainLines[inputLine - 2]?.trim(), "");
 });
 
@@ -610,8 +613,8 @@ test("createMixCodeTui accounts for config and multiline editor row reservations
   layout.editor.setText("a\nb");
   const output = stripAnsi(tui.render(80).join("\n"));
 
-  assert.match(output, /^ a/m);
-  assert.match(output, /^ b/m);
+  assert.match(output, /^│ a\s+│$/m);
+  assert.match(output, /^│ b\s+│$/m);
 });
 
 test("runtime changes request a differential render without keyboard or mouse input", () => {

@@ -466,7 +466,7 @@ test("runtime maps pi extension custom non-overlay into the live editor slot", a
       assert.ok(events.includes("result:updated"));
       assert.doesNotMatch(stripAnsi(renderTabBar(state, 80).join("\n")), /\? Agent-01/);
       const restoredEditor = stripAnsi(tui.render(80).join("\n"));
-      assert.match(restoredEditor, /Send message to Agent-01\.\.\./);
+      assert.match(restoredEditor, /Describe your next change\.\.\./);
       assert.doesNotMatch(restoredEditor, /editor updated/);
     } finally {
       tui.stop();
