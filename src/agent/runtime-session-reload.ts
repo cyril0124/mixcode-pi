@@ -61,6 +61,8 @@ export function reloadRuntimeSessionFromDisk(runtimeTab: RuntimeTab): ReloadSess
   const hasNewEntries = reloadedEntries.some((entry) => !knownIds.has(entry.id));
   const entriesChanged = hasNewEntries || reloadedEntries.length !== knownIds.size;
 
+  const chatNeedsExpansion = runtimeTab.chatIsRestoredWindowed === true;
+
   // A new entry extends the active leaf only if the walk to prevLeafId (or to a
   // new root when prevLeafId is null) never hits a previously-known entry.
   // Known nodes on the path mean the append hangs off an abandoned branch.
@@ -92,7 +94,8 @@ export function reloadRuntimeSessionFromDisk(runtimeTab: RuntimeTab): ReloadSess
 
   // Keep in-memory-only Pi UI notifications when the disk entry set is unchanged.
   // Rebuilding chat here would erase ctx.ui.notify() lines before every local prompt.
-  if (entriesChanged) {
+  if (entriesChanged || chatNeedsExpansion) {
+    runtimeTab.chatIsRestoredWindowed = false;
     // The agent's LLM context must reflect the reloaded branch, or the next turn
     // would send a stale message list even though the UI looks up to date.
     runtimeTab.agentSession.agent.state.messages =

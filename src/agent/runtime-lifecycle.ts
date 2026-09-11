@@ -243,6 +243,8 @@ async function createRuntimeTabWithServices(
     const restoredEntries = entriesForRestoredChat(runtimeTab.session.getBranch());
     const restoredChat = entriesToChatLines(restoredEntries, runtimeTab, restoredEntries);
     runtimeTab.chat = restoredChat;
+    runtimeTab.chatIsRestoredWindowed =
+      restoredEntries.length < runtimeTab.session.getBranch().length;
     await bindRuntimeExtensions(runtimeTab, context);
     applyMixCodeSystemPrompt(agentSession, cachedSearchTools);
     refreshStartupHeader(runtimeTab);
