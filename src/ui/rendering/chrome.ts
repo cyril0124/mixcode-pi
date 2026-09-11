@@ -109,11 +109,10 @@ export type ZenStatusMarker = "working" | "waiting" | "done" | "error";
 
 /**
  * Full-width horizontal rule rendered directly under the tab bar (agent view
- * only), replacing the former blank interval row. Its color tracks the active
- * tab's input-editor border so the two read as one frame: vim mode uses
- * `vimBorder`, otherwise the thinking-level border (matching app-editor's
- * normal-mode `borderColor`). Shell mode is intentionally not tracked — it is
- * driven by transient editor text and would make this top rule flicker.
+ * only), replacing the former blank interval row. Vim mode uses `vimBorder`;
+ * other modes use the active tab's thinking-level color. The default input
+ * card uses the same Vim/thinking color. Shell text does not
+ * affect this separator, so editing a prompt cannot make the top rule flicker.
  * In zen mode, meaningful states from other agents are left-anchored as
  * space-separated solid dots: accent for working, warning for pending input,
  * green for done, and red for errors. The cluster is capped at five markers,

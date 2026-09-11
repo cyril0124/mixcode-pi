@@ -1,25 +1,33 @@
 import {
   type AutocompleteProvider,
   type Component,
+  CURSOR_MARKER,
   Editor,
   type EditorComponent,
   type EditorTheme,
+  getKeybindings,
   isKeyRelease,
   matchesKey,
   type TUI as TuiType,
+  type TuiMouseEvent,
+  type TuiMouseEventResult,
   truncateToWidth,
   visibleWidth,
 } from "@earendil-works/pi-tui";
 import { type EditorFactory, MIXCODE_EXTENSION_KEYBINDINGS_MANAGER } from "../agent/runtime.js";
 import { HOME_TAB_ID, type MixCodeState } from "../core/types.js";
 import type { MixCodeEditorActions } from "./app-types.js";
-import { buildLabeledTopBorder, isPlainBorderLine } from "./components/editor-top-border.js";
+import { renderEditorCardEdge } from "./components/editor-card.js";
 import { exactContextUsageText } from "./rendering/chrome.js";
 import { padLine } from "./rendering.js";
 import { type MixCodeTheme, themeForId } from "./themes.js";
 export class CompactPromptEditor extends Editor {
   private readonly rootTui: Pick<TuiType, "requestRender">;
   private lastThemeId = "";
+  private cardWidth = 0;
+  private hiddenLinesAbove = 0;
+  private hiddenLinesBelow = 0;
+  private renderedBottomFrame = "";
 
   constructor(
     tui: TuiType,
@@ -68,61 +76,117 @@ export class CompactPromptEditor extends Editor {
     this.rootTui.requestRender();
   }
 
+  protected override renderTopBorder(width: number, hiddenLineCount: number): string {
+    this.hiddenLinesAbove = hiddenLineCount;
+    return super.renderTopBorder(width, hiddenLineCount);
+  }
+
+  protected override renderBottomBorder(width: number, hiddenLineCount: number): string {
+    this.hiddenLinesBelow = hiddenLineCount;
+    // The rounded edge is two columns wider than Pi's body and completion rows,
+    // so it can be located unambiguously without reading Pi's private layout state.
+    this.renderedBottomFrame = `╰${super.renderBottomBorder(width, hiddenLineCount)}╯`;
+    return this.renderedBottomFrame;
+  }
+
   override render(width: number): string[] {
     const theme = themeForId(this.mixState.theme);
-    // Sync the base Editor's internal theme so autocomplete dropdown
-    // colors (selectList) follow theme changes instead of staying frozen
-    // at construction time. The private field is the only way — the Pi SDK
-    // Editor provides no public setTheme / updateTheme API.
+    // Pi exposes no theme setter; keep its completion palette synchronized.
     if (this.mixState.theme !== this.lastThemeId) {
       this.lastThemeId = this.mixState.theme;
       (this as unknown as { theme: EditorTheme }).theme = editorThemeFor(theme);
     }
-    if (this.mixState.activeTabId === HOME_TAB_ID) {
-      // Render editor on Agent View with a placeholder targeting the selected agent.
-      this.borderColor = theme.thinkingBorder();
-      const lines = super.render(width);
-      const currentText = this.getExpandedText?.() ?? this.getText();
-      if (currentText.length === 0) {
-        return lines.map((line, index) =>
-          index === 1
-            ? renderPlaceholderLine(line, homeEditorPlaceholder(this.mixState), width, theme)
-            : line,
-        );
-      }
-      return lines;
+    this.cardWidth = width;
+    // A wide grapheme cannot fit in Pi's one-column wrapping path. Preserve the
+    // draft and focused cursor until the terminal can display the card again.
+    if (width < 8) {
+      return [(this.focused ? CURSOR_MARKER : "") + " ".repeat(Math.max(0, width))];
     }
-    const isVimMode = this.activeTab()?.vimMode === true;
+
+    const home = this.mixState.activeTabId === HOME_TAB_ID;
+    const active = home ? undefined : this.activeTab();
+    const isVimMode = active?.vimMode === true;
     const currentText = this.getExpandedText?.() ?? this.getText();
-    const isEmpty = currentText.length === 0;
     const isShellMode = currentText.trimStart().startsWith("!");
-    this.borderColor = isVimMode
-      ? theme.vimBorder
-      : isShellMode
-        ? theme.bashMode
-        : theme.thinkingBorder(this.activeTab()?.thinkingLevel);
-    // Top-border agent chrome (title / xxk/xxk* / VIM|ZEN|INL|sys) is applied by
-    // EditorSlot so setEditorComponent replacements keep the same contract.
-    const lines = super.render(width);
-    // Bottom border stays a plain frame edge; model/bar/git live in the meta row
-    // under the editor (see renderInputMeta), not inside the dashed line.
-    if (!isEmpty) return lines;
-    if (isVimMode) {
-      return lines.map((line, index) =>
-        index === 1
-          ? renderStaticPlaceholderLine(
-              "Vim: → newer · Shift+→ older · j/k scroll · q exit",
-              width,
-              theme,
-            )
-          : line,
-      );
+    const frame = isVimMode ? theme.vimBorder : theme.thinkingBorder(active?.thinkingLevel);
+    this.borderColor = frame;
+    const innerWidth = width - 2;
+    const lines = super.render(innerWidth);
+    const bottomIndex = lines.indexOf(this.renderedBottomFrame, 1);
+    const body = lines.slice(1, bottomIndex);
+    const completion = lines.slice(bottomIndex + 1);
+
+    if (currentText.length === 0) {
+      body[0] = isVimMode
+        ? renderStaticPlaceholderLine(
+            "Vim: → newer · Shift+→ older · j/k scroll · q exit",
+            innerWidth,
+            theme,
+          )
+        : renderPlaceholderLine(
+            lines[1]!,
+            home
+              ? `${homeEditorPlaceholder(this.mixState)}  @ files  / commands`
+              : "Describe your next change...  @ files  / commands  ← Home · → widgets",
+            innerWidth,
+            theme,
+          );
     }
-    return lines.map((line, index) =>
-      index === 1
-        ? renderPlaceholderLine(line, editorPlaceholder(this.mixState), width, theme)
-        : line,
+
+    const selected = home ? this.mixState.tabs[this.mixState.homeSelectedTabIndex] : active;
+    const title = theme.accent(selected?.title ?? "New message");
+    const badges: string[] = [];
+    if (isVimMode) badges.push(theme.vimBorder("[VIM]"));
+    else if (isShellMode) badges.push(theme.bashMode("[SHELL]"));
+    if (active?.zenMode) badges.push(theme.dim("[ZEN]"));
+    if (active?.customBasePrompt) badges.push(theme.dim("[sys]"));
+    if (this.hiddenLinesAbove > 0) badges.push(theme.dim(`↑ ${this.hiddenLinesAbove}`));
+
+    let context = active ? exactContextUsageText(active) : "";
+    const nearLimit = active && (active.currentContextTokens ?? 0) >= active.contextLimit * 0.85;
+    context = nearLimit ? theme.warning(context) : theme.dim(context);
+    const top = renderEditorCardEdge(width, "top", title, context, theme, frame, badges.join(" "));
+    const { left, right } = this.cardHints(isVimMode, isShellMode);
+    const bottom = renderEditorCardEdge(
+      width,
+      "bottom",
+      theme.dim(left),
+      theme.accent(right),
+      theme,
+      frame,
     );
+    const frameBody = (line: string) => `${frame("│")}${theme.text(line)}${frame("│")}`;
+    return [top, ...body.map(frameBody), bottom, ...completion.map((line) => ` ${line} `)];
+  }
+
+  override handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
+    if (this.cardWidth < 8) return undefined;
+    // Card rows match Pi's layout; only the side border shifts the input column.
+    return super.handleMouse({ ...event, x: event.x - 1, width: event.width - 2 });
+  }
+
+  private cardHints(readOnly: boolean, shell: boolean): { left: string; right: string } {
+    if (readOnly) return { left: "", right: "" };
+    const bindings = getKeybindings();
+    if (this.isShowingAutocomplete()) {
+      const completeKey = bindings.getKeys("tui.input.tab")[0];
+      return { left: "↑/↓ select", right: completeKey ? `${completeKey} complete` : "" };
+    }
+    const submitKey = bindings.getKeys("tui.input.submit")[0];
+    const active =
+      this.mixState.activeTabId === HOME_TAB_ID
+        ? this.mixState.tabs[this.mixState.homeSelectedTabIndex]
+        : this.activeTab();
+    const busy = active?.status === "running" || active?.status === "thinking";
+    const action = shell ? "run" : busy ? "steer" : "";
+    const right = submitKey && action ? `${submitKey} ${action}` : "";
+    let left = "";
+    if (busy && !shell) {
+      const followUpKey = MIXCODE_EXTENSION_KEYBINDINGS_MANAGER.getKeys("app.message.followUp")[0];
+      left = followUpKey ? `${followUpKey} follow-up` : left;
+    }
+    if (this.hiddenLinesBelow > 0) left = `↓ ${this.hiddenLinesBelow} more`;
+    return { left, right };
   }
 
   private triggerSymbolAutocomplete(data: string): void {
@@ -166,13 +230,6 @@ export class CompactPromptEditor extends Editor {
   private activeTab(): MixCodeState["tabs"][number] | undefined {
     return this.mixState.tabs.find((tab) => tab.sessionId === this.mixState.activeTabId);
   }
-}
-
-function editorPlaceholder(state: MixCodeState): string {
-  const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId);
-  // Hint the empty-input arrow shortcuts: Left returns to Home, Right toggles
-  // the extension widget panel. Truncated away on narrow terminals.
-  return `Send message to ${active?.title ?? "agent"}...  \u2190 Home \u00b7 \u2192 widgets`;
 }
 
 function homeEditorPlaceholder(state: MixCodeState): string {
@@ -269,12 +326,7 @@ export class EditorSlot implements Component {
     const editor = this.activeEditor;
     this.syncEditorFocus();
     this.syncActiveEditorBorder(editor);
-    const editorBody = editor.render(width);
-    // Default editor: label the top border in-place. Custom setEditorComponent
-    // skins move title / override context / badges to the tab-bar separator
-    // (renderTabBarSeparator agentChrome) so the input body stays uncluttered.
-    const lines =
-      editor === this.defaultEditor ? this.applyAgentEditorChrome(editorBody, width) : editorBody;
+    const lines = editor.render(width);
     // Extension editor components may not pad lines to full width.
     // Ensure every line fills the terminal width so the differential
     // renderer clears leftover characters from previous frames.
@@ -282,52 +334,6 @@ export class EditorSlot implements Component {
       return lines.map((line) => padLine(line, width));
     }
     return lines;
-  }
-
-  /**
-   * Attach MixCode's labeled top chrome after the default editor renders.
-   * Plain top borders are rewritten in place (no extra row). Non-plain tops
-   * (scroll indicators) get a prepended chrome line so labels are not dropped.
-   */
-  private applyAgentEditorChrome(lines: string[], width: number): string[] {
-    const active = this.activeTab();
-    if (!active || width <= 0) return lines;
-    const theme = themeForId(this.mixState.theme);
-    const isVimMode = active.vimMode === true;
-    const isZenMode = active.zenMode === true;
-    const isInlineWidgets = active.inlineWidgets === true;
-    // Title follows the vim border color in vim mode, accent in normal mode.
-    const titleLabel = isVimMode ? theme.vimBorder : theme.accent;
-    // [ZEN] matches the frame: vimBorder when coexisting with vim, else accent.
-    const zenLabel = isVimMode ? theme.vimBorder : theme.accent;
-    const dash =
-      this.activeEditor.borderColor !== undefined
-        ? this.activeEditor.borderColor
-        : theme.thinkingBorder(active.thinkingLevel);
-    const chromeLine = buildLabeledTopBorder({
-      width,
-      title: active.title ?? "",
-      vimMode: isVimMode,
-      zenMode: isZenMode,
-      inlineWidgets: isInlineWidgets,
-      customBasePrompt: active.customBasePrompt === true,
-      contextText: exactContextUsageText(active),
-      dash,
-      vimLabel: theme.vimBorder,
-      zenLabel,
-      titleLabel,
-      // Keep [sys] in the same accent family as the title (agent identity).
-      sysLabel: titleLabel,
-      // Exact counts stay dim; the bottom bar keeps the usage-color signal.
-      contextLabel: theme.dim,
-    });
-    const first = lines[0];
-    if (first !== undefined && isPlainBorderLine(first)) {
-      const next = lines.slice();
-      next[0] = chromeLine;
-      return next;
-    }
-    return [chromeLine, ...lines];
   }
 
   invalidate(): void {
