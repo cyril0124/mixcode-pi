@@ -66,7 +66,7 @@ test("/console-history chooses an available editor and keeps the Pi fallback rea
     setDefaultExternalEditorResolver(() => editorScript);
     await handleSubmittedInput(state, runtime, "/console-history", tui);
     const captured = await fs.readFile(captureFile, "utf8");
-    assert.match(captured, /\[console\.log\]: line-0/);
+    assert.match(captured, /\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \[console\.log\]: line-0/);
     assert.match(captured, /\[console\.log\]: line-11/);
     assert.deepEqual(lifecycle, ["pause", "resume"]);
 

@@ -75,10 +75,19 @@ process.stdout.write(JSON.stringify({ fresh, exactlyFull, capped }));`,
   };
   assert.deepEqual(output.fresh, []);
   assert.equal(output.exactlyFull.length, 1_000);
-  assert.equal(output.exactlyFull[0], "[console.log]: multi\nline");
+  assert.match(
+    output.exactlyFull[0]!,
+    /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \[console\.log\]: multi\nline$/,
+  );
   assert.equal(output.capped.length, 1_000);
-  assert.equal(output.capped[0], "[console.debug]: history-1");
-  assert.equal(output.capped.at(-1), "[console.debug]: history-1000");
+  assert.match(
+    output.capped[0]!,
+    /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \[console\.debug\]: history-1$/,
+  );
+  assert.match(
+    output.capped.at(-1)!,
+    /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \[console\.debug\]: history-1000$/,
+  );
 });
 
 test("notice overlay appends consecutive console lines instead of replacing", () => {

@@ -27,11 +27,24 @@ let sink: ConsoleSink | undefined;
 // Backlog of lines produced before the TUI sink is wired (e.g. during extension
 // loading). Flushed in arrival order by wireConsoleSink.
 const pending: string[] = [];
-const history: string[] = [];
+// Emit time backs the /console-history timestamp; the live sink line stays
+// unprefixed.
+interface ConsoleRecord {
+  time: number;
+  line: string;
+}
+const history: ConsoleRecord[] = [];
 
 /** Return a stable snapshot of console output captured during this process. */
 export function getConsoleHistory(): string[] {
-  return [...history];
+  return history.map(({ time, line }) => `${formatConsoleTime(time)} ${line}`);
+}
+
+/** Local-time YYYY-MM-DD HH:MM:SS stamp, same shape as `formatCtlTime`. */
+function formatConsoleTime(time: number): string {
+  const date = new Date(time);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
 /** Format console args the way console itself does, then tag with the method. */
@@ -40,7 +53,7 @@ function formatLine(method: BridgedMethod, args: unknown[]): string {
 }
 
 function emit(line: string): void {
-  history.push(line);
+  history.push({ time: Date.now(), line });
   if (history.length > CONSOLE_HISTORY_LIMIT) history.shift();
   if (sink) sink(line);
   else pending.push(line);
