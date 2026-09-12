@@ -115,13 +115,15 @@ for (const longStreaming of [false, true]) {
       await waitForFrame(dir, "baseline");
       await $`tmux -L ${socket} send-keys -t test t`.quiet();
       const { bounds } = await waitForFrame(dir, "tail");
-      const firstSelectedRow = bounds.top + 3;
+      const unselected = await readScreen();
+      const firstContentRow = unselected.findIndex((line) => /ROW-\d+ 中文 text/.test(line));
+      assert.ok(firstContentRow >= 0, "long streaming preview must expose content rows");
+      const firstSelectedRow = longStreaming ? firstContentRow + 1 : bounds.top + 3;
       const lastSelectedRow = bounds.top + bounds.height - 4;
       const selectedRows = (lines: string[]) =>
         lines
           .slice(firstSelectedRow - 1, lastSelectedRow)
           .map((line) => sliceByColumn(line, bounds.left - 1, bounds.width));
-      const unselected = await readScreen();
       for (const input of [`\x1b[<0;20;${lastSelectedRow}M`, `\x1b[<32;1;${firstSelectedRow}M`]) {
         await $`tmux -L ${socket} send-keys -t test -l ${input}`.quiet();
       }
