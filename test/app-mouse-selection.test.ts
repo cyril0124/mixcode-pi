@@ -24,6 +24,7 @@ import {
   closeAppOverlay,
   getActiveNotice,
   getAppOverlayBounds,
+  hasActiveNotice,
   hasAnyOverlay,
   showLinesOverlay,
   showNoticeTextOverlay,
@@ -407,7 +408,7 @@ test("handleMouseInput drags and copies active Notice panel text", async () => {
   closeAppOverlay(noticeTui);
 });
 
-test("handleMixCodeKeyInput consumes c while Notice is open", async () => {
+test("handleMixCodeKeyInput consumes c and q while Notice is open", async () => {
   const { state, tui } = setup();
   const noticeTui = {
     requestRender: tui.requestRender,
@@ -424,6 +425,9 @@ test("handleMixCodeKeyInput consumes c while Notice is open", async () => {
   try {
     assert.deepEqual(handleMixCodeKeyInput(state, "c", tui), { consume: true });
     assert.deepEqual(handleMixCodeKeyInput(state, "y", tui), { consume: true });
+    assert.equal(hasActiveNotice(), true);
+    assert.deepEqual(handleMixCodeKeyInput(state, "q", tui), { consume: true });
+    assert.equal(hasActiveNotice(), false);
   } finally {
     closeAppOverlay(noticeTui);
   }

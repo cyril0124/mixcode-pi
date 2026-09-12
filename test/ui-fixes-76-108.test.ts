@@ -272,7 +272,7 @@ test("#103 notice selection copy strips borders and hint", () => {
     "┌──────────────┐",
     "│ Notice body  │",
     "│              │",
-    "│ c/y copy · Esc close │",
+    "│ c/y copy · Esc/q close │",
     "└──────────────┘",
   ];
   const selection = {

@@ -588,8 +588,14 @@ function handleModalOverlayKeys(
     closeActiveOverlay(state);
     return { consume: true };
   }
-  // Notice is nonCapturing: copy keys must be handled here so they do not
-  // fall through into the editor while a diagnostic panel is open.
+  // Notice is nonCapturing: close/copy keys must be handled here so they do not
+  // fall through into the editor while a diagnostic panel is open. `q` mirrors
+  // the read-only viewer convention alongside the Esc fallback above.
+  if (hasActiveNotice() && (data === "q" || data === "Q")) {
+    closeAppOverlay(tui);
+    tui.requestRender();
+    return { consume: true };
+  }
   if (hasActiveNotice() && (data === "c" || data === "C" || data === "y" || data === "Y")) {
     void copyActiveNoticeText(copyToClipboard).then((result) => {
       if (!active) {

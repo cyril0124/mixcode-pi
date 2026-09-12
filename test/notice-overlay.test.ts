@@ -28,7 +28,7 @@ import { themeForId } from "../src/ui/themes.js";
 const stripAnsi = (text: string) => text.replace(/\x1b\[[0-9;]*m/g, "");
 const theme = themeForId("mixcode-dark");
 
-test("renderNoticePanel draws a bordered panel with title and copy/Esc hint", () => {
+test("renderNoticePanel draws a bordered panel with title and copy/close hint", () => {
   const lines = renderNoticePanel("Saved", 40, theme, { title: "Notice" }).map(stripAnsi);
   const joined = lines.join("\n");
 
@@ -36,7 +36,7 @@ test("renderNoticePanel draws a bordered panel with title and copy/Esc hint", ()
   assert.match(lines.at(-1) ?? "", /└─+┘/, "bottom border should close the box");
   assert.match(joined, /Saved/, "message body should render");
   assert.match(joined, /c\/y copy/, "copy hint should render");
-  assert.match(joined, /Esc close/, "Esc hint should render");
+  assert.match(joined, /Esc\/q close/, "Esc/q close hint should render");
 });
 
 test("renderNoticePanel uses 'Error' title for the error variant", () => {

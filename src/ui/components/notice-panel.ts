@@ -17,7 +17,7 @@ export interface NoticeOptions {
   danger?: boolean;
 }
 
-const NOTICE_HINT = "c/y copy · Esc close";
+const NOTICE_HINT = "c/y copy · Esc/q close";
 const NOTICE_MAX_WIDTH_RATIO = 0.6;
 const NOTICE_MAX_HEIGHT_RATIO = 0.6;
 const NOTICE_MIN_BOX_WIDTH = 24;
