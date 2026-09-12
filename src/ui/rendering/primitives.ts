@@ -15,6 +15,27 @@ export function padLine(text: string, width: number): string {
   return clipped + " ".repeat(Math.max(0, width - visibleWidth(clipped)));
 }
 
+/**
+ * Matches a line that Pi TUI's Image component emitted for an inline image.
+ *
+ * Shapes mirror Pi TUI's `isImageLine`: a Kitty APC sequence (optionally
+ * chunked, since `encodeKitty` splits large payloads) or an iTerm2 OSC 1337
+ * file sequence. Multi-row iTerm2 images prefix their last row with a
+ * cursor-up move, so that prefix is allowed before the sequence.
+ */
+const IMAGE_SEQUENCE_LINE =
+  /^(?:\x1b\[\d*A)?(?:(?:\x1b_G[^\x1b]*\x1b\\)+|(?:\x1b\]1337;File=[^\x1b\x07]*\x07))$/;
+
+/**
+ * True when a rendered line carries a raw inline-image escape sequence.
+ * Callers must pass such lines through untouched: `sanitizeTerminalText`
+ * drops every non-SGR escape (terminal-injection guard) and `padLine`
+ * appends cells that would paint over a Kitty placement.
+ */
+export function isImageSequenceLine(line: string): boolean {
+  return IMAGE_SEQUENCE_LINE.test(line);
+}
+
 export function sanitizeTerminalText(text: string): string {
   let output = "";
   for (let index = 0; index < text.length; index++) {

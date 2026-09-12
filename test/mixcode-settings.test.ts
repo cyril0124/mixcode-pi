@@ -4,7 +4,13 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
-import { stripTerminalSequences as stripAnsi } from "@earendil-works/pi-tui";
+import {
+  getCapabilities,
+  setCapabilities,
+  setCapabilityOverrides,
+  stripTerminalSequences as stripAnsi,
+} from "@earendil-works/pi-tui";
+import { applyTerminalCapabilityOverrides } from "../src/core/mixcode-settings.js";
 import { createInitialState, createTab, loadMixCodeSettings } from "./helpers/mixcode.js";
 import { createSettingsPanel, selectSettingsItemByLabel } from "./helpers/settings-panel.js";
 
@@ -429,5 +435,30 @@ test("settings panel toggles inlineWidgets on live tabs and new tabs", async () 
     assert.equal(next.inlineWidgets, true);
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("Pi terminal.images override reaches pi-tui capabilities", () => {
+  const original = getCapabilities();
+  try {
+    applyTerminalCapabilityOverrides(SettingsManager.inMemory({ terminal: { images: "kitty" } }));
+    assert.equal(getCapabilities().images, "kitty");
+
+    applyTerminalCapabilityOverrides(SettingsManager.inMemory({ terminal: { images: false } }));
+    assert.equal(getCapabilities().images, null);
+  } finally {
+    setCapabilityOverrides({});
+    setCapabilities(original);
+  }
+});
+
+test("no terminal override leaves auto-detected capabilities untouched", () => {
+  const original = getCapabilities();
+  try {
+    applyTerminalCapabilityOverrides(SettingsManager.inMemory());
+    assert.deepEqual(getCapabilities(), original);
+  } finally {
+    setCapabilityOverrides({});
+    setCapabilities(original);
   }
 });

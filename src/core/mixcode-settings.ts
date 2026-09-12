@@ -1,4 +1,5 @@
 import type { SettingsManager } from "@earendil-works/pi-coding-agent";
+import { setCapabilityOverrides } from "@earendil-works/pi-tui";
 
 export const MIXCODE_SETTINGS_FILENAME = "mixcode_settings.json";
 
@@ -55,6 +56,21 @@ export function resolveHideThinkingBlock(settingsManager: SettingsManager): bool
     settingsManager.getGlobalSettings().hideThinkingBlock ??
     DEFAULT_HIDE_THINKING_BLOCK
   );
+}
+
+/**
+ * Mirror Pi's `terminal.*` capability overrides (settings.json) into pi-tui.
+ *
+ * Pi's interactive mode applies these at startup (interactive-mode.ts). Without
+ * them MixCode ignores `terminal.images` / `terminal.trueColor` /
+ * `terminal.hyperlinks` and falls back to auto detection, which reports no
+ * inline-image support for terminals reached over SSH or a multiplexer even
+ * when the client itself supports Kitty or iTerm2 graphics.
+ *
+ * Call before the TUI starts and before any chat render reads capabilities.
+ */
+export function applyTerminalCapabilityOverrides(settingsManager: SettingsManager): void {
+  setCapabilityOverrides(settingsManager.getTerminalCapabilityOverrides());
 }
 
 export interface OversizedAssistantMessageSettings {

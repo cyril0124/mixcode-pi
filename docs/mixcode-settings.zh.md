@@ -50,6 +50,7 @@ MixCode Pi 从其根状态目录读取 `mixcode_settings.json`。默认路径为
 | `hideThinkingBlock` | 布尔值 | MixCode 中为 `true` | 将思考块折叠为 `ui.boxedHiddenThinking` 指定的预览。Pi 显式项目设置优先于全局设置；`false` 显示完整思考。`/hide-thinking` 切换全局值。MixCode 不将自己的默认值写入 Pi 配置。 |
 | `terminal.showImages` | 布尔值 | `true` | 在用户消息和工具结果中显示图片块。 |
 | `terminal.imageWidthCells` | 正整数 | `60` | 终端字符单元格中的最大图片宽度。 |
+| `terminal.images` | `"kitty"` \| `"iterm2"` \| `"auto"` \| `false` | `"auto"` | 覆盖内联图片协议探测。经 SSH 或多路复用器连接、自动探测判定为不支持而客户端实际支持 Kitty/iTerm2 图形时需显式指定。`terminal.trueColor` 与 `terminal.hyperlinks` 采用相同的覆盖形式。直接编辑 `settings.json`；`/settings` 不暴露该行。 |
 | `images.blockImages` | 布尔值 | `false` | 在图片到达模型前予以剔除（SDK `convertToLlm`）。 |
 | `markdown.mermaid` | `off` \| `final` \| `streaming` | `streaming` | 何时将 ` ```mermaid ` 代码块转为终端图表。 |
 | `markdown.codeBlockIndent` | 字符串 | 两个空格（`"  "`） | 渲染代码块每一行时的前缀。空字符串使代码与围栏对齐，复制后仍是顶格 Markdown。需直接编辑 `settings.json`，`/settings` 不暴露该项。 |

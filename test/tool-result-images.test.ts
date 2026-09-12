@@ -1,8 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
-import { getCapabilities, stripTerminalSequences as stripAnsi, Text } from "@earendil-works/pi-tui";
+import {
+  getCapabilities,
+  setCapabilities,
+  stripTerminalSequences as stripAnsi,
+  Text,
+} from "@earendil-works/pi-tui";
 import { toolExecutionToChatLine } from "../src/agent/runtime-tool-chat.js";
+import { renderChatBlock } from "../src/ui/rendering/chat.js";
 import type { RuntimeTab } from "../src/agent/runtime-types.js";
 
 // 1x1 PNG
@@ -111,6 +117,40 @@ test("tool row re-reads Ctrl+O expansion state on every render", () => {
   runtimeTab.tab.extensionUi.toolsExpanded = true;
   const expanded = stripAnsi((line.renderToolCall?.(60) ?? []).join("\n"));
   assert.match(expanded, /expanded=true/);
+});
+
+test("tool result kitty image reaches the chat block without being sanitized away", () => {
+  const caps = getCapabilities();
+  setCapabilities({ ...caps, images: "kitty" });
+  try {
+    const sm = SettingsManager.inMemory();
+    sm.setShowImages(true);
+    sm.setImageWidthCells(20);
+    const runtimeTab = fakeRuntimeTab(sm);
+    const line = toolExecutionToChatLine(runtimeTab, {
+      toolCallId: "kitty",
+      toolName: "read",
+      status: "success",
+      text: "ok",
+      args: { path: "x.png" },
+      result: {
+        content: [
+          { type: "text", text: "Read image file" },
+          { type: "image", data: TINY_PNG_BASE64, mimeType: "image/png" },
+        ],
+        isError: false,
+      },
+      isPartial: false,
+    });
+
+    const rendered = renderChatBlock(line, 40, undefined, undefined, {});
+    assert.ok(
+      rendered.some((part) => part.includes("\x1b_G")),
+      `kitty sequence missing from ${JSON.stringify(rendered.map((p) => p.slice(0, 20)))}`,
+    );
+  } finally {
+    setCapabilities(caps);
+  }
 });
 
 test("tool result image strip respects showImages and imageWidthCells", () => {

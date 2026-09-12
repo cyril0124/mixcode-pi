@@ -41,7 +41,7 @@ import {
 import { renderExtensionHeader, renderInlineExtensionWidgets } from "./chrome.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
 import { renderHeaderKeyHints } from "../components/header-hints.js";
-import { fitScrolledLinesWithInfo, type ScrolledLinesResult } from "./layout.js";
+import { clipChatImages, fitScrolledLinesWithInfo, type ScrolledLinesResult } from "./layout.js";
 import { box } from "./primitives.js";
 import { applyToastOverlay } from "../components/toast-overlay.js";
 
@@ -250,6 +250,7 @@ function renderAgentSurfaceInner(
   if (fitted.lines.length > 0 && fitted.end < fitted.total) {
     fitted.lines[fitted.lines.length - 1] = lines[fitted.end - 1]!;
   }
+  fitted.lines = clipChatImages(lines, fitted.start, fitted.lines);
   rememberScrollFreezeAnchor(tab, fitted.lines, surfaceWidth, fitted.height);
   const highlighted = highlightVisibleChatLines(fitted.lines, tab, surfaceWidth, fitted.height);
   const hasNewContent =
@@ -417,7 +418,11 @@ function renderAgentSurfaceAnchored(
     Math.max(0, total - visible.length),
     anchorIndex * BLOCK_HEIGHT_FALLBACK + windowStart,
   );
-  const decorated = decorateWindow(visible, start, viewport, mainWidth);
+  const decorated = clipChatImages(
+    lines,
+    windowStart,
+    decorateWindow(visible, start, viewport, mainWidth),
+  );
   const fitted: ScrolledLinesResult = {
     lines: highlightVisibleChatLines(decorated, tab, surfaceWidth, viewport),
     total,
@@ -634,7 +639,11 @@ function renderAgentSurfaceWindowed(
   const start = tab.chatAtHome ? (tab.chatHomeOffset ?? 0) : linesAboveBuffer + windowStart;
 
   rememberChatBlockScrollAnchor(tab, blockLayouts, windowStart, visible, surfaceWidth, viewport);
-  const decorated = decorateWindow(visible, start, viewport, mainWidth);
+  const decorated = clipChatImages(
+    lines,
+    windowStart,
+    decorateWindow(visible, start, viewport, mainWidth),
+  );
 
   const fitted: ScrolledLinesResult = {
     lines: highlightVisibleChatLines(decorated, tab, surfaceWidth, viewport),

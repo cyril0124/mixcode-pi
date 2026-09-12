@@ -29,7 +29,12 @@ import {
   renderOversizedAssistantMessageBlock,
   renderStreamingAssistantMessageBlock,
 } from "./oversized-assistant-message.js";
-import { padLine, renderBackgroundLine, sanitizeTerminalText } from "./primitives.js";
+import {
+  isImageSequenceLine,
+  padLine,
+  renderBackgroundLine,
+  sanitizeTerminalText,
+} from "./primitives.js";
 
 const OSC133_ZONE_START = "\x1b]133;A\x07";
 const OSC133_ZONE_END = "\x1b]133;B\x07";
@@ -717,14 +722,24 @@ function renderToolRenderedLine(line: ChatLine, text: string, width: number): st
 }
 
 function normalizeRenderedToolLine(text: string, width: number): string[] {
-  return normalizeExternalRendererLines(text, width).map((part) => padLine(part, width));
+  return normalizeExternalRendererLines(text, width).map((part) =>
+    isImageSequenceLine(part) ? part : padLine(part, width),
+  );
 }
 
 function normalizeExternalRendererLines(text: string, width: number): string[] {
   return String(text)
     .split(/\r?\n/)
     .map((part) =>
-      truncateToWidth(sanitizeTerminalText(part).replace(/\t/g, "  "), Math.max(0, width), "..."),
+      // Inline image rows come from Pi's Image component, not model text: keep the
+      // raw protocol sequence, which sanitization/truncation would otherwise drop.
+      isImageSequenceLine(part)
+        ? part
+        : truncateToWidth(
+            sanitizeTerminalText(part).replace(/\t/g, "  "),
+            Math.max(0, width),
+            "...",
+          ),
     );
 }
 

@@ -27,6 +27,7 @@ import {
   saveExtensionManagerConfig,
 } from "../core/extension-manager.js";
 import {
+  applyTerminalCapabilityOverrides,
   loadMixCodeSettings,
   MIXCODE_SETTINGS_FILENAME,
   resolveHideThinkingBlock,
@@ -109,6 +110,10 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
   const settingsManager = SettingsManager.create(options.workdir, agentDir, {
     projectTrusted: true,
   });
+  // Apply Pi's terminal capability overrides (terminal.images / trueColor /
+  // hyperlinks) before anything reads getCapabilities(), such as the alt-screen
+  // image protocol at TUI start and chat image rendering.
+  applyTerminalCapabilityOverrides(settingsManager);
   const sessionsRoot = resolveSessionsRoot({
     workdir: options.workdir,
     agentDir,

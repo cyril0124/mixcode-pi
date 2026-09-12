@@ -50,6 +50,7 @@ Image display, Mermaid rendering, code-block indent, cache-miss notices, and the
 | `hideThinkingBlock` | boolean | `true` in MixCode | Collapse thinking blocks into the preview selected by `ui.boxedHiddenThinking`. Explicit Pi project settings override global settings; `false` shows full thinking. `/hide-thinking` toggles the global value. MixCode does not write its default into Pi settings. |
 | `terminal.showImages` | boolean | `true` | Show image blocks in user messages and tool results. |
 | `terminal.imageWidthCells` | positive integer | `60` | Max image width in terminal cells. |
+| `terminal.images` | `"kitty"` \| `"iterm2"` \| `"auto"` \| `false` | `"auto"` | Override inline-image protocol detection. Set it explicitly when the terminal is reached over SSH or a multiplexer and auto detection reports no support though the client supports Kitty or iTerm2 graphics. `terminal.trueColor` and `terminal.hyperlinks` take the same override shape. Edit `settings.json` directly; `/settings` does not expose this row. |
 | `images.blockImages` | boolean | `false` | Strip images before they reach the model (SDK `convertToLlm`). |
 | `markdown.mermaid` | `off` \| `final` \| `streaming` | `streaming` | When to turn ` ```mermaid ` fences into terminal diagrams. |
 | `markdown.codeBlockIndent` | string | two spaces (`"  "`) | Prefix on each rendered code-block line. Empty string aligns code with the fence so a copied block stays flush Markdown. Edit `settings.json` directly; `/settings` does not expose this row. |

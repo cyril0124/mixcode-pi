@@ -29,10 +29,10 @@ index 5788d755400164552ed09c7d69bdd67083caa5b1..67d8f1c64772180ac8bf01152b4895bf
  markdownParser.use({ extensions: [...LATEX_MARKDOWN_EXTENSIONS] });
  export class Markdown {
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index 1460dd1160f1d8ccf9abf201844f7d9f01bc0fde..50b697f7b8597f0e54d3ccc35d3a368b897f792c 100644
+index 1460dd1160f1d8ccf9abf201844f7d9f01bc0fde..c7c08400f3b0531f0a970dae04147cc3a1a6695e 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
-@@ -20,6 +20,7 @@ export type { EditorComponent } from "./editor-component.ts";
+@@ -20,13 +20,15 @@ export type { EditorComponent } from "./editor-component.ts";
  export { type FuzzyMatch, fuzzyFilter, fuzzyMatch } from "./fuzzy.ts";
  export { getKeybindings, type Keybinding, type KeybindingConflict, type KeybindingDefinition, type KeybindingDefinitions, type Keybindings, type KeybindingsConfig, KeybindingsManager, setKeybindings, TUI_KEYBINDINGS, } from "./keybindings.ts";
  export { decodeKittyPrintable, isKeyRelease, isKeyRepeat, isKittyProtocolActive, Key, type KeyEventType, type KeyId, matchesKey, parseKey, setKittyProtocolActive, } from "./keys.ts";
@@ -40,7 +40,9 @@ index 1460dd1160f1d8ccf9abf201844f7d9f01bc0fde..50b697f7b8597f0e54d3ccc35d3a368b
  export { type RenderLatexOptions, renderLatex } from "./latex.ts";
  export { StdinBuffer, type StdinBufferEventMap, type StdinBufferOptions } from "./stdin-buffer.ts";
  export { ProcessTerminal, type Terminal } from "./terminal.ts";
-@@ -28,5 +29,5 @@ export { allocateImageId, type CellDimensions, calculateImageRows, deleteAllKitt
+ export { parseOsc11BackgroundColor, parseTerminalColorSchemeReport, type RgbColor, type TerminalColorScheme, } from "./terminal-colors.ts";
++export { cropKittyImageLine, getKittyImageMetadata } from "./terminal-image.ts";
+ export { allocateImageId, type CellDimensions, calculateImageRows, deleteAllKittyImages, deleteKittyImage, detectCapabilities, encodeITerm2, encodeKitty, getCapabilities, getCellDimensions, getGifDimensions, getImageDimensions, getJpegDimensions, getPngDimensions, getWebpDimensions, hyperlink, type ImageDimensions, type ImageProtocol, type ImageRenderOptions, imageFallback, renderImage, resetCapabilitiesCache, setCapabilities, setCapabilityOverrides, setCellDimensions, type TerminalCapabilities, } from "./terminal-image.ts";
  export { type Component, Container, CURSOR_MARKER, compositeTuiLine, type Focusable, isFocusable, isViewportTUI, type OverlayAnchor, type OverlayBounds, type OverlayHandle, type OverlayMargin, type OverlayOptions, type OverlayUnfocusOptions, type SizeValue, type TUI, type TuiInputListener, type TuiInputListenerResult, type TuiMode, type TuiMouseButton, type TuiMouseEvent, type TuiMouseEventResult, type TuiMouseEventType, type TuiStopOptions, type ViewportTUI, } from "./tui.ts";
  export { TuiAltScreen, type TuiAltScreenOptions } from "./tui-alt-screen.ts";
  export { TuiMainScreen, type TuiMainScreenRenderState } from "./tui-main-screen.ts";
@@ -49,7 +51,7 @@ index 1460dd1160f1d8ccf9abf201844f7d9f01bc0fde..50b697f7b8597f0e54d3ccc35d3a368b
  //# sourceMappingURL=index.d.ts.map
 \ No newline at end of file
 diff --git a/dist/index.js b/dist/index.js
-index 2a039acd70bda559eb9397a5b6d1c1e533a4e634..6a5fd40878188edab7f5a170e38e84407b98c4f6 100644
+index 2a039acd70bda559eb9397a5b6d1c1e533a4e634..dcb20a4dcc00fdc0eca9f58d0ae2d6905179b86f 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -25,6 +25,7 @@ export { fuzzyFilter, fuzzyMatch } from "./fuzzy.js";
@@ -60,7 +62,14 @@ index 2a039acd70bda559eb9397a5b6d1c1e533a4e634..6a5fd40878188edab7f5a170e38e8440
  // LaTeX rendering
  export { renderLatex } from "./latex.js";
  // Input buffering for batch splitting
-@@ -39,5 +40,5 @@ export { Container, CURSOR_MARKER, compositeTuiLine, isFocusable, isViewportTUI,
+@@ -33,11 +34,12 @@ export { StdinBuffer } from "./stdin-buffer.js";
+ export { ProcessTerminal } from "./terminal.js";
+ // Terminal colors
+ export { parseOsc11BackgroundColor, parseTerminalColorSchemeReport, } from "./terminal-colors.js";
++export { cropKittyImageLine, getKittyImageMetadata } from "./terminal-image.js";
+ // Terminal image support
+ export { allocateImageId, calculateImageRows, deleteAllKittyImages, deleteKittyImage, detectCapabilities, encodeITerm2, encodeKitty, getCapabilities, getCellDimensions, getGifDimensions, getImageDimensions, getJpegDimensions, getPngDimensions, getWebpDimensions, hyperlink, imageFallback, renderImage, resetCapabilitiesCache, setCapabilities, setCapabilityOverrides, setCellDimensions, } from "./terminal-image.js";
+ export { Container, CURSOR_MARKER, compositeTuiLine, isFocusable, isViewportTUI, } from "./tui.js";
  export { TuiAltScreen } from "./tui-alt-screen.js";
  export { TuiMainScreen } from "./tui-main-screen.js";
  // Utilities
@@ -224,6 +233,39 @@ index 99485d8881b299a8a2e5dff990515ae132836daf..63ef8b10b34ab8b467ba4e6a573172fd
      }
  }
  function paintBox(box, screen, totalWidth) {
+diff --git a/dist/terminal-image.js b/dist/terminal-image.js
+index 40e1a9e1cf8b32f09d9ee5548875fa099501ab63..4bc7659afa0cb6f0748e5ef2b727f7b544586368 100644
+--- a/dist/terminal-image.js
++++ b/dist/terminal-image.js
+@@ -312,14 +312,22 @@ export function getKittyImagePlacement(line) {
+ export function cropKittyImageLine(line, hiddenRows, visibleRows) {
+     const metadata = getKittyImageMetadata(line);
+     const match = /\x1b_G([^;]*);/.exec(line);
+-    if (!metadata || !match || hiddenRows < 0 || hiddenRows >= metadata.rows || visibleRows <= 0)
++    if (!metadata || !match)
+         return line;
+-    const croppedRows = Math.min(visibleRows, metadata.rows - hiddenRows);
+-    if (hiddenRows === 0 && croppedRows === metadata.rows)
++    // A parent layout may crop a placement already clipped by a child viewport.
++    // Compose with that source rectangle instead of expanding back to the original.
++    const current = Object.fromEntries(match[1].split(",").map((control) => control.split("=")));
++    const currentRows = Number(current.r ?? metadata.rows);
++    const currentY = Number(current.y ?? 0);
++    const currentHeight = Number(current.h ?? metadata.heightPx);
++    if (hiddenRows < 0 || hiddenRows >= currentRows || visibleRows <= 0)
+         return line;
+-    const sourceY = Math.floor((metadata.heightPx * hiddenRows) / metadata.rows);
+-    const sourceEnd = Math.ceil((metadata.heightPx * (hiddenRows + croppedRows)) / metadata.rows);
+-    const sourceHeight = Math.max(1, Math.min(metadata.heightPx, sourceEnd) - sourceY);
++    const croppedRows = Math.min(visibleRows, currentRows - hiddenRows);
++    if (hiddenRows === 0 && croppedRows === currentRows)
++        return line;
++    const sourceY = currentY + Math.floor((currentHeight * hiddenRows) / currentRows);
++    const sourceEnd = currentY + Math.ceil((currentHeight * (hiddenRows + croppedRows)) / currentRows);
++    const sourceHeight = Math.max(1, Math.min(currentY + currentHeight, sourceEnd) - sourceY);
+     const controls = match[1].split(",").filter((control) => !/^[yhr]=/.test(control));
+     controls.push(`y=${sourceY}`, `h=${sourceHeight}`, `r=${croppedRows}`);
+     return `${line.slice(0, match.index)}\x1b_G${controls.join(",")};${line.slice(match.index + match[0].length)}`;
 diff --git a/dist/tui-alt-screen.d.ts b/dist/tui-alt-screen.d.ts
 index 4cc739e48496a2c0c05979b12443d383ea1b962d..1485408acfe9678c18d14b90b335c32c1af71b8e 100644
 --- a/dist/tui-alt-screen.d.ts

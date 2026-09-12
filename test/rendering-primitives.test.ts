@@ -3,6 +3,9 @@ import { test } from "node:test";
 import { renderBackgroundLine } from "../src/ui/rendering/primitives.js";
 import { joinColumns } from "../src/ui/rendering/layout.js";
 
+// Minimal Kitty APC sequence as emitted by Pi TUI's Image component.
+const KITTY_IMAGE_LINE = "\x1b_Ga=T,f=100,q=2,C=1,c=2,r=1,i=7;AAAA\x1b\\";
+
 const OUTER_BACKGROUND = {
   start: "\x1b[48;2;40;50;40m",
   end: "\x1b[49m",
@@ -48,6 +51,15 @@ test("renderBackgroundLine follows the final background operation in a compound 
     renderBackgroundLine(`${resetThenNested}A${nestedThenReset}B`, 2, OUTER_BACKGROUND),
     `${OUTER_BACKGROUND.start}${resetThenNested}A${nestedThenReset}${OUTER_BACKGROUND.start}B${OUTER_BACKGROUND.end}`,
   );
+});
+
+test("joinColumns jumps to the separator column after a Kitty image row", () => {
+  // Kitty placements do not advance the cursor, so the row must not be padded.
+  const [joined] = joinColumns([KITTY_IMAGE_LINE], ["task"], 10, 6);
+
+  assert.ok(joined!.startsWith(KITTY_IMAGE_LINE), "image sequence must stay at the row start");
+  assert.ok(joined!.includes("\x1b[11G"), "cursor must jump past the image to column 11");
+  assert.match(joined!.slice(joined!.indexOf("\x1b[11G")), /task/);
 });
 
 test("joinColumns resets SGR state before the right column", () => {
