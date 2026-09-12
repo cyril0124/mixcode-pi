@@ -2,12 +2,12 @@
 
 [English Documentation](README.md)
 
-`mpi-transcript` 提供 `/transcript`，用于查看 LLM 实际上下文、完整对话、Thinking 区块，以及最近一条用户或 assistant 消息。
+`mpi-transcript` 提供 `/transcript`，用于查看 LLM 实际上下文、完整对话、Thinking 区块、逐回合上下文增长，以及最近一条用户或 assistant 消息。
 
 ## 命令
 
 ```text
-/transcript [context|chatlog|thinking|latest-agent|latest-user] [N] [full]
+/transcript [context|chatlog|growth|thinking|latest-agent|latest-user] [N] [full]
 /transcript config
 ```
 
@@ -16,6 +16,10 @@
 选中 `Fold threshold` 并按 Enter 编辑折叠阈值。Ctrl+U 清空输入，Enter 保存，Esc 取消编辑。
 
 `N` 适用于 `context`、`chatlog` 和 `thinking`。`full` 适用于 `context` 和 `chatlog`。每个视图顶部都会显示 transcript 统计信息，其中包含当前 session 文件路径；未持久化的 session 显示 `In-memory`。
+
+## Context 增长
+
+`/transcript growth` 按 assistant 回合绘制上下文规模（读取每次请求的 usage）：头部汇总（turn 数、窗口、峰值）、三行堆叠 sparkline，以及列出每回合窗口占比、占比条、相对上一回合带符号增量和该步百分比增长（`%delta`）的表格。行尾标记 `<- compaction`（该行与上一回合之间存在 compaction）和 `(!) cache miss`（该回合重新计费的 token 达到阈值）。该视图始终覆盖整个 session；`N` 与 `full` 不适用。没有 usage 的回合（如中止的请求）会被跳过；占比条以最新模型的上下文窗口为基准，窗口未知时以 session 峰值为基准。
 
 ## 配置
 

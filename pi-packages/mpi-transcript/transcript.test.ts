@@ -1041,6 +1041,87 @@ test("buildViewText chatlog: context bar fills without overflowing past the wind
   assert.match(text, /260k\/200k █{10} \(130\.0%\)/);
 });
 
+// ─── buildViewText: growth view ───────────────────────────────────────────────
+
+test("buildViewText growth: per-turn table with deltas, header, and sparkline", () => {
+  const entries: SessionEntry[] = [
+    userEntry("q1"),
+    assistantEntry([{ type: "text", text: "a1" }], { totalTokens: 52000 }),
+    userEntry("q2"),
+    assistantEntry([{ type: "text", text: "a2" }], { totalTokens: 54000 }),
+    userEntry("q3"),
+    assistantEntry([{ type: "text", text: "a3" }], { totalTokens: 60000 }),
+  ];
+  const text = buildViewText("growth", entries, { contextWindowFor: () => 200000 });
+  assert.match(text, /# Context Growth/);
+  assert.match(text, /3 turns · window 200k · peak 60k \(30\.0%\)/);
+  // Stacked 3-row sparkline: 52k/54k/60k land on combined levels 0/5/23 of 24;
+  // level 23 fills every row, so the peak column is a full █ stack.
+  assert.match(text, /^60k {3}█$/m);
+  assert.match(text, /^ {6}█$/m);
+  assert.match(text, /^52k ▁▆█$/m);
+  // First point has no delta; later rows show signed deltas and step growth.
+  assert.match(text, /# {2}1\s+52k\s+26\.0%\s+█{3}░{7}$/m);
+  assert.match(text, /# {2}2\s+54k\s+27\.0%\s+█{3}░{7}\s+\+2k\s+\+3\.8%$/m);
+  assert.match(text, /# {2}3\s+60k\s+30\.0%\s+█{3}░{7}\s+\+6k\s+\+11\.1%$/m);
+});
+
+test("buildViewText growth: negative delta and marker after a compaction", () => {
+  const entries: SessionEntry[] = [
+    userEntry("q1"),
+    assistantEntry([{ type: "text", text: "a1" }], { totalTokens: 52000 }),
+    {
+      type: "compaction",
+      id: "comp-1",
+      parentId: null,
+      timestamp: "2026-08-26T10:03:42.000",
+      summary: "earlier work summarized",
+      firstKeptEntryId: "u-x",
+      tokensBefore: 54321,
+    } as unknown as SessionEntry,
+    userEntry("q2"),
+    assistantEntry([{ type: "text", text: "a2" }], { totalTokens: 31000 }),
+  ];
+  const text = buildViewText("growth", entries, { contextWindowFor: () => 200000 });
+  assert.match(text, /# {2}2\s+31k\s+15\.5%\s+█{2}░{8}\s+-21k\s+-40\.4%\s+<- compaction$/m);
+});
+
+test("buildViewText growth: zero-usage turns are skipped and usage components sum as fallback", () => {
+  const entries: SessionEntry[] = [
+    userEntry("q1"),
+    // No usage at all: skipped, and the next delta is measured across it.
+    assistantEntry([{ type: "text", text: "a0" }]),
+    // totalTokens missing/zero: the component sum stands in.
+    assistantEntry([{ type: "text", text: "a1" }], { input: 1000, output: 500 }),
+    userEntry("q2"),
+    assistantEntry([{ type: "text", text: "a2" }], { totalTokens: 3500 }),
+  ];
+  const text = buildViewText("growth", entries);
+  // No window anywhere: bars scale to the session peak.
+  assert.match(text, /2 turns · peak-scaled · peak 3\.5k/);
+  assert.match(text, /# {2}1\s+1\.5k\s+42\.9%\s+█{4}░{6}$/m);
+  assert.match(text, /# {2}2\s+3\.5k\s+100\.0%\s+█{10}\s+\+2k\s+\+133\.3%$/m);
+});
+
+test("buildViewText growth: reports a placeholder when no turn carries usage", () => {
+  const entries: SessionEntry[] = [userEntry("q"), assistantEntry([{ type: "text", text: "a" }])];
+  const text = buildViewText("growth", entries);
+  assert.match(text, /No usage data in this session\./);
+});
+
+test("buildViewText growth: ignores lastTurns and always covers the whole session", () => {
+  const entries: SessionEntry[] = [
+    userEntry("q1"),
+    assistantEntry([{ type: "text", text: "a1" }], { totalTokens: 1000 }),
+    userEntry("q2"),
+    assistantEntry([{ type: "text", text: "a2" }], { totalTokens: 2000 }),
+    userEntry("q3"),
+    assistantEntry([{ type: "text", text: "a3" }], { totalTokens: 3000 }),
+  ];
+  const text = buildViewText("growth", entries, { lastTurns: 1 });
+  assert.match(text, /3 turns/);
+});
+
 test("buildViewText chatlog: meta line omits cache rate when no cache tokens", () => {
   const entries: SessionEntry[] = [
     userEntry("q"),

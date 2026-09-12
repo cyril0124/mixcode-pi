@@ -17,6 +17,7 @@
 // ║    chatlog       Full transcript (user/assistant/thinking/tools/   ║
 // ║                  injected/compaction/branch summaries/errors/      ║
 // ║                  cache-miss notices)                               ║
+// ║    growth        Context size and delta per assistant turn         ║
 // ║    thinking      All reasoning/thinking blocks                     ║
 // ║    latest-agent  Last assistant text reply                         ║
 // ║    latest-user   Last user message                                 ║
@@ -87,6 +88,7 @@ type AssistantBlock = TextBlock | ThinkingBlock | ToolCallBlock | { type: string
 const TARGETS = [
   { id: "context", title: "LLM Context", label: "Context (as the LLM sees it)" },
   { id: "chatlog", title: "Chat Export", label: "Chatlog" },
+  { id: "growth", title: "Context Growth", label: "Context growth" },
   { id: "thinking", title: "Thinking Export", label: "Thinking" },
   { id: "latest-agent", title: "Latest Agent Reply", label: "Latest agent reply" },
   { id: "latest-user", title: "Latest User Message", label: "Latest user message" },
@@ -99,6 +101,8 @@ function normalizeTarget(raw: string): TargetId | undefined {
   switch (value) {
     case "chatlog":
       return "chatlog";
+    case "growth":
+      return "growth";
     case "context":
       return "context";
     case "thinking":
@@ -565,6 +569,192 @@ function contextSizeLine(estimate: ContextSizeEstimate, contextWindow: number | 
   return `_${share} estimated — ${parts.join(" + ")}_`;
 }
 
+// ─── Context growth view ────────────────────────────────────────────────────
+
+/** One assistant turn's observed context size for the growth view. */
+interface GrowthPoint {
+  /** Round number of the user message this reply answers (0 before any). */
+  turn: number;
+  /** Context size reported by the request's usage, in tokens. */
+  tokens: number;
+  /** Delta vs the previous assistant turn; null for the first point. */
+  delta: number | null;
+  /** The producing model's context window; undefined when unknown. */
+  contextWindow?: number;
+  /** The producing message, for cache-miss annotation. */
+  message: AssistantMessage;
+  /** A compaction entry sits between this and the previous point. */
+  afterCompaction: boolean;
+}
+
+interface GrowthOptions {
+  contextWindowFor?: ContextWindowLookup;
+}
+
+/**
+ * Per-assistant-turn context sizes read from request usage, in branch order.
+ * Mirrors collectChatlog's ctxTokens rule (usage.totalTokens, falling back to
+ * the component sum) so the two views never disagree; turns without usage
+ * (aborted requests, legacy sessions) are skipped rather than shown as zero.
+ */
+function collectContextGrowth(entries: SessionEntry[], options: GrowthOptions = {}): GrowthPoint[] {
+  const { contextWindowFor } = options;
+  const points: GrowthPoint[] = [];
+  // Round counter matches collectChatlog so chart rows and chatlog sections
+  // reference the same turns.
+  let turn = 0;
+  let afterCompaction = false;
+  for (const entry of entries) {
+    if (entry.type === "compaction") {
+      afterCompaction = true;
+      continue;
+    }
+    const msg = messageOf(entry);
+    if (!msg) continue;
+    if (msg.role === "user") {
+      if (blockText(msg.content).trim()) turn += 1;
+      continue;
+    }
+    if (msg.role !== "assistant" || !Array.isArray(msg.content)) continue;
+    const detailed = msg as {
+      provider?: string;
+      model?: string;
+      usage?: {
+        totalTokens?: number;
+        input?: number;
+        output?: number;
+        cacheRead?: number;
+        cacheWrite?: number;
+      };
+    };
+    const { input = 0, output = 0, cacheRead = 0, cacheWrite = 0 } = detailed.usage ?? {};
+    const tokens = detailed.usage?.totalTokens || input + output + cacheRead + cacheWrite;
+    if (tokens <= 0) continue;
+    const prev = points[points.length - 1];
+    points.push({
+      turn,
+      tokens,
+      delta: prev ? tokens - prev.tokens : null,
+      contextWindow:
+        detailed.provider && detailed.model
+          ? contextWindowFor?.(detailed.provider, detailed.model)
+          : undefined,
+      message: msg as unknown as AssistantMessage,
+      afterCompaction,
+    });
+    afterCompaction = false;
+  }
+  return points;
+}
+
+/** Sparkline levels, bottom-up. */
+const SPARK_LEVELS = "▁▂▃▄▅▆▇█";
+
+/**
+ * Context sizes as a stacked Unicode sparkline (top row first). Rows multiply
+ * the 8 block levels, so 3 rows span 24 amplitude steps. Long sessions are
+ * thinned to at most `width` buckets, keeping each bucket's max: spikes
+ * explain growth better than dips.
+ */
+function growthSparkline(values: number[], width = 40, rows = 3): string[] {
+  let vals = values;
+  if (vals.length > width) {
+    const step = vals.length / width;
+    vals = Array.from({ length: width }, (_, i) =>
+      Math.max(...values.slice(Math.floor(i * step), Math.floor((i + 1) * step))),
+    );
+  }
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
+  const span = max - min;
+  const levels = SPARK_LEVELS.length * rows;
+  const pos = vals.map((v) => (span === 0 ? (levels - 1) / 2 : ((v - min) / span) * (levels - 1)));
+  return Array.from({ length: rows }, (_, d) =>
+    pos
+      .map((t) => {
+        // Rows above the point's position are blank, rows below are full.
+        const overflow = t - (rows - 1 - d) * SPARK_LEVELS.length;
+        if (overflow < 0) return " ";
+        return SPARK_LEVELS[Math.min(SPARK_LEVELS.length - 1, Math.floor(overflow))];
+      })
+      .join(""),
+  );
+}
+
+/** Signed compact token figure: 2200 → "+2.2k", -52400 → "-52.4k", 0 → "+0". */
+function fmtSignedTokens(n: number): string {
+  return `${n < 0 ? "-" : "+"}${fmtTokens(Math.abs(n))}`;
+}
+
+/** Signed one-decimal percentage: 3.85 → "+3.9%", -40.4 → "-40.4%". */
+function fmtSignedPct(n: number): string {
+  return `${n < 0 ? "-" : "+"}${Math.abs(n).toFixed(1)}%`;
+}
+
+/**
+ * The growth chart: a summary header, a sparkline of per-turn context sizes,
+ * and a per-turn table inside a fence so columns align in every editor. Bars
+ * share one denominator — the latest model's context window, or the session
+ * peak when unknown — so row heights stay comparable across model switches.
+ */
+function renderGrowthChart(
+  points: GrowthPoint[],
+  cacheMisses: Map<AssistantMessage, CacheMiss> | undefined,
+): string[] {
+  const tokens = points.map((p) => p.tokens);
+  const peak = Math.max(...tokens);
+  const window = points[points.length - 1]?.contextWindow;
+  const denominator = window ?? peak;
+  const head = [
+    `${points.length} turns`,
+    window ? `window ${fmtTokens(window)}` : "peak-scaled",
+    `peak ${fmtTokens(peak)}${window ? ` (${((peak / window) * 100).toFixed(1)}%)` : ""}`,
+  ].join(" · ");
+
+  const rows = points.map((p, i) => {
+    const miss = cacheMisses?.get(p.message);
+    const notes = [
+      p.afterCompaction ? "<- compaction" : undefined,
+      miss && cacheMissNotice(miss) ? "(!) cache miss" : undefined,
+    ].filter((note): note is string => note !== undefined);
+    // Growth rate = delta relative to the previous turn's context. Every
+    // point's tokens are > 0, so the denominator is safe.
+    const prevTokens = i > 0 ? points[i - 1]!.tokens : undefined;
+    const cells = [
+      `#${String(p.turn).padStart(3)}`,
+      fmtTokens(p.tokens).padStart(7),
+      `${((p.tokens / denominator) * 100).toFixed(1)}%`.padStart(6),
+      contextBar(p.tokens / denominator),
+      p.delta === null ? "" : fmtSignedTokens(p.delta).padStart(7),
+      prevTokens === undefined ? "" : fmtSignedPct((p.delta! / prevTokens) * 100).padStart(6),
+    ];
+    return `${cells.join("  ")}${notes.length ? `  ${notes.join(" · ")}` : ""}`;
+  });
+
+  const minLabel = fmtTokens(Math.min(...tokens));
+  const maxLabel = fmtTokens(peak);
+  const sparkRows = growthSparkline(tokens);
+  const labelWidth = Math.max(minLabel.length, maxLabel.length);
+  const table = [
+    `${maxLabel.padStart(labelWidth)} ${sparkRows[0]}`,
+    ...sparkRows.slice(1, -1).map((row) => `${" ".repeat(labelWidth)} ${row}`),
+    `${minLabel.padStart(labelWidth)} ${sparkRows[sparkRows.length - 1]}`,
+    "",
+    // Same widths and joiner as the row cells, so the header stays aligned.
+    [
+      "turn".padEnd(4),
+      "ctx".padStart(7),
+      "%win".padStart(6),
+      "bar".padEnd(10),
+      "delta".padStart(7),
+      "%delta".padStart(6),
+    ].join("  "),
+    ...rows,
+  ].join("\n");
+  const f = fenceFor(table);
+  return [`_${head}_`, `${f}\n${table}\n${f}`];
+}
+
 /** Context window of the model that produced the latest assistant reply. */
 function currentContextWindow(
   entries: SessionEntry[],
@@ -918,6 +1108,18 @@ export function buildViewText(
       ...sizeLine,
       ...note,
       ...collectChatlog(sliced, { turnOffset, contextWindowFor, cacheMisses, fullToolOutput }),
+    ]);
+  }
+  // Growth always covers the whole session: the value is the full trend, and
+  // N/full flags are accepted but meaningless here (same as latest-*).
+  if (target === "growth") {
+    const points = collectContextGrowth(entries, { contextWindowFor });
+    const chartCacheMisses = priceSource ? collectCacheMisses(entries, priceSource) : undefined;
+    return formatViewText(meta.title, [
+      stats,
+      ...(points.length
+        ? renderGrowthChart(points, chartCacheMisses)
+        : ["No usage data in this session."]),
     ]);
   }
   if (target === "latest-agent") {
