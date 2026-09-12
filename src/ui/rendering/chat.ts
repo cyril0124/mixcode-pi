@@ -26,7 +26,6 @@ import { renderMarkdown } from "./markdown.js";
 import { renderSkillCard, renderSummaryCard } from "./message-cards.js";
 import {
   isOversizedAssistantMessageText,
-  isStreamingAssistantMessageTooLarge,
   renderOversizedAssistantMessageBlock,
   renderStreamingAssistantMessageBlock,
 } from "./oversized-assistant-message.js";
@@ -369,9 +368,6 @@ function chatLineRenderCacheKey(
 
   // Hot paths first (assistant/thinking dominate any long chat).
   if (role === "assistant" || role === "thinking") {
-    if (options.isStreaming && isStreamingAssistantMessageTooLarge(line.text)) {
-      return undefined;
-    }
     if (isOversizedAssistantMessageText(line.text, options.oversizedAssistantMessage)) {
       return undefined;
     }
