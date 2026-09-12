@@ -276,6 +276,29 @@ test("runAutoRename keeps the existing title when overwrite select is dismissed"
   assert.ok(notices.some((n) => n.includes("Kept existing title")));
 });
 
+test("runAutoRename overwrite replaces a named session without prompting", async () => {
+  const names: string[] = [];
+  const notices: string[] = [];
+  let prompted = false;
+
+  const result = await runAutoRename({
+    ...namedRenameCtx({
+      names,
+      notices,
+      select: async () => {
+        prompted = true;
+        return "No";
+      },
+    }),
+    overwrite: true,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(prompted, false);
+  assert.deepEqual(names, ["fix-auth-middleware"]);
+  assert.ok(notices.some((n) => n.includes("fix-auth-middleware")));
+});
+
 test("runAutoRename regenerates a different title then overwrites on Yes", async () => {
   const names: string[] = [];
   const notices: string[] = [];
@@ -377,7 +400,7 @@ test("extension registers /auto-rename, cancel, config completions, and first-me
   } as unknown as ExtensionAPI;
 
   autoRename(pi);
-  assert.deepEqual(commands, ["auto-rename", "auto-rename-cancel"]);
+  assert.deepEqual(commands, ["auto-rename", "auto-rename-force", "auto-rename-cancel"]);
   assert.deepEqual(events, ["before_agent_start"]);
   assert.equal(hasConfigCompletion, true);
 });

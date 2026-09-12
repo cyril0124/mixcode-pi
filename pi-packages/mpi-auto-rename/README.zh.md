@@ -8,11 +8,12 @@
 
 ```bash
 /auto-rename                 # 根据最近对话生成标题
+/auto-rename-force           # 生成标题并直接覆盖已有标题（不询问）
 /auto-rename config          # 设置列表：模型、thinking、首条消息自动触发、上下文字符上限
 /auto-rename-cancel          # 中止进行中的生成
 ```
 
-会话已有标题时，选 **Yes** 覆盖、**No** 保留，或 **Regenerate** 重新生成。
+会话已有标题时，`/auto-rename` 会询问：选 **Yes** 覆盖、**No** 保留，或 **Regenerate** 重新生成。`/auto-rename-force` 跳过询问，直接覆盖。
 
 ## 配置（`<agentDir>/mpi-auto-rename.json`）
 

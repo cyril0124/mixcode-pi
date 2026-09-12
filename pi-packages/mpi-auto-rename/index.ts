@@ -1,7 +1,8 @@
 /**
- * mpi-auto-rename — Generate a short kebab-case session title from current context.
+ * mpi-auto-rename generates a short kebab-case session title from the current context.
  *
  * Usage: /auto-rename
+ * Force: /auto-rename-force (overwrite an existing title without asking)
  * Cancel: /auto-rename-cancel
  * Config: /auto-rename config
  *   <agentDir>/mpi-auto-rename.json  { "model"?: "provider/id", "thinking"?: "low", "onFirstMessage"?: true, "maxContextChars"?: 4000 }
@@ -518,6 +519,8 @@ export async function runAutoRename(options: {
   agentDir?: string;
   abortSlot?: AutoRenameAbortSlot;
   seedPrompt?: string;
+  /** Replace an existing session title without asking for confirmation. */
+  overwrite?: boolean;
 }): Promise<AutoRenameResult> {
   const { ctx } = options;
   const notify = (message: string, level: "info" | "warning" | "error" = "info") => {
@@ -659,7 +662,7 @@ export async function runAutoRename(options: {
       }
 
       const currentName = ctx.sessionManager.getSessionName();
-      if (currentName) {
+      if (currentName && !options.overwrite) {
         // MixCode select shows title only; preview + question go in the title.
         const choice = await ctx.ui.select(
           `${currentName} -> ${result.title}\nOverwrite the current session title?`,
@@ -758,6 +761,19 @@ const autoRename: ExtensionFactory = (pi) => {
         setSessionName: (name) => pi.setSessionName(name),
         getThinkingLevel: () => pi.getThinkingLevel(),
         abortSlot,
+      });
+    },
+  });
+
+  pi.registerCommand("auto-rename-force", {
+    description: "Generate a kebab-case session title and overwrite the existing title",
+    handler: async (_args, ctx) => {
+      void runAutoRename({
+        ctx,
+        setSessionName: (name) => pi.setSessionName(name),
+        getThinkingLevel: () => pi.getThinkingLevel(),
+        abortSlot,
+        overwrite: true,
       });
     },
   });

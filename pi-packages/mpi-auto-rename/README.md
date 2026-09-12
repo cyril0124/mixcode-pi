@@ -8,15 +8,16 @@ Generate a short kebab-case session title from the current conversation.
 
 ```bash
 /auto-rename                 # Generate a title from recent conversation
+/auto-rename-force           # Generate a title and overwrite any existing one without asking
 /auto-rename config          # Settings list: model, thinking, first-message auto, max context chars
 /auto-rename-cancel          # Abort an in-flight generate
 ```
 
-If the session already has a title, choose **Yes** to overwrite, **No** to keep it, or **Regenerate** to generate another title.
+If the session already has a title, `/auto-rename` asks: **Yes** to overwrite, **No** to keep it, or **Regenerate** for another title. `/auto-rename-force` skips the question and overwrites directly.
 
 ## Config (`<agentDir>/mpi-auto-rename.json`)
 
-The package ships `mpi-auto-rename.schema.json` (installed to `<agentDir>/extensions/mpi-auto-rename/`); reference it via a `$schema` key for editor completion — the key is accepted and preserved on writes.
+The package ships `mpi-auto-rename.schema.json` (installed to `<agentDir>/extensions/mpi-auto-rename/`); reference it via a `$schema` key for editor completion. The key is accepted and preserved on writes.
 
 ```json
 {
