@@ -646,6 +646,72 @@ test("runtime changes request a differential render without keyboard or mouse in
   assert.equal(listener, undefined);
 });
 
+test("runtime rendering skips ordinary updates from background tabs", () => {
+  let listener:
+    | ((event: { type: "message_update" }, runtimeTab: { tab: MixCodeTabInfo }) => void)
+    | undefined;
+  let renders = 0;
+  const state = createInitialState("/repo");
+  const active = createTab(1, "active", "/repo");
+  const background = createTab(2, "background", "/repo");
+  state.tabs.push(active, background);
+  state.activeTabId = active.sessionId;
+
+  const unsubscribe = bindRuntimeRendering(
+    {
+      onChange: (nextListener) => {
+        listener = nextListener as typeof listener;
+        return () => {
+          listener = undefined;
+        };
+      },
+    },
+    { requestRender: () => renders++ },
+    state,
+  );
+
+  listener?.({ type: "message_update" }, { tab: background });
+  assert.equal(renders, 0);
+
+  listener?.({ type: "message_update" }, { tab: active });
+  assert.equal(renders, 1);
+
+  unsubscribe();
+});
+
+test("runtime rendering refreshes the selected Home tab preview", () => {
+  let listener:
+    | ((event: { type: "message_update" }, runtimeTab: { tab: MixCodeTabInfo }) => void)
+    | undefined;
+  let renders = 0;
+  const state = createInitialState("/repo");
+  const selected = createTab(1, "selected", "/repo");
+  const other = createTab(2, "other", "/repo");
+  state.tabs.push(selected, other);
+  state.activeTabId = "home";
+  state.homeSelectedTabIndex = 0;
+
+  const unsubscribe = bindRuntimeRendering(
+    {
+      onChange: (nextListener) => {
+        listener = nextListener as typeof listener;
+        return () => {
+          listener = undefined;
+        };
+      },
+    },
+    { requestRender: () => renders++ },
+    state,
+  );
+
+  listener?.({ type: "message_update" }, { tab: selected });
+  assert.equal(renders, 1);
+
+  listener?.({ type: "message_update" }, { tab: other });
+  assert.equal(renders, 1);
+
+  unsubscribe();
+});
 test("runtime rendering keeps unread done only for background tabs", () => {
   let listener:
     | ((event: { type: "agent_end" }, runtimeTab: { tab: MixCodeTabInfo }) => void)
