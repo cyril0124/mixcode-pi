@@ -72,7 +72,17 @@ interface RenderConversationOptions {
   blockOptions?: (line: ChatLine, index: number) => RenderChatBlockOptions | undefined;
 }
 
-const chatLineRenderCache = new WeakMap<ChatLine, { key: string; lines: string[] }>();
+interface ChatLineRenderCacheEntry {
+  key: string;
+  lines: string[];
+  estimatedBytes: number;
+}
+
+const CHAT_LINE_RENDER_CACHE_MAX_BYTES = 32 * 1024 * 1024;
+const CHAT_LINE_RENDER_CACHE_MAX_ENTRIES = 4096;
+const CHAT_LINE_RENDER_CACHE_ENTRY_OVERHEAD = 4 * 1024;
+const chatLineRenderCache = new Map<ChatLine, ChatLineRenderCacheEntry>();
+let chatLineRenderCacheBytes = 0;
 
 // Global render-input generation folded into every cache key. Bumped when an
 // out-of-band render input changes (e.g. lazy highlight.js language
@@ -81,6 +91,8 @@ const chatLineRenderCache = new WeakMap<ChatLine, { key: string; lines: string[]
 let chatLineRenderGeneration = 0;
 
 export function invalidateChatLineRenderCache(): void {
+  chatLineRenderCache.clear();
+  chatLineRenderCacheBytes = 0;
   chatLineRenderGeneration++;
 }
 
@@ -131,14 +143,14 @@ export function chatBlockSeparator(width: number): string {
 }
 
 // Per-line render cache strategy:
-// Each ChatLine is rendered in isolation and the result is cached on the line
-// object itself (via the WeakMap below in renderMessageBlock). On re-render we
-// walk the chat array and reuse cached blocks for any line whose reference and
-// content key are unchanged. This makes the common case (one line at the end
-// mutated, or N lines appended) cost roughly "only the changed lines" instead
-// of "the entire chat". Lines that depend on dynamic side-effecting renderers
-// (extensions, tool renderers) opt out via chatLineRenderCacheKey returning
-// undefined and are re-rendered each frame.
+// Each ChatLine is rendered in isolation and the result is kept in a bounded
+// LRU cache. A WeakMap would avoid retaining deleted lines, but it cannot evict
+// rendered output while a long-lived ChatLine remains in a session. The byte
+// bound prevents scrolling through large histories from growing the heap until
+// garbage collection pauses the TUI.
+// Lines that depend on dynamic side-effecting renderers (extensions, tool
+// renderers) opt out via chatLineRenderCacheKey returning undefined and are
+// re-rendered each frame.
 
 function isPendingUserBash(line: ChatLine): boolean {
   return line.role === "tool" && line.variant === "user-bash" && line.pendingBash === true;
@@ -224,9 +236,37 @@ function renderMessageBlock(
   const cacheKey = rawKey && `${chatLineRenderGeneration}${KEY_SEP}${rawKey}`;
   if (cacheKey) {
     const cached = chatLineRenderCache.get(line);
-    if (cached?.key === cacheKey) return cached.lines;
+    if (cached?.key === cacheKey) {
+      // Refresh recency so visible blocks survive while the user scrolls.
+      chatLineRenderCache.delete(line);
+      chatLineRenderCache.set(line, cached);
+      return cached.lines;
+    }
+    if (cached) {
+      chatLineRenderCache.delete(line);
+      chatLineRenderCacheBytes -= cached.estimatedBytes;
+    }
     const rendered = renderMessageBlockUncached(line, width, tab, options);
-    chatLineRenderCache.set(line, { key: cacheKey, lines: rendered });
+    const estimatedBytes =
+      CHAT_LINE_RENDER_CACHE_ENTRY_OVERHEAD +
+      cacheKey.length * 2 +
+      rendered.reduce((total, renderedLine) => total + renderedLine.length, 0) * 2;
+    if (estimatedBytes <= CHAT_LINE_RENDER_CACHE_MAX_BYTES) {
+      while (
+        chatLineRenderCache.size >= CHAT_LINE_RENDER_CACHE_MAX_ENTRIES ||
+        (chatLineRenderCache.size > 0 &&
+          chatLineRenderCacheBytes + estimatedBytes > CHAT_LINE_RENDER_CACHE_MAX_BYTES)
+      ) {
+        const oldest = chatLineRenderCache.entries().next().value as
+          | [ChatLine, ChatLineRenderCacheEntry]
+          | undefined;
+        if (!oldest) break;
+        chatLineRenderCache.delete(oldest[0]);
+        chatLineRenderCacheBytes -= oldest[1].estimatedBytes;
+      }
+      chatLineRenderCache.set(line, { key: cacheKey, lines: rendered, estimatedBytes });
+      chatLineRenderCacheBytes += estimatedBytes;
+    }
     return rendered;
   }
   return renderMessageBlockUncached(line, width, tab, options);

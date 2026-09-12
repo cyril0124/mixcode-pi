@@ -133,11 +133,18 @@ export function bindRuntimeRendering(
 ): () => void {
   const previousStatus = new Map<string, MixCodeState["tabs"][number]["status"]>();
   const previousInteractionCount = new Map<string, number>();
+  const previousTitle = new Map<string, string>();
+  for (const tab of state?.tabs ?? []) {
+    previousStatus.set(tab.sessionId, tab.status);
+    previousInteractionCount.set(tab.sessionId, tab.extensionUi.waitingForInputs.length);
+    previousTitle.set(tab.sessionId, tab.title);
+  }
   return runtime.onChange((event, runtimeTab) => {
     const sessionId = runtimeTab.tab.sessionId;
     if (event.type === "session_replaced") {
       previousStatus.delete(event.previousSessionId);
       previousInteractionCount.delete(event.previousSessionId);
+      previousTitle.delete(event.previousSessionId);
       clearConversationCache(event.previousSessionId);
       clearConversationCache(event.sessionId);
       if (state) {
@@ -159,6 +166,7 @@ export function bindRuntimeRendering(
       }
     }
     const before = previousStatus.get(sessionId);
+    const previousTabTitle = previousTitle.get(sessionId);
     if (shouldRingCompletionBell(event, runtimeTab.tab, before)) {
       tui.terminal?.write("\x07");
     }
@@ -183,8 +191,53 @@ export function bindRuntimeRendering(
       void onStateChanged?.(state);
     }
     previousStatus.set(sessionId, runtimeTab.tab.status);
-    tui.requestRender();
+    previousTitle.set(sessionId, runtimeTab.tab.title);
+    if (
+      shouldRequestRuntimeRender(
+        event,
+        runtimeTab,
+        state,
+        before,
+        previousTabTitle,
+        prevCount,
+        currentCount,
+      )
+    ) {
+      tui.requestRender();
+    }
   });
+}
+
+function shouldRequestRuntimeRender(
+  event: Parameters<Parameters<RuntimeChangeSource["onChange"]>[0]>[0],
+  runtimeTab: Parameters<Parameters<RuntimeChangeSource["onChange"]>[0]>[1],
+  state: MixCodeState | undefined,
+  previousStatus: MixCodeState["tabs"][number]["status"] | undefined,
+  previousTitle: string | undefined,
+  previousInteractionCount: number,
+  currentInteractionCount: number,
+): boolean {
+  // Without state there is no way to know whether this tab is visible. Preserve
+  // the original contract for focused unit callers and non-interactive hosts.
+  if (!state) return true;
+  if (runtimeTab.tab.sessionId === state.activeTabId) return true;
+  if (
+    state.activeTabId === HOME_TAB_ID &&
+    state.tabs[state.homeSelectedTabIndex]?.sessionId === runtimeTab.tab.sessionId
+  ) {
+    return true;
+  }
+  if (event.type === "session_replaced") return true;
+  if (runtimeTab.tab.status !== previousStatus) return true;
+  if (runtimeTab.tab.title !== previousTitle) return true;
+  if (currentInteractionCount !== previousInteractionCount) return true;
+  if (
+    runtimeTab.tab.unreadDone &&
+    (event.type === "agent_end" || event.type === "compaction_end")
+  ) {
+    return true;
+  }
+  return false;
 }
 
 function shouldRingCompletionBell(
