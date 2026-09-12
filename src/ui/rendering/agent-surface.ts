@@ -496,10 +496,9 @@ function renderAgentSurfaceWindowed(
   let oldestEmittedIndex = displayChat.length;
   // Tail rows cannot satisfy a viewport collected from the beginning.
   let assembledRows = tab.chatAtHome ? 0 : tailLines.length;
-  const materializationOrder = tab.chatAtHome
-    ? Array.from({ length: displayChat.length }, (_, index) => index)
-    : Array.from({ length: displayChat.length }, (_, index) => displayChat.length - 1 - index);
-  for (const i of materializationOrder) {
+  const firstIndex = tab.chatAtHome ? 0 : displayChat.length - 1;
+  const step = tab.chatAtHome ? 1 : -1;
+  for (let i = firstIndex; i >= 0 && i < displayChat.length; i += step) {
     // New messages can fill the budget before the visible anchor is reached.
     // Retain that block so estimated heights cannot displace the pinned text.
     if (assembledRows >= targetRows && reachedAnchor) break;

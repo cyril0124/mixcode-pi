@@ -8,25 +8,25 @@
 import assert from "node:assert/strict";
 import { performance } from "node:perf_hooks";
 import { test } from "node:test";
-import { stripTerminalSequences as stripAnsi } from "@earendil-works/pi-tui";
-import {
-  DEFAULT_OVERSIZED_ASSISTANT_MESSAGE,
-  createTab,
-  scrollChat,
-  type ChatLine,
-  type MixCodeTabInfo,
-} from "./helpers/mixcode.js";
-import { renderAgentSurface } from "../src/ui/rendering/agent-surface.js";
-import { handleVimModeKey } from "../src/ui/app-key-handlers.js";
-import { syncAssistantBlocks } from "../src/agent/runtime-events.js";
-import { testRuntimeTab } from "./helpers/runtime-tab.js";
-import { renderConversation } from "../src/ui/rendering/chat.js";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
+import { stripTerminalSequences as stripAnsi } from "@earendil-works/pi-tui";
+import { syncAssistantBlocks } from "../src/agent/runtime-events.js";
 import {
   selectedScrollableChatText,
   startScrollableChatSelection,
   toScrollableChatSelectionPoint,
 } from "../src/core/chat-selection.js";
+import { handleVimModeKey } from "../src/ui/app-key-handlers.js";
+import { renderAgentSurface } from "../src/ui/rendering/agent-surface.js";
+import { renderConversation } from "../src/ui/rendering/chat.js";
+import {
+  type ChatLine,
+  createTab,
+  DEFAULT_OVERSIZED_ASSISTANT_MESSAGE,
+  type MixCodeTabInfo,
+  scrollChat,
+} from "./helpers/mixcode.js";
+import { testRuntimeTab } from "./helpers/runtime-tab.js";
 
 const WIDTH = 100;
 const HEIGHT = 20;
@@ -793,6 +793,26 @@ test("TUI surface folds oversized streaming assistant output immediately", () =>
 
   assert.match(text, /\[Oversized provider output\]/);
   assert.match(text, /role: assistant/);
+});
+
+test("long streaming output uses a bounded preview before the configured limit", () => {
+  const chat: ChatLine[] = [
+    { role: "assistant", text: `stream-start ${"markdown **bold** ".repeat(800)} stream-end` },
+  ];
+  const tab = createTab(29, "s29", "/repo", { status: "running", chatScrollOffset: 0 });
+  const runtimeTab = {
+    chat,
+    streamingAssistant: { chatIndex: 0, blockIndices: new Map() },
+  } as never;
+  const text = renderAgentSurface(tab, runtimeTab, WIDTH, HEIGHT, undefined, {
+    oversizedAssistantMessage: { enabled: true, maxLines: 5000, maxBytes: 128 * 1024 },
+  })
+    .map(stripAnsi)
+    .join("\n");
+
+  assert.match(text, /\[Streaming provider output folded\]/);
+  assert.match(text, /stream-start/);
+  assert.match(text, /stream-end/);
 });
 
 test("TUI surface keeps below-threshold assistant messages as markdown", () => {

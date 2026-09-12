@@ -3,6 +3,36 @@ import type { OversizedAssistantMessageSettings } from "../../core/mixcode-setti
 import { activeRenderTheme } from "./context.js";
 import { renderBackgroundLine, sanitizeTerminalText } from "./primitives.js";
 
+/** Keep streaming Markdown bounded before it monopolizes the TUI event loop. */
+const STREAMING_ASSISTANT_MAX_CHARS = 8 * 1024;
+
+export function isStreamingAssistantMessageTooLarge(text: string): boolean {
+  return text.length > STREAMING_ASSISTANT_MAX_CHARS;
+}
+
+export function renderStreamingAssistantMessageBlock(
+  role: "assistant" | "thinking",
+  text: string,
+  width: number,
+): string[] | undefined {
+  if (!isStreamingAssistantMessageTooLarge(text)) return undefined;
+
+  const previewWidth = Math.max(1, width - 2);
+  const preview = [text.slice(0, previewWidth), "...", text.slice(-previewWidth)];
+  const rows = [
+    "",
+    ` ${activeRenderTheme.warning(activeRenderTheme.bold("[Streaming provider output folded]"))}`,
+    ` role: ${role}`,
+    ` display threshold: ${STREAMING_ASSISTANT_MAX_CHARS.toLocaleString()} characters`,
+    " full content is kept in the session; use /transcript to inspect it.",
+    "",
+    " raw preview:",
+    ...preview.map((line) => ` ${sanitizeTerminalText(line)}`),
+    "",
+  ];
+  return rows.map((line) => renderBackgroundLine(line, width, activeRenderTheme.systemBackground));
+}
+
 interface OversizedAssistantMessageInfo {
   bytes: number;
   lineCount: number;

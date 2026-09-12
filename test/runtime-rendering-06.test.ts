@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { Type, fauxAssistantMessage, type AssistantMessage } from "@earendil-works/pi-ai";
+import { type AssistantMessage, fauxAssistantMessage, Type } from "@earendil-works/pi-ai";
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { syncAssistantBlocks, updateStreamingAssistant } from "../src/agent/runtime-events.js";
@@ -139,6 +139,52 @@ test("tool block keeps exactly one blank row below the previous block", () => {
   // One chat separator + one background pad row inside the tool frame.
   assert.equal(gap.length, 2);
   assert.equal(callRow - answerRow, 3);
+});
+
+test("tool renderer settings do not rebuild custom renderers on every repaint", () => {
+  const sm = SettingsManager.inMemory();
+  let renderCallCount = 0;
+  let componentRenderCount = 0;
+  const runtimeTab = testRuntimeTab({
+    chat: [],
+    tab: createTab(1, "tool-cache", "/tmp"),
+    agentSession: {
+      settingsManager: sm,
+      getToolDefinition: () => ({
+        name: "agent",
+        label: "agent",
+        description: "test",
+        parameters: Type.Object({}),
+        execute: () => assert.fail("rendering must not execute the tool"),
+        renderCall: () => {
+          renderCallCount++;
+          return {
+            render: () => {
+              componentRenderCount++;
+              return ["agent call"];
+            },
+            invalidate: () => undefined,
+          };
+        },
+      }),
+    },
+    requestRender: () => undefined,
+  });
+  const toolLine = toolExecutionToChatLine(runtimeTab, {
+    toolCallId: "stable-tool",
+    toolName: "agent",
+    status: "success",
+    text: "done",
+    args: {},
+    isPartial: false,
+  });
+  const countAfterSetup = renderCallCount;
+
+  renderConversation([toolLine], 40);
+  renderConversation([toolLine], 40);
+
+  assert.equal(renderCallCount, countAfterSetup);
+  assert.equal(componentRenderCount, 1);
 });
 
 test("consecutive thinking blocks render as one Pi thinking section", () => {

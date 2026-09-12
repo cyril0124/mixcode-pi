@@ -5,6 +5,8 @@ import type {
   ExtensionFactory,
 } from "@earendil-works/pi-coding-agent";
 import {
+  applyHttpProxySettings,
+  configureHttpDispatcher,
   DefaultPackageManager,
   ensureTool,
   getAgentDir,
@@ -24,14 +26,11 @@ import {
   loadExtensionManagerConfig,
   saveExtensionManagerConfig,
 } from "../core/extension-manager.js";
-import { listSessionsInBackground } from "../core/session-catalog.js";
 import {
-  MIXCODE_SETTINGS_FILENAME,
   loadMixCodeSettings,
+  MIXCODE_SETTINGS_FILENAME,
   resolveHideThinkingBlock,
 } from "../core/mixcode-settings.js";
-import { setMarkdownCodeBlockIndent } from "../ui/rendering/markdown.js";
-import { setTheme } from "../ui/themes.js";
 import {
   applyDisabledModelFlags,
   buildAvailableModelRefs,
@@ -42,7 +41,7 @@ import {
   setTabModel,
 } from "../core/models.js";
 import { configureDisabledModelRuntime, createPiModelRegistryBundle } from "../core/pi-models.js";
-import { expandTilde, resolveMixcodeStateDir } from "./status.js";
+import { listSessionsInBackground } from "../core/session-catalog.js";
 import {
   loadStateFile,
   saveStateFile,
@@ -52,7 +51,9 @@ import {
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { HOME_TAB_ID, type MixCodeState } from "../core/types.js";
 import type { MixCodeCompletionSources } from "../ui/components/completion.js";
-import { applyHttpProxySettings, configureHttpDispatcher } from "@earendil-works/pi-coding-agent";
+import { setMarkdownCodeBlockIndent } from "../ui/rendering/markdown.js";
+import { setTheme } from "../ui/themes.js";
+import { expandTilde, resolveMixcodeStateDir } from "./status.js";
 
 export interface BootstrapOptions {
   workdir: string;
@@ -233,8 +234,11 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
   // Return before tabs finish loading so the TUI can paint.
   // createTab fills chat, title, and model from the session.
   for (const tab of state.tabs) tab.status = "Not Ready";
-  const tabsReady = Promise.all(
-    state.tabs.map(async (tab) => {
+  const tabsReady = (async () => {
+    // Restore one session at a time. Building AgentSession context is CPU- and
+    // memory-heavy for long histories; concurrent restores can multiply the
+    // peak enough to starve the TUI before the first usable frame.
+    for (const tab of state.tabs) {
       const runtimeTab = await runtime.createTab(tab, {
         systemPrompt: MIXCODE_SYSTEM_PROMPT,
         workdir: tab.workdir,
@@ -244,12 +248,12 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
       if (!runtimeTab.agentSession.isStreaming) tab.status = "idle";
       const sessionName = runtimeTab.session.getSessionName();
       if (sessionName) tab.title = sessionName;
-    }),
-  ).then(async () => {
-    // Persist restored session titles so subsequent startups show custom
-    // titles on the initial paint without waiting for tabsReady.
+    }
+
+    // Persist restored session titles so subsequent startups show custom titles
+    // on the initial paint without waiting for tabsReady.
     await saveStateFile(stateFile, state);
-  });
+  })();
   return {
     state,
     runtime,

@@ -338,13 +338,19 @@ export function estimateTotalHeight(
   frameBlockHeights: ReadonlyMap<ChatLine, number>,
   extraRows = 0,
 ): number {
-  let total = queueRows + Math.max(0, extraRows);
-  let nonEmpty = 0;
-  for (const line of chat) {
-    const h = frameBlockHeights.get(line) ?? BLOCK_HEIGHT_FALLBACK;
-    total += h;
-    if (h > 0) nonEmpty++;
+  // Unrendered blocks use the fallback height. Start with that estimate for the
+  // whole chat, then apply corrections only for blocks rendered this frame.
+  // This keeps scrollbar bookkeeping proportional to the visible window rather
+  // than to the full history on every paint.
+  const estimatedChatHeight = chat.length * BLOCK_HEIGHT_FALLBACK;
+  let total = queueRows + Math.max(0, extraRows) + estimatedChatHeight;
+  let nonEmpty = chat.length;
+
+  for (const height of frameBlockHeights.values()) {
+    total += height - BLOCK_HEIGHT_FALLBACK;
+    if (height === 0) nonEmpty--;
   }
+
   total += Math.max(0, nonEmpty - 1);
   return total;
 }

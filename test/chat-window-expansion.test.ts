@@ -9,19 +9,19 @@ import * as fsPromises from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
-import {
-  chatHomeWithExpansion,
-  scrollChatWithExpansion,
-  type ChatScrollExpansionRuntime,
-} from "../src/core/overlays.js";
-import { handleVimModeKey } from "../src/ui/app-key-handlers.js";
-import { renderAgentSurface } from "../src/ui/rendering/agent-surface.js";
+import { stripTerminalSequences as stripAnsi } from "@earendil-works/pi-tui";
 import {
   CHAT_WINDOW_EXPAND_CHUNK,
   RESTORED_CHAT_ENTRY_LIMIT,
 } from "../src/agent/runtime-lifecycle.js";
-import { stripTerminalSequences as stripAnsi } from "@earendil-works/pi-tui";
-import { MIXCODE_FAUX_MODEL, MixCodeRuntime, createTab, type ChatLine } from "./helpers/mixcode.js";
+import {
+  type ChatScrollExpansionRuntime,
+  chatHomeWithExpansion,
+  scrollChatWithExpansion,
+} from "../src/core/overlays.js";
+import { handleVimModeKey } from "../src/ui/app-key-handlers.js";
+import { renderAgentSurface } from "../src/ui/rendering/agent-surface.js";
+import { type ChatLine, createTab, MIXCODE_FAUX_MODEL, MixCodeRuntime } from "./helpers/mixcode.js";
 
 const WIDTH = 100;
 const HEIGHT = 20;
@@ -80,42 +80,36 @@ test("up-scroll away from the top, down-scrolls, and full chats never expand", (
   assert.deepEqual(full.expandCalls, [], "no windowed history left");
 });
 
-test("home mode expands only while pinned at the very top (chatHomeOffset 0)", () => {
+test("Home materializes older history before jumping to the global top", () => {
   const tab = createTab(1, "s1", "/repo");
   const { runtime, expandCalls } = expansionRuntimeSpy(120);
 
   tab.chatAtHome = true;
   tab.chatHomeOffset = 5;
   chatHomeWithExpansion(runtime, tab);
-  assert.deepEqual(expandCalls, [], "scrolled below the home top");
+  assert.deepEqual(expandCalls, ["s1"], "Home materializes all older history");
 
   tab.chatHomeOffset = 0;
   chatHomeWithExpansion(runtime, tab);
-  assert.deepEqual(expandCalls, ["s1"], "gg pinned at the top pulls one chunk");
+  assert.deepEqual(expandCalls, ["s1"]);
   assert.equal(tab.chatAtHome, true);
   assert.equal(tab.chatHomeOffset, 0);
 });
 
-test("repeated vim gg walks back through windowed history chunk by chunk", () => {
+test("repeated vim gg reaches the global first message in one action", () => {
   const tab = createTab(1, "s1", "/repo");
   tab.vimMode = true;
   const { runtime, expandCalls } = expansionRuntimeSpy(RESTORED_CHAT_ENTRY_LIMIT);
 
-  // First gg: not at home yet, so it only pins the home position.
   assert.equal(handleVimModeKey(tab, "g", runtime), true);
   assert.equal(handleVimModeKey(tab, "g", runtime), true);
-  assert.deepEqual(expandCalls, []);
+  assert.deepEqual(expandCalls, ["s1"]);
   assert.equal(tab.chatAtHome, true);
 
-  // Every further gg expands one chunk while older history remains.
+  // Once all older history is materialized, further gg presses are no-ops.
   assert.equal(handleVimModeKey(tab, "g", runtime), true);
   assert.equal(handleVimModeKey(tab, "g", runtime), true);
-  assert.equal(expandCalls.length, 1);
-
-  // Exhausted: no window left, gg stays a plain home.
-  expansionRuntimeSpy(0);
-  assert.equal(handleVimModeKey(tab, "g", runtime), true);
-  assert.equal(handleVimModeKey(tab, "g", runtime), true);
+  assert.deepEqual(expandCalls, ["s1"]);
 });
 
 function buildWindowedChat(count: number): ChatLine[] {

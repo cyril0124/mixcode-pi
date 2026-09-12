@@ -62,8 +62,12 @@ export function toolExecutionToChatLine(
   const toolName = options.toolName || "unknown";
   const definition = runtimeTab.agentSession.getToolDefinition(toolName);
   const previousComponent = options.previous?.toolExecutionComponent;
+  let toolRenderDirty = true;
   const ui = {
-    requestRender: () => runtimeTab.requestRender?.(),
+    requestRender: () => {
+      toolRenderDirty = true;
+      runtimeTab.requestRender?.();
+    },
   } as unknown as PiTui;
   const component =
     previousComponent ??
@@ -117,15 +121,44 @@ export function toolExecutionToChatLine(
     toolRenderShell: "self",
     toolExecutionComponent: component,
   };
+  let renderedExpanded = runtimeTab.tab.extensionUi.toolsExpanded;
+  let renderedShowImages = toolShowImages(runtimeTab);
+  let renderedImageWidthCells = toolImageWidthCells(runtimeTab);
+  let renderedWidth: number | undefined;
+  let renderedLines: string[] | undefined;
   line.renderToolCall = (width) => {
     const restore = applyMixCodeKeybindings();
     try {
-      // Ctrl+O and image settings can change after the final tool event. Keep
-      // the persistent Pi component synchronized on every outer TUI render.
-      component.setExpanded(runtimeTab.tab.extensionUi.toolsExpanded);
-      component.setShowImages(toolShowImages(runtimeTab));
-      component.setImageWidthCells(toolImageWidthCells(runtimeTab));
-      return component.render(Math.max(1, Math.floor(width)));
+      // Keep the persistent Pi component synchronized only when a setting
+      // changed. ToolExecutionComponent setters rebuild custom renderers even
+      // when the value is identical, so calling them on every repaint creates
+      // an avoidable full tool-renderer pass.
+      const expanded = runtimeTab.tab.extensionUi.toolsExpanded;
+      if (expanded !== renderedExpanded) {
+        renderedExpanded = expanded;
+        component.setExpanded(expanded);
+        toolRenderDirty = true;
+      }
+      const showImages = toolShowImages(runtimeTab);
+      if (showImages !== renderedShowImages) {
+        renderedShowImages = showImages;
+        component.setShowImages(showImages);
+        toolRenderDirty = true;
+      }
+      const imageWidthCells = toolImageWidthCells(runtimeTab);
+      if (imageWidthCells !== renderedImageWidthCells) {
+        renderedImageWidthCells = imageWidthCells;
+        component.setImageWidthCells(imageWidthCells);
+        toolRenderDirty = true;
+      }
+      const renderedWidthNow = Math.max(1, Math.floor(width));
+      if (!toolRenderDirty && renderedWidth === renderedWidthNow && renderedLines) {
+        return renderedLines;
+      }
+      renderedLines = component.render(renderedWidthNow);
+      renderedWidth = renderedWidthNow;
+      toolRenderDirty = false;
+      return renderedLines;
     } finally {
       restore();
     }

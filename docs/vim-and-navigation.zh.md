@@ -32,4 +32,4 @@ MixCode 内置针对终端 Agent 对话流优化的 Vim 模式，支持逐行滚
 
 ## 长对话恢复的按块加载
 
-恢复较长的对话时，启动阶段只物化最新的一部分条目（`RESTORED_CHAT_ENTRY_LIMIT`，默认 200 条；每次扩块加载 `CHAT_WINDOW_EXPAND_CHUNK` 条，两者均定义在 `src/agent/runtime-lifecycle.ts`）。当视口已经位于已物化窗口顶部时，继续向上滚动、向上翻页或按 `Home` / `gg` 会再加载一块更早的历史，视口保持在同一内容上。重复操作即可回溯整条分支。从磁盘重新加载会话时始终物化完整分支。
+恢复较长的对话时，启动阶段只物化最新的一部分条目（`RESTORED_CHAT_ENTRY_LIMIT`，默认 200 条；每次扩块加载 `CHAT_WINDOW_EXPAND_CHUNK` 条，两者均定义在 `src/agent/runtime-lifecycle.ts`）。当视口位于已物化窗口顶部时，继续向上滚动或向上翻页会加载一块更早的历史，并保持视口锚定。`Home` 和 `gg` 会一次物化剩余的全部早期历史，再跳转到整条对话的第一条消息。从磁盘重新加载会话时始终物化完整分支。

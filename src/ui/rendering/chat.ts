@@ -1,8 +1,8 @@
 import type { ImageContent } from "@earendil-works/pi-ai";
 import {
   type MarkdownTransformer,
-  parseSkillBlock,
   type ParsedSkillBlock,
+  parseSkillBlock,
 } from "@earendil-works/pi-coding-agent";
 import {
   getCapabilities,
@@ -12,21 +12,23 @@ import {
   visibleWidth,
   wrapTextWithAnsi,
 } from "@earendil-works/pi-tui";
+import type { ChatLine } from "../../agent/runtime.js";
 import {
   currentExtensionTheme,
   ensureExtensionThemeInitialized,
   MIXCODE_EXTENSION_KEYBINDINGS_MANAGER,
 } from "../../agent/runtime-extension-theme.js";
-import type { ChatLine } from "../../agent/runtime.js";
 import type { OversizedAssistantMessageSettings } from "../../core/mixcode-settings.js";
 import type { MermaidRenderingMode, MixCodeTabInfo } from "../../core/types.js";
-import { activeRenderTheme, renderWithTheme } from "./context.js";
 import { formatDuration } from "./chrome.js";
+import { activeRenderTheme, renderWithTheme } from "./context.js";
 import { renderMarkdown } from "./markdown.js";
 import { renderSkillCard, renderSummaryCard } from "./message-cards.js";
 import {
   isOversizedAssistantMessageText,
+  isStreamingAssistantMessageTooLarge,
   renderOversizedAssistantMessageBlock,
+  renderStreamingAssistantMessageBlock,
 } from "./oversized-assistant-message.js";
 import { padLine, renderBackgroundLine, sanitizeTerminalText } from "./primitives.js";
 
@@ -246,6 +248,11 @@ function renderMessageBlockUncached(
   if (line.role === "assistant") {
     if (!text.trim()) return [];
     const trimmed = text.trim();
+    const streamingOversized =
+      options.isStreaming && options.oversizedAssistantMessage?.enabled
+        ? renderStreamingAssistantMessageBlock(line.role, trimmed, width)
+        : undefined;
+    if (streamingOversized) return withOsc133Zone(streamingOversized);
     const oversized = renderOversizedAssistantMessageBlock(
       line.role,
       trimmed,
@@ -292,6 +299,11 @@ function renderMessageBlockUncached(
       );
     }
     const trimmed = text.trim();
+    const streamingOversized =
+      options.isStreaming && options.oversizedAssistantMessage?.enabled
+        ? renderStreamingAssistantMessageBlock(line.role, trimmed, width)
+        : undefined;
+    if (streamingOversized) return streamingOversized;
     const oversized = renderOversizedAssistantMessageBlock(
       line.role,
       trimmed,
@@ -357,6 +369,9 @@ function chatLineRenderCacheKey(
 
   // Hot paths first (assistant/thinking dominate any long chat).
   if (role === "assistant" || role === "thinking") {
+    if (options.isStreaming && isStreamingAssistantMessageTooLarge(line.text)) {
+      return undefined;
+    }
     if (isOversizedAssistantMessageText(line.text, options.oversizedAssistantMessage)) {
       return undefined;
     }

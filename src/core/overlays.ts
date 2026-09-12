@@ -1,19 +1,19 @@
+import { fuzzyFilter } from "@earendil-works/pi-tui";
+import { clearScrollFreeze } from "../ui/rendering/agent-surface-scroll.js";
 import {
   LOCAL_COMMANDS,
   type LocalCommandPaletteMeta,
   type PaletteRequirement,
 } from "./commands.js";
-import { fuzzyFilter } from "@earendil-works/pi-tui";
 import { fuzzyMatch, fuzzyMatchAllPositions } from "./fuzzy.js";
+import { tabIsNonIdle, tabIsWaitingForInput } from "./tab-state.js";
 import { activateTab, findActiveTab } from "./tabs.js";
 import {
-  HOME_TAB_ID,
   type CommandPaletteEntry,
+  HOME_TAB_ID,
   type MixCodeState,
   type MixCodeTabInfo,
 } from "./types.js";
-import { tabIsNonIdle, tabIsWaitingForInput } from "./tab-state.js";
-import { clearScrollFreeze } from "../ui/rendering/agent-surface-scroll.js";
 
 export function scrollChat(tab: MixCodeTabInfo, delta: number): boolean {
   if (tab.chatAtHome) {
@@ -41,7 +41,7 @@ export function scrollChat(tab: MixCodeTabInfo, delta: number): boolean {
 /** Runtime surface needed to expand a bounded restored chat window. */
 export interface ChatScrollExpansionRuntime {
   getTab(sessionId: string): { chatWindowStartIndex?: number } | undefined;
-  expandChatWindow(sessionId: string): number;
+  expandChatWindow(sessionId: string, chunkEntries?: number): number;
 }
 
 function chatWindowHasOlderHistory(
@@ -79,13 +79,13 @@ export function scrollChatWithExpansion(
   return scrollChat(tab, delta);
 }
 
-/** chatHome that first expands one chunk when already pinned at the window top. */
+/** chatHome materializes all older history before pinning the global top. */
 export function chatHomeWithExpansion(
   runtime: ChatScrollExpansionRuntime | undefined,
   tab: MixCodeTabInfo,
 ): boolean {
-  if (runtime && chatWindowNeedsExpansion(runtime, tab)) {
-    runtime.expandChatWindow(tab.sessionId);
+  if (runtime && chatWindowHasOlderHistory(runtime, tab)) {
+    runtime.expandChatWindow(tab.sessionId, Number.MAX_SAFE_INTEGER);
   }
   return chatHome(tab);
 }

@@ -32,4 +32,4 @@ Terminal-native coding agents should not force developers to reach for a mouse t
 
 ## Windowed History on Long Restores
 
-Restoring a long conversation first materializes only the newest entries (`RESTORED_CHAT_ENTRY_LIMIT`, default 200; each expansion loads `CHAT_WINDOW_EXPAND_CHUNK` more, both in `src/agent/runtime-lifecycle.ts`). Scrolling up, paging up, or pressing `Home` / `gg` while the viewport already sits at the top of the materialized window loads one chunk of older history; the viewport stays anchored on the same content. Repeat to walk back through the whole branch. Reloading a session from disk always materializes the full branch.
+Restoring a long conversation first materializes only the newest entries (`RESTORED_CHAT_ENTRY_LIMIT`, default 200; each expansion loads `CHAT_WINDOW_EXPAND_CHUNK` more, both in `src/agent/runtime-lifecycle.ts`). Scrolling up or paging up at the top of the materialized window loads one chunk of older history while keeping the viewport anchored. `Home` and `gg` materialize all remaining older history before jumping to the global oldest message. Reloading a session from disk always materializes the full branch.
