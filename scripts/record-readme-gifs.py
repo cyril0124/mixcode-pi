@@ -14,7 +14,7 @@ Optional override: MIXCODE_GIF_PROVIDER / MIXCODE_GIF_MODEL /
 MIXCODE_GIF_SOURCE_AGENT_DIR / PARALLEL
 
 Each shot below documents what the GIF demonstrates and how it is recorded:
-- multi-tab: workspace tabs + Tab Jump (Ctrl+T) quick navigation
+- multi-tab: workspace tabs + /color tab colors + Tab Jump (Ctrl+T) navigation
 - vim: history browsing in [VIM] mode
 - zen: zen mode hiding the tab bar
 - command-palette: Ctrl+P palette with fuzzy filter
@@ -326,15 +326,17 @@ def seed_tasks_file(workdir: pathlib.Path) -> pathlib.Path:
 #    asciinema starts.
 
 def drive_multi_tab(label: str, session: str) -> None:
-    """Multi-tab workspace + Tab Jump.
+    """Multi-tab workspace + tab color + Tab Jump.
 
     Shows: 5 agent tabs (Agent-01 default + Backend/Frontend/Docs/Review),
-    one renamed to API-Gateway, concurrent `!sleep 45` jobs with rotating
-    Working indicators, then Ctrl+T Tab Jump filtered to "API" (1/6 tabs)
-    and Enter to jump to the API-Gateway tab (footer switches to it).
+    one renamed to API-Gateway and colored via `/color` (argument completion
+    lists the named colors, magenta applied), concurrent `!sleep 45` jobs with
+    rotating Working indicators, then Ctrl+T Tab Jump filtered to "API" (1/6
+    tabs) and Enter to jump to the API-Gateway tab (footer switches to it).
 
-    Recording: 4x `/new-session <name>` -> rename -> 3x `!sleep 45` + Tab
-    -> 6x S-Tab back -> C-t -> type "API" -> wait "1/6 tabs" -> Enter.
+    Recording: 4x `/new-session <name>` -> rename -> `/color` popup -> pick
+    magenta -> 3x `!sleep 45` + Tab -> 6x S-Tab back -> C-t -> type "API" ->
+    wait "1/6 tabs" -> Enter.
     """
     time.sleep(1.5)
     for title in ("Backend", "Frontend", "Docs", "Review"):
@@ -352,6 +354,18 @@ def drive_multi_tab(label: str, session: str) -> None:
     send_k(label, session, "Enter")
     wait_pane(label, session, "API-Gateway", 20.0)
     time.sleep(0.8)
+    # /color: the argument-completion popup lists the named colors, filtering
+    # to magenta and applying it renders a color chip on the API-Gateway tab.
+    clear_editor(label, session)
+    send_l(label, session, "/color ")
+    wait_pane(label, session, "magenta", 8.0)
+    time.sleep(1.4)
+    send_l(label, session, "mag")
+    time.sleep(0.8)
+    send_k(label, session, "Tab")
+    time.sleep(0.5)
+    send_k(label, session, "Enter")
+    time.sleep(1.0)
     for _ in range(3):
         clear_editor(label, session)
         send_l(label, session, "!sleep 45")
