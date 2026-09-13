@@ -1,4 +1,4 @@
-import type { TabColorName } from "./tab-colors.js";
+import { TAB_COLOR_NAMES, type TabColorName } from "./tab-colors.js";
 import { tabIsNonIdle } from "./tab-state.js";
 import { HOME_TAB_ID, type MixCodeState, type MixCodeTabInfo } from "./types.js";
 
@@ -153,6 +153,38 @@ export function setAgentTabColor(
   const tab = state.tabs.find((item) => item.sessionId === sessionId);
   if (!tab) throw new Error(`Unknown tab: ${sessionId}`);
   tab.color = color;
+}
+
+const TAB_COLOR_RANK = new Map<string, number>(TAB_COLOR_NAMES.map((name, index) => [name, index]));
+
+/** Palette position of a tab color; uncolored tabs sort after every named color. */
+function tabColorRank(color: TabColorName | undefined): number {
+  if (color === undefined) return TAB_COLOR_NAMES.length;
+  return TAB_COLOR_RANK.get(color) ?? TAB_COLOR_NAMES.length;
+}
+
+/**
+ * Reorders tabs so colored tabs come first, aggregated by color in
+ * {@link TAB_COLOR_NAMES} order, with uncolored tabs last. Relative order is
+ * preserved inside every group (Array.sort is stable). Renumbers `tab.index`
+ * (the runtime renders tabs sorted by index) and keeps the Home selection on
+ * the same session. Returns the new session-id order so callers can publish it
+ * (`noteTabsReplaced`) and peers keep the same arrangement.
+ */
+export function groupTabsByColor(state: MixCodeState): string[] {
+  const selectedId = state.tabs[state.homeSelectedTabIndex]?.sessionId;
+  const colored = state.tabs.filter((tab) => tab.color !== undefined);
+  const uncolored = state.tabs.filter((tab) => tab.color === undefined);
+  colored.sort((a, b) => tabColorRank(a.color) - tabColorRank(b.color));
+  state.tabs = [...colored, ...uncolored];
+  state.tabs.forEach((tab, index) => {
+    tab.index = index + 1;
+  });
+  if (selectedId !== undefined) {
+    const nextHomeIndex = state.tabs.findIndex((tab) => tab.sessionId === selectedId);
+    if (nextHomeIndex >= 0) state.homeSelectedTabIndex = nextHomeIndex;
+  }
+  return state.tabs.map((tab) => tab.sessionId);
 }
 
 export function nextTabId(state: MixCodeState, delta: number): string {

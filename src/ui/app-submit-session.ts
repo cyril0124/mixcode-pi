@@ -7,9 +7,10 @@ import {
   assertConfiguredOpenTabsReadable,
   noteTabClosed,
   noteTabOpened,
+  noteTabsReplaced,
 } from "../core/open-tabs-store.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
-import { activateTab, renameAgentTab, setAgentTabColor } from "../core/tabs.js";
+import { activateTab, groupTabsByColor, renameAgentTab, setAgentTabColor } from "../core/tabs.js";
 import { isTabColorName, TAB_COLOR_NAMES } from "../core/tab-colors.js";
 import { pushToast } from "../core/toast.js";
 import { HOME_TAB_ID, type MixCodeState } from "../core/types.js";
@@ -489,6 +490,13 @@ const handleColor: LocalCommandHandler = ({ state, active, args, runtime, tui })
   return undefined;
 };
 
+const handleGroupTabs: LocalCommandHandler = ({ state }) => {
+  // Publish the new order so peer instances do not revert it on the next poll;
+  // the normal state save after this handler persists it to mixcode_state.json.
+  noteTabsReplaced(groupTabsByColor(state));
+  return undefined;
+};
+
 const handleSession: LocalCommandHandler = ({ state, active, runtime }) => {
   // Agent-tab only: session stats dump into the active chat.
   if (state.activeTabId === HOME_TAB_ID) return SKIP_FINALIZE;
@@ -528,6 +536,7 @@ export const SESSION_COMMAND_HANDLERS = {
   resume: handleResume,
   rename: handleRename,
   color: handleColor,
+  "group-colored-tabs": handleGroupTabs,
 } satisfies Partial<Record<LocalCommand, LocalCommandHandler>>;
 
 type SessionStatsInfo = ReturnType<RuntimeTab["agentSession"]["getSessionStats"]>;

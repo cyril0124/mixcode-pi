@@ -33,6 +33,7 @@ Tabs display live status glyphs: `●` (running/working), `-` (idle/ready), `✓
 | Fork Tab | `/fork` | Clones conversation history into a new tab with its own runtime services. |
 | Rename Tab | `/rename <title>` | Sets the active tab title. |
 | Color Tab | `/color [name\|clear]` | Sets the active tab color from the fixed palette, or clears it when the argument is omitted or `clear`. Persisted per session. See [Tab colors](#tab-colors). |
+| Group Tabs | `/group-colored-tabs` | Reorders tabs so colored tabs lead the tab bar, aggregated by color in palette order; uncolored tabs keep their relative order after them. See [Tab colors](#tab-colors). |
 | Tab Jump | `Ctrl+T` / `/jump` | Displays an interactive modal to jump to any open tab. |
 | Tab Cycle | `Tab` / `Shift+Tab` | Cycles tabs when autocomplete is closed. Swallowed in Zen mode (use `Ctrl+T`). |
 | Zen Mode | `/toggle-zen-mode` | Toggles the top tab bar for an uncluttered focus view. |
@@ -50,6 +51,8 @@ Completed/unread tabs use `✓` and a bold title in the theme's `doneFg` color, 
 On a colored tab the chip background comes from the color, and the chip foreground is the color's contrast pair. The theme's active, recency, and completion backgrounds do not apply, and the title shimmer is replaced by bold text. A done or unread tab keeps the theme's bold success color for the whole chip so completion stays recognizable; other status colors (running, waiting, error) stay shape-only. The active tab is still marked by its left focus marker. Uncolored tabs keep the theme's chip styling. Home's agent card paints the same color behind its title segment.
 
 Colors are stored per session id under `tab_colors` in the current workdir's `mixcode_state.json`, so they survive restart. Titles and colors both follow the session id, so `/clear` (a new session file) drops the color. A color name that is no longer in the palette is ignored when the state file loads, and `/save-workspace` does not store colors.
+
+`/group-colored-tabs` reorders the strip so colored tabs come first, aggregated by color in palette order (`red`, `green`, `yellow`, `blue`, `magenta`, `cyan`, `white`, `gray`), with uncolored tabs keeping their relative order after them. Home stays pinned at the left, and tabs keep their relative order inside a color group. The new order is written to `mixcode_state.json` and published to the shared `open_tabs.json`, so it survives restart and applies to every instance in the workdir, and `/save-workspace` stores that order.
 
 ### Tab titles
 

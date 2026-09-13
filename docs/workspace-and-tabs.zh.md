@@ -33,6 +33,7 @@ Tab 实时展示运行状态指示符：`●`（运行中/工作中）、`-`（�
 | 分支复制 | `/fork` | 将当前对话历史克隆到新 Tab 中，新 Tab 拥有独立的运行时服务。 |
 | 重命名 Tab | `/rename <title>` | 设置当前 Tab 标题。 |
 | Tab 上色 | `/color [name\|clear]` | 用固定调色板给当前 Tab 上色；省略参数或传 `clear` 则清除。按 session 持久化。见 [Tab 颜色](#tab-颜色)。 |
+| Tab 分组 | `/group-colored-tabs` | 重排 Tab：已上色 Tab 按颜色（调色板顺序）聚合到 Tab 条左侧，未上色 Tab 保持相对顺序排在后面。见 [Tab 颜色](#tab-颜色)。 |
 | Tab 跳转 | `Ctrl+T` / `/jump` | 打开全屏 Tab 检索面板，支持模糊搜索与快速切换。 |
 | Tab 轮转 | `Tab` / `Shift+Tab` | 补全关闭时轮转 Tab。Zen 模式下被吞掉（用 `Ctrl+T`）。 |
 | Zen 模式 | `/toggle-zen-mode` | 隐藏顶部 Tab 栏，获得专注的 Agent 会话视图。 |
@@ -50,6 +51,8 @@ Tab 外观来自当前主题；只有显式指定过 `/color` 的 Tab 例外（�
 已上色 Tab 的 chip 背景来自该颜色，前景是配对的对比色。主题的选中/最近访问/完成背景不再生效，标题扫光改为加粗文字。已完成未读的 Tab 整个 chip 保留主题的加粗成功色，以便辨认完成状态；其他状态色（运行中/等待输入/报错）只保留字形。当前 Tab 仍以左侧焦点标记区分；未上色的 Tab 仍使用主题样式。Home 的 Agent 卡片在标题段背景上同步该颜色。
 
 颜色按 session id 存在当前 workdir 的 `mixcode_state.json` 的 `tab_colors` 中，重启后仍在。标题和颜色都跟随 session id，因此 `/clear`（新 session 文件）会丢掉颜色。state 文件里已不在调色板中的颜色名会被忽略；`/save-workspace` 不保存颜色。
+
+`/group-colored-tabs` 会重排 Tab 条：已上色 Tab 排到最左，按调色板顺序（`red`、`green`、`yellow`、`blue`、`magenta`、`cyan`、`white`、`gray`）按颜色聚合，未上色 Tab 保持各自相对顺序排在后面。Home 始终固定在左侧，同一颜色组内也保持原有相对顺序。新顺序会写入 `mixcode_state.json` 并同步到共享的 `open_tabs.json`，因此重启后仍然生效，也会应用到该 workdir 的所有实例；`/save-workspace` 保存的也是该顺序。
 
 ### Tab 标题
 

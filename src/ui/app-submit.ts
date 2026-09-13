@@ -109,6 +109,7 @@ const CONFIG_SCOPED_COMMANDS: ReadonlySet<LocalCommand> = new Set([
   "console-history",
   "new-session",
   "resume",
+  "group-colored-tabs",
   "hide-thinking",
   "settings",
   "delete-all-sessions",

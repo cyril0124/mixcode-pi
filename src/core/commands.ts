@@ -46,6 +46,7 @@ export type LocalCommand =
   | "editor"
   | "rename"
   | "color"
+  | "group-colored-tabs"
   | "tui-state"
   | "quit"
   | "exit";
@@ -451,6 +452,17 @@ export const LOCAL_COMMANDS: Array<{
       label: "Set Tab Color",
       description: "Color the current tab (no argument clears it)",
       requires: "session",
+    },
+  },
+  {
+    name: "group-colored-tabs",
+    description: "Reorder tabs: colored groups first, by color",
+    palette: {
+      label: "Group Tabs by Color",
+      description: "Move colored tabs to the left, grouped by color",
+      scope: "both",
+      requires: "tabs",
+      configRequires: "tabs",
     },
   },
   {
