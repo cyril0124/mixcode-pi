@@ -16,7 +16,7 @@ MIXCODE_GIF_SOURCE_AGENT_DIR / PARALLEL
 Each shot below documents what the GIF demonstrates and how it is recorded:
 - multi-tab: workspace tabs + /color tab colors + Tab Jump (Ctrl+T) navigation
 - vim: history browsing in [VIM] mode
-- zen: zen mode hiding the tab bar
+- zen: zen mode hiding the tab bar, showing peer working/done markers
 - command-palette: Ctrl+P palette with fuzzy filter
 - right-widget: extension right panel widget (pi-tasks)
 - inline-widget: extension inline widget in the message flow
@@ -418,22 +418,25 @@ def drive_vim(label: str, session: str) -> None:
 
 
 def drive_zen(label: str, session: str) -> None:
-    """Zen mode hiding the tab bar.
+    """Zen mode hiding the tab bar, with peer working/done markers.
 
-    Shows: /toggle-zen-mode hides tab names (● done dot replaces them),
-    Ctrl+T still opens Tab Jump overlay, Enter jumps, then zen mode toggles
-    back off to end the GIF on the normal chrome.
+    Shows: /toggle-zen-mode hides the tab bar; the left-anchored marker cluster
+    keeps a still-working peer as an animated spinner beside a peer that just
+    finished as a done dot. Ctrl+T still opens Tab Jump in zen, Enter jumps,
+    then zen mode toggles back off to end the GIF on the normal chrome.
 
-    Recording: /toggle-zen-mode -> Enter -> wait [ZEN]/zen + ● -> C-t ->
-    wait "Tab Jump" -> Enter -> /toggle-zen-mode -> Enter.
+    Recording: /toggle-zen-mode -> Enter -> wait [ZEN] -> hold for spinner +
+    ● -> C-t -> wait "Tab Jump" -> Enter -> /toggle-zen-mode -> Enter.
     """
-    time.sleep(1.0)
+    time.sleep(0.8)
+    clear_editor(label, session)
     send_l(label, session, "/toggle-zen-mode")
     time.sleep(0.3)
     send_k(label, session, "Enter")
-    wait_pane(label, session, r"\[ZEN\]|zen", 8.0)
-    time.sleep(1.5)
-    wait_pane(label, session, "●", 8.0)
+    wait_pane(label, session, r"\[ZEN\]", 8.0)
+    # Hold so the animated working spinner and the done dot are both visible.
+    time.sleep(3.0)
+    wait_pane(label, session, "●", 10.0)
     time.sleep(1.5)
     send_k(label, session, "C-t")
     wait_pane(label, session, "Tab Jump", 6.0)
@@ -703,20 +706,36 @@ def _run_shot_isolated(name: str, say, shot_tmp: pathlib.Path, label: str,
         focus_agent(label, session)
     elif name == "zen":
         focus_agent(label, session)
-        for title in ("Worker-A", "Worker-B"):
-            clear_editor(label, session)
-            send_l(label, session, f"/new-session {title}")
-            time.sleep(0.2)
-            send_k(label, session, "Enter")
-            time.sleep(0.8)
-        for _ in range(2):
-            clear_editor(label, session)
-            send_l(label, session, "!sleep 4")
-            time.sleep(0.15)
-            send_k(label, session, "Enter")
-            time.sleep(0.4)
-            send_k(label, session, "Tab")
-            time.sleep(0.4)
+        clear_editor(label, session)
+        send_l(label, session, "/new-session Worker-A")
+        time.sleep(0.2)
+        send_k(label, session, "Enter")
+        wait_pane(label, session, "Worker-A", 20.0)
+        time.sleep(0.6)
+        # Worker-A keeps running through the whole demo, so zen shows a working
+        # spinner. The editor is empty after submit, so no clear is needed on
+        # the running tab.
+        send_l(label, session, "!sleep 20")
+        time.sleep(0.15)
+        send_k(label, session, "Enter")
+        time.sleep(0.5)
+        # Worker-B finishes during zen, so the cluster also shows a done dot.
+        send_l(label, session, "/new-session Worker-B")
+        time.sleep(0.2)
+        send_k(label, session, "Enter")
+        wait_pane(label, session, "Worker-B", 20.0)
+        time.sleep(0.6)
+        send_l(label, session, "!sleep 6")
+        time.sleep(0.15)
+        send_k(label, session, "Enter")
+        time.sleep(0.5)
+        # An active tab contributes no marker, so return to the idle Agent-01.
+        send_k(label, session, "C-t")
+        wait_pane(label, session, "Tab Jump", 6.0)
+        send_l(label, session, "Agent-01")
+        time.sleep(0.8)
+        send_k(label, session, "Enter")
+        wait_pane(label, session, r"Agent-01 ·", 8.0)
         clear_editor(label, session)
         time.sleep(0.5)
     elif name == "right-widget":
