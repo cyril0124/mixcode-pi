@@ -16,7 +16,7 @@ import type { ChatLine } from "../../agent/runtime-types.js";
 import type { MixCodeState } from "../../core/types.js";
 import { homeVisibleTabIndices } from "../../core/tabs.js";
 import { tabIsWaitingForInput } from "../../core/tab-state.js";
-import { type MixCodeTheme, themeForId } from "../themes.js";
+import { type MixCodeTheme, tabColorPaint, themeForId } from "../themes.js";
 import { compactWorkdir, exactContextUsageText, formatElapsed, tabStatusGlyph } from "./chrome.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
 import { highlightRanges } from "./highlight.js";
@@ -316,10 +316,12 @@ function renderAgentCard(
     "…",
   );
   const titleBudget = Math.max(1, width - visibleWidth(statusGroup) - 6);
-  const title = formatAgentCardTitleSegment(
-    tab,
-    `${tabStatusGlyph(tab)} ${truncateToWidth(singleLinePreview(tab.title), titleBudget, "…")}`,
-  );
+  const titleText = `${tabStatusGlyph(tab)} ${truncateToWidth(singleLinePreview(tab.title), titleBudget, "…")}`;
+  // A colored tab shows its color behind the card title regardless of status or
+  // selection; the selected row's background still wraps the whole line.
+  const title = tab.color
+    ? tabColorPaint(tab.color)(titleText)
+    : formatAgentCardTitleSegment(tab, titleText);
   const rows = [
     homeLineEnds(`${marker}${title}`, statusGroup, width),
     padLine(`  ${formatAgentCardMeta(tab, new Date(now))}`, width),

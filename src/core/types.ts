@@ -1,6 +1,7 @@
 import type { Model, ThinkingLevelMap } from "@earendil-works/pi-ai";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { MixCodeUiSettings } from "./mixcode-settings.js";
+import type { TabColorName } from "./tab-colors.js";
 
 /** Pi SettingsManager markdown.mermaid (not re-exported from package entry). */
 export type MermaidRenderingMode = "off" | "final" | "streaming";
@@ -109,6 +110,12 @@ export interface MixCodeTabInfo {
   index: number;
   sessionId: string;
   title: string;
+  /**
+   * User-assigned tab color, persisted per session in `mixcode_state.json`
+   * (`tab_colors`). Undefined = theme styling only. Like `title`, it follows
+   * the session id, so `/clear` (new session) drops it.
+   */
+  color?: TabColorName;
   status: TabStatus;
   /** Loading phase label shown while status is "Not Ready" ("session", "resources", "transcript"). */
   loadingPhase?: string;

@@ -32,15 +32,24 @@ Tab 实时展示运行状态指示符：`●`（运行中/工作中）、`-`（�
 | 清空会话 | `/clear` | 在当前 Tab 内生成全新的 Session 文件（重置标题）。 |
 | 分支复制 | `/fork` | 将当前对话历史克隆到新 Tab 中，新 Tab 拥有独立的运行时服务。 |
 | 重命名 Tab | `/rename <title>` | 设置当前 Tab 标题。 |
+| Tab 上色 | `/color [name\|clear]` | 用固定调色板给当前 Tab 上色；省略参数或传 `clear` 则清除。按 session 持久化。见 [Tab 颜色](#tab-颜色)。 |
 | Tab 跳转 | `Ctrl+T` / `/jump` | 打开全屏 Tab 检索面板，支持模糊搜索与快速切换。 |
 | Tab 轮转 | `Tab` / `Shift+Tab` | 补全关闭时轮转 Tab。Zen 模式下被吞掉（用 `Ctrl+T`）。 |
 | Zen 模式 | `/toggle-zen-mode` | 隐藏顶部 Tab 栏，获得专注的 Agent 会话视图。 |
 
 ### Tab 外观
 
-Tab 配色使用当前主题已有的 token，渲染层不定义独立调色板。当前 Tab（包括 Home）使用 `selectedBg` 背景和加粗的 `text` 标题。所有未选中 Tab 使用 `toolPendingBg`：普通标题使用 `muted`，最近访问的两个未选中 Agent 使用 `text`，Home 使用 `accent`。停留在 Home 时，最近访问的两个 Agent 使用最近访问样式。
+Tab 外观来自当前主题；只有显式指定过 `/color` 的 Tab 例外（见 [Tab 颜色](#tab-颜色)）。当前 Tab（包括 Home）使用 `selectedBg` 背景和加粗的 `text` 标题。所有未选中 Tab 使用 `toolPendingBg`：普通标题使用 `muted`，最近访问的两个未选中 Agent 使用 `text`，Home 使用 `accent`。停留在 Home 时，最近访问的两个 Agent 使用最近访问样式。
 
 已完成未读的 Tab 使用 `✓` 和主题 `doneFg` 颜色的加粗标题，不受最近访问顺序影响。未选中时仍使用普通背景。聚焦 Tab 会清除完成标记及其强调样式；运行中、等待输入或报错状态优先于未读完成标记。其他状态色只作用于符号。当前 Tab 保留左侧焦点标记和三秒一轮的标题扫光；扫光过程中，符号保持其状态色。`terminal` 主题使用反色表示选中，未选中 Tab 保持终端默认背景。
+
+### Tab 颜色
+
+`/color <name>` 把当前 Tab 的 chip 背景设为八种具名颜色之一：`red`、`green`、`yellow`、`blue`、`magenta`、`cyan`、`white`、`gray`。每个名字对应一组 ANSI 16 色背景与固定的高对比前景色，因此在任何主题下同一个名字看起来都一样。不传参数或传 `/color clear` 清除颜色；未知名字报 `Error: Unknown color: <value> (valid: red, green, …, clear)` 且不改动 Tab；参数补全会列出调色板与 `clear`。
+
+已上色 Tab 的 chip 背景来自该颜色，前景是配对的对比色。主题的选中/最近访问/完成背景不再生效，标题扫光改为加粗文字。已完成未读的 Tab 整个 chip 保留主题的加粗成功色，以便辨认完成状态；其他状态色（运行中/等待输入/报错）只保留字形。当前 Tab 仍以左侧焦点标记区分；未上色的 Tab 仍使用主题样式。Home 的 Agent 卡片在标题段背景上同步该颜色。
+
+颜色按 session id 存在当前 workdir 的 `mixcode_state.json` 的 `tab_colors` 中，重启后仍在。标题和颜色都跟随 session id，因此 `/clear`（新 session 文件）会丢掉颜色。state 文件里已不在调色板中的颜色名会被忽略；`/save-workspace` 不保存颜色。
 
 ### Tab 标题
 

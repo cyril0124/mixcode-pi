@@ -1,6 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { createInitialState, createTab, defaultTabTitle } from "./defaults.js";
+import { isTabColorName } from "./tab-colors.js";
 import { isKnownThinkingLevel } from "./thinking-levels.js";
 import type { MixCodeState, MixCodeTabInfo, WorkspaceSnapshot } from "./types.js";
 
@@ -19,7 +20,7 @@ export function normalizeStartupWorkdir(workdir: string): string {
 }
 
 export function serializeState(state: MixCodeState): Record<string, unknown> {
-  // Open tabs, per-tab workdirs, custom titles, and unread-done flags.
+  // Open tabs, per-tab workdirs, custom titles/colors, and unread-done flags.
   return {
     children: state.tabs.map((tab) => tab.sessionId),
     workdirs: Object.fromEntries(state.tabs.map((tab) => [tab.sessionId, tab.workdir])),
@@ -27,6 +28,9 @@ export function serializeState(state: MixCodeState): Record<string, unknown> {
       state.tabs
         .filter((tab) => tab.title !== defaultTabTitle(tab.index))
         .map((tab) => [tab.sessionId, tab.title]),
+    ),
+    tab_colors: Object.fromEntries(
+      state.tabs.filter((tab) => tab.color).map((tab) => [tab.sessionId, tab.color]),
     ),
     startup_workdir: state.workdir,
     unseen_done: state.tabs.filter((tab) => tab.unreadDone).map((tab) => tab.sessionId),
@@ -42,6 +46,7 @@ export function deserializeState(
   );
   const workdirs = objectRecord(data.workdirs);
   const titles = objectRecord(data.tab_titles);
+  const colors = objectRecord(data.tab_colors);
   const unseen = new Set(Array.isArray(data.unseen_done) ? data.unseen_done.map(String) : []);
   if (Array.isArray(data.children)) {
     state.tabs = data.children
@@ -50,9 +55,13 @@ export function deserializeState(
       .map((sessionId, index) => {
         const storedTitle = titles[sessionId];
         const title = typeof storedTitle === "string" ? storedTitle.trim() : "";
+        // Unknown names (removed or renamed palette entries) are dropped instead
+        // of failing startup; the color is cosmetic and carries no other state.
+        const storedColor = colors[sessionId];
         const overrides: Partial<MixCodeTabInfo> = {
           unreadDone: unseen.has(sessionId),
           ...(title ? { title } : {}),
+          ...(isTabColorName(storedColor) ? { color: storedColor } : {}),
         };
         return createTab(
           index + 1,

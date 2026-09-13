@@ -245,6 +245,8 @@ export async function completeAgentTabClear(
   // Publish first so a corrupt snapshot cannot leave the local identity half-swapped.
   noteTabReplaced(oldSessionId, nextSessionId);
   prepared.tab.sessionId = nextSessionId;
+  // The tab color is keyed by session id, like the title; a fresh session drops it.
+  prepared.tab.color = undefined;
   if (wasActive) state.activeTabId = nextSessionId;
   try {
     const cleared = await runtime.clearTab(oldSessionId, {
