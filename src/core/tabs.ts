@@ -1,3 +1,4 @@
+import type { TabColorName } from "./tab-colors.js";
 import { tabIsNonIdle } from "./tab-state.js";
 import { HOME_TAB_ID, type MixCodeState, type MixCodeTabInfo } from "./types.js";
 
@@ -141,6 +142,17 @@ export function renameAgentTab(state: MixCodeState, sessionId: string, title: st
     throw new Error(`Tab title already in use: ${clean}`);
   }
   tab.title = clean;
+}
+
+/** Sets or clears (`undefined`) the tab color. Persisted via `mixcode_state.json`. */
+export function setAgentTabColor(
+  state: MixCodeState,
+  sessionId: string,
+  color: TabColorName | undefined,
+): void {
+  const tab = state.tabs.find((item) => item.sessionId === sessionId);
+  if (!tab) throw new Error(`Unknown tab: ${sessionId}`);
+  tab.color = color;
 }
 
 export function nextTabId(state: MixCodeState, delta: number): string {

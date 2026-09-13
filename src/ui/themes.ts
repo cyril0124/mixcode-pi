@@ -1,5 +1,6 @@
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { DEFAULT_THEME_ID } from "../core/defaults.js";
+import type { TabColorName } from "../core/tab-colors.js";
 import { allKnownThinkingLevels } from "../core/thinking-levels.js";
 import type { MixCodeState } from "../core/types.js";
 import {
@@ -53,6 +54,64 @@ const ansiYellow = (text: string) => `\x1b[33m${text}\x1b[39m`;
 const ansiBlue = (text: string) => `\x1b[34m${text}\x1b[39m`;
 const ansiCyan = (text: string) => `\x1b[36m${text}\x1b[39m`;
 const dim = (text: string) => `\x1b[2m${text}\x1b[22m`;
+
+/**
+ * Tab colors map to raw ANSI 16-color pairs instead of theme tokens, so one
+ * color name renders the same under every theme. Each background has a fixed
+ * foreground for contrast: light backgrounds get black text, dark backgrounds
+ * bright white.
+ */
+const TAB_COLOR_SGR: Record<TabColorName, { bg: number; fg: number }> = {
+  red: { bg: 41, fg: 97 },
+  green: { bg: 42, fg: 30 },
+  yellow: { bg: 43, fg: 30 },
+  blue: { bg: 44, fg: 97 },
+  magenta: { bg: 45, fg: 97 },
+  cyan: { bg: 46, fg: 30 },
+  white: { bg: 47, fg: 30 },
+  gray: { bg: 100, fg: 97 },
+};
+
+const tabColorPaints = new Map<TabColorName, (text: string) => string>();
+const tabColorBackgrounds = new Map<TabColorName, (text: string) => string>();
+
+/**
+ * Chip painter for a tab color. The background and contrast foreground are
+ * re-opened after inner SGR resets (`0m`, `39m`, `49m`), so nested spans such
+ * as the focus mark or bold title cannot strip the color; the closing sequence
+ * ends both. Painters are cached because the tab bar repaints every frame.
+ */
+export function tabColorPaint(color: TabColorName): (text: string) => string {
+  const cached = tabColorPaints.get(color);
+  if (cached) return cached;
+  const { bg, fg } = TAB_COLOR_SGR[color];
+  const start = `\x1b[${bg}m\x1b[${fg}m`;
+  const paint = (text: string) =>
+    `${start}${text
+      .replace(/\x1b\[0m/g, `\x1b[0m${start}`)
+      .replace(/\x1b\[39m/g, `\x1b[39m${start}`)
+      .replace(/\x1b\[49m/g, `\x1b[49m${start}`)}\x1b[39m\x1b[49m`;
+  tabColorPaints.set(color, paint);
+  return paint;
+}
+
+/**
+ * Background-only painter for a tab color, for callers that supply their own
+ * foreground (a completed tab keeps the theme's success color). The background
+ * is re-opened after inner SGR resets, and the closing sequence ends it.
+ */
+export function tabColorBackground(color: TabColorName): (text: string) => string {
+  const cached = tabColorBackgrounds.get(color);
+  if (cached) return cached;
+  const { bg } = TAB_COLOR_SGR[color];
+  const start = `\x1b[${bg}m`;
+  const paint = (text: string) =>
+    `${start}${text
+      .replace(/\x1b\[0m/g, `\x1b[0m${start}`)
+      .replace(/\x1b\[49m/g, `\x1b[49m${start}`)}\x1b[49m`;
+  tabColorBackgrounds.set(color, paint);
+  return paint;
+}
 
 const THINKING_LEVELS = allKnownThinkingLevels();
 const TERMINAL_THINKING_ANSI = [90, 37, 34, 36, 35, 95, 31, 91, 33, 93, 32, 92, 94, 96, 97];

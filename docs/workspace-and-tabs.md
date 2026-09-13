@@ -32,15 +32,24 @@ Tabs display live status glyphs: `●` (running/working), `-` (idle/ready), `✓
 | Clear Session | `/clear` | Generates a fresh session file in the same tab, resetting the title. |
 | Fork Tab | `/fork` | Clones conversation history into a new tab with its own runtime services. |
 | Rename Tab | `/rename <title>` | Sets the active tab title. |
+| Color Tab | `/color [name\|clear]` | Sets the active tab color from the fixed palette, or clears it when the argument is omitted or `clear`. Persisted per session. See [Tab colors](#tab-colors). |
 | Tab Jump | `Ctrl+T` / `/jump` | Displays an interactive modal to jump to any open tab. |
 | Tab Cycle | `Tab` / `Shift+Tab` | Cycles tabs when autocomplete is closed. Swallowed in Zen mode (use `Ctrl+T`). |
 | Zen Mode | `/toggle-zen-mode` | Toggles the top tab bar for an uncluttered focus view. |
 
 ### Tab appearance
 
-Tab colors use the current theme's existing tokens; tab rendering defines no separate palette. The active tab, including Home, uses `selectedBg` with bold `text`. All inactive tabs use `toolPendingBg`: ordinary titles use `muted`, the two most recent inactive agents use `text`, and Home uses `accent`. On Home, the two most recently visited agents receive the recent styling.
+Tab styling comes from the current theme, except for a tab with an explicit `/color` assignment (see [Tab colors](#tab-colors)). The active tab, including Home, uses `selectedBg` with bold `text`. All inactive tabs use `toolPendingBg`: ordinary titles use `muted`, the two most recent inactive agents use `text`, and Home uses `accent`. On Home, the two most recently visited agents receive the recent styling.
 
 Completed/unread tabs use `✓` and a bold title in the theme's `doneFg` color, independent of recency. They retain the ordinary background unless focused. Focusing a tab clears its completion badge and emphasis; a running, waiting, or error state takes priority over an unread completion. Other status colors apply only to the glyph. The active tab retains its left focus marker and the title's three-second shimmer cycle; the glyph retains its status color during the sweep. The `terminal` theme uses reverse video for selection and terminal-default backgrounds for inactive tabs.
+
+### Tab colors
+
+`/color <name>` sets the active tab's chip background to one of eight named colors: `red`, `green`, `yellow`, `blue`, `magenta`, `cyan`, `white`, `gray`. Each name maps to an ANSI 16-color background with a fixed contrast foreground, so the same name looks the same under every theme. `/color` with no argument, or `/color clear`, removes the color. An unknown name reports `Error: Unknown color: <value> (valid: red, green, …, clear)` and leaves the tab unchanged; autocomplete offers the palette and `clear`.
+
+On a colored tab the chip background comes from the color, and the chip foreground is the color's contrast pair. The theme's active, recency, and completion backgrounds do not apply, and the title shimmer is replaced by bold text. A done or unread tab keeps the theme's bold success color for the whole chip so completion stays recognizable; other status colors (running, waiting, error) stay shape-only. The active tab is still marked by its left focus marker. Uncolored tabs keep the theme's chip styling. Home's agent card paints the same color behind its title segment.
+
+Colors are stored per session id under `tab_colors` in the current workdir's `mixcode_state.json`, so they survive restart. Titles and colors both follow the session id, so `/clear` (a new session file) drops the color. A color name that is no longer in the palette is ignored when the state file loads, and `/save-workspace` does not store colors.
 
 ### Tab titles
 

@@ -1,3 +1,5 @@
+import { TAB_COLOR_NAMES } from "./tab-colors.js";
+
 export type LocalCommand =
   | "batch"
   | "models"
@@ -43,6 +45,7 @@ export type LocalCommand =
   | "jump"
   | "editor"
   | "rename"
+  | "color"
   | "tui-state"
   | "quit"
   | "exit";
@@ -92,6 +95,16 @@ function newSessionFocusCompletions(
       label: "--no-focus",
       description: "Create the tab without switching UI",
     },
+  ].filter((item) => !needle || item.value.startsWith(needle));
+}
+
+function tabColorCompletions(
+  prefix: string,
+): Array<{ value: string; label: string; description?: string }> {
+  const needle = prefix.trim().toLowerCase();
+  return [
+    ...TAB_COLOR_NAMES.map((name) => ({ value: name, label: name })),
+    { value: "clear", label: "clear", description: "Remove the tab color" },
   ].filter((item) => !needle || item.value.startsWith(needle));
 }
 
@@ -428,6 +441,17 @@ export const LOCAL_COMMANDS: Array<{
     description: "Rename active tab",
     argumentHint: "<title>",
     palette: { label: "Rename", description: "Rename the current tab", requires: "session" },
+  },
+  {
+    name: "color",
+    description: "Set the active tab color",
+    argumentHint: "[name|clear]",
+    getArgumentCompletions: tabColorCompletions,
+    palette: {
+      label: "Set Tab Color",
+      description: "Color the current tab (no argument clears it)",
+      requires: "session",
+    },
   },
   {
     name: "tui-state",

@@ -13,6 +13,7 @@ import { HOME_TAB_ID, type MixCodeState, type MixCodeTabInfo } from "../../core/
 import { pointerHoverFor } from "../pointer-hover.js";
 import { buildLabeledTopBorder } from "../components/editor-top-border.js";
 import type { MixCodeTheme } from "../themes.js";
+import { tabColorBackground, tabColorPaint } from "../themes.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
 import { resolveGlyphs, resolveIconMode, type IconGlyphs } from "./icons.js";
 import { padLine, sanitizeTerminalText } from "./primitives.js";
@@ -1404,6 +1405,24 @@ function renderTabSegmentText(
     const rendered = active ? withFocusMark(chip, body) : paintTabChip(chip, body);
     return fg ? rendered.replace(glyph, `${fg(glyph)}${tabChipOpenSeq(chip)}`) : rendered;
   };
+  // A colored tab takes its chip background from the color. The foreground is
+  // the color's contrast pair, except for completion: a done chip keeps the
+  // theme's bold success color over the color background so the state stays
+  // recognizable. Other status colors stay shape-only on colored chips.
+  if (tab.color) {
+    if (glyph === "✓") {
+      return paintTabChip(
+        tabColorBackground(tab.color),
+        activeRenderTheme.bold(
+          activeRenderTheme.doneFg(active ? `${TAB_FOCUS_MARK}${raw.slice(1)}` : raw),
+        ),
+      );
+    }
+    return paintTabChip(
+      tabColorPaint(tab.color),
+      active ? `${TAB_FOCUS_MARK}${activeRenderTheme.bold(raw.slice(1))}` : raw,
+    );
+  }
   if (glyph === "✓") {
     // Completion must remain visible regardless of recency, without borrowing the focus background.
     const base = active ? activeRenderTheme.activeTab : activeRenderTheme.recentTab;

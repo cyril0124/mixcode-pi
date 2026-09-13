@@ -9,7 +9,8 @@ import {
   noteTabOpened,
 } from "../core/open-tabs-store.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
-import { activateTab, renameAgentTab } from "../core/tabs.js";
+import { activateTab, renameAgentTab, setAgentTabColor } from "../core/tabs.js";
+import { isTabColorName, TAB_COLOR_NAMES } from "../core/tab-colors.js";
 import { pushToast } from "../core/toast.js";
 import { HOME_TAB_ID, type MixCodeState } from "../core/types.js";
 import {
@@ -470,6 +471,24 @@ const handleRename: LocalCommandHandler = ({ state, active, args, runtime, tui }
   return undefined;
 };
 
+const handleColor: LocalCommandHandler = ({ state, active, args, runtime, tui }) => {
+  const input = args.trim().toLowerCase();
+  const color = input === "" || input === "clear" ? undefined : input;
+  if (color !== undefined && !isTabColorName(color)) {
+    appendActiveSystemMessage(
+      state,
+      runtime,
+      `Error: Unknown color: ${input} (valid: ${TAB_COLOR_NAMES.join(", ")}, clear)`,
+    );
+    tui.requestRender();
+    return SKIP_FINALIZE;
+  }
+  // No argument or "clear" removes the color; persistence rides on the normal
+  // state save after the command returns (see handleSubmittedInput).
+  setAgentTabColor(state, active!.sessionId, color);
+  return undefined;
+};
+
 const handleSession: LocalCommandHandler = ({ state, active, runtime }) => {
   // Agent-tab only: session stats dump into the active chat.
   if (state.activeTabId === HOME_TAB_ID) return SKIP_FINALIZE;
@@ -508,6 +527,7 @@ export const SESSION_COMMAND_HANDLERS = {
   "new-session": handleNewSession,
   resume: handleResume,
   rename: handleRename,
+  color: handleColor,
 } satisfies Partial<Record<LocalCommand, LocalCommandHandler>>;
 
 type SessionStatsInfo = ReturnType<RuntimeTab["agentSession"]["getSessionStats"]>;

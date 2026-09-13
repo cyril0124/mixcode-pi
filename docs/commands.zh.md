@@ -23,6 +23,7 @@ MixCode 在 `src/core/commands.ts` 中注册了内置本地 Slash 命令。这�
 | `/workdir` | `[path]` | Workdir | 切换当前 Agent 工作目录并更新文件监听。 |
 | `/new-session` | `[--focus\|--no-focus] [title]` | Workdir | 新建 Agent Tab，可指定自定义标题。默认 focus 到新 Tab；`--no-focus` 留在当前 Tab。已占用的标题变为 `title-N`。见 [Tab 标题](workspace-and-tabs.zh.md#tab-标题)。 |
 | `/fork` | - | Workdir | 将当前会话分支复制到新 Tab，新 Tab 拥有独立的运行时服务。标题为 `{source}-fork`，已被占用则为 `{source}-fork-N`。见 [Tab 标题](workspace-and-tabs.zh.md#tab-标题)。 |
+| `/color` | `[name\|clear]` | Workdir | 用 `red`、`green`、`yellow`、`blue`、`magenta`、`cyan`、`white`、`gray` 之一给当前 Tab 上色；省略参数或传 `clear` 则清除。按 session 持久化到 `mixcode_state.json`。见 [Tab 颜色](workspace-and-tabs.zh.md#tab-颜色)。 |
 | `/follow-up` | `<text>` | Session | 向 Follow-up 队列添加消息，在当前轮次完成后优先执行。 |
 | `/compact` | `[custom instructions]` | Session | 手动触发当前分支的上下文压缩（Compaction）。 |
 | `/reset` | - | Session | 将会话重置回根节点，保留 Session 文件与 Tab 标题。先前分支仍在 `/tree`。 |

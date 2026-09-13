@@ -26,6 +26,7 @@ export * from "../../src/core/session-lock.js";
 export * from "../../src/core/state-store.js";
 export * from "../../src/core/system-prompt.js";
 export * from "../../src/core/tabs.js";
+export * from "../../src/core/tab-colors.js";
 export * from "../../src/core/toast.js";
 export * from "../../src/core/types.js";
 export * from "../../src/core/workspace.js";
