@@ -117,7 +117,11 @@ export interface MixCodeTabInfo {
    */
   color?: TabColorName;
   status: TabStatus;
-  /** Loading phase label shown while status is "Not Ready" ("session", "resources", "transcript"). */
+  /**
+   * Loading phase label shown while status is "Not Ready": "session",
+   * "resources", "transcript", or "waiting for input" when the tab parked in an
+   * extension dialog.
+   */
   loadingPhase?: string;
   contextLimit: number;
   /** True when contextLimit was explicitly overridden by the user via /context-limit */

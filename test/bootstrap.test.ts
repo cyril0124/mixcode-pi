@@ -139,6 +139,47 @@ test("bootstrap restores persisted tab order and runtime tabs", async () => {
   }
 });
 
+test("bootstrap keeps loading the tabs behind a failed restore", async () => {
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-bootstrap-fail-"));
+  try {
+    const repo = path.join(dir, "repo");
+    await fsPromises.mkdir(repo, { recursive: true });
+    const state = createInitialState(repo);
+    state.tabs.push(createTab(1, "s1", repo), createTab(2, "s2", repo));
+    await saveStateFile(stateFilePath(scopedStateDir(dir, "/fallback")), state);
+    const agentDir = path.join(dir, "agent");
+    // A directory where the first tab's session file belongs: opening it fails,
+    // and only that tab is affected. Restores are sequential, so the tab behind
+    // the failure must still load.
+    const sessionsRoot = resolveSessionsRoot({
+      workdir: "/fallback",
+      agentDir,
+      envSessionDir: process.env.PI_CODING_AGENT_SESSION_DIR,
+      settingsSessionDir: undefined,
+    });
+    await fsPromises.mkdir(path.join(sessionsRoot, "0000_s1.jsonl"), { recursive: true });
+    const boot = await bootstrapMixCode({
+      workdir: "/fallback",
+      stateDir: dir,
+      agentDir,
+      modelConfigPath: path.join(dir, "missing.jsonc"),
+    });
+
+    const failure = await boot.tabsReady.then(
+      () => undefined,
+      (rejection: unknown) => rejection,
+    );
+    assert.ok(failure instanceof AggregateError);
+    assert.match(failure.message, /Agent-01: .*EISDIR/);
+    assert.ok(!boot.runtime.getTab("s1"));
+    assert.ok(boot.runtime.getTab("s2"));
+    assert.equal(boot.state.tabs.find((tab) => tab.sessionId === "s1")?.status, "error");
+    assert.equal(boot.state.tabs.find((tab) => tab.sessionId === "s2")?.status, "idle");
+  } finally {
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("bootstrap ignores an unknown theme key in the state file", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-bootstrap-theme-"));
   try {
