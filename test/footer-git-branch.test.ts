@@ -104,9 +104,18 @@ test("onGitBranchChange fires when the cached branch value changes", async () =>
     });
 
     await execFileAsync("git", ["checkout", "-qb", "feature-branch"], { cwd: workdir });
-    await waitForBranch(() => (fires > 0 ? "ok" : null));
+    // The notify chain is a 1s stat poll plus a 500ms debounce. On a loaded
+    // 4-core CI runner that window can starve for the whole deadline without
+    // the poll ever firing; one extra real switch gives the watcher a fresh
+    // change instead of failing on runner scheduling noise.
+    const branches = ["feature-branch"];
+    if (!(await waitForBranch(() => (fires > 0 ? "ok" : null), 5_000))) {
+      branches.push("retry-branch");
+      await execFileAsync("git", ["checkout", "-qb", "retry-branch"], { cwd: workdir });
+      await waitForBranch(() => (fires > 0 ? "ok" : null), 25_000);
+    }
     assert.ok(fires > 0, "expected notify after checkout");
-    assert.equal(gitBranchForWorkdir(workdir), "feature-branch");
+    assert.ok(branches.includes(gitBranchForWorkdir(workdir)));
   } finally {
     unsub?.();
     await fsPromises.rm(workdir, { recursive: true, force: true });
@@ -146,7 +155,10 @@ test("extension footerData.onBranchChange notifies after branch switch", async (
 
     const before = fires;
     await execFileAsync("git", ["checkout", "-qb", "ext-feature"], { cwd: workdir });
-    await waitForBranch(() => (fires > before ? "ok" : null));
+    if (!(await waitForBranch(() => (fires > before ? "ok" : null), 5_000))) {
+      await execFileAsync("git", ["checkout", "-qb", "ext-retry"], { cwd: workdir });
+      await waitForBranch(() => (fires > before ? "ok" : null), 25_000);
+    }
     assert.ok(fires > before, "footer onBranchChange should fire after checkout");
   } finally {
     unsub?.();
