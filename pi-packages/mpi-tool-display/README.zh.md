@@ -11,13 +11,13 @@
 | `bash` | `↳ N lines returned • Ctrl+O to expand` | 10 帧 spinner + 运行耗时；实时输出不折叠；展开预览上限 4000 行 |
 | `read` | `↳ loaded N lines • Ctrl+O to expand` | 展开预览上限 4000 行 |
 | `read` 指向 `SKILL.md` | `[skill] <父目录>`；折叠结果为空 | 文件正文 |
-| `edit` | diff 折叠上限 24 行，超出部分给出提示 | 运行中显示 pending diff；展开后显示完整 diff |
-| `write` | 基于执行前内容显示覆写 diff；新文件显示为纯新增 | 运行中显示 pending diff；展开后显示完整 diff |
+| `edit` | diff 折叠上限为换行前的 24 个内容行，超出部分给出提示 | 运行中显示 pending diff；展开上限为 4000 个终端行 |
+| `write` | 基于执行前内容显示覆写 diff；新文件显示为纯新增；diff 上限与 `edit` 相同 | 运行中显示 pending diff；展开上限为 4000 个终端行 |
 | Thinking | 带主题色的 `Thinking:` 前缀 | 流式更新持续保留标签 |
 
 调用行格式为 `$ command [timeout]`、`read path[:range]`、`edit path (N lines)` 和 `write path (N lines • size)`。
 
-diff 使用 bars 指示；宽度不小于 120 列时左右分栏，低于 120 列时使用 unified；支持 word wrap 和 Pi 语法高亮。diff 参数由 `DEFAULT_TOOL_DISPLAY_CONFIG` 定义。原始参数展示另行配置。
+diff 使用 bars 指示；宽度不小于 120 列时左右分栏，低于 120 列时使用 unified；支持 word wrap 和 Pi 语法高亮。折叠预算中每个内容行只计一次，其换行后的所有终端行均完整保留；分栏中左右配对的一行计一次。表头和 hunk/文件元信息不占预算。余量提示在折叠时统计隐藏的内容行，在展开时统计隐藏的终端行。diff 参数由 `DEFAULT_TOOL_DISPLAY_CONFIG` 定义。原始参数展示另行配置。
 
 ## 配置
 

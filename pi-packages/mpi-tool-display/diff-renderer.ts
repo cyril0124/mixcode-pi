@@ -85,6 +85,8 @@ interface DiffStats {
 interface RenderedRow {
   text: string;
   hunkIndex: number | null;
+  /** Shared by wrapped rows of one content line (one left/right pair in split view). */
+  logicalLineId?: number;
 }
 
 interface SplitDiffRow {
@@ -1714,11 +1716,17 @@ function highlightDiffLine(
   return { highlighted, rowBg };
 }
 
-function pushDiffLineRows(rows: RenderedRow[], lines: string[], entry: DiffLineEntry): void {
+function pushDiffLineRows(
+  rows: RenderedRow[],
+  lines: string[],
+  entry: DiffLineEntry,
+  logicalLineId: number,
+): void {
   rows.push(
     ...lines.map((text) => ({
       text,
       hunkIndex: entry.hunkIndex || null,
+      logicalLineId,
     })),
   );
 }
@@ -1742,12 +1750,12 @@ function processDiffEntries(
 ): RenderedRow[] {
   const { width, theme, wordWrap } = ctx;
   const rows: RenderedRow[] = [];
-  for (const entry of entries) {
+  for (const [logicalLineId, entry] of entries.entries()) {
     if (entry.kind !== "line") {
       rows.push(...formatMetaEntryRows(entry, width, theme, wordWrap));
       continue;
     }
-    pushDiffLineRows(rows, processLine(entry), entry);
+    pushDiffLineRows(rows, processLine(entry), entry, logicalLineId);
   }
   return rows;
 }
@@ -2031,7 +2039,7 @@ function renderSplit(
     hunkIndex: null,
   });
 
-  for (const row of rows) {
+  for (const [logicalLineId, row] of rows.entries()) {
     if (row.meta) {
       output.push(...formatMetaEntryRows(row.meta, width, theme, wordWrap));
       continue;
@@ -2080,7 +2088,11 @@ function renderSplit(
           indicatorMode,
           hashlineGutter,
         );
-      output.push({ text: `${leftCell}${separator}${rightCell}`, hunkIndex: row.hunkIndex });
+      output.push({
+        text: `${leftCell}${separator}${rightCell}`,
+        hunkIndex: row.hunkIndex,
+        logicalLineId,
+      });
     }
   }
 
@@ -2197,8 +2209,27 @@ function applyLineLimit(
     return rows.map((row) => clampDiffLineToWidth(row.text, width));
   }
 
-  const shown = rows.slice(0, limit);
-  const remaining = rows.length - shown.length;
+  let endIndex = Math.floor(limit);
+  let remaining = rows.length - endIndex;
+  if (!expanded) {
+    // Count content lines, not their wrapped terminal rows. Long context must
+    // not consume the whole preview before the actual change is reached.
+    const logicalLineIds = [
+      ...new Set(
+        rows.flatMap((row) => (row.logicalLineId === undefined ? [] : [row.logicalLineId])),
+      ),
+    ];
+    if (logicalLineIds.length <= limit) {
+      return rows.map((row) => clampDiffLineToWidth(row.text, width));
+    }
+    const shownCount = Math.floor(limit);
+    const lastShownId = logicalLineIds[shownCount - 1];
+    // Stop after the last complete line, before metadata for any hidden hunk/file.
+    endIndex = rows.findLastIndex((row) => row.logicalLineId === lastShownId) + 1;
+    remaining = logicalLineIds.length - shownCount;
+  }
+
+  const shown = rows.slice(0, endIndex);
   const visibleHunks = new Set(
     shown
       .map((row) => row.hunkIndex)

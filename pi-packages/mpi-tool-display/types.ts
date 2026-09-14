@@ -11,6 +11,7 @@ export interface ToolDisplayConfig {
   diffViewMode: DiffViewMode;
   diffIndicatorMode: DiffIndicatorMode;
   diffSplitMinWidth: number;
+  /** Content-line budget before wrapping; a split left/right pair counts once. */
   diffCollapsedLines: number;
   diffWordWrap: boolean;
   expandedPreviewMaxLines: number;

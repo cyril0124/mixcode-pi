@@ -11,13 +11,13 @@ Render-only transcript presentation for `bash`, `read`, `edit`, `write`, and Thi
 | `bash` | `↳ N lines returned • Ctrl+O to expand` | 10-frame spinner with elapsed time; live output remains uncollapsed; expanded preview is capped at 4000 lines |
 | `read` | `↳ loaded N lines • Ctrl+O to expand` | Expanded preview is capped at 4000 lines |
 | `read` of `SKILL.md` | `[skill] <parent directory>`; collapsed result is empty | File body |
-| `edit` | Diff capped at 24 lines with a remainder hint | Pending diff preview while running; full diff when expanded |
-| `write` | Overwrite diff against pre-execution content; new files render as additions | Pending diff preview while running; full diff when expanded |
+| `edit` | Diff capped at 24 content lines before wrapping, with a remainder hint | Pending diff preview while running; expanded diff capped at 4000 terminal rows |
+| `write` | Overwrite diff against pre-execution content; new files render as additions; same diff limits as `edit` | Pending diff preview while running; expanded diff capped at 4000 terminal rows |
 | Thinking | Themed `Thinking:` prefix | Streaming updates remain labeled |
 
 Call rows use `$ command [timeout]`, `read path[:range]`, `edit path (N lines)`, and `write path (N lines • size)`.
 
-Diff presentation uses bars, split layout at widths of 120 columns or more, unified layout below 120 columns, word wrapping, and Pi syntax highlighting. Diff knobs live in `DEFAULT_TOOL_DISPLAY_CONFIG`. Raw argument display is configured separately.
+Diff presentation uses bars, split layout at widths of 120 columns or more, unified layout below 120 columns, word wrapping, and Pi syntax highlighting. The collapsed budget counts each content line once, including all its wrapped rows; a left/right pair counts once in split view. Headers and hunk/file metadata do not consume that budget. The remainder hint counts hidden content lines when collapsed and hidden terminal rows when expanded. Diff knobs live in `DEFAULT_TOOL_DISPLAY_CONFIG`. Raw argument display is configured separately.
 
 ## Configuration
 
