@@ -303,12 +303,15 @@ export class MixCodeRuntime {
     config: Omit<AgentRuntimeConfig, "sessionId" | "model" | "thinkingLevel"> & {
       model?: MixCodeModel;
       thinkingLevel?: AgentRuntimeConfig["thinkingLevel"];
+      skipSessionLookup?: boolean;
       preserveCallerTitle?: boolean;
     },
   ): Promise<RuntimeTab> {
     // loadingPhase drives the Home-card chip while the tab is Not Ready.
     tab.loadingPhase = "session";
-    const session = await this.openOrCreateSession(tab.sessionId, config.workdir);
+    const session = config.skipSessionLookup
+      ? await createSession(config.workdir, this.sessionsRoot, tab.sessionId)
+      : await this.openOrCreateSession(tab.sessionId, config.workdir);
     tab.loadingPhase = "resources";
     const runtimeTab = await createRuntimeTabWithFallback(
       tab,

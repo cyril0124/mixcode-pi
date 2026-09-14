@@ -80,6 +80,7 @@ export async function createAgentTab(
     await runtime.createTab(tab, {
       systemPrompt: options.systemPrompt ?? MIXCODE_SYSTEM_PROMPT,
       thinkingLevel,
+      skipSessionLookup: true,
       workdir,
       ...(options.runtimeModel ? { model: options.runtimeModel } : {}),
     });
