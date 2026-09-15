@@ -86,6 +86,13 @@ test("runtime maps extension select, confirm, and input UI primitives into edito
         events.push(`input-title:${typed ?? "none"}`);
       },
     });
+    pi.registerCommand("dialog-input-empty", {
+      description: "Empty input submit smoke",
+      handler: async (_args, ctx) => {
+        const typed = await ctx.ui.input("Empty Name");
+        events.push(`input-empty:${typed === "" ? "empty" : (typed ?? "none")}`);
+      },
+    });
   };
 
   // Mock editor host that captures setEditorComponent calls
@@ -189,6 +196,17 @@ test("runtime maps extension select, confirm, and input UI primitives into edito
     activeEditorComponent!.handleInput("\r");
     await inputTitleTask;
     assert.equal(events.at(-1), "input-title:Named");
+
+    // Pi parity: submitting an empty input resolves "", not cancel (undefined)
+    const inputEmptyTask = runtime.prompt("s1", "/dialog-input-empty");
+    await waitFor(() => {
+      if (!activeEditorComponent) return false;
+      const r = activeEditorComponent.render(80).map(stripAnsi).join("\n");
+      return r.includes("Empty Name");
+    });
+    activeEditorComponent!.handleInput("\r");
+    await inputEmptyTask;
+    assert.equal(events.at(-1), "input-empty:empty");
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }

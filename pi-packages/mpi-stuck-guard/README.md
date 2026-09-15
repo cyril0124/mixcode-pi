@@ -21,13 +21,13 @@ The threshold is fixed at 3: the action applies to the third and each subsequent
 
 | Action | Result |
 |---|---|
-| `allow` | Disabled; also the default when `doomLoop` is absent. |
+| `allow` | Disabled. |
 | `ask` | Offer Allow once / Reject. Allow once leaves the count unchanged, so the next identical call asks again. Esc, cancellation, dialog failure, or missing UI blocks the call. |
-| `deny` | Block from the third call with a `stuck-guard: doom_loop` reason. Append optional `message` on a new line. |
+| `deny` | Block from the third call with a `stuck-guard: doom_loop` reason. Append optional `message` on a new line. Default when `doomLoop` is absent. |
 
 `action` is required. Optional `message` is a literal string that accepts empty text and newlines. Unknown fields and invalid types are configuration errors. Messages are saved but displayed only for automatic `deny`, not for `allow`, `ask`, or user rejection.
 
-Edit the JSON object under Doom loop in `/stuck-guard config`. Saved changes apply on the next agent turn.
+In `/stuck-guard config`, the Doom loop section has two rows: Doom loop action cycles `allow` → `ask` → `deny` on Enter and saves immediately; Doom loop message edits the optional denial text and an empty answer removes it. Saved changes apply on the next agent turn. The page cannot set an empty-string message; edit `mpi-stuck-guard.json` directly for that.
 
 Pi stops dispatching `tool_call` after an extension blocks it. This guard counts only calls that reach it, excluding earlier validation failures and extension blocks. Permission probes count like any other tool, but their results cover [permission rules](../mpi-permission/README.md#permission-probe), not this guard.
 
@@ -129,14 +129,14 @@ Config lives at `<agentDir>/mpi-stuck-guard.json`. Missing keys use defaults. Un
   "streamIdleTimeoutSeconds": 300,
   "streamRetryStartTimeoutSeconds": 300,
   "knownTimeoutCooldownSeconds": 60,
-  "doomLoop": { "action": "allow" },
+  "doomLoop": { "action": "deny" },
   "schemaHintFailureThreshold": 2
 }
 ```
 
 | Key | Type | Default | Meaning |
 |---|---|---:|---|
-| `doomLoop` | object | `{ "action": "allow" }` | Repeated-call action and optional denial message; see [Doom loop](#doom-loop) |
+| `doomLoop` | object | `{ "action": "deny" }` | Repeated-call action and optional denial message; see [Doom loop](#doom-loop) |
 | `streamWatchdogEnabled` | boolean | `true` | Enables provider stream start and idle timeouts |
 | `providerIds` | string[] | `[]` | Providers to wrap; empty means all configured providers |
 | `streamStartTimeoutSeconds` | integer >= 0 | `300` | Maximum wait for the first provider event; `0` disables it |
@@ -167,7 +167,7 @@ Use these forms:
 /stuck-guard stats    # open current-session statistics
 ```
 
-`/stuck-guard config` opens the configuration page in the Editor area. Arguments other than `config` and `stats` are rejected. The page lets you edit watchdog settings, the Doom loop JSON object, and the schema-hint threshold, and select Provider IDs through a searchable multi-select list.
+`/stuck-guard config` opens the configuration page in the Editor area. Arguments other than `config` and `stats` are rejected. The page lets you toggle watchdog settings, cycle the Doom loop action, edit the Doom loop message and the schema-hint threshold, and select Provider IDs through a searchable multi-select list.
 
 `/stuck-guard stats` opens a read-only Editor page. It shows current-session counts for provider attempts, completed streams, start timeouts, idle timeouts, provider errors, user aborts, and retry cooldown events. Statistics are kept in memory and reset when the session starts; they are not written to `mpi-stuck-guard.json`.
 

@@ -21,13 +21,13 @@
 
 | 动作 | 结果 |
 |---|---|
-| `allow` | 关闭防护，也是未配置 `doomLoop` 时的默认值。 |
+| `allow` | 关闭防护。 |
 | `ask` | 提供 Allow once / Reject。Allow once 不改变计数，下次相同调用仍需审批。Esc、取消、对话框失败或没有 UI 时拦截。 |
-| `deny` | 从第三次起拦截，原因包含 `stuck-guard: doom_loop`，可选 `message` 换行追加。 |
+| `deny` | 从第三次起拦截，原因包含 `stuck-guard: doom_loop`，可选 `message` 换行追加。未配置 `doomLoop` 时的默认值。 |
 
 `action` 为必填项。可选 `message` 是原样输出的字符串，允许空字符串和换行。未知字段和非法类型属于配置错误。提示会保存，但只在自动 `deny` 时显示；`allow`、`ask` 和用户拒绝时不显示。
 
-在 `/stuck-guard config` 的 Doom loop 项中编辑 JSON 对象。保存后，下一轮 Agent 对话时生效。
+在 `/stuck-guard config` 的 Doom loop 区域分两行编辑：Doom loop action 回车在 `allow` → `ask` → `deny` 间循环并立即保存；Doom loop message 编辑可选的拒绝提示文本，输入为空即移除该字段。保存后，下一轮 Agent 对话时生效。页面无法设置空字符串 message；需要时直接编辑 `mpi-stuck-guard.json`。
 
 Pi 遇到扩展拦截就停止分发 `tool_call`。本防护只统计到达自身的调用，不包括此前的参数校验失败或扩展拦截。权限探针与其他工具一样参与计数，但其结果只涵盖[权限规则](../mpi-permission/README.zh.md#探针工具)，不预测本防护。
 
@@ -129,14 +129,14 @@ timeout 会调用请求级 `AbortController`，并在发出错误前调用 `iter
   "streamIdleTimeoutSeconds": 300,
   "streamRetryStartTimeoutSeconds": 300,
   "knownTimeoutCooldownSeconds": 60,
-  "doomLoop": { "action": "allow" },
+  "doomLoop": { "action": "deny" },
   "schemaHintFailureThreshold": 2
 }
 ```
 
 | 键 | 类型 | 默认 | 含义 |
 |---|---|---:|---|
-| `doomLoop` | object | `{ "action": "allow" }` | 重复调用动作与可选拒绝提示，见 [Doom loop](#doom-loop) |
+| `doomLoop` | object | `{ "action": "deny" }` | 重复调用动作与可选拒绝提示，见 [Doom loop](#doom-loop) |
 | `streamWatchdogEnabled` | boolean | `true` | 启用 Provider 流首事件和 idle timeout |
 | `providerIds` | string[] | `[]` | 要包装的 Provider；空数组表示所有已配置 Provider |
 | `streamStartTimeoutSeconds` | 整数 >= 0 | `300` | 首个 Provider 事件最大等待秒数；`0` 关闭 |
@@ -167,7 +167,7 @@ timeout 会调用请求级 `AbortController`，并在发出错误前调用 `iter
 /stuck-guard stats    # 打开当前 session 统计
 ```
 
-`/stuck-guard config` 会在 Editor 区域打开配置页面。除 `config` 和 `stats` 外的参数都会被拒绝。页面可以编辑 watchdog 设置、Doom loop JSON 对象和参数提示阈值，并通过可搜索的多选列表选择 Provider ID。
+`/stuck-guard config` 会在 Editor 区域打开配置页面。除 `config` 和 `stats` 外的参数都会被拒绝。页面可以切换 watchdog 设置、循环 Doom loop action、编辑 Doom loop message 与参数提示阈值，并通过可搜索的多选列表选择 Provider ID。
 
 `/stuck-guard stats` 会在 Editor 区域打开只读页面，显示当前 session 的 Provider 请求、完成、start timeout、idle timeout、Provider 错误、用户 abort 和 retry cooldown 事件次数。统计保存在内存中，session 启动时清零，不写入 `mpi-stuck-guard.json`。
 

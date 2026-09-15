@@ -10,7 +10,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["action"],
-      "default": { "action": "allow" },
+      "default": { "action": "deny" },
       "description": "Third and later consecutive calls with identical tool name and JSON input require approval or are denied. Global config, per-session counter; allow disables.",
       "properties": {
         "action": { "enum": ["allow", "ask", "deny"] },

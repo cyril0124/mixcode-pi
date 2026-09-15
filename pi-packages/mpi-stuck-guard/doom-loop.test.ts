@@ -159,7 +159,9 @@ test("sessions count independently and enabling after allow starts a fresh strea
     const other = await createSession();
     assert.equal((await call(other)).isError, false);
     assert.equal((await call(session)).isError, true);
-    await configure({ streamWatchdogEnabled: false });
+    // Absent doomLoop defaults to deny, so allow must be explicit here to
+    // test that re-enabling deny afterwards starts a fresh streak.
+    await configure({ streamWatchdogEnabled: false, doomLoop: { action: "allow" } });
     for (let i = 0; i < 4; i++) assert.equal((await call(session)).isError, false);
     await configure(denyConfig);
     assert.equal((await call(session)).isError, false);

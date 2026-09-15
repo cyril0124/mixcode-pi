@@ -37,8 +37,8 @@ async function openConfigOverlay(
         theme,
         initial,
         configPath: path.join(agentDir, "mpi-stuck-guard.json"),
-        input: async (key, current) => {
-          if (key !== "providerIds") return ctx.ui.input(`Set ${key}`, JSON.stringify(current));
+        input: async (row, prefill) => {
+          if (row.id !== "providerIds") return ctx.ui.input(`Set ${row.label}`, prefill);
           const deferred = Promise.withResolvers<string | undefined>();
           await ctx.ui.custom(
             (tui, theme, _keybindings, pickerDone) =>
@@ -46,9 +46,8 @@ async function openConfigOverlay(
                 tui,
                 theme,
                 providers,
-                selected: Array.isArray(current)
-                  ? current.filter((value): value is string => typeof value === "string")
-                  : [],
+                // The overlay serializes the current providerIds selection as prefill.
+                selected: JSON.parse(prefill) as string[],
                 done: (next) => {
                   deferred.resolve(JSON.stringify(next));
                   pickerDone(undefined);

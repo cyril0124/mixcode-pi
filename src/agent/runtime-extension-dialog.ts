@@ -94,7 +94,9 @@ export function createExtensionDialog(
           ? new ExtensionInputComponent(
               title,
               question,
-              (value) => finish(value || undefined),
+              // Pi parity: upstream resolves the raw input, so an empty submit
+              // yields "", distinct from cancel (undefined).
+              (value) => finish(value),
               abort,
               {
                 tui,

@@ -24,7 +24,7 @@ export interface StuckGuardConfig {
 }
 
 export const DEFAULT_STUCK_GUARD_CONFIG: StuckGuardConfig = {
-  doomLoop: { action: "allow" },
+  doomLoop: { action: "deny" },
   streamWatchdogEnabled: true,
   providerIds: [],
   streamStartTimeoutSeconds: 300,
