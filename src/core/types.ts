@@ -164,6 +164,31 @@ export interface MixCodeTabInfo {
   inlineWidgets: boolean;
   /** Non-persisted collapse state for inline extension widgets, keyed by widget key. */
   inlineWidgetCollapsed: Map<string, boolean>;
+  /**
+   * Non-persisted subset of {@link inlineWidgetCollapsed} chosen by the inline
+   * tail row budget rather than by the user. Retained across frames so widget
+   * height jitter cannot flip a widget between collapsed and expanded every
+   * frame; a manual `/widgets` action removes the key from this set.
+   */
+  inlineWidgetAutoCollapsed: Set<string>;
+  /**
+   * Non-persisted signature (widget keys, recency stamps, and budget) that
+   * {@link inlineWidgetAutoCollapsed} was computed for. A different signature
+   * means a resize or an extension change, so the automatic decisions are
+   * recomputed instead of being held.
+   */
+  inlineWidgetAutoSignature?: string;
+  /**
+   * Non-persisted fully expanded row count of the frame that produced
+   * {@link inlineWidgetAutoCollapsed}; a larger move recomputes the decisions.
+   */
+  inlineWidgetAutoNaturalRows?: number;
+  /**
+   * Non-persisted count of consecutive frames whose fully expanded block fit the
+   * budget; the held decisions are dropped once it reaches
+   * `INLINE_TAIL_EXPAND_STREAK`.
+   */
+  inlineWidgetAutoFitStreak?: number;
   pendingEscapeArmedAt?: number;
   /** Timestamp of last Escape press for double-escape tree detection */
   lastEscapeTime?: number;
@@ -286,6 +311,15 @@ export interface ExtensionWidgetLine {
   key: string;
   placement: ExtensionWidgetPlacement;
   lines: string[];
+  /**
+   * Set-order stamp from the most recent `setWidget` call for this key. The
+   * inline tail budget keeps the most recently updated widget expanded, so the
+   * stamp must be a monotonic counter rather than wall-clock time to keep
+   * rendering deterministic. `setExtensionWidget` stamps every registration;
+   * the budget reads a missing stamp as 0, which only hand-built widget
+   * literals in tests produce.
+   */
+  updatedAt?: number;
   /**
    * Render the widget at a given width. An omitted `maxLines` preserves every
    * row; a supplied budget silently clips output so the caller owns overflow

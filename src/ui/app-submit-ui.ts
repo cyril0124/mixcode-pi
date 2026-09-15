@@ -117,10 +117,21 @@ const handleWidgets: LocalCommandHandler = ({ active, args }) => {
   }
 
   // A mixed group expands together; a fully expanded group collapses together.
-  const allExpanded = widgets.every((widget) => tab.inlineWidgetCollapsed.get(widget.key) !== true);
+  // Automatic collapses count as collapsed while the tail renders them, so
+  // `/widgets` expands a tail the row budget folded instead of collapsing it
+  // again. Docked widgets and the side panel render every body, so a frozen set
+  // from an earlier inline session must not steer the command there.
+  const autoActive = tab.inlineWidgets === true && tab.panelOpen !== true;
+  const isCollapsed = (key: string) =>
+    tab.inlineWidgetCollapsed.get(key) === true ||
+    (autoActive && tab.inlineWidgetAutoCollapsed.has(key));
+  const allExpanded = widgets.every((widget) => !isCollapsed(widget.key));
   const collapse = action === "collapse" || (action === "toggle" && allExpanded);
   for (const widget of widgets) {
     tab.inlineWidgetCollapsed.set(widget.key, collapse);
+    // Manual intent outranks the inline row budget: drop the key from the
+    // automatic set so the next frame honours the explicit choice.
+    tab.inlineWidgetAutoCollapsed.delete(widget.key);
   }
   return undefined;
 };
