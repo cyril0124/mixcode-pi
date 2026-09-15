@@ -9,7 +9,12 @@ import {
   tabIsWaitingForInput,
   workingActivityMessage,
 } from "../../core/tab-state.js";
-import { HOME_TAB_ID, type MixCodeState, type MixCodeTabInfo } from "../../core/types.js";
+import {
+  HOME_TAB_ID,
+  type ExtensionWidgetLine,
+  type MixCodeState,
+  type MixCodeTabInfo,
+} from "../../core/types.js";
 import { pointerHoverFor } from "../pointer-hover.js";
 import { buildLabeledTopBorder } from "../components/editor-top-border.js";
 import type { MixCodeTheme } from "../themes.js";
@@ -1037,55 +1042,345 @@ export function renderExtensionWidgets(
 }
 
 const INLINE_WIDGET_EXPANDED_MAX_LINES = 20;
+// Share of the chat viewport the inline widget block may occupy. A single
+// widget gets more room because no sibling competes with it.
+const INLINE_TAIL_SHARE = 0.4;
+const INLINE_TAIL_SINGLE_WIDGET_SHARE = 0.6;
+const INLINE_TAIL_MIN_BUDGET = 6;
+const INLINE_TAIL_MAX_BUDGET = 24;
+// Below this, a shortened body is no longer worth showing; that widget collapses
+// to its header instead, freeing the rows for a higher-priority sibling.
+const INLINE_WIDGET_MIN_BODY_ROWS = 3;
+// Extra rows the block must free before a collapsed widget expands again, so an
+// overflowing tail cannot collapse and re-expand on alternating frames.
+const INLINE_TAIL_HOLD_DEADBAND_ROWS = 2;
+// Consecutive frames the fully expanded block must fit before held decisions are
+// dropped, so a one-row dip cannot re-expand a tail that immediately overflows.
+const INLINE_TAIL_EXPAND_STREAK = 2;
 
-/** Inline-only presentation; dock and panel callers retain their own row budgets. */
-export function renderInlineExtensionWidgets(tab: MixCodeTabInfo, width: number): string[] {
-  const above = renderExtensionWidgetsInner(tab, width, "aboveEditor", true);
-  const below = renderExtensionWidgetsInner(tab, width, "belowEditor", true);
-  if (above.length === 0) return below;
-  if (below.length === 0) return above;
-  // Blank row between the two placements, matching the spacing inside each
-  // group, so above/below widgets do not read as one block.
-  return [...above, renderSingleLineExtensionSlot("", width), ...below];
+interface InlineWidgetEntry {
+  widget: ExtensionWidgetLine;
+  /** Registration order across both placements; breaks equal-recency ties. */
+  order: number;
+  /** Body rows rendered once for this frame at the placement's body width. */
+  lines: string[];
+}
+
+interface InlineWidgetPlan {
+  /** Body rows per widget key; 0 renders the widget as its header alone. */
+  bodyRows: Map<string, number>;
+  /** Keys the automatic budget collapsed this frame. */
+  autoCollapsed: Set<string>;
+}
+
+/**
+ * Render inline widgets at the chat tail.
+ *
+ * With a known viewport the whole block is capped by a viewport-derived row
+ * budget: bodies shrink, then the remaining rows go to the highest-priority
+ * widgets while the rest collapse to their headers, and finally the block
+ * degrades to a single summary row. Without a viewport (full-render and
+ * measurement callers own their own clipping) only manual collapse state
+ * applies.
+ */
+export function renderInlineExtensionWidgets(
+  tab: MixCodeTabInfo,
+  width: number,
+  options: { viewportRows?: number } = {},
+): string[] {
+  const bodyWidth = Math.max(1, width - 2);
+  const entries = collectInlineWidgetEntries(tab, bodyWidth);
+  if (entries.length === 0) return [];
+  const budget =
+    options.viewportRows === undefined
+      ? undefined
+      : inlineTailBudget(options.viewportRows, entries.length);
+  const plan = planInlineWidgetBlock(tab, entries, budget, width);
+  if (plan.bodyRows.size === 0) return [inlineWidgetSummaryLine(entries.length, bodyWidth, width)];
+
+  const lines: string[] = [];
+  entries.forEach((entry, index) => {
+    const body = plan.bodyRows.get(entry.widget.key) ?? 0;
+    const collapsed = body === 0;
+    const previousCollapsed =
+      index > 0 && (plan.bodyRows.get(entries[index - 1]!.widget.key) ?? 0) === 0;
+    // Collapsed widgets stack their headers densely; an expanded neighbour keeps
+    // its separating blank row.
+    if (index > 0 && !(collapsed && previousCollapsed)) {
+      lines.push(renderSingleLineExtensionSlot("", width));
+    }
+    lines.push(
+      renderSingleLineExtensionSlot(
+        inlineWidgetSectionHeader(
+          entry.widget.key,
+          bodyWidth,
+          collapsed,
+          plan.autoCollapsed.has(entry.widget.key),
+        ),
+        width,
+      ),
+    );
+    if (collapsed) return;
+    lines.push(
+      ...entry.lines.slice(0, body).map((line) => renderSingleLineExtensionSlot(line, width)),
+    );
+    if (entry.lines.length > body) {
+      lines.push(
+        renderSingleLineExtensionSlot(`… ${entry.lines.length - body} more in widget panel`, width),
+      );
+    }
+  });
+  return lines;
+}
+
+/** Above-editor widgets render above below-editor ones, each in registration order. */
+function collectInlineWidgetEntries(tab: MixCodeTabInfo, bodyWidth: number): InlineWidgetEntry[] {
+  const entries: InlineWidgetEntry[] = [];
+  // Snapshot first: a widget whose render registers another widget must not grow
+  // the list being iterated.
+  const widgets = [...tab.extensionUi.widgets];
+  for (const placement of ["aboveEditor", "belowEditor"] as const) {
+    for (const widget of widgets) {
+      if (widget.placement !== placement) continue;
+      const lines = widget.render?.(bodyWidth) ?? wrapExtensionWidgetLines(widget.lines, bodyWidth);
+      // A widget with nothing to show contributes neither header nor separator.
+      if (lines.length === 0) continue;
+      entries.push({ widget, order: entries.length, lines });
+    }
+  }
+  return entries;
+}
+
+/** Rows the block occupies: headers, separators, bodies, and overflow hints. */
+function inlineWidgetRows(
+  entries: readonly InlineWidgetEntry[],
+  bodyRows: ReadonlyMap<string, number>,
+): number {
+  let rows = 0;
+  entries.forEach((entry, index) => {
+    const body = bodyRows.get(entry.widget.key) ?? 0;
+    const previousCollapsed =
+      index > 0 && (bodyRows.get(entries[index - 1]!.widget.key) ?? 0) === 0;
+    if (index > 0 && !(body === 0 && previousCollapsed)) rows += 1;
+    rows += 1;
+    rows += body;
+    if (body > 0 && entry.lines.length > body) rows += 1;
+  });
+  return rows;
+}
+
+/** Soft row target for the inline block: a clamped share of the chat viewport. */
+function inlineTailBudget(viewportRows: number, widgetCount: number): number {
+  const share = widgetCount <= 1 ? INLINE_TAIL_SINGLE_WIDGET_SHARE : INLINE_TAIL_SHARE;
+  const viewport = Math.max(0, viewportRows);
+  // On a viewport too small for the usual floor the chat keeps half the rows.
+  const floor = Math.min(INLINE_TAIL_MIN_BUDGET, Math.max(1, Math.floor(viewport / 2)));
+  const target = Math.floor(viewport * share);
+  return Math.max(floor, Math.min(INLINE_TAIL_MAX_BUDGET, target));
+}
+
+/**
+ * Rows per widget for this frame.
+ *
+ * With a budget: keep every body at its natural height if it fits; otherwise trim
+ * all bodies to a common cap (never below {@link INLINE_WIDGET_MIN_BODY_ROWS});
+ * otherwise hand out body rows in priority order — manually expanded widgets
+ * first, then the most recently updated, then registration order — so the most
+ * relevant widgets stay readable while the rest collapse to their header. An
+ * empty plan means even a header-only stack does not fit, and the caller renders
+ * one summary row instead.
+ *
+ * Without a budget (full-render and measurement callers own their clipping) only
+ * manual collapse state applies.
+ */
+function planInlineWidgetBlock(
+  tab: MixCodeTabInfo,
+  entries: readonly InlineWidgetEntry[],
+  budget: number | undefined,
+  width: number,
+): InlineWidgetPlan {
+  const manuallyCollapsed = new Set<string>();
+  const pinned = new Set<string>();
+  for (const entry of entries) {
+    const manual = tab.inlineWidgetCollapsed.get(entry.widget.key);
+    if (manual === true) manuallyCollapsed.add(entry.widget.key);
+    else if (manual === false) pinned.add(entry.widget.key);
+  }
+
+  const autoCollapsed = tab.inlineWidgetAutoCollapsed;
+  // Drop decisions for widgets that are gone or that a user command now owns.
+  for (const key of [...autoCollapsed]) {
+    if (!entries.some((entry) => entry.widget.key === key) || tab.inlineWidgetCollapsed.has(key)) {
+      autoCollapsed.delete(key);
+    }
+  }
+
+  const naturalBody = (entry: InlineWidgetEntry): number =>
+    Math.min(entry.lines.length, INLINE_WIDGET_EXPANDED_MAX_LINES);
+  const naturalBodies = new Map(entries.map((entry) => [entry.widget.key, naturalBody(entry)]));
+  // A manually expanded widget keeps its body: the user asked for it, so the row
+  // budget makes the other widgets give way instead.
+  const pinnedBodies = new Map<string, number>();
+  for (const entry of entries) {
+    if (pinned.has(entry.widget.key)) pinnedBodies.set(entry.widget.key, naturalBody(entry));
+  }
+  // Body rows per widget; a key in `hiddenKeys` renders as its header alone.
+  const withBodies = (
+    bodies: ReadonlyMap<string, number>,
+    hiddenKeys: ReadonlySet<string>,
+  ): Map<string, number> => {
+    const rows = new Map<string, number>();
+    for (const entry of entries) {
+      const key = entry.widget.key;
+      rows.set(key, hiddenKeys.has(key) ? 0 : (bodies.get(key) ?? 0));
+    }
+    return rows;
+  };
+  const fullyExpanded = withBodies(naturalBodies, manuallyCollapsed);
+
+  // No viewport (dump and measurement callers own their clipping): manual state
+  // only, and the automatic decisions stay untouched.
+  if (budget === undefined) {
+    return { bodyRows: fullyExpanded, autoCollapsed };
+  }
+
+  // Hold the previous decisions while the same widgets (keys, recency, budget,
+  // width) are on screen and the block only moved a little: that absorbs height
+  // jitter. A resize, a widget update, or a larger content change recomputes
+  // instead. Wrapping depends on the column count, so a render at another width
+  // (for example a `dump-screen --width` pass over the live tab) must not seed
+  // decisions the on-screen layout then holds.
+  const signature = `${budget}|${width}|${entries
+    .map((entry) => `${entry.widget.key}#${entry.widget.updatedAt ?? 0}`)
+    .join("|")}`;
+  const naturalRows = inlineWidgetRows(entries, fullyExpanded);
+  const deadband = Math.max(INLINE_TAIL_HOLD_DEADBAND_ROWS, Math.floor(budget * 0.2));
+  const previousRows = tab.inlineWidgetAutoNaturalRows;
+  // Re-expanding needs the fully expanded block to fit for two frames in a row:
+  // one frame would let a one-row jitter flip the decisions back and forth,
+  // while content that keeps shrinking still clears them.
+  const fits = naturalRows <= budget;
+  const fitStreak = fits ? (tab.inlineWidgetAutoFitStreak ?? 0) + 1 : 0;
+  const hold =
+    tab.inlineWidgetAutoSignature === signature &&
+    previousRows !== undefined &&
+    Math.abs(naturalRows - previousRows) <= deadband &&
+    fitStreak < INLINE_TAIL_EXPAND_STREAK;
+  tab.inlineWidgetAutoSignature = signature;
+  tab.inlineWidgetAutoNaturalRows = naturalRows;
+  tab.inlineWidgetAutoFitStreak = fitStreak;
+  if (!hold) autoCollapsed.clear();
+  const sticky = hold
+    ? new Set([...autoCollapsed].filter((key) => !pinned.has(key)))
+    : new Set<string>();
+  const hidden = new Set([...manuallyCollapsed, ...sticky]);
+  // Record automatic decisions once, so a header can say it collapsed itself.
+  const finish = (bodyRows: Map<string, number>): InlineWidgetPlan => {
+    for (const entry of entries) {
+      const key = entry.widget.key;
+      if (pinned.has(key) || hidden.has(key)) continue;
+      if ((bodyRows.get(key) ?? 0) === 0) autoCollapsed.add(key);
+      else autoCollapsed.delete(key);
+    }
+    return { bodyRows, autoCollapsed };
+  };
+
+  const natural = withBodies(naturalBodies, hidden);
+  if (inlineWidgetRows(entries, natural) <= budget) return finish(natural);
+
+  // A bare header stack that already overflows has one answer whatever the
+  // bodies are, and deciding it here bounds the allocation work below by the
+  // budget: an extension that registers many widgets stays linear per frame.
+  const minimum = new Map(entries.map((entry) => [entry.widget.key, 0]));
+  if (inlineWidgetRows(entries, minimum) > budget) {
+    return { bodyRows: new Map<string, number>(), autoCollapsed };
+  }
+
+  const trimToBudget = (): Map<string, number> | undefined => {
+    for (
+      let cap = INLINE_WIDGET_EXPANDED_MAX_LINES - 1;
+      cap >= INLINE_WIDGET_MIN_BODY_ROWS;
+      cap--
+    ) {
+      const trimmed = withBodies(
+        new Map(entries.map((entry) => [entry.widget.key, Math.min(entry.lines.length, cap)])),
+        hidden,
+      );
+      if (inlineWidgetRows(entries, trimmed) <= budget) return trimmed;
+    }
+    return undefined;
+  };
+
+  // Trim every body to a common cap before collapsing anything. While held
+  // decisions are in play the previous allocation is the answer: a uniform trim
+  // of the survivors would replace it with a worse one on the next frame.
+  if (sticky.size === 0) {
+    const trimmed = trimToBudget();
+    if (trimmed) return finish(trimmed);
+  }
+
+  // Give the remaining rows to the highest-priority widgets; a widget without
+  // room for a readable body collapses to its header.
+  const assigned = new Map(pinnedBodies);
+  const byPriority = [...entries].sort((a, b) => compareInlinePriority(b, a));
+  for (const entry of byPriority) {
+    const key = entry.widget.key;
+    if (hidden.has(key) || assigned.has(key)) continue;
+    const natural = naturalBody(entry);
+    // A body shorter than the comfortable minimum is only collapsed when the
+    // widget itself is longer; a 1-2 row widget keeps everything it has.
+    const floor = Math.min(INLINE_WIDGET_MIN_BODY_ROWS, natural);
+    for (let cap = natural; cap >= floor; cap--) {
+      const candidate = new Map(assigned);
+      candidate.set(key, cap);
+      if (inlineWidgetRows(entries, withBodies(candidate, hidden)) <= budget) {
+        assigned.set(key, cap);
+        break;
+      }
+    }
+  }
+  const fitted = withBodies(assigned, hidden);
+  if (inlineWidgetRows(entries, fitted) <= budget) return finish(fitted);
+
+  // Manually expanded widgets alone overflow the budget. Trimming them is still
+  // better than overflowing, so try that before keeping their full bodies.
+  const trimmed = trimToBudget();
+  if (trimmed) return finish(trimmed);
+  return finish(withBodies(pinnedBodies, hidden));
+}
+
+/** Higher value = kept expanded longer: most recently updated, then registration order. */
+function compareInlinePriority(a: InlineWidgetEntry, b: InlineWidgetEntry): number {
+  const recency = (a.widget.updatedAt ?? 0) - (b.widget.updatedAt ?? 0);
+  return recency !== 0 ? recency : b.order - a.order;
+}
+
+function inlineWidgetSummaryLine(widgetCount: number, bodyWidth: number, width: number): string {
+  // Same staging as a collapsed header: the command is the actionable part, so
+  // it outranks the count and the label.
+  const prefix = truncateToWidth(
+    `▸ Inline · ${widgetCount} widgets`,
+    Math.max(1, bodyWidth - INLINE_SUMMARY_COMMAND_WIDTH),
+    "…",
+  );
+  const candidates = [`${prefix} · /widgets expand`, `${prefix} · /widgets`, prefix];
+  const text = candidates.find((candidate) => visibleWidth(candidate) <= bodyWidth) ?? prefix;
+  return renderSingleLineExtensionSlot(activeRenderTheme.dim(text), width);
 }
 
 function renderExtensionWidgetsInner(
   tab: MixCodeTabInfo,
   width: number,
   placement: "aboveEditor" | "belowEditor",
-  inline = false,
 ): string[] {
   const widgets = tab.extensionUi.widgets.filter((widget) => widget.placement === placement);
   if (!widgets.length) return [];
+  const bodyWidth = Math.max(1, width - 2);
   const lines: string[] = [];
   widgets.forEach((widget) => {
-    const bodyWidth = Math.max(1, width - 2);
     const widgetLines =
       widget.render?.(bodyWidth) ?? wrapExtensionWidgetLines(widget.lines, bodyWidth);
-    if (!inline) {
-      lines.push(...widgetLines.map((line) => renderSingleLineExtensionSlot(line, width)));
-      return;
-    }
-    if (widgetLines.length === 0) return;
-    // Stacked inline widgets get a blank row between them so a header never
-    // looks like the body of the widget above it.
-    if (lines.length > 0) lines.push(renderSingleLineExtensionSlot("", width));
-    const collapsed = tab.inlineWidgetCollapsed.get(widget.key) === true;
-    const budget = collapsed ? 1 : INLINE_WIDGET_EXPANDED_MAX_LINES;
-    const header = inline
-      ? inlineWidgetSectionHeader(widget.key, bodyWidth, collapsed)
-      : widgetSectionHeader(widget.key, bodyWidth);
-    lines.push(renderSingleLineExtensionSlot(header, width));
-    if (collapsed) return;
-    lines.push(
-      ...widgetLines.slice(0, budget).map((line) => renderSingleLineExtensionSlot(line, width)),
-    );
-    if (widgetLines.length > budget) {
-      const hint = collapsed
-        ? `… /widgets expand ${widget.key}`
-        : `… ${widgetLines.length - budget} more in widget panel`;
-      lines.push(renderSingleLineExtensionSlot(hint, width));
-    }
+    lines.push(...widgetLines.map((line) => renderSingleLineExtensionSlot(line, width)));
   });
   return lines;
 }
@@ -1222,8 +1517,19 @@ function widgetSectionHeader(key: string, bodyWidth: number): string {
   return activeRenderTheme.dim(`─ ${label} ${rule}`);
 }
 
-function inlineWidgetSectionHeader(key: string, bodyWidth: number, collapsed = false): string {
-  const hint = collapsed ? ` /widgets expand ${key}` : "";
+// `▸ Inline · ` plus one label character and the space before the rule: the
+// room a header hint may not claim.
+const INLINE_HEADER_PREFIX_WIDTH = 13;
+// Room kept for ` · /widgets expand` on the one-line summary row.
+const INLINE_SUMMARY_COMMAND_WIDTH = 18;
+
+function inlineWidgetSectionHeader(
+  key: string,
+  bodyWidth: number,
+  collapsed = false,
+  autoCollapsed = false,
+): string {
+  const hint = collapsed ? inlineWidgetHint(key, bodyWidth, autoCollapsed) : "";
   const label = truncateToWidth(
     sanitizeWidgetLine(key),
     Math.max(1, bodyWidth - 16 - visibleWidth(hint)),
@@ -1233,7 +1539,22 @@ function inlineWidgetSectionHeader(key: string, bodyWidth: number, collapsed = f
   const rule = "─".repeat(
     Math.max(0, bodyWidth - visibleWidth(inlineLabel) - visibleWidth(hint) - 1),
   );
-  return activeRenderTheme.dim(`${inlineLabel} ${rule}${hint}`);
+  // Long keys plus the expand hint can outgrow a narrow column; the header is
+  // the only row describing a collapsed widget, so clip it instead of wrapping.
+  return activeRenderTheme.dim(truncateToWidth(`${inlineLabel} ${rule}${hint}`, bodyWidth, "…"));
+}
+
+/**
+ * Expand hint for a collapsed header, dropping the parts that do not fit: the
+ * marker first, then the widget key, then the command's argument, so the
+ * actionable part survives as long as the row allows.
+ */
+function inlineWidgetHint(key: string, bodyWidth: number, autoCollapsed: boolean): string {
+  const budget = bodyWidth - INLINE_HEADER_PREFIX_WIDTH;
+  const candidates = autoCollapsed
+    ? [` (auto) /widgets expand ${key}`, ` /widgets expand ${key}`, " /widgets expand", " /widgets"]
+    : [` /widgets expand ${key}`, " /widgets expand", " /widgets"];
+  return candidates.find((candidate) => visibleWidth(candidate) <= budget) ?? "";
 }
 
 export function renderExtensionFooter(tab: MixCodeTabInfo | undefined, width: number): string[] {

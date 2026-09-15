@@ -130,6 +130,11 @@ function createMixCodeFooterDataProvider(runtimeTab: RuntimeTab): ReadonlyFooter
   };
 }
 
+// Monotonic set-order stamp consumed by the inline tail budget to keep the most
+// recently updated widget expanded. A wall clock would make widget rendering
+// non-deterministic and untestable.
+let nextWidgetUpdateStamp = 1;
+
 export function setExtensionWidget(
   tab: MixCodeTabInfo,
   key: string,
@@ -143,13 +148,15 @@ export function setExtensionWidget(
     if (existingIndex !== -1) {
       existing?.dispose?.();
       tab.extensionUi.widgets.splice(existingIndex, 1);
+      tab.inlineWidgetAutoCollapsed.delete(key);
     }
     return;
   }
   existing?.dispose?.();
+  const updatedAt = nextWidgetUpdateStamp++;
   const widget = Array.isArray(content)
-    ? { key, placement, lines: limitExtensionWidgetLines(content) }
-    : createLiveExtensionWidget(key, placement, content, requestRender);
+    ? { key, placement, lines: limitExtensionWidgetLines(content), updatedAt }
+    : createLiveExtensionWidget(key, placement, content, requestRender, updatedAt);
   if (existingIndex === -1) tab.extensionUi.widgets.push(widget);
   else tab.extensionUi.widgets[existingIndex] = widget;
 }
@@ -159,10 +166,12 @@ function createLiveExtensionWidget(
   placement: ExtensionWidgetPlacement,
   factory: (tui: PiTui, theme: Theme) => Component & { dispose?(): void },
   requestRender: () => void,
+  updatedAt: number,
 ): MixCodeTabInfo["extensionUi"]["widgets"][number] {
   return {
     key,
     placement,
+    updatedAt,
     ...createLiveExtensionRenderer((tui) => factory(tui, currentExtensionTheme()), requestRender),
   };
 }

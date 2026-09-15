@@ -105,6 +105,7 @@ export function createTab(
     zenMode: false,
     inlineWidgets: false,
     inlineWidgetCollapsed: new Map(),
+    inlineWidgetAutoCollapsed: new Set(),
     pendingEscapeArmedAt: undefined,
     lastEscapeTime: undefined,
     unreadDone: false,

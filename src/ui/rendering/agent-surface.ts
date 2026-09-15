@@ -125,17 +125,25 @@ function shouldRenderInlineWidgets(tab: MixCodeTabInfo): boolean {
   return tab.inlineWidgets === true && tab.panelOpen !== true;
 }
 
-function renderInlineWidgetLines(tab: MixCodeTabInfo, width: number): string[] {
+function renderInlineWidgetLines(
+  tab: MixCodeTabInfo,
+  width: number,
+  viewportRows: number | undefined,
+): string[] {
   if (!shouldRenderInlineWidgets(tab)) return [];
-  const lines = renderInlineExtensionWidgets(tab, width);
+  const lines = renderInlineExtensionWidgets(tab, width, { viewportRows });
   // Lift the chat-tail band off the transcript. Dock/panel keep dim-only chrome.
   return lines.map((line) => activeRenderTheme.surface(line));
 }
 
 /** Messages → widgets → Steer/Follow-up. Widgets are omitted unless inline mode is on. */
-function renderChatTailLines(tab: MixCodeTabInfo, width: number): string[] {
+function renderChatTailLines(
+  tab: MixCodeTabInfo,
+  width: number,
+  viewportRows: number | undefined,
+): string[] {
   return joinTailBlocks(
-    [renderInlineWidgetLines(tab, width), renderQueuePreview(tab, width)],
+    [renderInlineWidgetLines(tab, width, viewportRows), renderQueuePreview(tab, width)],
     chatBlockSeparator(width),
   );
 }
@@ -223,7 +231,7 @@ function renderAgentSurfaceInner(
   // Extension header rides at the very top of the scrollable conversation
   // (like Pi): visible when scrolled to the top, scrolls away otherwise.
   const headerLines = scrollableHeaderLines(tab, mainWidth);
-  const tailLines = renderChatTailLines(tab, mainWidth);
+  const tailLines = renderChatTailLines(tab, mainWidth, maxHeight);
   const withHeader = headerLines.length ? [...headerLines, ...body] : body;
   const lines =
     tailLines.length === 0
@@ -401,7 +409,7 @@ function renderAgentSurfaceAnchored(
     for (const renderedLine of block) suffix.push(renderedLine);
     suffixHasContent = true;
   }
-  const tailLines = renderChatTailLines(tab, mainWidth);
+  const tailLines = renderChatTailLines(tab, mainWidth, viewport);
   if (i >= chat.length && tailLines.length > 0) {
     if (suffixHasContent) suffix.push(chatBlockSeparator(mainWidth));
     suffix.push(...tailLines);
@@ -471,7 +479,7 @@ function renderAgentSurfaceWindowed(
   const headerLines = scrollableHeaderLines(tab, mainWidth);
 
   // Bottom-anchored content: inline widgets, then Steer/Follow-up.
-  const tailLines = renderChatTailLines(tab, mainWidth);
+  const tailLines = renderChatTailLines(tab, mainWidth, viewport);
   // Pending user-bash renders after the main stream (Pi pending-area parity).
   const displayChat = chatLinesForDisplay(chat);
   const originalIndices = originalChatIndicesForDisplay(chat, displayChat);
