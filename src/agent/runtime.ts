@@ -16,6 +16,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { type AutocompleteProvider, matchesKey as matchesPiKey } from "@earendil-works/pi-tui";
 import { contentText } from "./runtime-tool-chat.js";
+import { runWithConsoleTab } from "../core/console-scope.js";
 import { modelToRef, replaceRegisteredModels } from "../core/models.js";
 import { mixcodeScopedModels } from "../core/pi-models.js";
 import { nextAvailableAgentTitle } from "../core/defaults.js";
@@ -906,7 +907,7 @@ export class MixCodeRuntime {
       if (runtimeTab.compactionInFlight || runtimeTab.agentSession.isCompacting) {
         throw new Error("Error: Cannot run this command while compaction is running");
       }
-      await runtimeTab.agentSession.prompt(trimmed);
+      await runWithConsoleTab(runtimeTab.tab.title, () => runtimeTab.agentSession.prompt(trimmed));
       return;
     }
     await dispatchTurn(runtimeTab, async (signalRegistered) => {
@@ -968,12 +969,14 @@ export class MixCodeRuntime {
     const args = { command: trimmed };
 
     try {
-      const eventResult = await runtimeTab.agentSession.extensionRunner.emitUserBash({
-        type: "user_bash",
-        command: trimmed,
-        excludeFromContext,
-        cwd: runtimeTab.session.getCwd(),
-      });
+      const eventResult = await runWithConsoleTab(runtimeTab.tab.title, () =>
+        runtimeTab.agentSession.extensionRunner.emitUserBash({
+          type: "user_bash",
+          command: trimmed,
+          excludeFromContext,
+          cwd: runtimeTab.session.getCwd(),
+        }),
+      );
       upsertUserBashLine(runtimeTab, toolCallId, "running", "", args, excludeFromContext);
       this.emitChange({ type: "extension_ui_update" }, runtimeTab);
 

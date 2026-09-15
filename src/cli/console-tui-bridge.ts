@@ -12,8 +12,13 @@
 // `[console.<method>]:` prefix and handed to a late-bound sink. Before the TUI
 // exists, messages queue; once wireConsoleSink runs, the backlog flushes in
 // order. Disable by removing the installConsoleTuiBridge() call in main.ts.
+//
+// All tabs share one process and one history, so each record also stores the tab
+// title reported by src/core/console-scope.ts at emit time; /console-history
+// prints it between the timestamp and the line.
 
 import { format } from "node:util";
+import { currentConsoleTab } from "../core/console-scope.js";
 
 /** Console methods relocated to the TUI. console.trace/dir/etc. are left as-is. */
 const BRIDGED_METHODS = ["log", "info", "debug", "warn", "error"] as const;
@@ -31,13 +36,21 @@ const pending: string[] = [];
 // unprefixed.
 interface ConsoleRecord {
   time: number;
+  /** Tab whose work emitted the line; undefined for work outside any tab. */
+  tab?: string;
   line: string;
 }
 const history: ConsoleRecord[] = [];
 
-/** Return a stable snapshot of console output captured during this process. */
+/**
+ * Return a stable snapshot of console output captured during this process.
+ * Each line reads `<YYYY-MM-DD HH:MM:SS> [<tab>] <line>`; the tab segment is
+ * absent for lines emitted outside tab-owned work (startup, extension timers).
+ */
 export function getConsoleHistory(): string[] {
-  return history.map(({ time, line }) => `${formatConsoleTime(time)} ${line}`);
+  return history.map(
+    ({ time, tab, line }) => `${formatConsoleTime(time)} ${tab ? `[${tab}] ` : ""}${line}`,
+  );
 }
 
 /** Local-time YYYY-MM-DD HH:MM:SS stamp, same shape as `formatCtlTime`. */
@@ -53,7 +66,8 @@ function formatLine(method: BridgedMethod, args: unknown[]): string {
 }
 
 function emit(line: string): void {
-  history.push({ time: Date.now(), line });
+  const tab = currentConsoleTab();
+  history.push({ time: Date.now(), line, ...(tab ? { tab } : {}) });
   if (history.length > CONSOLE_HISTORY_LIMIT) history.shift();
   if (sink) sink(line);
   else pending.push(line);

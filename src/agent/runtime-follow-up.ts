@@ -1,4 +1,5 @@
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
+import { runWithConsoleTab } from "../core/console-scope.js";
 import type { QueueKind } from "../core/types.js";
 import {
   type RemovedQueuedMessage,
@@ -31,7 +32,9 @@ export async function dispatchTurn(
       }
     };
     try {
-      await send(signalRegistered);
+      // The whole turn (agent loop, tool calls, extension handlers) runs under
+      // this tab's console label.
+      await runWithConsoleTab(tab.tab.title, () => send(signalRegistered));
     } finally {
       signalRegistered(); // Ensure release on steer/early-exit paths
     }
