@@ -167,7 +167,7 @@ function drawBox(opts: DrawBoxOptions): string[] {
     rounded = false,
   } = opts;
   const innerWidth = Math.max(0, width - 2);
-  const top = renderBoxTop(title, [], innerWidth, { ...theme, border }, rounded);
+  const top = renderBoxTop(title, innerWidth, { ...theme, border }, rounded);
   const body = lines.map((line) => {
     const content = padLine(line, innerWidth);
     return `${border("│")}${inner ? inner(content) : content}${border("│")}`;
@@ -189,17 +189,13 @@ export function box(
 
 export function renderBoxTop(
   title: string,
-  meta: string[],
   innerWidth: number,
   theme: MixCodeTheme,
   rounded = false,
 ): string {
   const left = title ? ` ${title} ` : "";
-  const right = meta.length ? ` ${meta.join("  |  ")} ` : "";
-  const availableRightWidth = Math.max(0, innerWidth - visibleWidth(left) - 1);
-  const clippedRight = right ? truncateToWidth(right, availableRightWidth) : "";
-  const fillWidth = Math.max(0, innerWidth - visibleWidth(left) - visibleWidth(clippedRight));
-  const line = truncateToWidth(`${left}${"─".repeat(fillWidth)}${clippedRight}`, innerWidth);
+  const fillWidth = Math.max(0, innerWidth - visibleWidth(left));
+  const line = truncateToWidth(`${left}${"─".repeat(fillWidth)}`, innerWidth);
   const [tl, tr] = rounded ? ["╭", "╮"] : ["┌", "┐"];
   return `${theme.border(tl)}${theme.border(padLine(line, innerWidth))}${theme.border(tr)}`;
 }

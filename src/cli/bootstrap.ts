@@ -54,7 +54,7 @@ import { HOME_TAB_ID, type MixCodeState, type MixCodeTabInfo } from "../core/typ
 import type { MixCodeCompletionSources } from "../ui/components/completion.js";
 import { setMarkdownCodeBlockIndent } from "../ui/rendering/markdown.js";
 import { setTheme } from "../ui/themes.js";
-import { expandTilde, resolveMixcodeStateDir } from "./status.js";
+import { expandTilde, resolveMixcodeStateDir } from "../core/paths.js";
 import { restoreTabsInOrder } from "./tab-restore-queue.js";
 
 export interface BootstrapOptions {

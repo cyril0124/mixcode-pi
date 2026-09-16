@@ -629,7 +629,6 @@ export function planCommandPaletteList(
   empty: boolean;
   /** 0-based body line (inside the box, under the top border) → entry index. */
   entryBodyLines: Array<{ bodyLine: number; entryIndex: number }>;
-  bodyLineCount: number;
 } {
   const entries = selectableCommandPaletteEntries(state, extensionCommands);
   if (!entries.length) {
@@ -642,7 +641,6 @@ export function planCommandPaletteList(
       showMoreBelow: false,
       empty: true,
       entryBodyLines: [],
-      bodyLineCount: 5,
     };
   }
   const maxVisible = halfScreenRows();
@@ -658,8 +656,6 @@ export function planCommandPaletteList(
     entryBodyLines.push({ bodyLine, entryIndex });
     bodyLine += 1;
   }
-  if (showMoreBelow) bodyLine += 1;
-  bodyLine += 2;
   return {
     entries,
     startIndex,
@@ -668,7 +664,6 @@ export function planCommandPaletteList(
     showMoreBelow,
     empty: false,
     entryBodyLines,
-    bodyLineCount: bodyLine,
   };
 }
 
@@ -783,8 +778,6 @@ export function planTabJumpList(state: MixCodeState): {
   empty: boolean;
   /** 0-based body line (inside the box, under the top border) → entry index. */
   entryBodyLines: Array<{ bodyLine: number; entryIndex: number }>;
-  /** Total body lines before the box border is applied. */
-  bodyLineCount: number;
 } {
   const entries = filterTabJumpEntries(state, state.tabJumpQuery);
   if (!entries.length) {
@@ -797,7 +790,6 @@ export function planTabJumpList(state: MixCodeState): {
       showMoreBelow: false,
       empty: true,
       entryBodyLines: [],
-      bodyLineCount: 5,
     };
   }
   const maxVisible = halfScreenRows();
@@ -813,8 +805,6 @@ export function planTabJumpList(state: MixCodeState): {
     entryBodyLines.push({ bodyLine, entryIndex });
     bodyLine += 1;
   }
-  if (showMoreBelow) bodyLine += 1;
-  bodyLine += 2;
   return {
     entries,
     startIndex,
@@ -823,7 +813,6 @@ export function planTabJumpList(state: MixCodeState): {
     showMoreBelow,
     empty: false,
     entryBodyLines,
-    bodyLineCount: bodyLine,
   };
 }
 

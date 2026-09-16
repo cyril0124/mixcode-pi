@@ -132,12 +132,12 @@ export function currentExtensionTheme(host?: ExtensionThemeHost | undefined): Th
 }
 
 export function availableExtensionThemes(): Array<{ name: string; path: string | undefined }> {
-  const themes = listThemeInfos().map((theme) => ({ name: theme.id, path: undefined }));
-  // Legacy name some packages/tests still query.
-  if (!themes.some((theme) => theme.name === "mixcode-extension")) {
-    themes.push({ name: "mixcode-extension", path: undefined });
-  }
-  return themes;
+  // `mixcode-extension` is filtered out of listThemeInfos(); keep the legacy name
+  // some packages/tests still query.
+  return [
+    ...listThemeInfos().map((theme) => ({ name: theme.id, path: undefined })),
+    { name: "mixcode-extension", path: undefined },
+  ];
 }
 
 export function extensionThemeByName(name: string): Theme | undefined {

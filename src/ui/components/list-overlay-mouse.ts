@@ -5,8 +5,6 @@ import { pointerHoverFor } from "../pointer-hover.js";
 /** Geometry shared by center list overlays (Tab Jump, Command Palette, …). */
 export interface ListOverlayPlan {
   empty: boolean;
-  /** Body lines inside the box (under the top border), before bottom border. */
-  bodyLineCount: number;
   /** 0-based body line → absolute entry index in the filtered list. */
   entryBodyLines: Array<{ bodyLine: number; entryIndex: number }>;
 }

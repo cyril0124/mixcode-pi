@@ -61,7 +61,7 @@ test("config: valid provider watchdog values override defaults", () => {
 test("config: missing file uses defaults and invalid JSON fails", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "stuck-guard-config-"));
   const missing = loadStuckGuardConfig(dir);
-  assert.ok(missing.ok && missing.missing);
+  assert.ok(missing.ok);
   assert.deepEqual(missing.config, DEFAULT_STUCK_GUARD_CONFIG);
 
   fs.writeFileSync(stuckGuardConfigPath(dir), "{ not json");

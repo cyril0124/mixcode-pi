@@ -116,7 +116,6 @@ export function toolExecutionToChatLine(
     text: options.text,
     args: options.args,
     toolResult: options.result,
-    toolIsPartial: options.isPartial,
     // ToolExecutionComponent owns its own default/self shell and image strip.
     toolRenderShell: "self",
     toolExecutionComponent: component,

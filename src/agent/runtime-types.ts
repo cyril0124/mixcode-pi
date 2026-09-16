@@ -97,7 +97,6 @@ export interface ChatLine {
   renderToolCall?: (width: number) => string[];
   toolRenderShell?: "default" | "self";
   toolResult?: ToolResultLike;
-  toolIsPartial?: boolean;
   /** Pi summary payload; text mirrors its summary for host search and previews. */
   summaryMessage?: ChatSummaryMessage;
   /** True for Pi-style transient status lines that coalesce when consecutive. */

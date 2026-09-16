@@ -243,8 +243,6 @@ test("scrollChatToUserEntry puts selected user message at top when possible", ()
     chat,
     [u1.entry, a1.entry, u2.entry, a2.entry, u3.entry],
     "u2",
-    5,
-    80,
   );
 
   assert.equal(result.found, true);
@@ -285,7 +283,7 @@ test("scrollChatToUserEntry targeting does not render every chat block", () => {
     { role: "user" as const, text: "second user", entryId: "u2" },
   ];
 
-  const result = scrollChatToUserEntry(tab, chat, [u1.entry, x1.entry, u2.entry], "u2", 4, 80);
+  const result = scrollChatToUserEntry(tab, chat, [u1.entry, x1.entry, u2.entry], "u2");
 
   assert.equal(result.found, true);
   const visible = renderAgentSurface(tab, { chat } as never, 80, 4)

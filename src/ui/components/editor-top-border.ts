@@ -1,18 +1,5 @@
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
-/** ANSI SGR escape sequences, stripped to inspect the visible characters. */
-const ANSI_SGR_REGEX = /\x1b\[[0-9;:]*m/g;
-
-/**
- * True when a rendered editor line is a plain horizontal border (only ─ and
- * spaces once colors are stripped). Used to avoid clobbering the scroll
- * indicator ("─── ↑ 3 more ─") or wrapped content with the title label.
- */
-export function isPlainBorderLine(line: string): boolean {
-  const visible = line.replace(ANSI_SGR_REGEX, "");
-  return visible.length > 0 && /^[\u2500 ]+$/.test(visible);
-}
-
 /** Visible-width geometry for the labels embedded in the editor's top border. */
 const VIM_BADGE_TEXT = "[VIM]";
 const ZEN_BADGE_TEXT = "[ZEN]";
@@ -36,10 +23,6 @@ export interface LabeledTopBorderOptions {
   vimMode: boolean;
   /** When true, show [ZEN] next to [VIM] (or alone) near the left. */
   zenMode?: boolean;
-  /** Retained for callers that track inline widget mode; the mode is labeled on the widget itself. */
-  inlineWidgets?: boolean;
-  /** Retained for compatibility; inline mode no longer renders an editor badge. */
-  inlLabel?: (text: string) => string;
   /** When true, append [sys] after the title (custom base system prompt). */
   customBasePrompt?: boolean;
   /**
@@ -76,8 +59,8 @@ export interface LabeledTopBorderOptions {
  *
  * The title is truncated with an ellipsis when space is tight; left badges and
  * context are dropped (title preserved) before the line degrades to a plain
- * dashed border. Drop order when tight: inl, then zen, then vim, then sys,
- * then context, then title. The returned string always has an exact visible width of `width`.
+ * dashed border. Drop order when tight: zen, then vim, then sys, then context,
+ * then title. The returned string always has an exact visible width of `width`.
  */
 export function buildLabeledTopBorder(opts: LabeledTopBorderOptions): string {
   const { width, title, vimMode, dash, vimLabel, titleLabel } = opts;

@@ -24,10 +24,6 @@ function emptyStats(): StuckGuardStatsSnapshot {
 export class StuckGuardStats {
   private values = emptyStats();
 
-  reset(): void {
-    this.values = emptyStats();
-  }
-
   recordProviderTimeout(kind: "start" | "idle"): void {
     if (kind === "start") this.values.providerStartTimeouts++;
     else this.values.providerIdleTimeouts++;

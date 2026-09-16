@@ -58,6 +58,12 @@ export async function openInExternalEditor(
   }
 }
 
+/** Clip to `width` visible cells and pad the remainder with spaces. */
+export function padToWidth(text: string, width: number): string {
+  const clipped = visibleWidth(text) <= width ? text : truncateToWidth(text, width, "…");
+  return clipped + " ".repeat(Math.max(0, width - visibleWidth(clipped)));
+}
+
 /**
  * Read-only pager for a background command's log.
  *
@@ -225,10 +231,10 @@ export class LogView implements Component {
 
     const border = (text: string) => this.theme.fg("border", text);
     const blank = `${border("│")}${" ".repeat(innerWidth)}${border("│")}`;
-    const row = (line: string) => `${border("│")}${this.pad(line, innerWidth)}${border("│")}`;
+    const row = (line: string) => `${border("│")}${padToWidth(line, innerWidth)}${border("│")}`;
 
     return [
-      `${border("┌")}${border(this.pad(headline, innerWidth))}${border("┐")}`,
+      `${border("┌")}${border(padToWidth(headline, innerWidth))}${border("┐")}`,
       blank,
       ...body.map((line) => row(line)),
       `${border("├")}${border("─".repeat(innerWidth))}${border("┤")}`,
@@ -312,11 +318,6 @@ export class LogView implements Component {
       };
     }
     return this.wrapped.lines;
-  }
-
-  private pad(text: string, width: number): string {
-    const clipped = visibleWidth(text) <= width ? text : truncateToWidth(text, width, "…");
-    return clipped + " ".repeat(Math.max(0, width - visibleWidth(clipped)));
   }
 }
 

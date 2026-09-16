@@ -253,7 +253,6 @@ async function createRuntimeTabWithServices(
     runtimeTab.chatWindowStartIndex =
       restoredEntries.length < branch.length ? branch.length - restoredEntries.length : 0;
     await bindRuntimeExtensions(runtimeTab, context);
-    applyMixCodeSystemPrompt(agentSession, cachedSearchTools);
     refreshStartupHeader(runtimeTab);
     syncContextUsage(runtimeTab);
     // Opening an existing on-disk session (bootstrap / peer / openExisting) must
@@ -583,7 +582,6 @@ async function replaceRuntimeTabSessionUnlocked(
   context.tabs.delete(previousSessionId);
   context.tabs.set(runtimeTab.tab.sessionId, runtimeTab);
   context.onSessionReplaced(previousSessionId, runtimeTab);
-  applyMixCodeSystemPrompt(created.session, cachedSearchTools);
   applyRuntimeTabModel(runtimeTab, created.session.agent.state.model);
   runtimeTab.tab.thinkingLevel = created.session.agent.state.thinkingLevel;
   refreshStartupHeader(runtimeTab);

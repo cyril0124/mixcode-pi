@@ -112,8 +112,6 @@ export function createMixCodeExtensionUiContext(
         title,
         title,
         options.map((option) => ({ label: option, description: "" })),
-        false,
-        false,
         opts,
       ),
     confirm: (title, message, opts) =>
@@ -128,8 +126,6 @@ export function createMixCodeExtensionUiContext(
           { label: "Yes", description: "" },
           { label: "No", description: "" },
         ],
-        false,
-        false,
         opts,
       ).then((value) => value === "Yes"),
     input: (title, placeholder, opts) =>
@@ -141,8 +137,6 @@ export function createMixCodeExtensionUiContext(
         title,
         placeholder || title,
         [],
-        false,
-        true,
         opts,
       ),
     notify,

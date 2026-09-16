@@ -37,6 +37,7 @@ import {
   type QueuedGoal,
 } from "../../persistence/queue-store.js";
 import type { GoalState, GoalTelemetrySnapshot } from "../../domain/types.js";
+import { errorResult } from "./results.js";
 import { syncGoalUi } from "../ui/notify.js";
 
 const DequeueGoalParams = Type.Object({
@@ -372,12 +373,5 @@ function resultForQueuedGoal(queued: QueuedGoal) {
       { type: "text" as const, text: `Queued goal: ${queued.queueId}\nObjective: ${objective}` },
     ],
     details: { goal: getGoal(), telemetry: getTelemetry(), queued } as QueueToolDetails,
-  };
-}
-
-function errorResult(message: string) {
-  return {
-    content: [{ type: "text" as const, text: `Error: ${message}` }],
-    details: { goal: getGoal(), telemetry: getTelemetry(), error: message } as QueueToolDetails,
   };
 }

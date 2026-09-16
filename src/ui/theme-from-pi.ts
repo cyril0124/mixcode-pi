@@ -40,7 +40,6 @@ export interface MixCodeTheme {
   thinkingText: (text: string) => string;
   toolTitle: (text: string) => string;
   bold: (text: string) => string;
-  italic: (text: string) => string;
 }
 
 /** Derive tab paints from existing theme tokens without changing the source palette. */
@@ -115,6 +114,5 @@ export function mixCodeThemeFromPi(theme: Theme): MixCodeTheme {
     thinkingText: fg("thinkingText"),
     toolTitle: fg("toolTitle"),
     bold: (text) => theme.bold(text),
-    italic: (text) => theme.italic(text),
   });
 }

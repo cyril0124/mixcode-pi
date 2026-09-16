@@ -290,29 +290,23 @@ function getExtensionShortcuts(
 }
 
 function parseEditorFlag(args: string): {
-  remaining: string;
   editor?: string;
   editorDisabled?: boolean;
 } {
   const parts = args.trim().split(/\s+/).filter(Boolean);
   let editor: string | undefined;
   let editorDisabled = false;
-  const remaining: string[] = [];
   for (const part of parts) {
     if (part === "--editor") {
       editor = "";
       editorDisabled = false;
-      continue;
-    }
-    if (part.startsWith("--editor=")) {
+    } else if (part.startsWith("--editor=")) {
       const value = part.slice("--editor=".length);
       editorDisabled = value === "false";
       editor = editorDisabled ? undefined : value;
-      continue;
     }
-    remaining.push(part);
   }
-  return { remaining: remaining.join(" "), editor, editorDisabled };
+  return { editor, editorDisabled };
 }
 
 interface MixCodeTuiDebugState {

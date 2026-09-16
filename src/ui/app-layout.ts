@@ -202,13 +202,6 @@ export class MixCodeRoot implements Component {
         thinkingLevel: active.thinkingLevel,
         vimMode: active.vimMode,
         zenMode: active.zenMode === true,
-        // Temporary custom()/dialog/setInputComponent takeovers keep VIM/ZEN
-        // chrome as today, but do not advertise inline-widget mode on the
-        // separator — the plugin/dialog owns the slot until it restores.
-        inlineWidgets:
-          active.inlineWidgets === true &&
-          active.extensionUi.waitingForInputs.length === 0 &&
-          !this.hasInputComponent(),
         zenStatusMarkers: active.zenMode ? zenStatusMarkers(this.state.tabs, active.sessionId) : [],
         iconMode: this.state.ui?.icons?.mode ?? DEFAULT_ICON_MODE,
         agentChrome: customEditor

@@ -21,8 +21,6 @@ export function createExtensionDialog(
   title: string,
   question: string,
   options: Array<{ label: string; description: string }>,
-  _multiple: boolean,
-  _custom: boolean,
   opts?: { signal?: AbortSignal; timeout?: number },
 ): Promise<string | undefined> {
   const host = getCustomUiHost();

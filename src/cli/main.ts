@@ -8,11 +8,7 @@ import { isCommandsCliArgs, runCommandsCommand } from "./commands-list.js";
 import { isListModelsCliArgs, runListModelsCommand } from "./models-list.js";
 import { isInstallExtensionsCliArgs } from "./install-extensions.js";
 import { isCtlCliArgs, runCtlCommand } from "./ctl.js";
-import {
-  isStatusCliArgs,
-  runStatusCommand as executeStatusCommand,
-  takeWorkdirFlag,
-} from "./status.js";
+import { isStatusCliArgs, runStatusCommand, takeWorkdirFlag } from "./status.js";
 import { appendCrashLog, describeCrash } from "./crash-guard.js";
 import { MIXCODE_PID_ENV } from "../core/tab-env.js";
 
@@ -168,13 +164,6 @@ function parseStatusArgs(args: string[], baseWorkdir: string): MainArgs {
   return { workdir: baseWorkdir, json, statusWorkdir };
 }
 
-export async function runStatusCommand(args: MainArgs): Promise<void> {
-  await executeStatusCommand({
-    json: args.json,
-    workdir: args.statusWorkdir,
-  });
-}
-
 export function exposeLocalPiCli(
   env: NodeJS.ProcessEnv = process.env,
   entryUrl = import.meta.url,
@@ -245,7 +234,7 @@ export async function main(): Promise<void> {
   if (isStatusCliArgs(rawArgs)) {
     process.env.MIXCODE ??= "1";
     const args = parseMainArgs(rawArgs, cwd());
-    await runStatusCommand(args);
+    await runStatusCommand({ json: args.json, workdir: args.statusWorkdir });
     return;
   }
   if (isCtlCliArgs(rawArgs)) {

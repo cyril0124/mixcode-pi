@@ -131,7 +131,6 @@ export function renderTabBarSeparator(
     thinkingLevel?: string;
     vimMode?: boolean;
     zenMode?: boolean;
-    inlineWidgets?: boolean;
     /** Meaningful states from other agents, ordered by tab position. */
     zenStatusMarkers?: readonly ZenStatusMarker[];
     iconMode?: IconMode;
@@ -170,7 +169,6 @@ export function renderTabBarSeparator(
     if (options.agentChrome) {
       const isVim = options.vimMode === true;
       const isZen = options.zenMode === true;
-      const isInl = options.inlineWidgets === true;
       const titleLabel = isVim ? activeRenderTheme.vimBorder : activeRenderTheme.accent;
       const zenLabel = isVim ? activeRenderTheme.vimBorder : activeRenderTheme.accent;
       const left = zenLeft?.painted ?? "";
@@ -183,7 +181,6 @@ export function renderTabBarSeparator(
         title: options.agentChrome.title,
         vimMode: isVim,
         zenMode: isZen,
-        inlineWidgets: isInl,
         customBasePrompt: options.agentChrome.customBasePrompt === true,
         contextText: options.agentChrome.contextText,
         dash: frame,
@@ -800,12 +797,12 @@ function renderInputMetaInner(
   // Compress left first (provider → short model → icons/gaps → truncate).
   // Only then drop right: branch first, token bar last.
   const rightOptions = [git ? `${contextBadge} ${git}` : contextBadge, contextBadge, ""];
-  let left = renderInputMetaLeft(workdir, model, thinking, "", lineWidth, glyphs);
+  let left = renderInputMetaLeft(workdir, model, thinking, lineWidth, glyphs);
   let right = "";
   for (const candidate of rightOptions) {
     const rightW = visibleWidth(candidate);
     const leftBudget = candidate ? Math.max(0, lineWidth - rightW - 1) : lineWidth;
-    const attempt = renderInputMetaLeft(workdir, model, thinking, "", leftBudget, glyphs);
+    const attempt = renderInputMetaLeft(workdir, model, thinking, leftBudget, glyphs);
     if (!attempt.text) continue;
     if (candidate && visibleWidth(attempt.text) + 1 + rightW > lineWidth) continue;
     // If workdir was squeezed off, drop more of the right instead of hiding it.
@@ -856,7 +853,6 @@ function renderInputMetaLeft(
   workdirPath: string,
   model: string,
   thinking: string,
-  escapeHint: string,
   width: number,
   glyphs: IconGlyphs,
 ): {
@@ -882,16 +878,15 @@ function renderInputMetaLeft(
   // Greedy degradation: strict modes require model, thinking, and workdir all
   // visible at natural width; the tightest mode may truncate/drop pieces.
   for (let index = 0; index < modes.length - 1; index++) {
-    const candidate = layoutInputMetaLeft(modes[index]!, workdirPath, escapeHint, width, true);
+    const candidate = layoutInputMetaLeft(modes[index]!, workdirPath, width, true);
     if (candidate.fits) return candidate;
   }
-  return layoutInputMetaLeft(modes[modes.length - 1]!, workdirPath, escapeHint, width, false);
+  return layoutInputMetaLeft(modes[modes.length - 1]!, workdirPath, width, false);
 }
 
 function layoutInputMetaLeft(
   mode: InputMetaMode,
   workdirPath: string,
-  escapeHint: string,
   width: number,
   strict: boolean,
 ): {
@@ -903,12 +898,10 @@ function layoutInputMetaLeft(
   const pieces: Array<{ action?: "models" | "thinking" | "workdir"; text: string }> = [];
   let remaining = Math.max(0, width - 2);
   let workdirIntact = false;
-  const escapeText = escapeHint ? activeRenderTheme.dim(escapeHint) : "";
-  const escapeWidth = visibleWidth(escapeText);
   const thinkingWidth = visibleWidth(mode.thinking);
   const modelFullWidth = visibleWidth(mode.model);
   const gapWidth = visibleWidth(mode.gap);
-  const fixedWidth = thinkingWidth + escapeWidth + (escapeText ? 1 : 0);
+  const fixedWidth = thinkingWidth;
   if (strict && remaining - fixedWidth - 2 * gapWidth < modelFullWidth) {
     return { text: "", regions: [], fits: false, workdirIntact: false };
   }
@@ -921,7 +914,7 @@ function layoutInputMetaLeft(
     text: activeRenderTheme.accent(activeRenderTheme.bold(modelText)),
   });
   remaining -= visibleWidth(modelText);
-  if (remaining >= thinkingWidth + escapeWidth + (escapeText ? 1 : 0)) {
+  if (remaining >= thinkingWidth) {
     pieces.push({ text: mode.gap });
     pieces.push({
       action: "thinking",
@@ -931,8 +924,7 @@ function layoutInputMetaLeft(
   } else if (strict) {
     return { text: "", regions: [], fits: false, workdirIntact: false };
   }
-  const escapeGap = escapeText ? 1 + escapeWidth : 0;
-  const workdirBudget = Math.max(0, remaining - escapeGap - gapWidth);
+  const workdirBudget = Math.max(0, remaining - gapWidth);
   const workdirNatural = shortWorkdir(workdirPath);
   // Strict modes keep the full short path; only the non-strict fallback may
   // compact segments or ellipsize. Otherwise provider stays while workdir gets "...".
@@ -951,10 +943,6 @@ function layoutInputMetaLeft(
     remaining -= gapWidth + visibleWidth(workdir);
     // Segment-compressed paths are ok; `...` truncation counts as obscured.
     workdirIntact = !workdir.includes("...");
-  }
-  if (escapeText && remaining >= escapeGap) {
-    pieces.push({ text: " " });
-    pieces.push({ text: escapeText });
   }
   const regions: Array<{
     action: "models" | "thinking" | "workdir";

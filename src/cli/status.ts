@@ -1,12 +1,10 @@
 import * as path from "node:path";
-import { expandTilde, resolveMixcodeAgentDir, resolveMixcodeStateDir } from "../core/paths.js";
+import { expandTilde, resolveMixcodeStateDir } from "../core/paths.js";
 import {
   formatInstanceStatusJson,
   formatInstanceStatusTable,
   loadLiveInstanceStatus,
 } from "../core/instance-registry.js";
-
-export { expandTilde, resolveMixcodeAgentDir, resolveMixcodeStateDir };
 
 /** Check if CLI argv targets the status subcommand. */
 export function isStatusCliArgs(args: string[]): boolean {
@@ -35,12 +33,11 @@ export function takeWorkdirFlag(
 export interface StatusCliOptions {
   json?: boolean;
   workdir?: string;
-  stateDir?: string;
 }
 
 /** Execute status command and write output to stdout. */
 export async function runStatusCommand(options: StatusCliOptions = {}): Promise<void> {
-  const rootStateDir = options.stateDir ?? resolveMixcodeStateDir();
+  const rootStateDir = resolveMixcodeStateDir();
   const report = await loadLiveInstanceStatus(rootStateDir, { workdir: options.workdir });
   const output = options.json
     ? formatInstanceStatusJson(report)

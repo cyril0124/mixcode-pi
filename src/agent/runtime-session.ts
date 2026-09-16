@@ -4,6 +4,7 @@ import * as path from "node:path";
 import {
   type AgentSessionServices,
   CURRENT_SESSION_VERSION,
+  getDefaultSessionDirPath,
   type SessionInfo,
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
@@ -270,15 +271,12 @@ export async function listSessionsForCwd(
   return all.filter((session) => session.cwd.replace(/\/+$/, "") === normalizedCwd);
 }
 
-function encodedCwdSessionDirName(cwd: string): string {
-  const resolved = path.resolve(cwd);
-  return `--${resolved.replace(/^[/\\]/, "").replace(/[/\\:]/g, "-")}--`;
-}
-
 function siblingSessionDirForCwd(sessionsRoot: string, cwd: string): string | undefined {
-  const parent = path.dirname(sessionsRoot);
-  if (path.basename(parent) !== "sessions") return undefined;
-  return path.join(parent, encodedCwdSessionDirName(cwd));
+  // sessionsRoot is <agentDir>/sessions/<encoded cwd>; an overridden session dir
+  // has no such sibling layout, so bail out.
+  const sessionsDir = path.dirname(sessionsRoot);
+  if (path.basename(sessionsDir) !== "sessions") return undefined;
+  return getDefaultSessionDirPath(cwd, path.dirname(sessionsDir));
 }
 
 /** Point the new cwd's Pi session dir at the canonical jsonl (symlink, same inode not required). */

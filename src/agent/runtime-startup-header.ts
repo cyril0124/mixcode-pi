@@ -21,7 +21,7 @@ import { PI_BUILTIN_TOOL_NAMES } from "./tools.js";
 export function refreshStartupHeader(runtimeTab: RuntimeTab): void {
   const contextFiles = runtimeTab.services.resourceLoader
     .getAgentsFiles()
-    .agentsFiles.map((file) => displayResourcePath(file.path));
+    .agentsFiles.map((file) => formatDisplayPath(file.path));
   const skillsResult = runtimeTab.services.resourceLoader.getSkills();
   const skills = skillsResult.skills.map((skill) => skill.name);
   // Re-read via services so package sourceInfo is synced after Pi's post-override
@@ -385,17 +385,16 @@ function formatExtensionScopeGroups(groups: ExtensionScopeGroup[]): string[] {
   return lines;
 }
 
-function displayResourcePath(resourcePath: string): string {
-  const home = process.env.HOME;
-  return home && resourcePath.startsWith(`${home}/`)
-    ? `~/${resourcePath.slice(home.length + 1)}`
-    : resourcePath;
-}
-
-/** Replace the home directory prefix with `~`, matching Pi's formatDisplayPath. */
+/**
+ * Replace a home-directory prefix with `~`. Stricter than Pi's formatDisplayPath: the
+ * prefix has to end at a separator, so a sibling path such as `/home/user` does not
+ * collapse to `~er` when `home` is `/home/u`.
+ */
 function formatDisplayPath(resourcePath: string): string {
   const home = homeDir();
-  return resourcePath.startsWith(home) ? `~${resourcePath.slice(home.length)}` : resourcePath;
+  return resourcePath.startsWith(`${home}${path.sep}`)
+    ? `~${resourcePath.slice(home.length)}`
+    : resourcePath;
 }
 
 function toolOwnerSummary(runtimeTab: RuntimeTab): string[] {

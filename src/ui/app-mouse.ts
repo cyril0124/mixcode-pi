@@ -147,7 +147,6 @@ export function handleChatSelectionMouseInput(
   active: MixCodeState["tabs"][number] | undefined,
   data: string,
   tui: OverlayTui,
-  _runtime?: Pick<MixCodeKeyRuntime, "appendSystemMessage">,
   copyToClipboard: ClipboardWriter = writeClipboard,
 ): boolean {
   const mouse = parseSgrMouseInput(data);
@@ -189,7 +188,6 @@ function handleChatJumpToLatestMouse(
 }
 
 export function handleInputSelectionMouseInput(
-  _state: MixCodeState,
   active: MixCodeState["tabs"][number] | undefined,
   data: string,
   tui: OverlayTui,
@@ -230,7 +228,7 @@ export function handleMouseInput(
   if (panelInteractive && handlePanelSelectionMouse(active, mouse, tui, copyToClipboard)) {
     return true;
   }
-  if (handleChatSelectionMouseInput(state, active, data, tui, runtime, copyToClipboard)) {
+  if (handleChatSelectionMouseInput(state, active, data, tui, copyToClipboard)) {
     return true;
   }
   // Wheel over the open side panel scrolls the panel; anywhere else scrolls

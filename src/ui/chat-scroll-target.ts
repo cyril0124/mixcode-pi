@@ -4,7 +4,6 @@ import type { MixCodeTabInfo } from "../core/types.js";
 
 export interface ScrollTargetResult {
   found: boolean;
-  offsetChanged: boolean;
 }
 
 export function scrollChatToUserEntry(
@@ -12,24 +11,20 @@ export function scrollChatToUserEntry(
   chat: ChatLine[],
   branch: SessionEntry[],
   entryId: string,
-  _viewportHeight: number,
-  _width: number,
 ): ScrollTargetResult {
   const exactIndex = chat.findIndex((line) => isUserChatLine(line) && line.entryId === entryId);
   const targetIndex =
     exactIndex >= 0 ? exactIndex : userChatIndexByBranchOrdinal(chat, branch, entryId);
-  if (targetIndex < 0) return { found: false, offsetChanged: false };
+  if (targetIndex < 0) return { found: false };
 
   const targetLine = chat[targetIndex];
-  const offsetChanged =
-    tab.chatScrollAnchorEntryId !== entryId || tab.chatScrollAnchorIndex !== targetIndex;
   tab.chatAtHome = false;
   tab.chatHomeOffset = undefined;
   tab.chatScrollAnchorEntryId = entryId;
   tab.chatScrollAnchorIndex = targetIndex;
   tab.chatScrollAnchorText = targetLine?.text;
   tab.chatScrollOffset = 0;
-  return { found: true, offsetChanged };
+  return { found: true };
 }
 
 export function userMessageEntryIdsInBranch(branch: SessionEntry[]): string[] {

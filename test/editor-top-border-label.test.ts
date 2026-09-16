@@ -1,9 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import {
-  buildLabeledTopBorder,
-  isPlainBorderLine,
-} from "../src/ui/components/editor-top-border.js";
+import { buildLabeledTopBorder } from "../src/ui/components/editor-top-border.js";
 
 function stripAnsi(text: string): string {
   return text.replace(/\x1b\[[0-9;:]*m/g, "");
@@ -114,16 +111,4 @@ test("without customBasePrompt no [sys] badge is shown", () => {
   const line = stripAnsi(build({ width: 40, title: "reviewer", vimMode: false }));
   assert.doesNotMatch(line, /\[sys\]/);
   assert.match(line, /─ reviewer ──$/);
-});
-
-test("isPlainBorderLine guards the scroll indicator and content lines", () => {
-  // Plain dashed borders (optionally colored) are the only labelable lines.
-  assert.equal(isPlainBorderLine("─".repeat(40)), true);
-  assert.equal(isPlainBorderLine(`\x1b[38;2;1;2;3m${"─".repeat(40)}\x1b[39m`), true);
-  // The editor's scroll indicator must never be clobbered.
-  assert.equal(isPlainBorderLine("─── ↑ 3 more ──"), false);
-  assert.equal(isPlainBorderLine("─── ↓ 5 more ──"), false);
-  // Content / blank first lines are not borders.
-  assert.equal(isPlainBorderLine("  hello"), false);
-  assert.equal(isPlainBorderLine(""), false);
 });

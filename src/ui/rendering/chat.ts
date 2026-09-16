@@ -103,10 +103,7 @@ export function renderConversation(
   options: RenderConversationOptions = {},
 ): string[] {
   if (!chat.length) {
-    return [
-      padLine(activeRenderTheme.dim("No messages yet. Type a prompt and press Enter."), width),
-      padLine("", width),
-    ];
+    return renderConversationEmptyState(width);
   }
   return renderChatStream(chat, width, tab, options.blockOptions);
 }

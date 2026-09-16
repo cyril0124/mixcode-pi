@@ -40,11 +40,8 @@ type CompactionContinuationWork =
 
 type ContinuationAttemptResult =
   | { kind: "sent" }
-  | { kind: "transientSkip"; reason: "notIdle" | "pendingMessages" }
-  | {
-      kind: "terminalSkip";
-      reason: ContinuationSkipReason | "queueMissing" | "queueChanged" | "retryExhausted";
-    };
+  | { kind: "transientSkip" }
+  | { kind: "terminalSkip" };
 
 const DEFAULT_RETRY_DELAYS_MS = [100, 250, 500, 1_000, 2_000];
 
@@ -228,21 +225,21 @@ function attemptContinueGoal(
     if (isUserConfirmedContinuation(reason) && ctx.hasUI) {
       notifyWarning(ctx, "Could not start goal continuation: no active goal in this session.");
     }
-    return { kind: "terminalSkip", reason: "notActive" };
+    return { kind: "terminalSkip" };
   }
   if (contState().compactionActive) {
     contState().compactionWork = { kind: "activeGoal", goalId, key: activeGoalKey(goalId) };
     skip(pi, "compacting");
-    return { kind: "terminalSkip", reason: "compacting" };
+    return { kind: "terminalSkip" };
   }
   const telemetry = getTelemetry();
   if (telemetry && telemetry.consecutiveAutoTurns >= MAX_CONSECUTIVE_AUTO_TURNS) {
     skip(pi, "safetyCap");
-    return { kind: "terminalSkip", reason: "safetyCap" };
+    return { kind: "terminalSkip" };
   }
   if (telemetry && telemetry.consecutiveNoProgressTurns >= MAX_NO_PROGRESS_AUTO_TURNS) {
     skip(pi, "safetyCap");
-    return { kind: "terminalSkip", reason: "safetyCap" };
+    return { kind: "terminalSkip" };
   }
 
   // Busy session: queue followUp instead of dropping. process/subagent wakes often
@@ -367,22 +364,14 @@ function attemptQueueHandoff(
   ctx: ExtensionContext,
   work: Extract<CompactionContinuationWork, { kind: "queueHandoff" }>,
 ): ContinuationAttemptResult {
-  if (!ctx.isIdle()) return { kind: "transientSkip", reason: "notIdle" };
-  if (ctx.hasPendingMessages()) return { kind: "transientSkip", reason: "pendingMessages" };
+  if (!ctx.isIdle()) return { kind: "transientSkip" };
+  if (ctx.hasPendingMessages()) return { kind: "transientSkip" };
   const ticket = decideCompactionQueueHandoffTicket(work, { force: true });
-  if (ticket.kind !== "queueHandoff")
-    return {
-      kind: "terminalSkip",
-      reason: ticket.reason === "queue_empty" ? "queueMissing" : "notActive",
-    };
+  if (ticket.kind !== "queueHandoff") return { kind: "terminalSkip" };
   const validation = revalidateContinuationTicket(ticket, getGoal(), getQueue());
-  if (!validation.ok)
-    return {
-      kind: "terminalSkip",
-      reason: validation.reason === "queue_head_changed" ? "queueChanged" : "notActive",
-    };
+  if (!validation.ok) return { kind: "terminalSkip" };
   const sent = dispatchContinuationTicket(pi, ticket);
-  return sent ? { kind: "sent" } : { kind: "terminalSkip", reason: "queueChanged" };
+  return sent ? { kind: "sent" } : { kind: "terminalSkip" };
 }
 
 function compactionWorkStillApplies(work: CompactionContinuationWork): boolean {

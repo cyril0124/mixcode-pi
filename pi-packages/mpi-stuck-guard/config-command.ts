@@ -1,4 +1,3 @@
-import * as path from "node:path";
 import {
   getAgentDir,
   type ExtensionAPI,
@@ -10,6 +9,7 @@ import { createProviderPicker } from "./provider-picker.js";
 import {
   loadStuckGuardConfig,
   parseStuckGuardConfig,
+  stuckGuardConfigPath,
   writeStuckGuardConfig,
   type StuckGuardConfig,
 } from "./config.js";
@@ -36,7 +36,7 @@ async function openConfigOverlay(
         tui,
         theme,
         initial,
-        configPath: path.join(agentDir, "mpi-stuck-guard.json"),
+        configPath: stuckGuardConfigPath(agentDir),
         input: async (row, prefill) => {
           if (row.id !== "providerIds") return ctx.ui.input(`Set ${row.label}`, prefill);
           const deferred = Promise.withResolvers<string | undefined>();

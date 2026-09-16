@@ -11,7 +11,8 @@ import {
   type InstanceStatusInstance,
 } from "../core/instance-registry.js";
 import { encodeSendKeys } from "./ctl-keys.js";
-import { resolveMixcodeStateDir, takeWorkdirFlag } from "./status.js";
+import { resolveMixcodeStateDir } from "../core/paths.js";
+import { takeWorkdirFlag } from "./status.js";
 
 export const CTL_OPS = [
   "last-message",

@@ -501,10 +501,12 @@ test("Command Palette wheel moves selection and click runs the row", () => {
   const ran: string[] = [];
   let overlayOpen = false;
   // Deterministic compositor rect for the stubbed handle: every body row
-  // clickable (height = body + 2 borders), matching what the real compositor
-  // would report after clamping to maxHeight.
+  // clickable (last entry row + trailing blank/help + 2 borders), matching what
+  // the real compositor would report after clamping to maxHeight.
   const plan = planCommandPaletteList(state);
-  const bounds: OverlayBounds = { row: 5, col: 10, width: 60, height: plan.bodyLineCount + 2 };
+  const bodyHeight =
+    (plan.entryBodyLines.at(-1)?.bodyLine ?? 0) + 1 + (plan.showMoreBelow ? 1 : 0) + 2;
+  const bounds: OverlayBounds = { row: 5, col: 10, width: 60, height: bodyHeight + 2 };
   const tui = {
     requestRender: () => undefined,
     showOverlay: () => {
@@ -557,7 +559,9 @@ test("Tab Jump wheel moves selection and click jumps to the row", () => {
   let overlayOpen = false;
   // Deterministic compositor rect for the stubbed handle.
   const plan = planTabJumpList(state);
-  const bounds: OverlayBounds = { row: 4, col: 8, width: 50, height: plan.bodyLineCount + 2 };
+  const bodyHeight =
+    (plan.entryBodyLines.at(-1)?.bodyLine ?? 0) + 1 + (plan.showMoreBelow ? 1 : 0) + 2;
+  const bounds: OverlayBounds = { row: 4, col: 8, width: 50, height: bodyHeight + 2 };
   const tui = {
     requestRender: () => undefined,
     showOverlay: () => {
@@ -595,7 +599,6 @@ test("Tab Jump wheel moves selection and click jumps to the row", () => {
 test("hitTestListOverlay respects compositor-clamped bounds height", () => {
   const plan: ListOverlayPlan = {
     empty: false,
-    bodyLineCount: 5,
     entryBodyLines: [0, 1, 2, 3, 4].map((bodyLine) => ({ bodyLine, entryIndex: bodyLine })),
   };
   // Compositor already sliced to 4 lines: top border + 2 body rows + bottom border.

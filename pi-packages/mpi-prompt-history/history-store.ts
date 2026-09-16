@@ -10,6 +10,7 @@ import * as fs from "node:fs/promises";
 import type { Dirent } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 import { acquirePidLock, PidLockBusyError, type PidLockHandle } from "./pid-lock.js";
 
 const HISTORY_FILENAME = "history.jsonl";
@@ -489,10 +490,6 @@ async function writePrivateFile(filePath: string, text: string): Promise<void> {
   await fs.writeFile(temp, text, { encoding: "utf8", mode: 0o600 });
   await fs.rename(temp, filePath);
   await fs.chmod(filePath, 0o600);
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**

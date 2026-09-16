@@ -23,7 +23,6 @@ export interface PidLockHandle {
 
 export interface AcquirePidLockOptions {
   pid?: number;
-  now?: Date;
   /** Liveness probe; injectable so tests can simulate a crashed owner. */
   processAlive?: (pid: number) => boolean;
 }
@@ -126,7 +125,7 @@ export function acquirePidLock(
     version: HISTORY_LOCK_VERSION,
     id,
     pid,
-    acquiredAt: (options.now ?? new Date()).toISOString(),
+    acquiredAt: new Date().toISOString(),
   } satisfies PidLockRecord)}\n`;
 
   fs.mkdirSync(path.dirname(filePath), { recursive: true });

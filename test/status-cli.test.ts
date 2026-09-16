@@ -5,12 +5,8 @@ import * as os from "node:os";
 import { test } from "node:test";
 
 import { parseMainArgs } from "../src/cli/main.js";
-import {
-  expandTilde,
-  isStatusCliArgs,
-  resolveMixcodeAgentDir,
-  resolveMixcodeStateDir,
-} from "../src/cli/status.js";
+import { isStatusCliArgs } from "../src/cli/status.js";
+import { expandTilde, resolveMixcodeAgentDir, resolveMixcodeStateDir } from "../src/core/paths.js";
 import { writeInstanceSnapshot } from "../src/core/instance-registry.js";
 
 test("isStatusCliArgs detects status subcommand accurately", () => {

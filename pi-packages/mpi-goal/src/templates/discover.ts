@@ -207,7 +207,7 @@ function parseFlags(input: string): Record<string, string> {
       consumedByPreviousFlag = false;
       continue;
     }
-    const token = unquote(raw);
+    const token = stripQuotes(raw);
     if (!token.startsWith("--")) continue;
     const eq = token.indexOf("=");
     if (eq > 2) {
@@ -217,7 +217,7 @@ function parseFlags(input: string): Record<string, string> {
     const lookahead = tokens[index + 1];
     // A following non-flag token is the flag value; otherwise the flag is a boolean switch.
     if (lookahead !== undefined && !lookahead.startsWith("--")) {
-      values[token.slice(2)] = unquote(lookahead);
+      values[token.slice(2)] = stripQuotes(lookahead);
       consumedByPreviousFlag = true;
     } else {
       values[token.slice(2)] = "true";
@@ -306,8 +306,4 @@ function firstContentLine(body: string): string | undefined {
 
 function stripQuotes(value: string): string {
   return value.replace(/^['"]|['"]$/g, "");
-}
-
-function unquote(value: string): string {
-  return stripQuotes(value);
 }

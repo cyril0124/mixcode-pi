@@ -35,7 +35,7 @@ export const DEFAULT_STUCK_GUARD_CONFIG: StuckGuardConfig = {
 };
 
 export type StuckGuardConfigLoad =
-  | { ok: true; config: StuckGuardConfig; path: string; missing?: true }
+  | { ok: true; config: StuckGuardConfig; path: string }
   | { ok: false; path: string; error: string };
 
 const TIMEOUT_KEYS = [
@@ -157,7 +157,7 @@ export function loadStuckGuardConfig(agentDir: string): StuckGuardConfigLoad {
     text = fs.readFileSync(filePath, "utf8");
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      return { ok: true, config: { ...DEFAULT_STUCK_GUARD_CONFIG }, path: filePath, missing: true };
+      return { ok: true, config: { ...DEFAULT_STUCK_GUARD_CONFIG }, path: filePath };
     }
     return {
       ok: false,

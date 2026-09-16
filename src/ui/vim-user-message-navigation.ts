@@ -54,15 +54,7 @@ function scrollToUserEntry(
   branch: SessionEntry[],
   targetId: string,
 ): void {
-  const bounds = active.chatSurfaceBounds;
-  const result = scrollChatToUserEntry(
-    active,
-    runtimeTab.chat ?? [],
-    branch,
-    targetId,
-    bounds?.height ?? (process.stdout.rows || 24),
-    bounds?.width ?? (process.stdout.columns || 80),
-  );
+  const result = scrollChatToUserEntry(active, runtimeTab.chat ?? [], branch, targetId);
   if (!result.found)
     pushToast(active, { type: "warning", message: "Message is not in the current chat" });
 }

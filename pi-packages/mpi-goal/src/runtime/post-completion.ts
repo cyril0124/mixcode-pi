@@ -11,7 +11,6 @@ import type {
 export type PostCompletionActionRunInput = {
   goal: GoalState;
   action: PostCompletionActionState;
-  ctx: ExtensionContext;
 };
 export type PostCompletionActionRunResult =
   | {
@@ -75,7 +74,7 @@ export async function runPostCompletionActionsSafely(
       current.postCompletionActions?.find((candidate) => candidate.id === action.id) ?? action;
     let result: PostCompletionActionRunResult;
     try {
-      result = await runner.run({ goal: current, action: running, ctx });
+      result = await runner.run({ goal: current, action: running });
     } catch (error) {
       result = {
         ok: false,

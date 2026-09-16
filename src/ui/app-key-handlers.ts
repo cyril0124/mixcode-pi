@@ -484,7 +484,6 @@ export function handleEscapeKey(
   runtime: MixCodeKeyRuntime | undefined,
   editorActions: MixCodeEditorActions | undefined,
   isEditorAutocompleteOpen: () => boolean,
-  _onStateChanged?: (state: MixCodeState) => void | Promise<void>,
 ): { consume: true } | undefined {
   // 1. Extension custom overlay takes escape before any other dispatch
   //    (passthrough). Focus restoration happens in the shared lazy-refocus
@@ -852,7 +851,7 @@ export function dispatchOverlayKey(
   const selectorOpen = tab
     ? Boolean(state.sessionSelector.open && state.sessionSelector.ownerSessionId === tab.sessionId)
     : sessionSelectorIsLive(state);
-  if (selectorOpen) return handleSessionSelectorKey(state, data, tui, runtime, onStateChanged);
+  if (selectorOpen) return handleSessionSelectorKey(state, data, tui);
   if (tab && state.settingsPanel.open && state.settingsPanel.ownerSessionId === tab.sessionId) {
     const panel = getSettingsPanelComponent(state);
     if (!panel) return false;

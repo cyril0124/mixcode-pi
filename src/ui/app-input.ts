@@ -346,7 +346,6 @@ export function handleMixCodeKeyInput(
       runtime,
       editorActions,
       isEditorAutocompleteOpen,
-      onStateChanged,
     );
     if (result) return result;
   }
@@ -373,7 +372,6 @@ export function handleMixCodeKeyInput(
   // extension terminal handlers because Home is not an agent input surface.
   const homeResult = handleHomeAgentViewKey(
     state,
-    active,
     data,
     tui,
     runtime,
@@ -383,13 +381,13 @@ export function handleMixCodeKeyInput(
     workspaceOptions,
   );
   if (homeResult) return homeResult;
-  if (!hasAnyOverlay(tui) && handleInputSelectionMouseInput(state, active, data, tui)) {
+  if (!hasAnyOverlay(tui) && handleInputSelectionMouseInput(active, data, tui)) {
     return { consume: true };
   }
   // Modal overlays (pickers/settings/etc.) must swallow chat drag-select so
   // clipboard is not mutated under an open dialog. Notice remains selectable
   // via handleMouseInput's dedicated notice path.
-  if (!hasAnyOverlay(tui) && handleChatSelectionMouseInput(state, active, data, tui, runtime)) {
+  if (!hasAnyOverlay(tui) && handleChatSelectionMouseInput(state, active, data, tui)) {
     return { consume: true };
   }
   if (
@@ -446,7 +444,6 @@ export function handleMixCodeKeyInput(
     runtime,
     isEditorAutocompleteOpen,
     editorActions,
-    onStateChanged,
   );
   if (agentNavResult !== undefined) return agentNavResult;
   return handleEditorControlKeys(
@@ -463,7 +460,6 @@ export function handleMixCodeKeyInput(
 /** Home (Agent View) table nav + attach/submit. Returns undefined to fall through. */
 function handleHomeAgentViewKey(
   state: MixCodeState,
-  _active: ActiveTab | undefined,
   data: string,
   tui: OverlayTui,
   runtime: MixCodeKeyRuntime | undefined,
@@ -627,7 +623,6 @@ function handleAgentSurfaceKeys(
   runtime: MixCodeKeyRuntime | undefined,
   isEditorAutocompleteOpen: () => boolean,
   editorActions: MixCodeEditorActions | undefined,
-  _onStateChanged?: (state: MixCodeState) => void | Promise<void>,
 ): KeyResult {
   // Right on empty input toggles the extension widget side panel. Mirrors the
   // Left-returns-Home guard so it never steals the editor's cursor-right when

@@ -210,8 +210,6 @@ export function handleSessionSelectorKey(
   state: MixCodeState,
   data: string,
   tui: OverlayTui,
-  _runtime?: MixCodeKeyRuntime,
-  _onStateChanged?: (state: MixCodeState) => void | Promise<void>,
 ): boolean {
   const component = getSessionSelectorComponent(state);
   if (!state.sessionSelector.open || !component) return false;

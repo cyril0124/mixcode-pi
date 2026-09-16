@@ -16,8 +16,6 @@ export type { MixCodeTheme } from "./theme-from-pi.js";
 
 export interface ThemeInfo {
   id: string;
-  label: string;
-  dark: boolean;
 }
 
 const rgb = (hex: string) => {
@@ -279,7 +277,6 @@ export const MIXCODE_DARK_THEME: MixCodeTheme = withTabStyles({
   thinkingText: rgb("#808080"),
   toolTitle: rgb("#d4a656"),
   bold: (text: string) => `\x1b[1m${text}\x1b[22m`,
-  italic: (text: string) => `\x1b[3m${text}\x1b[23m`,
 });
 
 export const CLAUDE_WARM_THEME: MixCodeTheme = withTabStyles({
@@ -322,7 +319,6 @@ export const CLAUDE_WARM_THEME: MixCodeTheme = withTabStyles({
   thinkingText: rgb("#87867f"),
   toolTitle: rgb("#d6b25e"),
   bold: (text: string) => `\x1b[1m${text}\x1b[22m`,
-  italic: (text: string) => `\x1b[3m${text}\x1b[23m`,
 });
 
 export const TOKYO_NIGHT_THEME: MixCodeTheme = withTabStyles({
@@ -365,7 +361,6 @@ export const TOKYO_NIGHT_THEME: MixCodeTheme = withTabStyles({
   thinkingText: rgb("#66709c"),
   toolTitle: rgb("#ff9e64"),
   bold: (text: string) => `\x1b[1m${text}\x1b[22m`,
-  italic: (text: string) => `\x1b[3m${text}\x1b[23m`,
 });
 
 export const TERMINAL_THEME: MixCodeTheme = withTabStyles({
@@ -401,7 +396,6 @@ export const TERMINAL_THEME: MixCodeTheme = withTabStyles({
   thinkingText: dim,
   toolTitle: ansiYellow,
   bold: (text: string) => `\x1b[1m${text}\x1b[22m`,
-  italic: (text: string) => `\x1b[3m${text}\x1b[23m`,
 });
 
 export const CATPPUCCIN_THEME: MixCodeTheme = withTabStyles({
@@ -444,7 +438,6 @@ export const CATPPUCCIN_THEME: MixCodeTheme = withTabStyles({
   thinkingText: rgb("#6c7086"),
   toolTitle: rgb("#fab387"),
   bold: (text: string) => `\x1b[1m${text}\x1b[22m`,
-  italic: (text: string) => `\x1b[3m${text}\x1b[23m`,
 });
 
 export const KANAGAWA_THEME: MixCodeTheme = withTabStyles({
@@ -487,7 +480,6 @@ export const KANAGAWA_THEME: MixCodeTheme = withTabStyles({
   thinkingText: rgb("#727169"),
   toolTitle: rgb("#E6C384"),
   bold: (text: string) => `\x1b[1m${text}\x1b[22m`,
-  italic: (text: string) => `\x1b[3m${text}\x1b[23m`,
 });
 
 export const ROSE_PINE_THEME: MixCodeTheme = withTabStyles({
@@ -530,7 +522,6 @@ export const ROSE_PINE_THEME: MixCodeTheme = withTabStyles({
   thinkingText: rgb("#6e6a86"),
   toolTitle: rgb("#f6c177"),
   bold: (text: string) => `\x1b[1m${text}\x1b[22m`,
-  italic: (text: string) => `\x1b[3m${text}\x1b[23m`,
 });
 
 export const MIXCODE_EXTENSION_THEME = new Theme(
@@ -865,13 +856,13 @@ export const MIXCODE_EXTENSION_ROSE_PINE_THEME = new Theme(
 
 /** Built-in MixCode themes with stable ids (chrome may be hand-tuned). */
 export const THEMES: ThemeInfo[] = [
-  { id: "mixcode-dark", label: "MixCode Dark", dark: true },
-  { id: "claude-warm", label: "Claude Warm", dark: true },
-  { id: "tokyo-night", label: "Tokyo Night", dark: true },
-  { id: "terminal", label: "Terminal", dark: true },
-  { id: "catppuccin", label: "Catppuccin", dark: true },
-  { id: "kanagawa", label: "Kanagawa", dark: true },
-  { id: "rose-pine", label: "Rosé Pine", dark: true },
+  { id: "mixcode-dark" },
+  { id: "claude-warm" },
+  { id: "tokyo-night" },
+  { id: "terminal" },
+  { id: "catppuccin" },
+  { id: "kanagawa" },
+  { id: "rose-pine" },
 ];
 
 /** Internal Pi Theme.name; not a user-facing MixCode theme id. */
@@ -955,21 +946,13 @@ export function listThemeInfos(): ThemeInfo[] {
   for (const theme of THEMES) infos.set(theme.id, theme);
   for (const id of themeRegistry.keys()) {
     if (infos.has(id) || INTERNAL_THEME_IDS.has(id)) continue;
-    infos.set(id, {
-      id,
-      label: id,
-      dark: !isLightThemeName(id),
-    });
+    infos.set(id, { id });
   }
   for (const name of getAvailableThemes()) {
     if (infos.has(name) || INTERNAL_THEME_IDS.has(name)) continue;
-    infos.set(name, { id: name, label: name, dark: !isLightThemeName(name) });
+    infos.set(name, { id: name });
   }
   return [...infos.values()].sort((a, b) => a.id.localeCompare(b.id));
-}
-
-function isLightThemeName(name: string): boolean {
-  return name === "light";
 }
 
 export function themeForId(themeId: string): MixCodeTheme {

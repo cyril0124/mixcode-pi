@@ -2,7 +2,7 @@ import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
 import { matchesKey, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { type DetachedStart, formatElapsed } from "./exec.js";
-import { LogView, type LogViewTheme } from "./log-view.js";
+import { LogView, type LogViewTheme, padToWidth } from "./log-view.js";
 import { type FinishedRun, hasEnded, readLogForView, reloadLogIfChanged } from "./widget.js";
 
 /** Visible job rows; extra jobs scroll with j/k. */
@@ -23,7 +23,6 @@ export interface BashLogsOptions {
   done: () => void;
   openExternal: (logPath: string) => void;
   kill: (run: DetachedStart | FinishedRun) => void;
-  readLog?: (logPath: string) => Promise<string>;
   /** First selected log, already read so the first paint is not empty. */
   initialText?: string;
   /** 0 disables the follow timer. */
@@ -122,7 +121,7 @@ export class BashLogs implements Component {
     const border = (text: string) => t.fg("border", text);
     const dim = (text: string) => t.fg("dim", text);
     const bold = (text: string) => t.bold?.(text) ?? text;
-    const row = (line: string) => `${border("│")}${this.pad(line, inner)}${border("│")}`;
+    const row = (line: string) => `${border("│")}${padToWidth(line, inner)}${border("│")}`;
     const running = runs.filter((run) => !hasEnded(run)).length;
     const pane = this.log?.pane(inner) ?? {
       body: Array.from({ length: previewHeight }, () => ""),
@@ -137,7 +136,7 @@ export class BashLogs implements Component {
       if (!run) return row("");
       const selectedRow = run.id === this.selectedId;
       const line = formatListRow(run, inner, selectedRow, t);
-      const innerLine = this.pad(line, inner);
+      const innerLine = padToWidth(line, inner);
       if (selectedRow && t.bg)
         return `${border("│")}${t.bg("selectedBg", innerLine)}${border("│")}`;
       return `${border("│")}${innerLine}${border("│")}`;
@@ -232,9 +231,8 @@ export class BashLogs implements Component {
   }
 
   private async load(run: DetachedStart | FinishedRun, gen: number): Promise<void> {
-    const read = this.opts.readLog ?? readLogForView;
     try {
-      const text = await read(run.logPath);
+      const text = await readLogForView(run.logPath);
       if (gen !== this.gen || this.closed) return;
       this.log?.setText(text);
     } catch (error) {
@@ -280,11 +278,6 @@ export class BashLogs implements Component {
     }
     this.stamp = result.stamp;
     this.log?.setText(result.text);
-  }
-
-  private pad(text: string, width: number): string {
-    const clipped = visibleWidth(text) <= width ? text : truncateToWidth(text, width, "…");
-    return clipped + " ".repeat(Math.max(0, width - visibleWidth(clipped)));
   }
 }
 
