@@ -1029,16 +1029,12 @@ export function renderExtensionWidgets(
   return renderWithTheme(theme, () => renderExtensionWidgetsInner(tab, width, placement));
 }
 
-const INLINE_WIDGET_EXPANDED_MAX_LINES = 20;
 // Share of the chat viewport the inline widget block may occupy. A single
 // widget gets more room because no sibling competes with it.
 const INLINE_TAIL_SHARE = 0.4;
 const INLINE_TAIL_SINGLE_WIDGET_SHARE = 0.6;
 const INLINE_TAIL_MIN_BUDGET = 6;
 const INLINE_TAIL_MAX_BUDGET = 24;
-// Below this, a shortened body is no longer worth showing; that widget collapses
-// to its header instead, freeing the rows for a higher-priority sibling.
-const INLINE_WIDGET_MIN_BODY_ROWS = 3;
 // Extra rows the block must free before a collapsed widget expands again, so an
 // overflowing tail cannot collapse and re-expand on alternating frames.
 const INLINE_TAIL_HOLD_DEADBAND_ROWS = 2;
@@ -1112,11 +1108,6 @@ export function renderInlineExtensionWidgets(
     lines.push(
       ...entry.lines.slice(0, body).map((line) => renderSingleLineExtensionSlot(line, width)),
     );
-    if (entry.lines.length > body) {
-      lines.push(
-        renderSingleLineExtensionSlot(`… ${entry.lines.length - body} more in widget panel`, width),
-      );
-    }
   });
   return lines;
 }
@@ -1139,7 +1130,7 @@ function collectInlineWidgetEntries(tab: MixCodeTabInfo, bodyWidth: number): Inl
   return entries;
 }
 
-/** Rows the block occupies: headers, separators, bodies, and overflow hints. */
+/** Rows the block occupies: headers, separators, and bodies. */
 function inlineWidgetRows(
   entries: readonly InlineWidgetEntry[],
   bodyRows: ReadonlyMap<string, number>,
@@ -1152,7 +1143,6 @@ function inlineWidgetRows(
     if (index > 0 && !(body === 0 && previousCollapsed)) rows += 1;
     rows += 1;
     rows += body;
-    if (body > 0 && entry.lines.length > body) rows += 1;
   });
   return rows;
 }
@@ -1170,13 +1160,13 @@ function inlineTailBudget(viewportRows: number, widgetCount: number): number {
 /**
  * Rows per widget for this frame.
  *
- * With a budget: keep every body at its natural height if it fits; otherwise trim
- * all bodies to a common cap (never below {@link INLINE_WIDGET_MIN_BODY_ROWS});
- * otherwise hand out body rows in priority order — manually expanded widgets
- * first, then the most recently updated, then registration order — so the most
- * relevant widgets stay readable while the rest collapse to their header. An
- * empty plan means even a header-only stack does not fit, and the caller renders
- * one summary row instead.
+ * With a budget: keep every body complete if the block fits; otherwise hand
+ * complete bodies out in priority order, manually expanded widgets first, then
+ * the most recently updated, then registration order. The first widget whose
+ * full body no longer fits is the cut: it and every lower-priority widget
+ * collapse to its header. A shown body is never partial. An empty plan means
+ * even a header-only stack does not fit, and the caller renders one summary row
+ * instead.
  *
  * Without a budget (full-render and measurement callers own their clipping) only
  * manual collapse state applies.
@@ -1203,8 +1193,7 @@ function planInlineWidgetBlock(
     }
   }
 
-  const naturalBody = (entry: InlineWidgetEntry): number =>
-    Math.min(entry.lines.length, INLINE_WIDGET_EXPANDED_MAX_LINES);
+  const naturalBody = (entry: InlineWidgetEntry): number => entry.lines.length;
   const naturalBodies = new Map(entries.map((entry) => [entry.widget.key, naturalBody(entry)]));
   // A manually expanded widget keeps its body: the user asked for it, so the row
   // budget makes the other widgets give way instead.
@@ -1284,57 +1273,21 @@ function planInlineWidgetBlock(
     return { bodyRows: new Map<string, number>(), autoCollapsed };
   }
 
-  const trimToBudget = (): Map<string, number> | undefined => {
-    for (
-      let cap = INLINE_WIDGET_EXPANDED_MAX_LINES - 1;
-      cap >= INLINE_WIDGET_MIN_BODY_ROWS;
-      cap--
-    ) {
-      const trimmed = withBodies(
-        new Map(entries.map((entry) => [entry.widget.key, Math.min(entry.lines.length, cap)])),
-        hidden,
-      );
-      if (inlineWidgetRows(entries, trimmed) <= budget) return trimmed;
-    }
-    return undefined;
-  };
-
-  // Trim every body to a common cap before collapsing anything. While held
-  // decisions are in play the previous allocation is the answer: a uniform trim
-  // of the survivors would replace it with a worse one on the next frame.
-  if (sticky.size === 0) {
-    const trimmed = trimToBudget();
-    if (trimmed) return finish(trimmed);
-  }
-
-  // Give the remaining rows to the highest-priority widgets; a widget without
-  // room for a readable body collapses to its header.
+  // Hand complete bodies to the highest-priority widgets. The first widget
+  // whose full body no longer fits is the cut: it and every lower-priority
+  // widget collapse to its header. Pins were preloaded above and keep their
+  // bodies even when they alone overflow the budget.
   const assigned = new Map(pinnedBodies);
   const byPriority = [...entries].sort((a, b) => compareInlinePriority(b, a));
   for (const entry of byPriority) {
     const key = entry.widget.key;
     if (hidden.has(key) || assigned.has(key)) continue;
-    const natural = naturalBody(entry);
-    // A body shorter than the comfortable minimum is only collapsed when the
-    // widget itself is longer; a 1-2 row widget keeps everything it has.
-    const floor = Math.min(INLINE_WIDGET_MIN_BODY_ROWS, natural);
-    for (let cap = natural; cap >= floor; cap--) {
-      const candidate = new Map(assigned);
-      candidate.set(key, cap);
-      if (inlineWidgetRows(entries, withBodies(candidate, hidden)) <= budget) {
-        assigned.set(key, cap);
-        break;
-      }
-    }
+    const candidate = new Map(assigned);
+    candidate.set(key, naturalBody(entry));
+    if (inlineWidgetRows(entries, withBodies(candidate, hidden)) > budget) break;
+    assigned.set(key, naturalBody(entry));
   }
-  const fitted = withBodies(assigned, hidden);
-  if (inlineWidgetRows(entries, fitted) <= budget) return finish(fitted);
-
-  // Manually expanded widgets alone overflow the budget. Trimming them is still
-  // better than overflowing, so try that before keeping their full bodies.
-  const trimmed = trimToBudget();
-  if (trimmed) return finish(trimmed);
-  return finish(withBodies(pinnedBodies, hidden));
+  return finish(withBodies(assigned, hidden));
 }
 
 /** Higher value = kept expanded longer: most recently updated, then registration order. */

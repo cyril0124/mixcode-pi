@@ -604,15 +604,15 @@ test("an over-budget inline tail collapses widgets instead of starving the chat"
   const lines = inlineTailLines(tab, 24);
   const text = lines.join("\n");
 
-  // 24-row viewport: budget is floor(24 * 0.4) = 9 rows.
+  // 24-row viewport: budget is floor(24 * 0.4) = 9 rows. No complete body fits
+  // in 9 rows, so every widget collapses whole; a shown body is never partial.
   assert.ok(lines.length <= 9, `tail rows ${lines.length} exceed the viewport budget`);
-  assert.equal(lines.filter((line) => line.includes("more in widget panel")).length, 1);
-  assert.deepEqual(collapsedKeys(lines), ["w2", "w3", "w4"]);
+  assert.equal(lines.filter((line) => line.includes("more in widget panel")).length, 0);
+  assert.deepEqual(collapsedKeys(lines), ["w1", "w2", "w3", "w4"]);
   for (const line of lines) {
     if (line.includes("/widgets expand")) assert.match(line, /\(auto\)/);
   }
-  assert.match(text, /w1-0/);
-  assert.doesNotMatch(text, /w2-0|w3-0|w4-0/);
+  assert.doesNotMatch(text, /w1-0|w2-0|w3-0|w4-0/);
 
   // Leaving inline mode or supplying no viewport restores the uncollapsed dock
   // rendering the same widgets would get.
@@ -622,7 +622,7 @@ test("an over-budget inline tail collapses widgets instead of starving the chat"
 test("the most recently updated inline widget keeps its body under budget", () => {
   const tab = widgetTab(widgets());
   for (const key of ["first", "second", "third"]) {
-    setExtensionWidget(tab, key, tallLines(key, 20), "aboveEditor", () => undefined);
+    setExtensionWidget(tab, key, tallLines(key, 4), "aboveEditor", () => undefined);
   }
 
   const lines = inlineTailLines(tab, 24);
@@ -675,13 +675,13 @@ test("inline collapse decisions survive one-row height jitter", () => {
 test("refreshing a widget recomputes the automatic decisions", () => {
   const tab = widgetTab(widgets());
   for (const key of ["first", "second", "third"]) {
-    setExtensionWidget(tab, key, tallLines(key, 20), "aboveEditor", () => undefined);
+    setExtensionWidget(tab, key, tallLines(key, 4), "aboveEditor", () => undefined);
   }
   assert.deepEqual(collapsedKeys(inlineTailLines(tab, 24)), ["first", "second"]);
 
   // Re-setting a widget is a deliberate change, not height jitter: it becomes
   // the most recently updated one and takes over the body rows.
-  setExtensionWidget(tab, "first", tallLines("first", 20), "aboveEditor", () => undefined);
+  setExtensionWidget(tab, "first", tallLines("first", 4), "aboveEditor", () => undefined);
   const refreshed = inlineTailLines(tab, 24);
   assert.deepEqual(collapsedKeys(refreshed), ["second", "third"]);
   assert.match(refreshed.join("\n"), /first-0/);
@@ -690,7 +690,7 @@ test("refreshing a widget recomputes the automatic decisions", () => {
 test("held automatic decisions still fit the budget instead of overflowing", () => {
   const tab = widgetTab(
     widgets(
-      above("goal", 12),
+      above("goal", 8),
       above("loop", 10),
       above("bash", 8),
       above("audit", 6),
@@ -701,11 +701,12 @@ test("held automatic decisions still fit the budget instead of overflowing", () 
   assert.ok(tab.inlineWidgetAutoCollapsed.size > 0, "the first frame collapses what does not fit");
 
   // A one-row content change stays inside the hold deadband, so this frame
-  // re-fits the previous decisions instead of recomputing them.
-  tab.extensionUi.widgets[0]!.lines = tallLines("goal", 13);
+  // keeps the held goal body whole instead of recomputing the decisions.
+  tab.extensionUi.widgets[0]!.lines = tallLines("goal", 9);
   const held = inlineTailLines(tab, 40);
   assert.ok(held.length <= 16, `held decisions overflowed the budget: ${held.length} rows`);
   assert.match(held.join("\n"), /goal-0/);
+  assert.match(held.join("\n"), /goal-8/, "the held body stays complete");
 });
 
 test("short widget bodies keep their rows and recover once the block fits", () => {
@@ -789,6 +790,32 @@ test("/widgets expands an automatically collapsed tail", async () => {
   assert.equal(collapsedKeys(inlineTailLines(tab, 24)).length, 0);
 });
 
+test("a second bare /widgets hands the widgets back to the row budget", async () => {
+  const state = createInitialState("/repo");
+  const tab = widgetTab(widgets(above("w0", 20), above("w1", 20), above("w2", 20)));
+  state.tabs.push(tab);
+  state.activeTabId = tab.sessionId;
+  const runtime = { getTab: () => undefined } as unknown as MixCodeRuntime;
+  const tui = { requestRender: () => undefined } as unknown as OverlayTui;
+
+  // First press: the budget has folded the tail, so every widget gets a
+  // manual expand pin.
+  assert.ok(collapsedKeys(inlineTailLines(tab, 24)).length > 0);
+  await handleSubmittedInput(state, runtime, "/widgets", tui);
+  assert.equal(tab.inlineWidgetCollapsed.size, 3);
+  assert.equal(collapsedKeys(inlineTailLines(tab, 24)).length, 0);
+
+  // Second press: the pins are released instead of becoming manual collapses,
+  // so the budget re-owns every key and folds the over-budget tail again.
+  await handleSubmittedInput(state, runtime, "/widgets", tui);
+  assert.equal(tab.inlineWidgetCollapsed.size, 0);
+  const folded = inlineTailLines(tab, 24);
+  assert.deepEqual(collapsedKeys(folded), ["w0", "w1", "w2"]);
+  for (const line of folded) {
+    if (line.includes("/widgets expand")) assert.match(line, /\(auto\)/);
+  }
+});
+
 test("a block that shrinks gradually expands once it fits", () => {
   const tab = widgetTab(widgets(above("a", 20), above("b", 1), above("c", 1)));
   inlineTailLines(tab, 24);
@@ -858,16 +885,19 @@ test("a widget list far larger than the budget still renders one summary row", (
   assert.match(lines[0]!, /400 widgets/);
 });
 
-test("a held frame trims a pinned widget instead of overflowing", () => {
+test("a held frame keeps a pinned widget whole even when it overflows the budget", () => {
   const tab = widgetTab(widgets(above("short", 2), above("tall", 20), above("other", 20)));
-  // Establish automatic decisions first, then pin the tall widget: the next frame
-  // holds those decisions and must still fit the budget.
+  // Establish automatic decisions first, then pin the tall widget: the next
+  // frame holds those decisions, and the pin keeps its complete body even
+  // though the block now overflows the budget.
   inlineTailLines(tab, 36);
   tab.inlineWidgetCollapsed.set("tall", false);
 
   const held = inlineTailLines(tab, 36);
-  assert.ok(held.length <= 14, `held pinned block ${held.length} rows`);
-  assert.match(held.join("\n"), /tall-0/);
+  const text = held.join("\n");
+  assert.ok(held.length > 14, `the pinned body must stay whole, got ${held.length} rows`);
+  assert.match(text, /tall-0[\s\S]*tall-19/, "the pinned body renders completely");
+  assert.deepEqual(collapsedKeys(held), ["short", "other"]);
 });
 
 test("/widgets ignores automatic collapses while the tail is not rendered", async () => {
@@ -947,14 +977,15 @@ test("a narrow auto-collapsed header keeps the expand hint and drops the marker"
       .map((line) => stripAnsi(line))
       .filter((line) => line.includes("▸ Inline"));
 
+  // No complete body fits the 9-row budget, so all three headers are collapsed.
   // 40 columns: the key survives, the marker does not.
   const wide = headersAt(40);
-  assert.equal(wide.filter((line) => line.includes("/widgets expand")).length, 2);
+  assert.equal(wide.filter((line) => line.includes("/widgets expand")).length, 3);
   for (const line of wide) assert.doesNotMatch(line, /\(auto\)/);
   // 32 columns: only the bare command fits.
-  assert.equal(headersAt(32).filter((line) => line.includes("/widgets expand")).length, 2);
+  assert.equal(headersAt(32).filter((line) => line.includes("/widgets expand")).length, 3);
   // 24 columns: the hint shortens to `/widgets`.
-  assert.equal(headersAt(24).filter((line) => line.includes("/widgets")).length, 2);
+  assert.equal(headersAt(24).filter((line) => line.includes("/widgets")).length, 3);
 
   for (const width of [24, 32, 40]) {
     for (const line of renderInlineExtensionWidgets(tab, width, { viewportRows: 24 })) {
@@ -964,7 +995,7 @@ test("a narrow auto-collapsed header keeps the expand hint and drops the marker"
 });
 
 test("a larger viewport re-expands widgets it can now fit", () => {
-  const tab = widgetTab(widgets(above("w0", 20), above("w1", 20), above("w2", 20)));
+  const tab = widgetTab(widgets(above("w0", 6), above("w1", 6), above("w2", 6)));
   const small = inlineTailLines(tab, 12);
   assert.ok(small.length <= 6, `small tail ${small.length} rows`);
   assert.deepEqual(collapsedKeys(small), ["w0", "w1", "w2"]);
@@ -972,6 +1003,41 @@ test("a larger viewport re-expands widgets it can now fit", () => {
   const large = inlineTailLines(tab, 60);
   assert.deepEqual(collapsedKeys(large), []);
   assert.match(large.join("\n"), /w0-0[\s\S]*w2-0/);
+});
+
+test("a body taller than the whole budget collapses whole, never partially", () => {
+  const tab = widgetTab(widgets(above("huge", 30), above("small", 2)));
+  // The small widget is the most recently updated, so it takes the rows first;
+  // the huge body cannot fit whole after it, so it collapses instead of showing
+  // a cut.
+  setExtensionWidget(tab, "small", tallLines("small", 2), "aboveEditor", () => undefined);
+  const lines = inlineTailLines(tab, 24);
+
+  assert.deepEqual(collapsedKeys(lines), ["huge"]);
+  assert.match(lines.join("\n"), /small-0[\s\S]*small-1/);
+  assert.doesNotMatch(lines.join("\n"), /huge-0/);
+  assert.equal(lines.filter((line) => line.includes("more in widget panel")).length, 0);
+});
+
+test("the cut stops at the first widget whose whole body does not fit", () => {
+  const tab = widgetTab(widgets(above("w0", 4), above("w1", 2), above("w2", 2)));
+  const lines = inlineTailLines(tab, 24);
+
+  // Budget 9: w0 whole (4) fits; w1 whole would need one row too many, so w1 and
+  // the later, smaller w2 both collapse instead of jumping ahead of the cut.
+  assert.deepEqual(collapsedKeys(lines), ["w1", "w2"]);
+  assert.match(lines.join("\n"), /w0-0[\s\S]*w0-3/);
+  assert.doesNotMatch(lines.join("\n"), /w1-0|w2-0/);
+});
+
+test("an expanded body longer than 20 lines renders completely with no hint", () => {
+  const tab = widgetTab(widgets(above("long", 22)));
+  const lines = inlineTailLines(tab, 60);
+
+  // Single-widget budget floor(60 * 0.6) = 24 fits the whole 22-line body.
+  assert.deepEqual(collapsedKeys(lines), []);
+  assert.match(lines.join("\n"), /long-21/, "the full body renders");
+  assert.equal(lines.filter((line) => line.includes("more in widget panel")).length, 0);
 });
 
 test("the inline budget renders each widget once per frame", () => {

@@ -127,8 +127,18 @@ const handleWidgets: LocalCommandHandler = ({ active, args }) => {
     (autoActive && tab.inlineWidgetAutoCollapsed.has(key));
   const allExpanded = widgets.every((widget) => !isCollapsed(widget.key));
   const collapse = action === "collapse" || (action === "toggle" && allExpanded);
+  // The bare toggle collapses by handing the widgets it pinned back to the row
+  // budget, so a second `/widgets` restores the automatic state instead of
+  // replacing the pins with manual collapses the budget can never undo. A
+  // widget the budget leaves expanded naturally gets a manual collapse, and
+  // keyed or explicit `collapse` commands stay fully manual.
+  const handBack = collapse && !key && autoActive;
   for (const widget of widgets) {
-    tab.inlineWidgetCollapsed.set(widget.key, collapse);
+    if (handBack && tab.inlineWidgetCollapsed.has(widget.key)) {
+      tab.inlineWidgetCollapsed.delete(widget.key);
+    } else {
+      tab.inlineWidgetCollapsed.set(widget.key, collapse);
+    }
     // Manual intent outranks the inline row budget: drop the key from the
     // automatic set so the next frame honours the explicit choice.
     tab.inlineWidgetAutoCollapsed.delete(widget.key);
