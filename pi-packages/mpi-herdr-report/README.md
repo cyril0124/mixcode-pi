@@ -8,6 +8,13 @@ Requires truthy `MIXCODE`, `HERDR_ENV=1`, and nonempty `HERDR_SOCKET_PATH` and
 `HERDR_PANE_ID`. For `MIXCODE`, unset, empty, `0`, `false`, and `off` disable the
 extension after trimming whitespace and normalizing case. Pure Pi stays silent.
 
+Before each send attempt, the extension queries `pane.process_info` and requires
+its own PID in `foreground_processes`. This check applies to state reports,
+session reports, and notifications. If the query fails, is unsupported, or returns
+an invalid response, the extension skips the send and checks again on the next
+periodic refresh. Queries time out after 500 ms. Concurrent sends share a pending
+query; later sends require a new query.
+
 ## Pane state
 
 Only sessions started with `ctx.mode === "tui"` are tracked. Each runtime has an
@@ -52,10 +59,12 @@ within 100 ms are suppressed.
 The first TUI session registers an exit hook. Processes that only load the
 extension or run non-TUI sessions do not release the pane.
 
-On exit, the hook starts a detached `herdr pane release-agent` child with a
-sequence higher than the process's pending reports. `HERDR_BIN_PATH` selects
-the executable, defaulting to `herdr` on `PATH`. Cleanup requires a working CLI
-and reachable Herdr server.
+The exit hook uses the most recent ownership check because it cannot await socket
+I/O. A successful check records the pane ID and socket path; a failed check or PID
+mismatch clears them. If a verified pane remains, the hook starts a detached
+`herdr pane release-agent` child with a sequence higher than the process's pending
+reports. `HERDR_BIN_PATH` selects the executable, defaulting to `herdr` on `PATH`.
+Cleanup requires a working CLI and reachable Herdr server.
 
 ## Tests
 

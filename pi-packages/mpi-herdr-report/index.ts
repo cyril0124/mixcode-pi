@@ -222,16 +222,16 @@ export function buildExitReleaseArgv(paneId: string, seq: number): string[] {
   ];
 }
 
-function installExitReleaseHook(env: NodeJS.ProcessEnv = process.env): void {
+function installExitReleaseHook(): void {
   if (reporter.exitHookInstalled) return;
   reporter.exitHookInstalled = true;
   process.on("exit", () => {
-    const paneId = resolveHerdrPaneId(env);
-    if (!paneId) return;
-    const cli = env.HERDR_BIN_PATH?.trim() || "herdr";
-    const child = spawn(cli, buildExitReleaseArgv(paneId, nextReportSeq()), {
+    const pane = reporter.ownedPane;
+    if (!pane) return;
+    const child = spawn(pane.cli, buildExitReleaseArgv(pane.id, nextReportSeq()), {
       detached: true,
       stdio: "ignore",
+      env: { ...process.env, HERDR_SOCKET_PATH: pane.socketPath },
     });
     child.on("error", () => {
       // Best-effort teardown: the process is exiting, so CLI launch errors cannot be surfaced.
@@ -242,6 +242,8 @@ function installExitReleaseHook(env: NodeJS.ProcessEnv = process.env): void {
 
 interface ProcessReporter {
   exitHookInstalled: boolean;
+  ownedPane?: { id: string; socketPath: string; cli: string };
+  ownershipCheck?: Promise<boolean>;
   seq: number;
   sendInFlight: boolean;
   queuedState?: QueuedState;
@@ -295,31 +297,40 @@ function sessionFieldsFrom(ctx: unknown): Record<string, unknown> {
 }
 
 /** Disabled bridges are no-ops; otherwise only a complete, matching success envelope confirms delivery. */
-export function sendRequestAttempt(
+export async function sendRequestAttempt(
   request: HerdrRequest,
   timeoutMs: number,
   env: NodeJS.ProcessEnv = process.env,
   options: { unrefTimeout?: boolean } = {},
 ): Promise<boolean> {
-  if (!herdrBridgeEnabled(env)) return Promise.resolve(true);
+  if (!herdrBridgeEnabled(env)) return true;
+  return (await requestResultAttempt(request, timeoutMs, env, options)) !== undefined;
+}
+
+function requestResultAttempt(
+  request: HerdrRequest,
+  timeoutMs: number,
+  env: NodeJS.ProcessEnv,
+  options: { unrefTimeout?: boolean },
+): Promise<Record<string, unknown> | undefined> {
   const path = env.HERDR_SOCKET_PATH!.trim();
   const endpoint = socketEndpoint(path);
 
   return new Promise((resolve) => {
     let done = false;
     let timeout: ReturnType<typeof setTimeout> | undefined;
-    const finish = (delivered: boolean) => {
+    const finish = (result?: Record<string, unknown>) => {
       if (done) return;
       done = true;
       if (timeout) clearTimeout(timeout);
       socket.destroy();
-      resolve(delivered);
+      resolve(result);
     };
 
     const socket = net.createConnection(endpoint);
     socket.setEncoding("utf8");
     let responseBuffer = "";
-    socket.on("error", () => finish(false));
+    socket.on("error", () => finish());
     socket.on("connect", () => socket.write(`${JSON.stringify(request)}\n`));
     socket.on("data", (chunk: string) => {
       responseBuffer += chunk;
@@ -330,34 +341,92 @@ export function sendRequestAttempt(
         response = JSON.parse(responseBuffer.slice(0, newline));
       } catch {
         // Invalid JSON is a failed delivery, not an acknowledgement.
-        finish(false);
+        finish();
         return;
       }
-      finish(
+      if (
         typeof response === "object" &&
-          response !== null &&
-          "id" in response &&
-          response.id === request.id &&
-          !("error" in response) &&
-          "result" in response &&
-          typeof response.result === "object" &&
-          response.result !== null &&
-          "type" in response.result &&
-          typeof response.result.type === "string",
-      );
+        response !== null &&
+        "id" in response &&
+        response.id === request.id &&
+        !("error" in response) &&
+        "result" in response &&
+        typeof response.result === "object" &&
+        response.result !== null &&
+        "type" in response.result &&
+        typeof response.result.type === "string"
+      ) {
+        finish(response.result as Record<string, unknown>);
+      } else {
+        finish();
+      }
     });
-    socket.on("end", () => finish(false));
-    timeout = setTimeout(() => finish(false), timeoutMs);
+    socket.on("end", () => finish());
+    timeout = setTimeout(() => finish(), timeoutMs);
     if (options.unrefTimeout !== false) timeout.unref?.();
   });
+}
+
+async function checkPaneOwnership(options: { unrefTimeout?: boolean }): Promise<boolean> {
+  if (reporter.ownershipCheck) return reporter.ownershipCheck;
+  const paneId = resolveHerdrPaneId();
+  if (!paneId) {
+    reporter.ownedPane = undefined;
+    return false;
+  }
+  const env = { ...process.env };
+
+  // Child processes can inherit HERDR_PANE_ID while running on a different PTY.
+  reporter.ownershipCheck = (async () => {
+    const result = await requestResultAttempt(
+      {
+        id: `${HERDR_REPORT_SOURCE}:owner:${randomUUID()}`,
+        method: "pane.process_info",
+        params: { pane_id: paneId },
+      },
+      500,
+      env,
+      options,
+    );
+    const info = result?.type === "pane_process_info" ? result.process_info : undefined;
+    const ownsPane =
+      typeof info === "object" &&
+      info !== null &&
+      "foreground_processes" in info &&
+      Array.isArray(info.foreground_processes) &&
+      info.foreground_processes.some(
+        (entry: unknown) =>
+          typeof entry === "object" &&
+          entry !== null &&
+          "pid" in entry &&
+          entry.pid === process.pid,
+      );
+    // Exit cleanup uses the verified endpoint, even if a caller later changes its env.
+    reporter.ownedPane = ownsPane
+      ? {
+          id: paneId,
+          socketPath: env.HERDR_SOCKET_PATH!.trim(),
+          cli: env.HERDR_BIN_PATH?.trim() || "herdr",
+        }
+      : undefined;
+    return ownsPane;
+  })();
+  try {
+    return await reporter.ownershipCheck;
+  } finally {
+    reporter.ownershipCheck = undefined;
+  }
 }
 
 async function sendRequest(
   request: HerdrRequest,
   options: { unrefTimeout?: boolean } = {},
 ): Promise<boolean> {
-  if (await sendRequestAttempt(request, 500, process.env, options)) return true;
-  return sendRequestAttempt(request, 1500, process.env, options);
+  for (const timeoutMs of [500, 1500]) {
+    if (!(await checkPaneOwnership(options))) return false;
+    if (await sendRequestAttempt(request, timeoutMs, process.env, options)) return true;
+  }
+  return false;
 }
 
 function sendState(

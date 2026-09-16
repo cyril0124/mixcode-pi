@@ -207,7 +207,14 @@ test("session_start does not read isIdle after the session ctx is replaced", asy
       for (const line of String(buf).split("\n").filter(Boolean)) {
         const report = JSON.parse(line) as (typeof reports)[number];
         reports.push(report);
-        socket.write(`${JSON.stringify({ id: report.id, result: { type: "ok" } })}\n`);
+        const result =
+          report.method === "pane.process_info"
+            ? {
+                type: "pane_process_info",
+                process_info: { foreground_processes: [{ pid: process.pid, name: "mpi" }] },
+              }
+            : { type: "ok" };
+        socket.write(`${JSON.stringify({ id: report.id, result })}\n`);
       }
       socket.end();
     });
@@ -292,9 +299,10 @@ test("session_start does not read isIdle after the session ctx is replaced", asy
 });
 
 test.each([
-  "tui",
-  "print",
-] as const)("%s process exit releases only TUI-owned panes", async (mode) => {
+  { mode: "tui", owner: true },
+  { mode: "tui", owner: false },
+  { mode: "print", owner: true },
+] as const)("process exit releases only verified TUI-owned panes: %j", async ({ mode, owner }) => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-herdr-exit-hook-"));
   const log = path.join(dir, "cli.log");
   const fakeCli = path.join(dir, "herdr");
@@ -308,25 +316,56 @@ test.each([
       "const handlers = new Map();",
       "factory({ on(event, handler) { handlers.set(event, handler); }, events: { on() {} } });",
       `handlers.get("session_start")({ reason: "startup" }, { mode: ${JSON.stringify(mode)}, isIdle: () => true, sessionManager: { getSessionId: () => "exit-session" } });`,
-      "process.exit(0);",
+      // Keep the child alive until the parent has observed its ownership/report exchange.
+      "process.on('message', () => process.exit(0));",
     ].join("\n"),
   );
 
+  let childPid: number | undefined;
+  let finishChild: (() => void) | undefined;
+  const socketPath = path.join(dir, "herdr.sock");
+  const server = net.createServer((socket) => {
+    socket.on("data", (data) => {
+      const request = JSON.parse(String(data).trim()) as { id: string; method: string };
+      const result =
+        request.method === "pane.process_info"
+          ? {
+              type: "pane_process_info",
+              process_info: {
+                foreground_processes: [{ pid: owner ? childPid : process.pid, name: "mpi" }],
+              },
+            }
+          : { type: "ok" };
+      socket.end(`${JSON.stringify({ id: request.id, result })}\n`);
+      if (!owner || request.method === "pane.report_agent") {
+        socket.on("close", () => finishChild?.());
+      }
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(socketPath, resolve));
+
   try {
     const child = spawn(process.execPath, [childScript], {
-      stdio: "ignore",
+      stdio: ["ignore", "ignore", "ignore", "ipc"],
       env: {
         ...process.env,
         MIXCODE: "1",
         HERDR_ENV: "1",
-        HERDR_SOCKET_PATH: path.join(dir, "unused.sock"),
+        HERDR_SOCKET_PATH: socketPath,
         HERDR_PANE_ID: "w1:p1",
         HERDR_BIN_PATH: fakeCli,
       },
     });
+    childPid = child.pid;
+    finishChild = () => {
+      if (child.connected) child.send("exit");
+    };
+    if (mode === "print") finishChild();
+    const exitTimeout = setTimeout(() => child.kill(), 5000);
     const exitCode = await new Promise<number | null>((resolve) =>
       child.on("close", (code) => resolve(code)),
     );
+    clearTimeout(exitTimeout);
     assert.equal(exitCode, 0);
 
     // The detached CLI child outlives the exiting process; poll for its write.
@@ -338,12 +377,13 @@ test.each([
       });
       if (!logged) await new Promise((resolve) => setTimeout(resolve, 50));
     }
-    if (mode === "tui") {
+    if (mode === "tui" && owner) {
       assert.match(logged, /^pane release-agent w1:p1 --source mpi --agent mpi --seq \d+\n$/);
     } else {
-      assert.equal(logged, "", "a print-only process must not release the parent pane's agent");
+      assert.equal(logged, "", "an unverified process must not release another pane's agent");
     }
   } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
     await fs.rm(dir, { recursive: true, force: true });
   }
 });

@@ -65,6 +65,7 @@ async function createSession(
 async function withReporter(
   run: (reports: Report[], cwd: string, closed: Map<string, number>) => Promise<void>,
   respond: (report: Report) => Record<string, unknown> = () => ({ result: { type: "ok" } }),
+  foregroundPid: () => number = () => process.pid,
 ) {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-herdr-lifecycle-"));
   const env = {
@@ -94,7 +95,16 @@ async function withReporter(
       const report = JSON.parse(buffer.slice(0, end)) as Report;
       reports.push(report);
       requestId = report.id;
-      socket.end(`${JSON.stringify({ id: report.id, ...respond(report) })}\n`);
+      const response =
+        report.method === "pane.process_info"
+          ? {
+              result: {
+                type: "pane_process_info",
+                process_info: { foreground_processes: [{ pid: foregroundPid(), name: "mpi" }] },
+              },
+            }
+          : respond(report);
+      socket.end(`${JSON.stringify({ id: report.id, ...response })}\n`);
     });
   });
   await new Promise<void>((resolve) => server.listen(env.HERDR_SOCKET_PATH, resolve));
@@ -125,6 +135,79 @@ async function waitFor(predicate: () => boolean, timeoutMs = 1000): Promise<void
 function latestState(reports: Report[]): string | undefined {
   return reports.findLast((report) => report.method === "pane.report_agent")?.params.state;
 }
+
+test("a TUI with inherited pane env cannot report for another foreground process", async () => {
+  await withReporter(
+    async (reports, cwd) => {
+      const session = await createSession(cwd, "inherited-pane");
+      try {
+        await session.emit("session_start");
+        await session.emit("agent_start");
+        await session.emit("session_shutdown");
+        assert.deepEqual(
+          reports.filter((report) => report.method !== "pane.process_info"),
+          [],
+          "a different foreground PID must prevent state and session reports",
+        );
+      } finally {
+        await session.emit("session_shutdown");
+      }
+    },
+    undefined,
+    () => process.pid + 1,
+  );
+});
+
+test("losing the foreground stops refresh and shutdown reports", async () => {
+  let foregroundPid = process.pid;
+  await withReporter(
+    async (reports, cwd) => {
+      const session = await createSession(cwd, "replaced-owner");
+      try {
+        await session.emit("session_start");
+        await waitFor(() => latestState(reports) === "idle");
+        await session.emit("agent_start");
+        await waitFor(() => latestState(reports) === "working");
+        foregroundPid = process.pid + 1;
+        const before = reports.filter((r) => r.method !== "pane.process_info").length;
+        await new Promise((resolve) => setTimeout(resolve, 2300));
+        await session.emit("session_shutdown");
+        assert.equal(
+          reports.filter((r) => r.method !== "pane.process_info").length,
+          before,
+          "a former owner must not refresh or overwrite the replacement with idle",
+        );
+      } finally {
+        await session.emit("session_shutdown");
+      }
+    },
+    undefined,
+    () => foregroundPid,
+  );
+});
+
+test("regaining the foreground resumes the current aggregate state", async () => {
+  let foregroundPid = process.pid + 1;
+  await withReporter(
+    async (reports, cwd) => {
+      const session = await createSession(cwd, "regained-owner");
+      try {
+        await session.emit("session_start");
+        await session.emit("agent_start");
+        await waitFor(() => reports.some((r) => r.method === "pane.process_info"));
+        assert.equal(latestState(reports), undefined);
+        foregroundPid = process.pid;
+        await waitFor(() => latestState(reports) === "working", 3500);
+        await session.emit("agent_settled");
+        await waitFor(() => latestState(reports) === "idle");
+      } finally {
+        await session.emit("session_shutdown");
+      }
+    },
+    undefined,
+    () => foregroundPid,
+  );
+});
 
 test("alternating tabs report working again after another tab reports idle", async () => {
   await withReporter(async (reports, cwd) => {
