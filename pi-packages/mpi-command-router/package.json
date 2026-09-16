@@ -1,0 +1,14 @@
+{
+  "name": "mpi-command-router",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Route Bash command names to configured commands or scripts through per-call PATH wrappers",
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ],
+    "skills": [
+      "./skills"
+    ]
+  }
+}

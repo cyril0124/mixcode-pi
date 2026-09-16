@@ -23,6 +23,7 @@ MixCode 随附位于 `pi-packages/mpi-*` 的第一方内置 Pi 包。启动时�
 | `mpi-stuck-guard` | 高基数目录搜索自动拦截；`/stuck-guard`、`/stuck-guard config`、`/stuck-guard stats`、`<agentDir>/mpi-stuck-guard.json` | 防护范围过大的递归搜索、相同工具调用的连续重复、Provider 流超时和反复参数校验失败。详见[包参考](../pi-packages/mpi-stuck-guard/README.zh.md)。 |
 | `mpi-tool-block` | `/tool-block`，`<agentDir>/mpi-tool-block.json` 或当前 session 内存 | 弹出 overlay 勾选要隐藏的 tool，从 active 集合拿掉，模型看不见。 |
 | `mpi-permission` | `/permission`，`$mpi-permission`，`<agentDir>/mpi-permission.json`，`<cwd>/.pi/mpi-permission.json` | 用 allow / ask / deny 通配符规则把关工具调用，并扫描常见 Bash 文件命令的静态路径；含外部目录防护；ask 审批支持 once / always / reject。`$mpi-permission` 用来写 JSON 策略。详见 [pi-packages/mpi-permission/README.zh.md](../pi-packages/mpi-permission/README.zh.md)。 |
+| `mpi-command-router` | Bash 调用自动生效、`$mpi-command-router`、`/skill:mpi-command-router`（仅手动）、`<agentDir>/mpi-command-router.json`、`<cwd>/.pi/mpi-command-router.json`（受信任） | 通过每次调用的 PATH wrapper，将指定的 Bash 外部命令名路由到配置的命令或脚本。详见[包文档](../pi-packages/mpi-command-router/README.zh.md)。 |
 | `mpi-bash` | 执行 Bash 工具时自动生效、`/bash-logs` | 注入默认超时，前台窗口到期后自动转入后台，命令结束或长时间无输出时自动回报，并用两段 overlay 查看或终止后台命令。 |
 | `mpi-tool-display` | 工具行/Thinking 渲染时自动生效；`/mpi-tool-display config` | 通过 render-only `ToolExecutionComponent` adapter 提供紧凑 `bash`/`read`/`edit`/`write` 行、bars/分栏 diff 与上下文安全的 Thinking 标签；全局调试设置可为每个工具调用追加原始 JSON 参数，同时不改变原生 ownership、执行逻辑或 `PI_*`。 |
 | `mpi-herdr-report` | `HERDR_ENV=1` 环境生效 | 将 Agent 的运行状态（working / idle / waiting）同步上报至 Herdr 终端复用器窗格。 |

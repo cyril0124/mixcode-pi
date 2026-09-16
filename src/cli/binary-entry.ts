@@ -88,6 +88,30 @@ import transcriptSchemaJson from "../../pi-packages/mpi-transcript/mpi-transcrip
 import transcriptPackageJson from "../../pi-packages/mpi-transcript/package.json" with {
   type: "text",
 };
+import commandRouterIndex from "../../pi-packages/mpi-command-router/index.ts" with {
+  type: "text",
+};
+import commandRouterConfig from "../../pi-packages/mpi-command-router/config.ts" with {
+  type: "text",
+};
+import commandRouterRouter from "../../pi-packages/mpi-command-router/router.ts" with {
+  type: "text",
+};
+import commandRouterSchema from "../../pi-packages/mpi-command-router/mpi-command-router.schema.json" with {
+  type: "text",
+};
+import commandRouterSkill from "../../pi-packages/mpi-command-router/skills/mpi-command-router/SKILL.md" with {
+  type: "text",
+};
+import commandRouterPackageJson from "../../pi-packages/mpi-command-router/package.json" with {
+  type: "text",
+};
+import commandRouterReadme from "../../pi-packages/mpi-command-router/README.md" with {
+  type: "text",
+};
+import commandRouterReadmeZh from "../../pi-packages/mpi-command-router/README.zh.md" with {
+  type: "text",
+};
 import bashExec from "../../pi-packages/mpi-bash/exec.ts" with { type: "text" };
 import bashHeartbeat from "../../pi-packages/mpi-bash/heartbeat.ts" with { type: "text" };
 import bashIndex from "../../pi-packages/mpi-bash/index.ts" with { type: "text" };
@@ -583,6 +607,16 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
       "config-overlay.ts": transcriptConfigOverlay,
       "mpi-transcript.schema.json": transcriptSchemaJson,
       "package.json": transcriptPackageJson,
+    },
+    "mpi-command-router": {
+      "index.ts": commandRouterIndex,
+      "config.ts": commandRouterConfig,
+      "router.ts": commandRouterRouter,
+      "mpi-command-router.schema.json": commandRouterSchema,
+      "skills/mpi-command-router/SKILL.md": commandRouterSkill,
+      "package.json": commandRouterPackageJson,
+      "README.md": commandRouterReadme,
+      "README.zh.md": commandRouterReadmeZh,
     },
     "mpi-bash": {
       "index.ts": bashIndex,
