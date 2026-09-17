@@ -8,16 +8,16 @@ disable-model-invocation: true
 
 Write a valid `mpi-permission.json`.
 
-Ask before writing when the policy is underspecified: global vs project, which tools, allow vs ask vs deny, which paths or commands.
+Ask before writing when the policy is underspecified: which tools, allow vs ask vs deny, which paths or commands. An unspecified scope defaults to Project.
 
 ## 1. Pick the file
 
 | Layer | Path | When |
 |-------|------|------|
-| Global | `$PI_CODING_AGENT_DIR/mpi-permission.json` (default `~/.pi/agent/mpi-permission.json`) | All workdirs |
-| Project | `<cwd>/.pi/mpi-permission.json` | This workdir, trusted projects only |
+| Project | `<cwd>/.pi/mpi-permission.json` | Default; this workdir, trusted projects only |
+| Global | `$PI_CODING_AGENT_DIR/mpi-permission.json` (default `~/.pi/agent/mpi-permission.json`) | Only when explicitly requested for all workdirs |
 
-If the file exists, read it and edit in place. Keep unrelated keys.
+Read both layers before editing so existing rules and their precedence are understood. Write to the selected layer, preserving unrelated keys. If the project is untrusted, explain that its config will not apply until Pi trusts it; do not silently switch to Global.
 
 Session rules live in memory (`/permission` overlay and "Always allow"). There is no session JSON file. `/permission list` prints them alongside the global and project layers. A pattern that expands to a different string shows `configured → expanded`; one whose variables cannot resolve shows `(unresolved: NAME)`.
 
@@ -78,13 +78,12 @@ Enable `permission_probe` for the current session with `/permission probe`. It v
 
 ## 5. Templates
 
-Start from a template that matches the policy, then edit. Put `"*"` first in each pattern object.
+Start from a template that matches the policy, then edit. Put `"*"` first in each pattern object. Templates omit the optional `$schema` so they work in project files; preserve an existing valid schema reference.
 
 Default-allow, deny secrets and `git push`:
 
 ```json
 {
-  "$schema": "extensions/mpi-permission/mpi-permission.schema.json",
   "*": "allow",
   "bash": { "*": "ask", "git *": "allow", "git push*": "deny" },
   "read": { "*": "allow", "*.env": "deny", "*.env.example": "allow" },
@@ -97,7 +96,6 @@ Bash defaults to ask. Read-only git allowed:
 
 ```json
 {
-  "$schema": "extensions/mpi-permission/mpi-permission.schema.json",
   "*": "allow",
   "bash": { "*": "ask", "git status*": "allow", "git diff*": "allow", "git log*": "allow" }
 }
@@ -107,7 +105,6 @@ Restrict `edit` / `write` to `src/`:
 
 ```json
 {
-  "$schema": "extensions/mpi-permission/mpi-permission.schema.json",
   "edit": { "*": "deny", "src/*": "allow" },
   "write": { "*": "deny", "src/*": "allow" }
 }
@@ -117,7 +114,6 @@ Gate every external path:
 
 ```json
 {
-  "$schema": "extensions/mpi-permission/mpi-permission.schema.json",
   "external_directory": { "*": "ask" }
 }
 ```

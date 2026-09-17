@@ -11,8 +11,8 @@ disable-model-invocation: true
 ## Workflow
 
 1. Read both config files: `<agentDir>/mpi-command-router.json` for user-wide routes, `<cwd>/.pi/mpi-command-router.json` for repository routes.
-2. Ask which command names to route and what each should run. Put shared behavior in the agent config, repository behavior in the project config.
-3. Write the config.
+2. Ask which command names to route and what each should run if the request does not specify them.
+3. Default to writing `<cwd>/.pi/mpi-command-router.json`, preserving unrelated routes and `$schema`. Use the agent config only when explicitly requested for all workdirs. If the project is untrusted, explain that its config will not apply until Pi trusts it; do not silently switch to the agent config.
 4. Verify with one Bash call that uses a routed name.
 
 ## Layers
@@ -37,13 +37,14 @@ Each applicable config file is read before every Bash call, so a saved edit appl
 }
 ```
 
+- `$schema` resolves relative to the config file. Replace `<agentDir>` in the example with the absolute agent directory path for a project file.
 - `routes` maps a command name to a target plus fixed arguments. Keys beyond `$schema`, `enabled`, and `routes` are rejected.
 - Names match `^[A-Za-z0-9_][A-Za-z0-9_.+-]*$`.
 - `$NAME` and `${NAME}` expand from the environment when the config is read. `$$` writes a literal dollar, so `$${X}` reaches the target as `${X}`; any other `${` form rejects the config.
 - A bare target resolves through the `PATH` seen before injection. A target containing `/` resolves relative to the directory holding its config file, so project targets are relative to `<cwd>/.pi`.
 - Fixed arguments come first, then the arguments from the command line.
 - `enabled: false` keeps the routes and stops injection.
-- `/command-router on|off [--global|--project]` writes `enabled` for every applicable layer, or only the named one, without hand-editing JSON; `/command-router` alone reports both layers and the effective state. It keeps every route intact and refuses to overwrite an invalid file.
+- `/command-router on|off [--global|--project]` writes `enabled` for every applicable layer, or only the named one, without hand-editing JSON; `/command-router` alone reports both layers and the effective state. It keeps every route intact and refuses to overwrite an invalid file. For this workflow's default project scope, pass `--project`. If a disabled global layer still prevents routing, report it and change that layer only when explicitly requested.
 
 A missing or non-executable target fails at run time with exit code 127 and `Error: command route <name>: executable not found or not executable: <path>`.
 

@@ -11,8 +11,8 @@ disable-model-invocation: true
 ## Workflow
 
 1. Read `<agentDir>/mpi-tool-block.json` and, in a trusted project, `<cwd>/<CONFIG_DIR_NAME>/mpi-tool-block.json`.
-2. Ask which tool names to hide, or open `/tool-block` when the user prefers picking from the list; the overlay writes the same files.
-3. Write the config in the layer that should hold the entry, keeping `$schema` and the entries the user still wants.
+2. Ask which tool names to hide if the request does not specify them. When the user prefers picking from `/tool-block`, select Project in its Layer row for the default project scope; the overlay writes the same files.
+3. Default to writing `<cwd>/<CONFIG_DIR_NAME>/mpi-tool-block.json`, keeping `$schema` and the entries the user still wants. Use Global or Session only when explicitly requested. If the project is untrusted, explain that its config will not apply until Pi trusts it; do not silently switch to Global.
 4. Verify: the next agent turn re-reads the file and applies it. `/system-tools` shows the resulting active set.
 
 ## Layers
