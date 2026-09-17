@@ -1,4 +1,3 @@
-import * as path from "node:path";
 import { pathToFileURL } from "node:url";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type {
@@ -10,7 +9,7 @@ import type {
   BatchTabRequest,
 } from "./batch-lua.js";
 import { resolveBatchModel } from "./batch-models.js";
-import { parseBatchContextLimit, renderTemplate } from "./batch-lua.js";
+import { parseBatchContextLimit, renderTemplate, resolveBatchScriptDir } from "./batch-lua.js";
 
 /**
  * TypeScript mirror of the Lua `mixcode` global table. Fields are camelCase
@@ -85,7 +84,7 @@ export async function runTsScript(
   }
 
   // The Lua executor derives scriptDir the same way.
-  const scriptDir = path.resolve(path.dirname(scriptPath));
+  const scriptDir = resolveBatchScriptDir(scriptPath);
   const requests: BatchTabRequest[] = [];
   const api: MixCodeBatchApi = {
     openTab(options) {

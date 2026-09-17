@@ -144,7 +144,7 @@ export async function runLuaScript(
 
   // Derived from the script path so the CLI, dry-run, and interactive /batch
   // entry points all report the same directory.
-  const scriptDir = path.resolve(path.dirname(scriptPath));
+  const scriptDir = resolveBatchScriptDir(scriptPath);
   const requests: BatchTabRequest[] = [];
 
   // Register mixcode.open_tab(opts)
@@ -597,6 +597,15 @@ function setStringField(
 }
 
 /**
+ * Absolute directory holding the batch script file, with native separators.
+ * Shared by `script_dir` / `scriptDir()` and the Lua `require` search path, so both
+ * report the same directory. Symlinks are not resolved.
+ */
+export function resolveBatchScriptDir(scriptPath: string): string {
+  return path.dirname(path.resolve(scriptPath));
+}
+
+/**
  * Prepend the script's directory to `package.path`, so `require` in a batch script
  * finds sibling modules (`helper` -> `<script dir>/helper.lua`, `sub.mod` ->
  * `<script dir>/sub/mod.lua`) no matter where MixCode itself runs from. Fengari's
@@ -611,7 +620,7 @@ function prependScriptDirToPackagePath(
   to_jsstring: (s: Uint8Array) => string,
 ): void {
   // Lua path templates use "/" as the directory separator on every platform.
-  const scriptDir = path.dirname(path.resolve(scriptPath)).replaceAll("\\", "/");
+  const scriptDir = resolveBatchScriptDir(scriptPath).replaceAll("\\", "/");
   lua.lua_getglobal(L, to_luastring("package"));
   lua.lua_getfield(L, -1, to_luastring("path"));
   const existingPath = to_jsstring(lua.lua_tostring(L, -1));
