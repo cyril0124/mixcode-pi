@@ -22,6 +22,8 @@
 
 管道、重定向、heredoc、标准输入、退出码和子 Shell 仍由原 Shell 处理。绝对路径调用不经过 `PATH` 查找，因此不会被路由。
 
+注入块以 `# mpi-prelude-start mpi-command-router` 开头，以 `# mpi-prelude-end` 结束，展示或记录命令的一方据此去掉该块，只报出真正要执行的命令。两行标记都是 Shell 注释，执行不受影响。[mpi-bash](../mpi-bash/README.zh.md#可见性) 会去掉该块。
+
 目标脚本可通过 `$MPI_COMMAND_ROUTER_ORIGINAL` 调用原命令，`$MPI_COMMAND_ROUTER_COMMAND` 是被路由的命令名。再次进入同一路由会以 126 退出并打印 `Error: recursive command route <name>; call "$MPI_COMMAND_ROUTER_ORIGINAL" to use the original executable.`
 
 每个适用的配置文件都在每次 Bash 调用前读取，编辑后下一次调用生效。只有所有适用的配置文件都启用且合法时才注入；非法文件会阻止调用并返回带文件路径的 `Error:` 消息。

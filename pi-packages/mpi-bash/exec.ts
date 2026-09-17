@@ -51,6 +51,33 @@ export function stripLogHeader(text: string): string {
   return end === -1 ? text : text.slice(end + LOG_HEADER_END.length);
 }
 
+/**
+ * A prelude is a marked block another extension writes ahead of the command to
+ * prepare the shell, such as the PATH wrappers mpi-command-router installs. The
+ * start line may name its writer after the marker; the end line is exact.
+ */
+const PRELUDE_START_LINE = /^# mpi-prelude-start(?: .*)?$/;
+const PRELUDE_END_LINE = "# mpi-prelude-end";
+
+/**
+ * Command text to report for a call, without a leading prelude. Only the widget,
+ * the notices, the job list, and the log header use it; the shell runs the full
+ * command.
+ *
+ * `commandPrefix` is Pi's shell prefix, which Pi prepends ahead of everything else.
+ */
+export function stripCommandPrelude(command: string, commandPrefix?: string): string {
+  const prefix = commandPrefix ? `${commandPrefix}\n` : undefined;
+  const body = prefix && command.startsWith(prefix) ? command.slice(prefix.length) : command;
+  const lines = body.split("\n");
+  if (!PRELUDE_START_LINE.test(lines[0]!)) return command;
+  const end = lines.indexOf(PRELUDE_END_LINE, 1);
+  if (end === -1) return command;
+  const rest = lines.slice(end + 1);
+  // A prelude that would leave no command behind is reported as given.
+  return rest.every((line) => line.trim() === "") ? command : rest.join("\n");
+}
+
 /** Idle window after `exit` before stdio is considered drained (pi's grace). */
 const EXIT_STDIO_GRACE_MS = 100;
 
@@ -340,6 +367,8 @@ export interface DetachedStart {
 export function createDetachingBashOperations(options: {
   shellPath: string | undefined;
   foregroundSeconds: number;
+  /** Pi's shell command prefix; dropped together with a prelude it precedes. */
+  commandPrefix?: string;
   onDetached?: (start: DetachedStart) => void;
   /** Called after onDetached, immediately before writing the detach notice. */
   getRunningPids?: () => readonly number[];
@@ -361,6 +390,8 @@ export function createDetachingBashOperations(options: {
       // widget shows the command's real age instead of hiding the foreground
       // window (60s by default).
       const startedAt = Date.now();
+      // Reported text only: the shell still receives the prepared command.
+      const displayCommand = stripCommandPrelude(command, options.commandPrefix);
       const shellConfig = getShellConfig(options.shellPath);
       const commandFromStdin = shellConfig.commandTransport === "stdin";
       const child = spawn(
@@ -482,7 +513,7 @@ export function createDetachingBashOperations(options: {
       try {
         // Written synchronously: the detach notice hands out this path, and a
         // reader opening it immediately must not race the stream's async open.
-        const header = Buffer.from(formatLogHeader(command));
+        const header = Buffer.from(formatLogHeader(displayCommand));
         const replay = Buffer.concat(buffered ?? []);
         const body = bufferedDropped
           ? Buffer.concat([Buffer.from(REPLAY_DROPPED_MARKER), replay])
@@ -508,7 +539,7 @@ export function createDetachingBashOperations(options: {
       child.unref();
       const runId = child.pid ?? Date.now();
       // Register first so the snapshot includes the newly detached command.
-      options.onDetached?.({ id: runId, command, startedAt, logPath });
+      options.onDetached?.({ id: runId, command: displayCommand, startedAt, logPath });
       onData(
         Buffer.from(
           formatDetachNotice({
@@ -523,7 +554,7 @@ export function createDetachingBashOperations(options: {
       const reportExit = async (exitCode: number | null) => {
         const run: DetachedRun = {
           id: runId,
-          command,
+          command: displayCommand,
           exitCode,
           timedOut,
           logPath,

@@ -44,6 +44,8 @@ Bash 执行策略：默认超时、前台窗口、到期自动转后台、结束
 
 模型正文和聊天界面使用同一份发送时快照。聊天中的长 PID 列表自动换行，不省略条目；任务结束后，旧通知不会跟着变化。批量停滞提醒只附带一份快照，其中也包含仍在持续输出的任务。底部组件继续显示实时状态。
 
+其他扩展在命令前写入的 prelude 不会出现在底部组件、通知、`/bash-logs` 列表和日志头中。prelude 从 `# mpi-prelude-start ...` 行开始，到 `# mpi-prelude-end` 行结束；[mpi-command-router](../mpi-command-router/README.zh.md) 为自己注入的 `PATH` wrapper 会写一个。prelude 前面的 Pi `shellCommandPrefix` 一并去掉。Shell 仍然收到完整命令；缺少结束标记、或去掉后就没有命令可言的 prelude 按原样报出。
+
 后台命令结束后，聊天里先是一行 `Background job finished · PID <pid>` 标题，再是运行时长和命令本身；有输出时中间一条分隔线，下面是带行号的最后 10 行。上面还有输出时写 `… N lines omitted (full log at <路径>)`。
 
 模型收到 XML 风格的完成消息。格式化器会转义命令、路径、错误和输出中的 `&`、`<`、`>`，这些值无法闭合或插入 XML 元素。

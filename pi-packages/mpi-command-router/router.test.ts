@@ -88,6 +88,22 @@ test("missing, empty and disabled configurations leave commands untouched", asyn
   assert.deepEqual(await fs.readdir(f.agentDir), ["mpi-command-router.json"]);
 });
 
+test("an enabled route marks its PATH injection as a prelude around the command", async () => {
+  const f = await fixture();
+  await f.script("target", "printf routed");
+  await f.configure({ demo: ["target"] });
+  const [start, basePath, path, end, ...body] = (
+    await f.router.prepare("demo\nprintf after")
+  ).split("\n");
+  // Reports drop this block, so its delimiters are part of the contract.
+  assert.equal(start, "# mpi-prelude-start mpi-command-router");
+  assert.equal(basePath, 'export MPI_COMMAND_ROUTER_BASE_PATH="$PATH"');
+  assert.match(path ?? "", /^export PATH='.*':"\$PATH"$/);
+  assert.equal(end, "# mpi-prelude-end");
+  // The caller's text follows the block unchanged, including its own newlines.
+  assert.deepEqual(body, ["demo", "printf after"]);
+});
+
 test("routes fixed and original arguments literally while preserving cwd and environment", async () => {
   const f = await fixture();
   const target = await f.script(

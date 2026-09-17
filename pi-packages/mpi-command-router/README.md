@@ -22,6 +22,8 @@ The first array item is the target executable; the remaining items are fixed arg
 
 Pipes, redirects, heredocs, stdin, exit codes, and child shells stay with the original shell. Absolute command paths bypass routing because no `PATH` lookup happens.
 
+The block opens with `# mpi-prelude-start mpi-command-router` and closes with `# mpi-prelude-end`, so anything that shows or logs the command can drop it and report the command that was asked for. Both markers are shell comments, so execution is unchanged. [mpi-bash](../mpi-bash/README.md#visibility) drops the block.
+
 A target can call the original executable through `$MPI_COMMAND_ROUTER_ORIGINAL`, and `$MPI_COMMAND_ROUTER_COMMAND` holds the routed name. Re-entering the same route exits 126 with `Error: recursive command route <name>; call "$MPI_COMMAND_ROUTER_ORIGINAL" to use the original executable.`
 
 Each applicable config file is read before every Bash call, so edits apply to the next call. Routing runs only when every applicable file is enabled and valid; an invalid file blocks the call with an `Error:` message naming it.

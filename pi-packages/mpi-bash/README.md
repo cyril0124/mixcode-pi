@@ -44,6 +44,8 @@ Every detach, completion, and stall notice includes `Still running: N jobs · PI
 
 The model text and chat use the same send-time snapshot. Long PID lists wrap in the chat without dropping entries; old notices do not change when jobs finish. A batch of stall reminders has one shared footer, including jobs that are still producing output. The live widget remains the current-state view.
 
+A prelude that another extension writes ahead of a command is left out of the widget, the notices, the `/bash-logs` rows, and the log header. A prelude runs from a `# mpi-prelude-start ...` line through its `# mpi-prelude-end` line, and [mpi-command-router](../mpi-command-router/README.md) writes one for the `PATH` wrappers it injects. Pi's `shellCommandPrefix` in front of a prelude goes with it. The shell still receives the full command. An unterminated prelude, or one that would leave no command behind, is reported as given.
+
 When a background command ends, the chat shows a `Background job finished · PID <pid>` heading, how long it ran, the command, and, if there is output, a rule then the last 10 lines with their log line numbers. Earlier output is marked `… N lines omitted (full log at <path>)`.
 
 The model receives XML-style completion messages. The formatter escapes `&`, `<`, and `>` in commands, paths, errors, and output so those values cannot close or add elements.

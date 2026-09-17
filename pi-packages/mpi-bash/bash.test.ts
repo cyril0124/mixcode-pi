@@ -15,6 +15,7 @@ import bashExtension, {
   renderBackgroundWidget,
   renderCompletionMessage,
   resolveForegroundSeconds,
+  stripCommandPrelude,
 } from "./index.js";
 
 /** The shape of pi's bash tool that these tests drive. */
@@ -607,6 +608,57 @@ test("a command outliving the window detaches, then reports its exit code out of
     '# Command: printf "before\\n"; sleep 1; printf "after\\n"\n# ---\nbefore\nafter\n',
   );
   fs.rmSync(run.logPath, { force: true });
+});
+
+test("a marked prelude stays out of every reported command", async () => {
+  const prelude =
+    "# mpi-prelude-start mpi-command-router\n" +
+    'export MPI_COMMAND_ROUTER_BASE_PATH="$PATH"\n' +
+    "export PATH='/wrappers':\"$PATH\"\n" +
+    "# mpi-prelude-end\n";
+  const output = collector();
+  const finished = Promise.withResolvers<DetachedRun>();
+  const detached = Promise.withResolvers<DetachedStart>();
+  const ops = createDetachingBashOperations({
+    shellPath: undefined,
+    foregroundSeconds: 0.3,
+    onDetached: (start) => detached.resolve(start),
+    onDetachedExit: (run) => finished.resolve(run),
+  });
+  await ops.exec(`${prelude}printf "x\\n"; sleep 1`, process.cwd(), {
+    onData: output.onData,
+    env: process.env,
+  });
+
+  const start = await detached.promise;
+  const run = await finished.promise;
+  // The widget, the job list, and every notice read these, and the log header
+  // is what a reader of the file sees.
+  assert.equal(start.command, 'printf "x\\n"; sleep 1');
+  assert.equal(run.command, start.command);
+  assert.equal(
+    fs.readFileSync(run.logPath, "utf8"),
+    '# Command: printf "x\\n"; sleep 1\n# ---\nx\n',
+  );
+  assert.match(formatCompletionNotice(run), /<command>printf "x\\n"; sleep 1<\/command>/);
+  fs.rmSync(run.logPath, { force: true });
+});
+
+test("only a terminated leading prelude is dropped from the reported command", () => {
+  const prelude = "# mpi-prelude-start mpi-command-router\nexport PATH=x\n# mpi-prelude-end\n";
+  assert.equal(stripCommandPrelude(`${prelude}sleep 1`), "sleep 1");
+  // Pi prepends its shell prefix ahead of the prelude.
+  assert.equal(
+    stripCommandPrelude(`source ~/.profile\n${prelude}sleep 1`, "source ~/.profile"),
+    "sleep 1",
+  );
+  // Unterminated, prelude-only, and marker-free text is reported as given.
+  const unterminated = "# mpi-prelude-start mpi-command-router\nexport PATH=x\nsleep 1";
+  assert.equal(stripCommandPrelude(unterminated), unterminated);
+  assert.equal(stripCommandPrelude(prelude), prelude);
+  const body = "echo done\n# mpi-prelude-start mpi-command-router\n# mpi-prelude-end";
+  assert.equal(stripCommandPrelude(body), body);
+  assert.equal(stripCommandPrelude("sleep 1"), "sleep 1");
 });
 
 test("a run's clock starts at the command, not at the detach point", async () => {

@@ -230,6 +230,7 @@ const bashExtension: ExtensionFactory = (pi) => {
         shellPath: settings.getShellPath(),
         operations: createDetachingBashOperations({
           shellPath: settings.getShellPath(),
+          commandPrefix: settings.getShellCommandPrefix(),
           foregroundSeconds: resolveForegroundSeconds(),
           onDetached: (start) => backgroundStatus.add(start),
           getRunningPids: () => backgroundStatus.running().map((run) => run.id),

@@ -59,6 +59,14 @@ const RESOLVE_EXECUTABLE = `mpi_router_resolve() {
 const STAGING_MAX_AGE_MS = 60 * 60 * 1000;
 
 /**
+ * Delimiters around the PATH injection, dropped by anything that reports the
+ * command so the caller's own text is what shows. Readers match both lines
+ * exactly.
+ */
+const PRELUDE_START = "# mpi-prelude-start mpi-command-router";
+const PRELUDE_END = "# mpi-prelude-end";
+
+/**
  * Remove abandoned staging directories. Published hash directories are never removed:
  * prepared commands and detached children keep their wrapper paths, so age alone is not a
  * reason to drop them.
@@ -169,7 +177,15 @@ export class CommandRouter {
 
     // Inject into this shell only. Keep the user's text intact so pipes, redirects,
     // heredocs, and child shells retain their native parsing and execution semantics.
-    return `export MPI_COMMAND_ROUTER_BASE_PATH="$PATH"\nexport PATH=${shellQuote(directory)}:"$PATH"\n${command}`;
+    // The markers are shell comments that execution ignores; text that reports the
+    // command drops the block instead of showing PATH setup in its place.
+    return [
+      PRELUDE_START,
+      `export MPI_COMMAND_ROUTER_BASE_PATH="$PATH"`,
+      `export PATH=${shellQuote(directory)}:"$PATH"`,
+      PRELUDE_END,
+      command,
+    ].join("\n");
   }
 
   /**
