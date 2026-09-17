@@ -26,6 +26,8 @@ A target can call the original executable through `$MPI_COMMAND_ROUTER_ORIGINAL`
 
 Each applicable config file is read before every Bash call, so edits apply to the next call. Routing runs only when every applicable file is enabled and valid; an invalid file blocks the call with an `Error:` message naming it.
 
+`/command-router` reports the effective state of both layers. `/command-router off` and `/command-router on` write `enabled` into every applicable layer, `--global` or `--project` narrows a toggle to one layer, and a project layer without a config file is left untouched unless `--project` names it. A toggle keeps every route and `$schema` intact, refuses to overwrite an unreadable or invalid file with an `Error:` message, and names any layer that still blocks routing.
+
 The bundled skill `skills/mpi-command-router/SKILL.md` is manual-only: load it with `$mpi-command-router` or `/skill:mpi-command-router`.
 
 Generated wrappers live under `<agentDir>/cache/mpi-command-router/<hash>` and are kept, so a command already handed to a shell and any background job it started keep working. Only abandoned staging directories from an interrupted run are cleaned up.

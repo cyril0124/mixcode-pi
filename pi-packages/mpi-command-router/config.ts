@@ -113,3 +113,49 @@ export async function loadConfigFile(filename: string): Promise<RouterConfig | n
     );
   }
 }
+
+/** Result of toggling one layer's `enabled` flag. */
+export interface EnabledChange {
+  /** True when the file did not exist and was created with an empty route map. */
+  created: boolean;
+}
+
+/**
+ * Set one layer's `enabled` flag and leave the rest of the file meaning unchanged: `$schema` and
+ * the raw route definitions survive, so a write never bakes expanded environment values in.
+ * An unreadable or invalid file is refused instead of overwritten, because overwriting it would
+ * silently discard the user's intent. A missing file is created with an empty route map so the
+ * flag can be set without hand-writing JSON.
+ */
+export async function setConfigEnabled(filename: string, enabled: boolean): Promise<EnabledChange> {
+  let text: string | undefined;
+  try {
+    text = await fs.readFile(filename, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+      throw new Error(
+        `Error: ${filename}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  let document: Record<string, unknown> = {};
+  if (text !== undefined) {
+    try {
+      const raw: unknown = JSON.parse(text);
+      if (!isRecord(raw)) throw new Error("expected an object");
+      parseConfig(raw);
+      document = raw;
+    } catch (error) {
+      throw new Error(
+        `Error: ${filename}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  document.enabled = enabled;
+  if (!isRecord(document.routes)) document.routes = {};
+  await fs.mkdir(path.dirname(filename), { recursive: true });
+  await fs.writeFile(filename, `${JSON.stringify(document, null, 2)}\n`, "utf8");
+  return { created: text === undefined };
+}

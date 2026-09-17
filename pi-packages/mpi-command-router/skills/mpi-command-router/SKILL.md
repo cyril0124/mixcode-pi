@@ -43,6 +43,7 @@ Each applicable config file is read before every Bash call, so a saved edit appl
 - A bare target resolves through the `PATH` seen before injection. A target containing `/` resolves relative to the directory holding its config file, so project targets are relative to `<cwd>/.pi`.
 - Fixed arguments come first, then the arguments from the command line.
 - `enabled: false` keeps the routes and stops injection.
+- `/command-router on|off [--global|--project]` writes `enabled` for every applicable layer, or only the named one, without hand-editing JSON; `/command-router` alone reports both layers and the effective state. It keeps every route intact and refuses to overwrite an invalid file.
 
 A missing or non-executable target fails at run time with exit code 127 and `Error: command route <name>: executable not found or not executable: <path>`.
 
