@@ -1,14 +1,16 @@
 import { Key, matchesKey, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import {
   buildToolBlockRows,
+  EMPTY_TOOL_BLOCK_CONFIG,
   filterToolBlockRows,
   isToolBlockEnabled,
-  toggleToolBlockRow,
-  toolBlockRowState,
+  mergeToolBlockConfigs,
   type ToolBlockConfig,
   type ToolBlockLayer,
   type ToolBlockRow,
   type ToolRef,
+  toggleToolBlockRow,
+  toolBlockRowState,
 } from "./tool-block-core.js";
 
 export type ThemeLike = {
@@ -24,6 +26,10 @@ export interface ToolBlockOverlayOptions {
   tools: readonly ToolRef[];
   initial: ToolBlockConfig;
   session?: ToolBlockConfig | null;
+  /** Project layer; omitted when the project is untrusted. */
+  project?: ToolBlockConfig | null;
+  /** Project config path; the Layer row offers Project only when it is set. */
+  projectPath?: string;
   initialLayer?: ToolBlockLayer;
   configPath: string;
   persist: (
@@ -41,13 +47,36 @@ export function createToolBlockOverlay(options: ToolBlockOverlayOptions): {
   handleInput(data: string): void;
 } {
   const { theme, requestRender, done, tools } = options;
+  /** Layer cycle for the Layer row; the project layer needs a trusted project path. */
+  const layerOrder: ToolBlockLayer[] = options.projectPath
+    ? ["global", "project", "session"]
+    : ["global", "session"];
   let layer: ToolBlockLayer =
     options.initialLayer === "session" && options.session ? "session" : "global";
   let globalDraft = options.initial;
+  let projectDraft: ToolBlockConfig | null = options.project ?? null;
   let sessionDraft: ToolBlockConfig | null = options.session ?? null;
   let draft = layer === "session" && sessionDraft ? sessionDraft : globalDraft;
   let query = "";
   let selected = 0;
+
+  /** Config a layer edits before it has a file of its own. */
+  function draftFor(target: ToolBlockLayer): ToolBlockConfig {
+    if (target === "project") return projectDraft ?? EMPTY_TOOL_BLOCK_CONFIG;
+    if (target === "session") return sessionDraft ?? effectiveDrafts();
+    return globalDraft;
+  }
+
+  /** Global and project union: the effective set while no session override exists. */
+  function effectiveDrafts(): ToolBlockConfig {
+    return mergeToolBlockConfigs(
+      [globalDraft, projectDraft].filter((config): config is ToolBlockConfig => config !== null),
+    );
+  }
+
+  function nextLayer(current: ToolBlockLayer): ToolBlockLayer {
+    return layerOrder[(layerOrder.indexOf(current) + 1) % layerOrder.length] ?? "global";
+  }
 
   function rows(): ToolBlockRow[] {
     return filterToolBlockRows(buildToolBlockRows(tools, draft, options.getActiveNames()), query);
@@ -65,11 +94,12 @@ export function createToolBlockOverlay(options: ToolBlockOverlayOptions): {
   function remember(next: ToolBlockConfig, target: ToolBlockLayer): void {
     draft = next;
     if (target === "session") sessionDraft = next;
+    else if (target === "project") projectDraft = next;
     else globalDraft = next;
   }
 
   function snapshotConfig(config: ToolBlockConfig): ToolBlockConfig {
-    return { ...config, hidden: config.hidden.map((item) => ({ ...item })) };
+    return { ...config, hidden: [...config.hidden] };
   }
 
   function clampSelected(): void {
@@ -92,21 +122,23 @@ export function createToolBlockOverlay(options: ToolBlockOverlayOptions): {
       const current = selectable(rows())[selected];
       if (!current) return;
       if (current.kind === "layer") {
-        const nextLayer: ToolBlockLayer = layer === "global" ? "session" : "global";
-        if (nextLayer === "session" && !sessionDraft) {
-          const written = options.persist(snapshotConfig(globalDraft), "session");
+        const target = nextLayer(layer);
+        // Entering Session snapshots the effective config. Entering Project writes
+        // nothing, so cycling the Layer row never creates a file on its own.
+        if (target === "session" && !sessionDraft) {
+          const written = options.persist(snapshotConfig(draftFor("session")), "session");
           if (!written.ok) {
             options.onError?.(written.error);
             return;
           }
           remember(written.config, "session");
         }
-        layer = nextLayer;
-        draft = layer === "session" && sessionDraft ? sessionDraft : globalDraft;
+        layer = target;
+        draft = draftFor(layer);
         requestRender();
         return;
       }
-      const next = toggleToolBlockRow(draft, tools, current);
+      const next = toggleToolBlockRow(draft, current);
       const written = options.persist(next, layer);
       if (!written.ok) {
         options.onError?.(written.error);
@@ -161,12 +193,14 @@ export function createToolBlockOverlay(options: ToolBlockOverlayOptions): {
           ? `  ${dim("filter:")} ${query}  ${dim(`${picks.filter((row) => row.kind === "tool").length}/${tools.length}`)}`
           : dim(`  filter: type to filter  ${tools.length}/${tools.length}`),
       );
+      const layerPath =
+        layer === "project" ? (options.projectPath ?? options.configPath) : options.configPath;
       const location =
         layer === "session"
           ? "session (in-memory)"
           : sessionDraft
-            ? `session override · ${options.configPath}`
-            : options.configPath;
+            ? `session override · ${layerPath}`
+            : layerPath;
       const pathLine = clip(dim(`  ${location}`));
       const hint = clip(dim("  ↑↓ select  ⏎ toggle  Hidden/Visible/Inactive  esc"));
       const chrome = [filterLine, "", pathLine, ""];
@@ -199,7 +233,7 @@ function paintRow(
   layer: ToolBlockLayer,
 ): string {
   if (row.kind === "header") {
-    const left = ` ${truncateToWidth(row.plugin, Math.max(1, innerWidth - 3), "…")} `;
+    const left = ` ${truncateToWidth(row.label, Math.max(1, innerWidth - 3), "…")} `;
     const fill = Math.max(0, innerWidth - visibleWidth(left));
     return theme.fg("dim", `${left}${"─".repeat(fill)}`);
   }
@@ -213,7 +247,9 @@ function paintRow(
     row.kind === "layer"
       ? layer === "session"
         ? "Session"
-        : "Global"
+        : layer === "project"
+          ? "Project"
+          : "Global"
       : row.kind === "enabled"
         ? enabled
           ? "On"
