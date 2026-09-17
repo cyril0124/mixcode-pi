@@ -1,20 +1,21 @@
 // +---------------------------------------------------------------------------+
 // |  tool-block core                                                          |
-// |  Parse mpi-tool-block.json, merge session overlay, plan active set.     |
+// |  Parse config files (global + project union; session replaces),           |
+// |  plan active set.                                                         |
 // +---------------------------------------------------------------------------+
 import * as fs from "node:fs";
 import * as path from "node:path";
 
 export const TOOL_BLOCK_CONFIG_FILENAME = "mpi-tool-block.json";
 
-export type ToolBlockHidden = {
-  tool: string;
-  plugin?: string;
-};
+/** Config used for a layer that has no file yet. */
+export const EMPTY_TOOL_BLOCK_CONFIG: ToolBlockConfig = { enabled: true, hidden: [] };
 
 export type ToolBlockConfig = {
+  /** `false` keeps `hidden` and makes this layer contribute no hides. */
   enabled: boolean;
-  hidden: ToolBlockHidden[];
+  /** Tool names removed from the active set while enabled. Names are globally unique. */
+  hidden: string[];
   /** Editor `$schema` reference; ignored by behavior, preserved on write. */
   schemaRef?: string;
 };
@@ -29,12 +30,12 @@ export type SourceLike = {
   path?: string;
 };
 
-export type ToolBlockLayer = "global" | "session";
+export type ToolBlockLayer = "global" | "project" | "session";
 
 export type ToolBlockRow =
   | { kind: "layer" }
   | { kind: "enabled" }
-  | { kind: "header"; plugin: string }
+  | { kind: "header"; label: string }
   | { kind: "tool"; name: string; plugin: string; hidden: boolean; inactive?: boolean };
 
 export type ToolBlockToolState = "hidden" | "visible" | "inactive";
@@ -45,17 +46,37 @@ export type ConfigLoadResult =
   | { ok: false; path: string; error: string };
 
 const ALLOWED_ROOT_KEYS = new Set(["enabled", "hidden", "$schema"]);
-const ALLOWED_HIDDEN_KEYS = new Set(["tool", "plugin"]);
+
+/** Header for hidden names that are no longer registered (renamed or removed plugin). */
+const ORPHAN_HIDDEN_LABEL = "not registered";
 
 /** Config lives at `<agentDir>/mpi-tool-block.json`. */
 export function toolBlockConfigPath(agentDir: string): string {
   return path.join(agentDir, TOOL_BLOCK_CONFIG_FILENAME);
 }
 
+/** Project config lives at `<cwd>/<configDirName>/mpi-tool-block.json` (e.g. `.pi`). */
+export function projectToolBlockConfigPath(cwd: string, configDirName: string): string {
+  return path.join(cwd, configDirName, TOOL_BLOCK_CONFIG_FILENAME);
+}
+
 /** Missing config or `enabled !== false` means rules apply. */
 export function isToolBlockEnabled(config: ToolBlockConfig | null | undefined): boolean {
   if (!config) return true;
   return config.enabled !== false;
+}
+
+/**
+ * Union of the hidden names of every enabled layer.
+ * A layer with `enabled: false` contributes nothing, so it never cancels another layer.
+ */
+export function mergeToolBlockConfigs(layers: readonly ToolBlockConfig[]): ToolBlockConfig {
+  const hidden = new Set<string>();
+  for (const layer of layers) {
+    if (!isToolBlockEnabled(layer)) continue;
+    for (const name of layer.hidden) hidden.add(name);
+  }
+  return { enabled: true, hidden: sortHidden([...hidden]) };
 }
 
 /**
@@ -104,33 +125,20 @@ export function parseToolBlockConfig(
     return { ok: false, error: "config.hidden must be an array when set" };
   }
 
-  const hidden: ToolBlockHidden[] = [];
+  const hidden: string[] = [];
   const seen = new Set<string>();
   const hiddenRaw = (root.hidden ?? []) as unknown[];
   for (let i = 0; i < hiddenRaw.length; i++) {
-    const item = hiddenRaw[i];
-    if (!item || typeof item !== "object" || Array.isArray(item)) {
-      return { ok: false, error: `hidden[${i}] must be an object` };
+    const rawName = hiddenRaw[i];
+    if (typeof rawName !== "string" || !rawName.trim()) {
+      return { ok: false, error: `hidden[${i}] must be a non-empty tool name` };
     }
-    const rec = item as Record<string, unknown>;
-    for (const key of Object.keys(rec)) {
-      if (!ALLOWED_HIDDEN_KEYS.has(key)) {
-        return { ok: false, error: `hidden[${i}] unknown key: ${key}` };
-      }
-    }
-    if (typeof rec.tool !== "string" || !rec.tool.trim()) {
-      return { ok: false, error: `hidden[${i}].tool must be a non-empty string` };
-    }
-    if (rec.plugin !== undefined && (typeof rec.plugin !== "string" || !rec.plugin.trim())) {
-      return { ok: false, error: `hidden[${i}].plugin must be a non-empty string when set` };
-    }
-    const tool = rec.tool.trim();
+    const tool = rawName.trim();
     if (seen.has(tool)) {
       return { ok: false, error: `duplicate hidden tool: ${tool}` };
     }
     seen.add(tool);
-    const plugin = typeof rec.plugin === "string" ? rec.plugin.trim() : "";
-    hidden.push(plugin ? { tool, plugin } : { tool });
+    hidden.push(tool);
   }
 
   return {
@@ -143,8 +151,7 @@ export function parseToolBlockConfig(
   };
 }
 
-export function loadToolBlockConfig(agentDir: string): ConfigLoadResult {
-  const filePath = toolBlockConfigPath(agentDir);
+export function loadToolBlockConfig(filePath: string): ConfigLoadResult {
   try {
     const text = fs.readFileSync(filePath, "utf8");
     let raw: unknown;
@@ -170,12 +177,11 @@ export function loadToolBlockConfig(agentDir: string): ConfigLoadResult {
 }
 
 export function writeToolBlockConfig(
-  agentDir: string,
+  filePath: string,
   config: ToolBlockConfig,
 ):
   | { ok: true; path: string; config: ToolBlockConfig }
   | { ok: false; path: string; error: string } {
-  const filePath = toolBlockConfigPath(agentDir);
   const normalized: ToolBlockConfig = {
     enabled: config.enabled !== false,
     hidden: sortHidden(config.hidden),
@@ -199,15 +205,24 @@ export function writeToolBlockConfig(
 /** Hidden tool names when rules apply; empty when disabled or missing. */
 export function deniedToolNames(config: ToolBlockConfig | null | undefined): string[] {
   if (!isToolBlockEnabled(config) || !config) return [];
-  return config.hidden.map((item) => item.tool);
+  return [...config.hidden];
 }
 
-/** Session replaces global while present. Missing session falls back to global. */
-export function effectiveToolBlockConfig(
-  global: ToolBlockConfig | null | undefined,
-  session: ToolBlockConfig | null | undefined,
-): ToolBlockConfig | null {
-  return session ?? global ?? null;
+/**
+ * A session config replaces both file layers while it exists. Global and project
+ * merge: the hidden set is their union, so a project file adds hides without
+ * restating the global list. `project` is null unless the project is trusted.
+ */
+export function effectiveToolBlockConfig(input: {
+  global: ToolBlockConfig | null;
+  project?: ToolBlockConfig | null;
+  session?: ToolBlockConfig | null;
+}): ToolBlockConfig | null {
+  if (input.session) return input.session;
+  const layers = [input.global, input.project ?? null].filter(
+    (layer): layer is ToolBlockConfig => layer !== null,
+  );
+  return layers.length > 0 ? mergeToolBlockConfigs(layers) : null;
 }
 
 /**
@@ -254,13 +269,18 @@ export function toolBlockRowState(
   return "visible";
 }
 
-/** Overlay rows: layer, enabled, then tools grouped by plugin, then orphan hidden names. */
+/**
+ * Overlay rows: layer, enabled, then registered tools grouped by live plugin tag,
+ * then hidden names that are no longer registered (orphans).
+ * Tool names are globally unique in the Pi registry, so hiding is keyed by name alone;
+ * the plugin tag is only a display label, never part of the persisted config.
+ */
 export function buildToolBlockRows(
   tools: readonly ToolRef[],
   config: ToolBlockConfig,
   active: readonly string[],
 ): ToolBlockRow[] {
-  const hiddenByName = new Set(config.hidden.map((item) => item.tool));
+  const hiddenByName = new Set(config.hidden);
   const activeSet = new Set(active);
   const rows: ToolBlockRow[] = [{ kind: "layer" }, { kind: "enabled" }];
   const seen = new Set<string>();
@@ -284,22 +304,19 @@ export function buildToolBlockRows(
     rows.push(toolRow(tool.name, "", hiddenByName, activeSet));
   }
   for (const [plugin, pluginTools] of grouped) {
-    rows.push({ kind: "header", plugin });
+    rows.push({ kind: "header", label: plugin });
     for (const tool of pluginTools) {
       rows.push(toolRow(tool.name, tool.plugin, hiddenByName, activeSet));
     }
   }
   const orphans = config.hidden
-    .filter((item) => !seen.has(item.tool))
-    .sort((a, b) => pluginKey(a).localeCompare(pluginKey(b)) || a.tool.localeCompare(b.tool));
-  let orphanPlugin: string | undefined;
-  for (const item of orphans) {
-    const plugin = item.plugin ?? "";
-    if (plugin && plugin !== orphanPlugin) {
-      orphanPlugin = plugin;
-      rows.push({ kind: "header", plugin });
+    .filter((name) => !seen.has(name))
+    .sort((a, b) => a.localeCompare(b));
+  if (orphans.length > 0) {
+    rows.push({ kind: "header", label: ORPHAN_HIDDEN_LABEL });
+    for (const name of orphans) {
+      rows.push({ kind: "tool", name, plugin: "", hidden: true, inactive: false });
     }
-    rows.push({ kind: "tool", name: item.tool, plugin, hidden: true, inactive: false });
   }
   return rows;
 }
@@ -340,29 +357,20 @@ export function filterToolBlockRows(rows: readonly ToolBlockRow[], query: string
   return out;
 }
 
-/** Flip enabled or one tool's hidden flag. `tools` supplies plugin tags when hiding. */
+/** Flip enabled or one tool's hidden flag. */
 export function toggleToolBlockRow(
   config: ToolBlockConfig,
-  tools: readonly ToolRef[],
-  row: Extract<ToolBlockRow, { kind: "enabled" | "tool" }>,
+  row: { kind: "enabled" } | { kind: "tool"; name: string },
 ): ToolBlockConfig {
   if (row.kind === "enabled") {
     return { ...config, enabled: !config.enabled, hidden: [...config.hidden] };
   }
-  if (config.hidden.some((item) => item.tool === row.name)) {
-    return { ...config, hidden: config.hidden.filter((item) => item.tool !== row.name) };
+  if (config.hidden.includes(row.name)) {
+    return { ...config, hidden: config.hidden.filter((name) => name !== row.name) };
   }
-  const plugin =
-    tools.find((item) => item.name === row.name)?.plugin ??
-    config.hidden.find((item) => item.tool === row.name)?.plugin ??
-    row.plugin ??
-    "";
   return {
     ...config,
-    hidden: sortHidden([
-      ...config.hidden,
-      plugin ? { tool: row.name, plugin } : { tool: row.name },
-    ]),
+    hidden: sortHidden([...config.hidden, row.name]),
   };
 }
 
@@ -376,12 +384,6 @@ function toolRow(
   return { kind: "tool", name, plugin, hidden, inactive: !hidden && !activeSet.has(name) };
 }
 
-function pluginKey(item: { plugin?: string }): string {
-  return item.plugin ?? "";
-}
-
-function sortHidden(hidden: ToolBlockHidden[]): ToolBlockHidden[] {
-  return [...hidden].sort(
-    (a, b) => pluginKey(a).localeCompare(pluginKey(b)) || a.tool.localeCompare(b.tool),
-  );
+function sortHidden(hidden: string[]): string[] {
+  return [...hidden].sort((a, b) => a.localeCompare(b));
 }

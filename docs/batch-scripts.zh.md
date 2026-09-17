@@ -76,7 +76,7 @@ apply
 | `mixcode.resolve_model(query)` | 将精确模型 ID 解析为已启用的 `provider/modelId`，见[模型解析](#模型解析) |
 | `mixcode.render(tpl, vars)` / `render(...)` | `{name}` 模板；`{{` / `}}` 转义字面量 |
 
-Lua 每次调用都会重新读取并执行文件，提供 `os.getenv`、`io` 等标准库。根目录 [`mixcode-batch.d.lua`](../mixcode-batch.d.lua) 是指向 `mpi-batch-skill` 随包分发的 [Lua API reference](../pi-packages/mpi-batch-skill/skills/mpi-batch/references/mixcode-batch.d.lua) 的软链接。
+Lua 每次调用都会重新读取并执行文件，提供 `os.getenv`、`io` 等标准库。`require` 优先在脚本所在目录查找（`helper` → `<脚本目录>/helper.lua`，`sub.mod` → `<脚本目录>/sub/mod.lua`），之后走 fengari 默认的 `package.path`，其末尾是相对 MixCode 进程目录的 `./?.lua`。设置 `LUA_PATH` 会替换这份默认路径，除非值里用 `;;` 保留默认部分。根目录 [`mixcode-batch.d.lua`](../mixcode-batch.d.lua) 是指向 `mpi-batch-skill` 随包分发的 [Lua API reference](../pi-packages/mpi-batch-skill/skills/mpi-batch/references/mixcode-batch.d.lua) 的软链接。
 
 ### `open_tab` 字段
 

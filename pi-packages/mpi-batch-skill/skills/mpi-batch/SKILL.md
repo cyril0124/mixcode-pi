@@ -63,7 +63,7 @@ The invocation directory is the calling Agent tab's workdir, or the instance wor
 
 Each invocation captures a fixed snapshot of tabs and models. Model resolution uses the captured instance default provider and disabled model IDs. See the API reference for selection rules.
 
-TypeScript/JavaScript calls the default export each time. ES modules remain cached, so module-level state persists and file edits require restarting MixCode. Lua rereads and executes its file each time. Use the CLI below to preview a plan.
+TypeScript/JavaScript calls the default export each time. ES modules remain cached, so module-level state persists and file edits require restarting MixCode. Lua rereads and executes its file each time, and `require` looks in the script's directory first, so helpers can live in sibling `.lua` files. Use the CLI below to preview a plan.
 
 ## CLI
 

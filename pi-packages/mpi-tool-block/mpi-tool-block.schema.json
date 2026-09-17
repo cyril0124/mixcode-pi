@@ -10,24 +10,13 @@
       "type": "boolean"
     },
     "hidden": {
-      "description": "Tools removed from the active set while enabled. Tool names must be unique.",
+      "description": "Tool names removed from the active set while enabled. Every name must be unique.",
       "type": "array",
+      "uniqueItems": true,
       "items": {
-        "type": "object",
-        "properties": {
-          "tool": {
-            "description": "Exact tool name (names are global).",
-            "type": "string",
-            "minLength": 1
-          },
-          "plugin": {
-            "description": "Optional extension tag (npm package or extensions/<name>). Omitted for core tools.",
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        "required": ["tool"],
-        "additionalProperties": false
+        "description": "Exact tool name (names are global).",
+        "type": "string",
+        "minLength": 1
       }
     }
   },

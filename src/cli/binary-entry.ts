@@ -480,6 +480,9 @@ import toolBlockPackageJson from "../../pi-packages/mpi-tool-block/package.json"
 import toolBlockSchemaJson from "../../pi-packages/mpi-tool-block/mpi-tool-block.schema.json" with {
   type: "text",
 };
+import toolBlockSkillMd from "../../pi-packages/mpi-tool-block/skills/mpi-tool-block/SKILL.md" with {
+  type: "text",
+};
 // Documentation embedded for the system-prompt pointers; the binary has no
 // package tree on disk, so these are installed to <agentDir>/mixcode-docs.
 import mixcodeDoc_README_md from "../../docs/README.md" with { type: "text" };
@@ -797,6 +800,7 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
       "tool-block-overlay.ts": toolBlockOverlay,
       "package.json": toolBlockPackageJson,
       "mpi-tool-block.schema.json": toolBlockSchemaJson,
+      "skills/mpi-tool-block/SKILL.md": toolBlockSkillMd,
     },
   },
 });

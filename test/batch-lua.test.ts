@@ -509,6 +509,26 @@ test("loadBatchRequests + applyBatchRequests reads file and applies requests", a
   }
 });
 
+test("loadBatchRequests resolves require relative to the script directory", async () => {
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "batch-lua-"));
+  try {
+    await fsPromises.writeFile(
+      path.join(dir, "helper.lua"),
+      'return { tab_name = "from-sibling" }\n',
+    );
+    const scriptPath = path.join(dir, "main.lua");
+    await fsPromises.writeFile(
+      scriptPath,
+      'local helper = require("helper")\n' + "mixcode.open_tab({ name = helper.tab_name })\n",
+    );
+    const plan = await loadBatchRequests(scriptPath, { workdir: dir, tabs: [] });
+    assert.equal(plan.requests.length, 1);
+    assert.equal(plan.requests[0]!.name, "from-sibling");
+  } finally {
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("loadBatchRequests throws on missing file", async () => {
   const host = createMockHost();
   await assert.rejects(
