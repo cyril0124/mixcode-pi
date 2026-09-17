@@ -56,10 +56,9 @@ The inline block is capped by a budget derived from the chat viewport, so stacke
 
 | Widgets | Budget |
 |---|---|
-| 1 | `clamp(floor(viewport * 0.6), 6, 24)` rows |
-| 2+ | `clamp(floor(viewport * 0.4), 6, 24)` rows |
+| Any | `clamp(floor(viewport * 0.7), 6, 24)` rows |
 
-A 24-row viewport therefore allows 9 rows for two or more widgets and 14 rows for a single one. Below 12 viewport rows the 6-row floor shrinks to half the viewport, so the transcript keeps the other half. When the natural block is taller than the budget, collapse works on whole widgets:
+A 24-row viewport therefore allows 16 rows of widget block. Below 12 viewport rows the 6-row floor shrinks to half the viewport, so the transcript keeps the other half, and above 34 viewport rows the 24-row ceiling binds before the share does. When the natural block is taller than the budget, collapse works on whole widgets:
 
 1. Every body renders complete or not at all; a body is never cut to fit.
 2. Complete bodies are handed out in priority order: manually expanded widgets first, then the most recently updated widget, then registration order. The first widget whose whole body no longer fits is the cut: it and every lower-priority widget collapse to their `▸ Inline` header.

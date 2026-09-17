@@ -1029,10 +1029,9 @@ export function renderExtensionWidgets(
   return renderWithTheme(theme, () => renderExtensionWidgetsInner(tab, width, placement));
 }
 
-// Share of the chat viewport the inline widget block may occupy. A single
-// widget gets more room because no sibling competes with it.
-const INLINE_TAIL_SHARE = 0.4;
-const INLINE_TAIL_SINGLE_WIDGET_SHARE = 0.6;
+// Share of the chat viewport the inline widget block may occupy, for one widget
+// or several. Bumping it trades chat rows for widget bodies.
+const INLINE_TAIL_SHARE = 0.7;
 const INLINE_TAIL_MIN_BUDGET = 6;
 const INLINE_TAIL_MAX_BUDGET = 24;
 // Extra rows the block must free before a collapsed widget expands again, so an
@@ -1076,9 +1075,7 @@ export function renderInlineExtensionWidgets(
   const entries = collectInlineWidgetEntries(tab, bodyWidth);
   if (entries.length === 0) return [];
   const budget =
-    options.viewportRows === undefined
-      ? undefined
-      : inlineTailBudget(options.viewportRows, entries.length);
+    options.viewportRows === undefined ? undefined : inlineTailBudget(options.viewportRows);
   const plan = planInlineWidgetBlock(tab, entries, budget, width);
   if (plan.bodyRows.size === 0) return [inlineWidgetSummaryLine(entries.length, bodyWidth, width)];
 
@@ -1148,12 +1145,11 @@ function inlineWidgetRows(
 }
 
 /** Soft row target for the inline block: a clamped share of the chat viewport. */
-function inlineTailBudget(viewportRows: number, widgetCount: number): number {
-  const share = widgetCount <= 1 ? INLINE_TAIL_SINGLE_WIDGET_SHARE : INLINE_TAIL_SHARE;
+function inlineTailBudget(viewportRows: number): number {
   const viewport = Math.max(0, viewportRows);
   // On a viewport too small for the usual floor the chat keeps half the rows.
   const floor = Math.min(INLINE_TAIL_MIN_BUDGET, Math.max(1, Math.floor(viewport / 2)));
-  const target = Math.floor(viewport * share);
+  const target = Math.floor(viewport * INLINE_TAIL_SHARE);
   return Math.max(floor, Math.min(INLINE_TAIL_MAX_BUDGET, target));
 }
 
