@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import * as fs from "node:fs";
 import * as fsPromises from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -24,6 +25,24 @@ function makeStatTable(): {
 // 1ms poll so tests observe a few ticks within a short sleep.
 // Poll ticks faster than the debounce so the debounce can fire between ticks.
 const POLL_MS = 10;
+
+// Real-FS fingerprints via statSync, mirroring the production default
+// (size/mtimeMs/ctimeMs/ino). Sync matters: register() seeds the baseline
+// through an async stat by default, and under parallel-worker starvation that
+// seed can resolve AFTER the test's replacement write — seeding the
+// post-replacement fingerprint so the rename is never reported (observed as
+// the 10s waitFor timeout in CI and on a 4-core runner). A sync stat lands
+// the seed in a microtask, which always drains before any later await
+// continuation or poll timer tick, so the replacement happens strictly after
+// the baseline is set.
+function realStatFingerprint(filePath: string): FileFingerprint | undefined {
+  try {
+    const s = fs.statSync(filePath);
+    return { size: s.size, mtimeMs: s.mtimeMs, ctimeMs: s.ctimeMs, ino: s.ino };
+  } catch {
+    return undefined;
+  }
+}
 
 // Wait for a condition instead of a fixed sleep: under full-suite load the
 // event loop can starve short timers, so fixed sleeps flake. On timeout we
@@ -101,6 +120,7 @@ test("same size and mtime with replaced content still reloads", async () => {
       },
       debounceMs: 5,
       pollIntervalMs: POLL_MS,
+      statFingerprint: realStatFingerprint,
     });
     coord.register("sa", sessionPath);
 
