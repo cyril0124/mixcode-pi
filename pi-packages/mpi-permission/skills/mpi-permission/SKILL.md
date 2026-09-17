@@ -19,7 +19,7 @@ Ask before writing when the policy is underspecified: global vs project, which t
 
 If the file exists, read it and edit in place. Keep unrelated keys.
 
-Session rules live in memory (`/permission` overlay and "Always allow"). There is no session JSON file.
+Session rules live in memory (`/permission` overlay and "Always allow"). There is no session JSON file. `/permission list` prints them alongside the global and project layers.
 
 ## 2. Fail closed
 
@@ -71,7 +71,7 @@ When a path-taking tool resolves outside cwd, also evaluate `external_directory`
 
 ## Permission probe
 
-Enable `permission_probe` for the current session with `/permission-probe`. It validates the target input and predicts this package's permission decision without executing the target. Other extensions can still block probe calls or the target call. Activation and output details: [Permission probe](../../README.md#permission-probe).
+Enable `permission_probe` for the current session with `/permission probe`. It validates the target input and predicts this package's permission decision without executing the target. Other extensions can still block probe calls or the target call. Activation and output details: [Permission probe](../../README.md#permission-probe).
 
 ## 5. Templates
 

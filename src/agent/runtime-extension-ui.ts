@@ -88,8 +88,14 @@ export function createMixCodeExtensionUiContext(
   const notify = (message: string, type?: "info" | "warning" | "error") => {
     // Match Pi showExtensionNotify: info is raw status text; warning/error use
     // Warning:/Error: prefixes and never coalesce into the status chain.
+    // Extensions may already carry the marker (Pi renders notify text verbatim),
+    // so prefix idempotently instead of doubling it.
     if (type === "error") {
-      appendSystemMessage(runtimeTab, `Error: ${message}`, "error");
+      appendSystemMessage(
+        runtimeTab,
+        message.startsWith("Error:") ? message : `Error: ${message}`,
+        "error",
+      );
     } else if (type === "warning") {
       appendSystemMessage(runtimeTab, `Warning: ${message}`, "warning");
     } else {

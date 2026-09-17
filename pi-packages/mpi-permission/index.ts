@@ -6,11 +6,13 @@
 // |          <cwd>/<CONFIG_DIR_NAME>/mpi-permission.json (project, trusted) |
 // |          in-memory session rules (ask "always" grants, overlay edits)     |
 // |  Gate:   tool_call -> evaluate -> allow / ask dialog / deny block         |
-// |  UI:     /permission overlay (Layer: Global | Project | Session)          |
+// |  UI:     /permission [list [scope] | probe [on|off]]                      |
+// |          bare /permission opens the overlay (Global | Project | Session)  |
 // +---------------------------------------------------------------------------+
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import type { AutocompleteItem } from "@earendil-works/pi-tui";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { CONFIG_DIR_NAME, getAgentDir } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
@@ -28,8 +30,10 @@ import {
   writePermissionConfig,
   type ConfigLoadResult,
   type LayeredConfig,
+  type PermissionAction,
   type PermissionConfig,
   type PermissionDecision,
+  type PermissionLayer,
   type PermissionSource,
 } from "./permission-core.js";
 import { createPermissionOverlay } from "./permission-overlay.js";
@@ -102,6 +106,103 @@ function preview(text: string): string {
 
 function describeSource(source: PermissionSource): string {
   return `${source.layer} ${source.tool}[${source.pattern}] matched "${preview(source.subject)}"`;
+}
+
+const PERMISSION_USAGE =
+  "Error: Usage: /permission [list [all|global|project|session] | probe [on|off]]";
+const LIST_SCOPES: ReadonlyArray<PermissionLayer | "all"> = ["all", "global", "project", "session"];
+
+const SUBCOMMAND_ITEMS: AutocompleteItem[] = [
+  { value: "list", label: "list", description: "Show the rules that apply here" },
+  { value: "probe", label: "probe", description: "Enable or disable the permission_probe tool" },
+];
+/** One candidate for the second token, without the leading subcommand. */
+type ArgumentOption = { token: string; description: string };
+
+const LIST_SCOPE_OPTIONS: ArgumentOption[] = LIST_SCOPES.map((scope) => ({
+  token: scope,
+  description: scope === "all" ? "Every layer (default)" : `${scope} layer only`,
+}));
+const ON_OFF_OPTIONS: ArgumentOption[] = [
+  { token: "on", description: "Enable permission_probe (default)" },
+  { token: "off", description: "Disable permission_probe" },
+];
+
+/**
+ * Completions for the `/permission` dispatcher's two-token grammar.
+ *
+ * Pi replaces the whole argument text with `item.value`, so second-token
+ * candidates must carry the subcommand they belong to ("list global", not
+ * "global") or accepting one would drop the subcommand.
+ */
+function permissionArgumentCompletions(prefix: string): AutocompleteItem[] | null {
+  // Keep the trailing space: it marks the token boundary that switches to the
+  // second-token candidates ("list " vs "list").
+  const trimmed = prefix.trimStart().toLowerCase();
+  const space = trimmed.indexOf(" ");
+  if (space < 0) {
+    const items = SUBCOMMAND_ITEMS.filter((item) => item.value.startsWith(trimmed));
+    return items.length > 0 ? items : null;
+  }
+  const head = trimmed.slice(0, space);
+  const tail = trimmed.slice(space + 1).trim();
+  const options = head === "list" ? LIST_SCOPE_OPTIONS : head === "probe" ? ON_OFF_OPTIONS : [];
+  const items = options
+    .filter((option) => option.token.startsWith(tail))
+    .map((option) => ({
+      value: `${head} ${option.token}`,
+      label: option.token,
+      description: option.description,
+    }));
+  return items.length > 0 ? items : null;
+}
+
+/** One layer as shown by `/permission list`. */
+type LayerView = {
+  layer: PermissionLayer;
+  /** Config file path, or the in-memory note for session rules. */
+  location: string;
+  /** Trailing qualifier: not created, untrusted, or a load error. */
+  note: string;
+  rules: Array<{ tool: string; pattern: string; action: PermissionAction; message?: string }>;
+};
+
+function cachedLayerView(cached: CachedConfig, layer: PermissionLayer): LayerView {
+  if (cached.status === "error") {
+    return { layer, location: cached.path, note: ` (config error: ${cached.error})`, rules: [] };
+  }
+  if (cached.status === "missing") {
+    return { layer, location: cached.path, note: " (not created)", rules: [] };
+  }
+  const rules = cached.config.entries.flatMap((entry) =>
+    entry.rules.map((rule) => ({
+      tool: entry.tool,
+      pattern: rule.pattern,
+      action: rule.action,
+      ...(rule.message === undefined ? {} : { message: rule.message }),
+    })),
+  );
+  return { layer, location: cached.path, note: "", rules };
+}
+
+/** Human-only rule overview; the text is rendered by `ctx.ui.notify`. */
+function formatPermissionList(views: readonly LayerView[]): string {
+  const lines: string[] = [];
+  for (const view of views) {
+    lines.push(`${view.layer} · ${view.location}${view.note}`);
+    if (view.rules.length === 0) {
+      lines.push("  (no rules)");
+      continue;
+    }
+    const toolWidth = Math.max(...view.rules.map((rule) => rule.tool.length));
+    for (const rule of view.rules) {
+      const message = rule.message === undefined ? "" : `  "${rule.message}"`;
+      lines.push(
+        `  ${rule.tool.padEnd(toolWidth)}  ${rule.action.padEnd(5)}  ${rule.pattern}${message}`,
+      );
+    }
+  }
+  return lines.join("\n");
 }
 
 function existingDirectory(filePath: string): boolean {
@@ -248,20 +349,6 @@ export default function permissionExtension(pi: ExtensionAPI) {
     },
   });
 
-  pi.registerCommand("permission-probe", {
-    description: "Enable the permission_probe tool for this session",
-    handler: async (_args, ctx) => {
-      if (!ctx.hasUI) {
-        throw new Error("Error: permission-probe requires interactive UI");
-      }
-      const active = pi.getActiveTools();
-      if (!active.includes(PERMISSION_PROBE_NAME)) {
-        pi.setActiveTools([...active, PERMISSION_PROBE_NAME]);
-      }
-      ctx.ui.notify("permission_probe enabled for this session", "info");
-    },
-  });
-
   pi.on("tool_call", async (event, ctx) => {
     if (event.toolName === PERMISSION_PROBE_NAME) return undefined;
     ensureLoaded(ctx.cwd);
@@ -363,18 +450,94 @@ export default function permissionExtension(pi: ExtensionAPI) {
     };
   }
 
+  function layerViews(trusted: boolean, scope: PermissionLayer | "all"): LayerView[] {
+    const views: LayerView[] = [];
+    if (scope === "all" || scope === "global") views.push(cachedLayerView(cachedGlobal, "global"));
+    if (scope === "all" || scope === "project") {
+      const view = cachedLayerView(cachedProject!, "project");
+      if (!trusted) view.note = `${view.note} (untrusted — ignored)`;
+      views.push(view);
+    }
+    if (scope === "all" || scope === "session") {
+      views.push({
+        layer: "session",
+        location: "session (in-memory)",
+        note: "",
+        rules: sessionConfig.entries.flatMap((entry) =>
+          entry.rules.map((rule) => ({
+            tool: entry.tool,
+            pattern: rule.pattern,
+            action: rule.action,
+            ...(rule.message === undefined ? {} : { message: rule.message }),
+          })),
+        ),
+      });
+    }
+    return views;
+  }
+
+  /** Toggle the session-scoped probe tool; returns whether the active set changed. */
+  function setProbeTool(enabled: boolean): boolean {
+    const active = pi.getActiveTools();
+    const next = enabled
+      ? active.includes(PERMISSION_PROBE_NAME)
+        ? active
+        : [...active, PERMISSION_PROBE_NAME]
+      : active.filter((name) => name !== PERMISSION_PROBE_NAME);
+    if (next.length === active.length) return false;
+    pi.setActiveTools(next);
+    return true;
+  }
+
+  function probeNotice(enabled: boolean, changed: boolean): string {
+    const state = enabled ? "enabled" : "disabled";
+    const scope = enabled ? " for this session" : "";
+    return changed ? `permission_probe ${state}${scope}` : `permission_probe is already ${state}`;
+  }
+
   pi.registerCommand("permission", {
-    description: "Edit tool permission rules (allow / ask / deny)",
-    handler: async (_args, ctx) => {
-      if (!ctx.hasUI) {
-        ctx.ui.notify("permission requires interactive UI", "error");
+    description: "Edit or inspect tool permission rules (allow / ask / deny)",
+    getArgumentCompletions: permissionArgumentCompletions,
+    handler: async (args, ctx) => {
+      if (!ctx.hasUI) throw new Error("Error: /permission requires interactive UI");
+      const [rawSub = "", rawFlag = ""] = args.trim().split(/\s+/).filter(Boolean);
+      const sub = rawSub.toLowerCase();
+      const flag = rawFlag.toLowerCase();
+
+      if (sub === "list") {
+        const scope = (flag || "all") as PermissionLayer | "all";
+        if (!LIST_SCOPES.includes(scope)) {
+          ctx.ui.notify(PERMISSION_USAGE, "error");
+          return;
+        }
+        reload(ctx.cwd);
+        ctx.ui.notify(formatPermissionList(layerViews(ctx.isProjectTrusted(), scope)), "info");
         return;
       }
+
+      if (sub === "probe") {
+        if (flag !== "" && flag !== "on" && flag !== "off") {
+          ctx.ui.notify(PERMISSION_USAGE, "error");
+          return;
+        }
+        const enabled = flag !== "off";
+        ctx.ui.notify(probeNotice(enabled, setProbeTool(enabled)), "info");
+        return;
+      }
+
+      if (sub !== "") {
+        ctx.ui.notify(PERMISSION_USAGE, "error");
+        return;
+      }
+
       reload(ctx.cwd);
       const trusted = ctx.isProjectTrusted();
       const broken = configError(trusted);
       if (broken && broken.status === "error") {
-        ctx.ui.notify(`permission config error (${broken.path}): ${broken.error}`, "error");
+        ctx.ui.notify(
+          `Error: permission config invalid (${broken.path}): ${broken.error}`,
+          "error",
+        );
         return;
       }
       const globalPath = cachedGlobal.path;

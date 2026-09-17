@@ -70,7 +70,7 @@ Edit message text in JSON. `/permission` preserves it when saving or cycling act
 
 ## Permission probe
 
-`permission_probe` is inactive at session start. `/permission-probe` enables it for the current session without changing other active tools or saving the setting. Repeating the command has no additional effect.
+`permission_probe` is inactive at session start. `/permission probe` enables it for the current session without changing other active tools or saving the setting; `/permission probe off` disables it again. Repeating either form has no additional effect.
 
 The tool accepts a target tool name and input object. It validates the input against the target's parameter schema and reports the permission decision without executing the target. Unknown tools return `unknown_tool`; invalid input returns `invalid_target_input`. Probe calls bypass this package's rules but remain subject to other extensions.
 
@@ -121,7 +121,27 @@ While the dialog is open the command has **not** started: the process spawns onl
 
 ## Command
 
-`/permission` — settings-style overlay over the three layers.
+`/permission` has three forms:
+
+| Form | Effect |
+|------|--------|
+| `/permission` | Settings-style overlay over the three layers. |
+| `/permission list [all \| global \| project \| session]` | Print the rules of each selected layer (default `all`) with the file they come from, plus `(not created)`, `(untrusted — ignored)`, or the load error. |
+| `/permission probe [on \| off]` | Enable (default) or disable `permission_probe` for this session. |
+
+`list` writes to the transcript only; the text never reaches the model context, and a second call replaces the first listing. Both subcommands complete in the slash autocomplete. Unknown subcommands, scopes, and flags report `Error: Usage: /permission [list [all|global|project|session] | probe [on|off]]`.
+
+```text
+global · /home/user/.pi/agent/mpi-permission.json
+  bash                ask    *
+  bash                allow  git *
+project · /repo/.pi/mpi-permission.json (not created)
+  (no rules)
+session · session (in-memory)
+  (no rules)
+```
+
+Bare `/permission` opens the editor:
 
 ```text
 ┌─ Permission ───────────────────────────────────┐

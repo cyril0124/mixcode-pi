@@ -8,6 +8,8 @@ import permissionExtension from "./index.js";
 
 test("permission_probe stays inactive until enabled and never executes targets", async () => {
   const workDir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-permission-probe-work-"));
+  const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+  process.env.PI_CODING_AGENT_DIR = workDir;
   try {
     const tools = new Map<string, any>();
     const active = ["read"];
@@ -20,9 +22,6 @@ test("permission_probe stays inactive until enabled and never executes targets",
       },
       getAllTools: () => [...tools.values()],
       getActiveTools: () => active.slice(),
-      setActiveTools(names: string[]) {
-        active.splice(0, active.length, ...names);
-      },
       on(name: string, handler: (...args: any[]) => void) {
         events.set(name, handler);
       },
@@ -31,6 +30,9 @@ test("permission_probe stays inactive until enabled and never executes targets",
         definition: { handler: (args: string, ctx: any) => Promise<void> },
       ) {
         commands.set(name, definition);
+      },
+      setActiveTools(names: string[]) {
+        active.splice(0, active.length, ...names);
       },
     } as any;
     permissionExtension(pi);
@@ -47,17 +49,32 @@ test("permission_probe stays inactive until enabled and never executes targets",
     const ctx = { cwd: workDir, isProjectTrusted: () => true };
     events.get("session_start")!({ reason: "startup" }, ctx);
     assert.deepEqual(active, ["read"]);
-    assert.ok(commands.has("permission-probe"));
-    await commands.get("permission-probe")!.handler("", {
-      hasUI: true,
-      ui: { notify() {} },
-    });
+    const notices: Array<{ message: string; type?: string }> = [];
+    const ui = { notify: (message: string, type?: string) => notices.push({ message, type }) };
+    const command = commands.get("permission")!;
+    assert.ok(command);
+    assert.equal(commands.has("permission-probe"), false);
+    const commandCtx = { hasUI: true, ui, cwd: workDir, isProjectTrusted: () => true };
+
+    await command.handler("probe on", commandCtx);
     assert.deepEqual(active, ["read", "permission_probe"]);
-    await commands.get("permission-probe")!.handler("", {
-      hasUI: true,
-      ui: { notify() {} },
+    assert.deepEqual(notices.at(-1), {
+      message: "permission_probe enabled for this session",
+      type: "info",
     });
+    await command.handler("probe", commandCtx);
     assert.deepEqual(active, ["read", "permission_probe"]);
+    assert.equal(notices.at(-1)!.message, "permission_probe is already enabled");
+    await command.handler("probe off", commandCtx);
+    assert.deepEqual(active, ["read"]);
+    await command.handler("probe sideways", commandCtx);
+    assert.deepEqual(active, ["read"]);
+    assert.deepEqual(notices.at(-1), {
+      message: "Error: Usage: /permission [list [all|global|project|session] | probe [on|off]]",
+      type: "error",
+    });
+
+    await command.handler("probe on", commandCtx);
     events.get("before_agent_start")!({}, ctx);
     assert.deepEqual(active, ["read", "permission_probe"]);
 
@@ -81,5 +98,7 @@ test("permission_probe stays inactive until enabled and never executes targets",
     assert.equal(targetExecutions, 0);
   } finally {
     await fs.rm(workDir, { recursive: true, force: true });
+    if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+    else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
   }
 });

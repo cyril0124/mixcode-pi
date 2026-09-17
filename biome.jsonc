@@ -9,6 +9,7 @@
       "!.worktrees",
       "!refs",
       "!tmp",
+      "!.agents/skills",
       "!.pi",
       "!pi-packages/mpi-permission/vendor/unbash.js"
     ]

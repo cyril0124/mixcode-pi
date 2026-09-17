@@ -70,7 +70,7 @@ deny 时，返回给模型的工具错误包含命中规则说明，随后换行
 
 ## 探针工具
 
-`permission_probe` 在会话开始时未启用。输入 `/permission-probe` 可在当前会话开启，不改变其他工具的启用状态，也不保存该设置。重复执行命令没有额外影响。
+`permission_probe` 在会话开始时未启用。输入 `/permission probe` 可在当前会话开启，不改变其他工具的启用状态，也不保存该设置；`/permission probe off` 可再次关闭。重复执行命令没有额外影响。
 
 探针接收目标工具名和 input 对象，按目标工具的参数 schema 校验输入，报告权限决策但不执行目标工具。未知工具返回 `unknown_tool`，非法输入返回 `invalid_target_input`。探针调用跳过本包的权限规则，但仍受其他扩展约束。
 
@@ -121,7 +121,27 @@ deny 时，返回给模型的工具错误包含命中规则说明，随后换行
 
 ## 命令
 
-`/permission` — 覆盖三个层级的 settings 式 overlay。
+`/permission` 有三种形式：
+
+| 形式 | 效果 |
+|------|------|
+| `/permission` | 覆盖三个层级的 settings 式 overlay。 |
+| `/permission list [all \| global \| project \| session]` | 打印选定层级（默认 `all`）的规则，并标注来源文件，以及 `(not created)`、`(untrusted — ignored)` 或加载错误。 |
+| `/permission probe [on \| off]` | 在当前会话启用（默认）或关闭 `permission_probe`。 |
+
+`list` 只写入聊天记录，文本不会进入模型上下文，再次执行会替换上一条列表。两个子命令都支持斜杠自动补全。未知子命令、范围或参数会提示 `Error: Usage: /permission [list [all|global|project|session] | probe [on|off]]`。
+
+```text
+global · /home/user/.pi/agent/mpi-permission.json
+  bash                ask    *
+  bash                allow  git *
+project · /repo/.pi/mpi-permission.json (not created)
+  (no rules)
+session · session (in-memory)
+  (no rules)
+```
+
+不带参数时打开编辑器：
 
 ```text
 ┌─ Permission ───────────────────────────────────┐
