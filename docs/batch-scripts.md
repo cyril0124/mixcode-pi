@@ -19,9 +19,9 @@ Enter this command in an Agent tab or Home:
 
 Script arguments must follow `--`. Single and double quotes group arguments; empty quoted strings survive. Backslash escapes the next character except inside single quotes. Unclosed quotes and trailing escapes fail before loading. There is no shell variable, command, or glob expansion.
 
-The invocation directory is the calling Agent tab's workdir, or the instance workdir on Home. Relative script paths and new-tab workdirs resolve against this directory; `currentWorkdir()` / `current_workdir()` returns it. Existing tabs keep their workdir under `append` and `clear`.
+The invocation directory is the calling Agent tab's workdir, or the instance workdir on Home. Relative script paths and new-tab workdirs resolve against this directory; `currentWorkdir()` / `current_workdir()` returns it, and `scriptDir()` / `script_dir()` returns the script file's own directory, which differs from the invocation directory when the script lives elsewhere. Existing tabs keep their workdir under `append` and `clear`.
 
-`/batch` leaves `process.cwd()` unchanged. For the script's own relative file I/O, resolve paths against the API workdir explicitly.
+`/batch` leaves `process.cwd()` unchanged. For the script's own relative file I/O, resolve paths against the API workdir explicitly, or against `scriptDir()` / `script_dir()` for files stored beside the script.
 
 Each invocation captures a fixed snapshot of tabs, models, disabled model IDs, and the instance default provider before evaluating the script.
 
@@ -69,6 +69,7 @@ Scripts collect a plan once, before dispatch. They cannot read agent replies or 
 | `mixcode.open_tab(opts)` | Create tab or reuse by **exact title**, optionally dispatch prompt |
 | `mixcode.args()` | Arguments after `--` in either entry point, 1-indexed array |
 | `mixcode.current_workdir()` | Invocation directory; see [running](#running) |
+| `mixcode.script_dir()` | Absolute directory of the script file; differs from `mixcode.current_workdir()` when the script lives elsewhere |
 | `mixcode.tab_exists(name)` | Invocation snapshot: whether a tab with the given name exists |
 | `mixcode.list_tabs()` | Invocation snapshot: list of existing tabs |
 | `mixcode.list_models()` | Invocation model catalog, including disabled entries without a disabled field (`id`/`provider`/`model_id`/`display_name`/`context_window`/`reasoning`) |
@@ -171,6 +172,7 @@ Names map one-to-one; TypeScript uses camelCase:
 | `opts.system_prompt` | `opts.systemPrompt` |
 | `mixcode.args()` (1-indexed table) | `mixcode.args()` (`string[]`) |
 | `mixcode.current_workdir()` | `mixcode.currentWorkdir()` |
+| `mixcode.script_dir()` | `mixcode.scriptDir()` |
 | `mixcode.tab_exists(name)` | `mixcode.tabExists(name)` |
 | `mixcode.list_tabs()` → `session_id`, `model` | `mixcode.listTabs()` → `sessionId`, `model` |
 | `mixcode.list_models()` → `model_id`, `display_name`, `context_window` | `mixcode.listModels()` → `modelId`, `displayName`, `contextWindow` |

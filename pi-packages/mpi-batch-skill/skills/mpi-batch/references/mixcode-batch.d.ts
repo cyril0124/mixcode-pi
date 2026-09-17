@@ -128,6 +128,12 @@ interface MixCodeBatchApi {
    * workdirs. Does not change process.cwd(); script-owned relative I/O uses host cwd.
    */
   currentWorkdir(): string;
+  /**
+   * Absolute directory containing this script file. Symlinks are not resolved.
+   * Differs from currentWorkdir() when the script is kept outside the invocation
+   * directory.
+   */
+  scriptDir(): string;
   /** Whether a tab with this exact title exists in this invocation's snapshot. */
   tabExists(name: string): boolean;
   /** Tabs captured before this invocation (snapshot; not live). */

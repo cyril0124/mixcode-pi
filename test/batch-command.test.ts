@@ -153,6 +153,20 @@ test("/batch uses Agent workdir and Home instance workdir without process chdir"
   });
 });
 
+test("/batch reports the script directory separately from the invocation workdir", async () => {
+  await withRuntime(async ({ root, state, runtime, submit }) => {
+    await fs.mkdir(path.join(root, "package"), { recursive: true });
+    await Bun.write(
+      path.join(root, "package", "probe.ts"),
+      `export default api =>
+        api.openTab({ name: "probe", prompt: api.scriptDir() + "|" + api.currentWorkdir() });`,
+    );
+    await submit("/batch package/probe.ts");
+    const tab = state.tabs.find((item) => item.title === "probe")!;
+    assert.equal(userTexts(runtime, tab.sessionId)[0], `${path.join(root, "package")}|${root}`);
+  });
+});
+
 for (const extension of ["ts", "lua"]) {
   test(`/batch ${extension} clear retains identity and history; delete replaces it`, async () => {
     await withRuntime(async ({ root, state, runtime, submit, stateFile }) => {

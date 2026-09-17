@@ -10,7 +10,7 @@ With no task or script attached, ask what tabs and prompts the user wants. Defau
 
 ## Workflow
 
-1. Identify the script path, execution entry point, invocation directory, tab names, workdirs, and prompts. Read existing scripts before editing and preserve their language. Use Lua for new scripts when the user does not specify a language. Read the matching API reference below before writing requests. Use absolute paths when directories differ.
+1. Identify the script path, execution entry point, invocation directory, tab names, workdirs, and prompts. Read existing scripts before editing and preserve their language. Use Lua for new scripts when the user does not specify a language. Read the matching API reference below before writing requests. Use absolute paths when directories differ; files stored beside the script are reached through `scriptDir()` / `script_dir()`, not the invocation directory.
 2. Use distinct tab names for independent work. For existing tabs, default to `append`; obtain authorization before clearing or deleting sessions. Leave model, thinking, and context limit unset unless requested. Choose explicit models from `mpi --list-models --json` or the script API's model snapshot.
 3. Write the tab requests using the API reference. Use `mode="clear"` to start a new conversation in the same named tab while retaining its session and tree history. To change `system_prompt` / `systemPrompt`, use a new tab or `mode="delete"`; combining it with `clear` fails before any tab changes, even without a matching tab. Keep script evaluation limited to collecting requests and reading necessary inputs. Before running an existing script, inspect its imports and side effects; dry-run executes them too.
 4. Run CLI dry-run from the intended invocation directory. Require exit code zero and check that the printed requests match the intended titles, prompts, workdirs, models, thinking levels, context limits, and modes. Check normalized `context_limit=32000` or `context_limit=reset` when supplied. Correct failures before execution. Dry-run uses startup settings, not the current TUI snapshot. If `mpi` is unavailable, report that validation could not run.
@@ -57,9 +57,9 @@ Enter in an Agent tab or Home:
 
 Arguments must follow `--`. Single/double quotes group literal arguments and retain empty strings. Backslash escapes the next character outside single quotes. Unclosed quotes and trailing escapes fail before script loading. No shell variable, command, or glob expansion occurs.
 
-The invocation directory is the calling Agent tab's workdir, or the instance workdir on Home. Relative script paths and new-tab workdirs resolve against it; `currentWorkdir()` / `current_workdir()` returns it. Existing tabs keep their directory under `append` and `clear`.
+The invocation directory is the calling Agent tab's workdir, or the instance workdir on Home. Relative script paths and new-tab workdirs resolve against it; `currentWorkdir()` / `current_workdir()` returns it. `scriptDir()` / `script_dir()` returns the script file's own directory, which differs from the invocation directory when the script lives elsewhere. Existing tabs keep their directory under `append` and `clear`.
 
-`/batch` leaves `process.cwd()` unchanged. For script-owned file I/O, resolve relative paths against the API workdir explicitly.
+`/batch` leaves `process.cwd()` unchanged. For script-owned file I/O, resolve relative paths against the API workdir explicitly, or against `scriptDir()` / `script_dir()` for files stored beside the script.
 
 Each invocation captures a fixed snapshot of tabs and models. Model resolution uses the captured instance default provider and disabled model IDs. See the API reference for selection rules.
 

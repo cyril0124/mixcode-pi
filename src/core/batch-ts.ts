@@ -1,3 +1,4 @@
+import * as path from "node:path";
 import { pathToFileURL } from "node:url";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type {
@@ -39,6 +40,11 @@ export interface MixCodeBatchApi {
   args(): string[];
   /** Invocation workdir; independent of the host process cwd. */
   currentWorkdir(): string;
+  /**
+   * Absolute directory holding this script file, without resolving symlinks.
+   * Differs from currentWorkdir() when the script lives outside the invocation directory.
+   */
+  scriptDir(): string;
   /** Snapshot lookups are fixed before script evaluation on each invocation. */
   tabExists(name: string): boolean;
   listTabs(): BatchLuaTabInfo[];
@@ -78,6 +84,8 @@ export async function runTsScript(
     throw new Error(`Batch script must default-export a function: ${scriptPath}`);
   }
 
+  // The Lua executor derives scriptDir the same way.
+  const scriptDir = path.resolve(path.dirname(scriptPath));
   const requests: BatchTabRequest[] = [];
   const api: MixCodeBatchApi = {
     openTab(options) {
@@ -85,6 +93,7 @@ export async function runTsScript(
     },
     args: () => [...(context.args ?? [])],
     currentWorkdir: () => context.workdir,
+    scriptDir: () => scriptDir,
     tabExists: (name) => context.tabs.some((tab) => tab.name === name),
     // Copies: a script mutating the returned rows must not corrupt host state.
     listTabs: () => context.tabs.map((tab) => ({ ...tab })),

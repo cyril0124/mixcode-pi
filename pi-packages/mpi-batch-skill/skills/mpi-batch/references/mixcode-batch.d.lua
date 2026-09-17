@@ -68,6 +68,12 @@ function mixcode.open_tab(opts) end
 ---@return string
 function mixcode.current_workdir() end
 
+---Return the absolute directory containing this script file. Symlinks are not
+---resolved. Differs from current_workdir() when the script is kept outside the
+---invocation directory.
+---@return string
+function mixcode.script_dir() end
+
 ---Return args after `--` in startup CLI or /batch as a 1-indexed array.
 ---Example: `/batch s.lua -- foo ""` yields {"foo", ""}.
 ---/batch supports quotes and backslash escaping except inside single quotes;

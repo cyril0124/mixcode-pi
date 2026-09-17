@@ -19,9 +19,9 @@
 
 脚本参数必须放在 `--` 后。单双引号用于组合参数，空引号保留为空字符串。反斜杠转义下一个字符，但单引号内不转义。引号未闭合或末尾存在未完成的转义时，在加载前报错。不展开 shell 变量、命令或 glob。
 
-调用目录是发起命令的 Agent tab workdir；Home 使用实例 workdir。相对脚本路径和新 tab workdir 以调用目录为基准，`currentWorkdir()` / `current_workdir()` 返回该目录。`append` 和 `clear` 复用的已有 tab 保留原 workdir。
+调用目录是发起命令的 Agent tab workdir；Home 使用实例 workdir。相对脚本路径和新 tab workdir 以调用目录为基准，`currentWorkdir()` / `current_workdir()` 返回该目录，`scriptDir()` / `script_dir()` 返回脚本文件自身所在目录；脚本不在调用目录内时，两者不同。`append` 和 `clear` 复用的已有 tab 保留原 workdir。
 
-`/batch` 保持 `process.cwd()` 不变。脚本自行读写相对路径文件时，应显式基于 API workdir 解析路径。
+`/batch` 保持 `process.cwd()` 不变。脚本自行读写相对路径文件时，应显式基于 API workdir 解析路径；与脚本放在一起的文件则基于 `scriptDir()` / `script_dir()`。
 
 每次调用在执行脚本前，捕获 tab、模型、禁用模型 ID 和实例默认 provider 的固定快照。
 
@@ -69,6 +69,7 @@ apply
 | `mixcode.open_tab(opts)` | 建 tab 或按 **精确标题** 复用，可选发 prompt |
 | `mixcode.args()` | 两种入口中 `--` 后的参数，1-indexed 数组 |
 | `mixcode.current_workdir()` | 调用目录，见[运行](#运行) |
+| `mixcode.script_dir()` | 脚本文件自身所在目录（绝对路径）；脚本不在调用目录内时与 `mixcode.current_workdir()` 不同 |
 | `mixcode.tab_exists(name)` | 调用快照：是否已有同名 tab |
 | `mixcode.list_tabs()` | 调用快照：已有 tab 列表 |
 | `mixcode.list_models()` | 调用时的模型目录，包含禁用项但不提供 disabled 字段（`id`/`provider`/`model_id`/`display_name`/`context_window`/`reasoning`） |
@@ -170,6 +171,7 @@ export default script;
 | `opts.system_prompt` | `opts.systemPrompt` |
 | `mixcode.args()`（1-indexed table） | `mixcode.args()`（`string[]`） |
 | `mixcode.current_workdir()` | `mixcode.currentWorkdir()` |
+| `mixcode.script_dir()` | `mixcode.scriptDir()` |
 | `mixcode.tab_exists(name)` | `mixcode.tabExists(name)` |
 | `mixcode.list_tabs()` → `session_id`、`model` | `mixcode.listTabs()` → `sessionId`、`model` |
 | `mixcode.list_models()` → `model_id`、`display_name`、`context_window` | `mixcode.listModels()` → `modelId`、`displayName`、`contextWindow` |

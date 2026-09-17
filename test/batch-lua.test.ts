@@ -149,6 +149,17 @@ test("runLuaScript exposes current_workdir", async () => {
   assert.equal(requests[0]!.prompt, "/repo");
 });
 
+test("runLuaScript exposes script_dir independent of the invocation workdir", async () => {
+  const script = `
+    mixcode.open_tab({ name = "dir", prompt = mixcode.script_dir() })
+  `;
+  const plan = await runLuaScript(script, "/tmp/scripts/nested/batch.lua", {
+    workdir: "/repo",
+    tabs: [],
+  });
+  assert.equal(plan.requests[0]!.prompt, "/tmp/scripts/nested");
+});
+
 test("runLuaScript exposes tab_exists", async () => {
   const script = `
     if mixcode.tab_exists("known") then

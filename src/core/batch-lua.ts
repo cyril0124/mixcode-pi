@@ -141,6 +141,9 @@ export async function runLuaScript(
   const L = lauxlib.luaL_newstate();
   lualib.luaL_openlibs(L);
 
+  // Derived from the script path so the CLI, dry-run, and interactive /batch
+  // entry points all report the same directory.
+  const scriptDir = path.resolve(path.dirname(scriptPath));
   const requests: BatchTabRequest[] = [];
 
   // Register mixcode.open_tab(opts)
@@ -214,6 +217,12 @@ export async function runLuaScript(
     return 1;
   });
   lua.lua_setfield(L, -2, to_luastring("current_workdir"));
+
+  lua.lua_pushcfunction(L, () => {
+    lua.lua_pushstring(L, to_luastring(scriptDir));
+    return 1;
+  });
+  lua.lua_setfield(L, -2, to_luastring("script_dir"));
 
   // CLI args after `--`; 1-indexed Lua array.
   lua.lua_pushcfunction(L, (L: any) => {

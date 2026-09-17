@@ -239,6 +239,22 @@ test("TS and Lua scripts produce equivalent plans for the same scenario", async 
   assert.equal(tsPlan.requests.length, 2);
 });
 
+test("TS scripts read the script directory, not the invocation workdir", async () => {
+  let scriptDir = "";
+  const plan = await withScript(
+    "script-dir.ts",
+    `export default (mixcode: any) => {
+       mixcode.openTab({ name: "dir", prompt: mixcode.scriptDir() + "|" + mixcode.currentWorkdir() });
+     };`,
+    (scriptPath) => {
+      scriptDir = path.dirname(scriptPath);
+      return loadBatchRequests(scriptPath, testContext());
+    },
+  );
+  assert.equal(plan.requests[0]!.prompt, `${scriptDir}|/repo`);
+  assert.notEqual(scriptDir, "/repo");
+});
+
 test("TS scripts read the startup context snapshot", async () => {
   const plan = await withScript(
     "context.ts",
