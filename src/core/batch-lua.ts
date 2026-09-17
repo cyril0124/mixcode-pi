@@ -140,6 +140,7 @@ export async function runLuaScript(
 
   const L = lauxlib.luaL_newstate();
   lualib.luaL_openlibs(L);
+  prependScriptDirToPackagePath(L, scriptPath, lua, to_luastring, to_jsstring);
 
   const requests: BatchTabRequest[] = [];
 
@@ -584,6 +585,32 @@ function setStringField(
 ): void {
   lua.lua_pushstring(L, to_luastring(value));
   lua.lua_setfield(L, -2, to_luastring(field));
+}
+
+/**
+ * Prepend the script's directory to `package.path`, so `require` in a batch script
+ * finds sibling modules (`helper` -> `<script dir>/helper.lua`, `sub.mod` ->
+ * `<script dir>/sub/mod.lua`) no matter where MixCode itself runs from. Fengari's
+ * own entries (system dirs and cwd, or the ambient `LUA_PATH` that replaces them)
+ * stay after it.
+ */
+function prependScriptDirToPackagePath(
+  L: any,
+  scriptPath: string,
+  lua: any,
+  to_luastring: (s: string) => Uint8Array,
+  to_jsstring: (s: Uint8Array) => string,
+): void {
+  // Lua path templates use "/" as the directory separator on every platform.
+  const scriptDir = path.dirname(path.resolve(scriptPath)).replaceAll("\\", "/");
+  lua.lua_getglobal(L, to_luastring("package"));
+  lua.lua_getfield(L, -1, to_luastring("path"));
+  const existingPath = to_jsstring(lua.lua_tostring(L, -1));
+  lua.lua_pop(L, 1);
+  const scriptDirTemplates = `${scriptDir}/?.lua;${scriptDir}/?/init.lua`;
+  lua.lua_pushstring(L, to_luastring(`${scriptDirTemplates};${existingPath}`));
+  lua.lua_setfield(L, -2, to_luastring("path"));
+  lua.lua_pop(L, 1);
 }
 
 function luaRender(

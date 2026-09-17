@@ -75,7 +75,7 @@ Scripts collect a plan once, before dispatch. They cannot read agent replies or 
 | `mixcode.resolve_model(query)` | Resolve an exact model id to an enabled `provider/modelId`; see [model resolution](#model-resolution) |
 | `mixcode.render(tpl, vars)` / `render(...)` | `{name}` template; `{{` / `}}` escape literals |
 
-Lua rereads and executes the file on each invocation. Standard libraries such as `os.getenv` and `io` are available. The root [`mixcode-batch.d.lua`](../mixcode-batch.d.lua) symlinks to the [Lua API reference](../pi-packages/mpi-batch-skill/skills/mpi-batch/references/mixcode-batch.d.lua) shipped with `mpi-batch-skill`.
+Lua rereads and executes the file on each invocation. Standard libraries such as `os.getenv` and `io` are available. `require` searches the script's directory first (`helper` → `<script dir>/helper.lua`, `sub.mod` → `<script dir>/sub/mod.lua`), then fengari's stock `package.path`, whose last entries are `./?.lua` relative to the MixCode process directory. Setting `LUA_PATH` replaces that stock path, unless the value keeps the default through `;;`. The root [`mixcode-batch.d.lua`](../mixcode-batch.d.lua) symlinks to the [Lua API reference](../pi-packages/mpi-batch-skill/skills/mpi-batch/references/mixcode-batch.d.lua) shipped with `mpi-batch-skill`.
 
 ### `open_tab` fields
 
