@@ -87,7 +87,9 @@ The result contains `action`, the boolean fields `wouldAllow`, `wouldAsk`, and `
 ## Matching
 
 - `*` matches zero or more characters (including `/`), `?` matches exactly one; everything else is literal.
-- A leading `~` or `$HOME` in a pattern expands to the home directory.
+- Patterns expand variables at match time: a leading `~` or `$HOME` becomes the home directory, `$PWD` the session working directory, and `$NAME` or `${NAME}` the value of that environment variable. Any position works, so `$TMPDIR/*` and `src/$NAME/*` both expand. Substituted values are inserted verbatim, so a `*` or `?` inside a value still acts as a wildcard.
+- A pattern whose variable is unset or empty matches nothing: the rule is skipped rather than matching the literal `$NAME` text. A `$` that starts no name stays literal (`a$1`, `a${}`).
+- `\$` is a literal `$` and suppresses expansion, for patterns that match command text containing a reference (`rm \$TMPDIR/*` matches the Bash segment `rm $TMPDIR/x`, not `rm /tmp/x`). The JSON escape is written `\\$`.
 - Layers concatenate global → project → session; last match wins across the whole list, so later layers override earlier ones.
 - Unmatched calls default to `allow`.
 
@@ -127,7 +129,7 @@ While the dialog is open the command has **not** started: the process spawns onl
 | Form | Effect |
 |------|--------|
 | `/permission` | Settings-style overlay over the three layers. |
-| `/permission list [all \| global \| project \| session]` | Print the rules of each selected layer (default `all`) with the file they come from, plus `(not created)`, `(untrusted — ignored)`, or the load error. |
+| `/permission list [all \| global \| project \| session]` | Print the rules of each selected layer (default `all`) with the file they come from, plus `(not created)`, `(untrusted — ignored)`, the load error, or `(unresolved: NAME)` when a pattern's variables cannot resolve. A pattern that expands to a different string shows `configured → expanded`. |
 | `/permission probe [on \| off]` | Enable (default) or disable `permission_probe` for this session. |
 
 `list` writes to the transcript only; the text never reaches the model context, and a second call replaces the first listing. Both subcommands complete in the slash autocomplete. Unknown subcommands, scopes, and flags report `Error: Usage: /permission [list [all|global|project|session] | probe [on|off]]`.
@@ -136,6 +138,8 @@ While the dialog is open the command has **not** started: the process spawns onl
 global · /home/user/.pi/agent/mpi-permission.json
   bash                ask    *
   bash                allow  git *
+  external_directory  allow  $TMPDIR/* → /tmp/*
+  external_directory  ask    $OTHER_UNSET/*  (unresolved: OTHER_UNSET)
 project · /repo/.pi/mpi-permission.json (not created)
   (no rules)
 session · session (in-memory)
@@ -167,6 +171,7 @@ Global and Project edits persist to their files immediately; Project edits are r
 ## Limits
 
 - No per-subagent rule sets; subagent sessions load the same config files and, having no UI, treat `ask` as block.
+- Rules expand variables; Bash commands do not. `cat $TMPDIR/x` gives the guard no path to judge, so `external_directory` never sees it. Cover that command text with a `bash` rule written using `\$`.
 - Bash path scanning is static permission preflight, not an OS sandbox. It cannot infer filesystem access performed inside arbitrary programs (for example `python -c 'open("../x")'`), aliases/functions defined at runtime, or unresolved variable values. Use restrictive Bash rules for commands whose internal IO is not visible in the shell AST.
 - Bash parsing uses the vendored [`unbash` 4.0.10](https://github.com/webpro-nl/unbash) ESM runtime under its ISC license (`vendor/UNBASH-LICENSE`).
 - Bash rule matching sees the normalized AST token form (quotes removed), so patterns match `git commit -m a b`, not the original quoting.

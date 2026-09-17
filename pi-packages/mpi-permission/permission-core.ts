@@ -328,11 +328,53 @@ export function hasAnyRules(config: PermissionConfig): boolean {
 // Wildcard matching
 // ---------------------------------------------------------------------------
 
-/** Expand a leading `~` or `$HOME` in a pattern to the home directory. */
-export function expandHomeInPattern(pattern: string, home: string): string {
-  if (pattern === "~" || pattern.startsWith("~/")) return home + pattern.slice(1);
-  if (pattern === "$HOME" || pattern.startsWith("$HOME/")) return home + pattern.slice(5);
-  return pattern;
+/** Values a pattern expands against at match time. */
+export type PatternContext = {
+  home: string;
+  /** Session working directory; backs `$PWD` like subject resolution does. */
+  cwd: string;
+  env: NodeJS.ProcessEnv;
+};
+
+/** An expanded pattern, or the names of the variables that could not be resolved. */
+export type PatternExpansion = { ok: true; pattern: string } | { ok: false; unresolved: string[] };
+
+/**
+ * One pass over a pattern: `\$` escape, a leading `~`, then `$NAME` / `${NAME}`
+ * references. Every substitution runs in this single `replace` call because
+ * `String.replace` never rescans a callback's return value, so a `$` inside an
+ * expanded value (a home path, or the literal `$` from `\$`) stays literal.
+ */
+const PATTERN_REFERENCE =
+  /\\([$])|(^~)(?=$|[\\/])|\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))/g;
+
+/**
+ * Expand a config pattern against the match-time environment.
+ * Runs on every match, so environment and cwd changes apply without a reload.
+ * `~` expands only at the start; `$NAME` and `${NAME}` expand anywhere;
+ * `\$` is a literal `$` and suppresses expansion (in JSON: `\\$`).
+ * A reference to an unset or empty variable yields `ok: false` instead of
+ * matching the literal `$NAME` text, so a typo cannot silently turn into a
+ * rule that matches something else. Substituted values are inserted verbatim,
+ * so a `*` or `?` inside a value still acts as a wildcard.
+ */
+export function expandPatternVariables(pattern: string, ctx: PatternContext): PatternExpansion {
+  const unresolved: string[] = [];
+  const expanded = pattern.replace(
+    PATTERN_REFERENCE,
+    (match: string, escaped?: string, tilde?: string, braced?: string, bare?: string): string => {
+      if (escaped !== undefined) return "$";
+      if (tilde !== undefined) return ctx.home;
+      const name = braced ?? bare ?? "";
+      const value = name === "HOME" ? ctx.home : name === "PWD" ? ctx.cwd : ctx.env[name];
+      if (value === undefined || value === "") {
+        if (!unresolved.includes(name)) unresolved.push(name);
+        return match;
+      }
+      return value;
+    },
+  );
+  return unresolved.length > 0 ? { ok: false, unresolved } : { ok: true, pattern: expanded };
 }
 
 /** Anchored wildcard match: `*` = zero or more chars, `?` = exactly one. */
@@ -363,16 +405,19 @@ export function isOutsideCwd(absPath: string, cwd: string): boolean {
 }
 
 /**
- * Match one pattern against subject candidates. Absolute patterns (after home
- * expansion) only match the absolute candidate; relative patterns match any.
+ * Match one pattern against subject candidates. Absolute patterns (after
+ * variable expansion) only match the absolute candidate; relative patterns
+ * match any. A pattern with an unresolved variable matches nothing.
  */
 function patternMatchesCandidates(
   pattern: string,
   candidates: readonly string[],
-  home: string,
+  ctx: PatternContext,
   trimTrailingSeparator: boolean,
 ): boolean {
-  const expanded = expandHomeInPattern(pattern, home);
+  const expansion = expandPatternVariables(pattern, ctx);
+  if (!expansion.ok) return false;
+  const expanded = expansion.pattern;
   const normalized =
     trimTrailingSeparator && expanded !== path.parse(expanded).root
       ? expanded.replace(/[\\/]+$/, "")
@@ -480,16 +525,21 @@ function rulesForKey(layers: readonly LayeredConfig[], key: string): LayeredRule
   return out;
 }
 
+/** Match-time pattern context; `env` is read live so no snapshot or reload is needed. */
+function patternContext(home: string, cwd: string): PatternContext {
+  return { home, cwd, env: process.env };
+}
+
 /** Last matching rule wins. Returns null when nothing matches. */
 function lastMatch(
   rules: readonly LayeredRule[],
   candidates: readonly string[],
-  home: string,
+  ctx: PatternContext,
   trimTrailingSeparator: boolean,
 ): LayeredRule | null {
   let matched: LayeredRule | null = null;
   for (const layered of rules) {
-    if (patternMatchesCandidates(layered.rule.pattern, candidates, home, trimTrailingSeparator)) {
+    if (patternMatchesCandidates(layered.rule.pattern, candidates, ctx, trimTrailingSeparator)) {
       matched = layered;
     }
   }
@@ -502,15 +552,15 @@ function evaluateKey(
   key: string,
   candidates: readonly string[],
   subject: string,
-  home: string,
+  ctx: PatternContext,
   kind: PermissionSource["kind"],
 ): PermissionDecision {
   const trimTrailingSeparator = kind === "external_directory";
-  const specific = lastMatch(rulesForKey(layers, key), candidates, home, trimTrailingSeparator);
+  const specific = lastMatch(rulesForKey(layers, key), candidates, ctx, trimTrailingSeparator);
   const winner =
     specific ??
     (kind === "tool"
-      ? lastMatch(rulesForKey(layers, "*"), candidates, home, trimTrailingSeparator)
+      ? lastMatch(rulesForKey(layers, "*"), candidates, ctx, trimTrailingSeparator)
       : null);
   if (!winner) return { action: "allow" };
   return {
@@ -541,7 +591,7 @@ export function evaluateExternalDirectoryPath(args: {
     EXTERNAL_DIRECTORY_KEY,
     pathCandidates(args.externalPath, realpathExisting(args.cwd)),
     args.externalPath,
-    args.home,
+    patternContext(args.home, args.cwd),
     "external_directory",
   );
 }
@@ -560,6 +610,7 @@ export function evaluateToolCall(args: {
   bashAnalysis?: BashAnalysis;
 }): PermissionDecision {
   const { layers, toolName, input, cwd, home } = args;
+  const ctx = patternContext(home, cwd);
   const subject: ToolCallSubject =
     toolName === "bash" && args.bashAnalysis
       ? { kind: "commands", segments: args.bashAnalysis.segments }
@@ -570,15 +621,15 @@ export function evaluateToolCall(args: {
     for (const segment of subject.segments) {
       decision = stricterPermissionDecision(
         decision,
-        evaluateKey(layers, toolName, [segment], segment, home, "tool"),
+        evaluateKey(layers, toolName, [segment], segment, ctx, "tool"),
       );
     }
   } else if (subject.kind === "path") {
     const candidates = pathCandidates(subject.path, cwd);
-    decision = evaluateKey(layers, toolName, candidates, subject.path, home, "tool");
+    decision = evaluateKey(layers, toolName, candidates, subject.path, ctx, "tool");
   } else {
     const text = subject.kind === "pattern" ? subject.pattern : subject.text;
-    decision = evaluateKey(layers, toolName, [text], text, home, "tool");
+    decision = evaluateKey(layers, toolName, [text], text, ctx, "tool");
   }
 
   const externalPath = externalPathOf(toolName, input, cwd);

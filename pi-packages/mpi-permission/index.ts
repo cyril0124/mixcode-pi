@@ -22,6 +22,7 @@ import {
   emptyPermissionConfig,
   EXTERNAL_DIRECTORY_KEY,
   evaluateToolCallDecisions,
+  expandPatternVariables,
   hasAnyRules,
   loadPermissionConfig,
   permissionConfigPath,
@@ -35,6 +36,7 @@ import {
   type PermissionDecision,
   type PermissionLayer,
   type PermissionSource,
+  type PatternContext,
 } from "./permission-core.js";
 import { createPermissionOverlay } from "./permission-overlay.js";
 
@@ -186,7 +188,7 @@ function cachedLayerView(cached: CachedConfig, layer: PermissionLayer): LayerVie
 }
 
 /** Human-only rule overview; the text is rendered by `ctx.ui.notify`. */
-function formatPermissionList(views: readonly LayerView[]): string {
+function formatPermissionList(views: readonly LayerView[], ctx: PatternContext): string {
   const lines: string[] = [];
   for (const view of views) {
     lines.push(`${view.layer} · ${view.location}${view.note}`);
@@ -197,8 +199,15 @@ function formatPermissionList(views: readonly LayerView[]): string {
     const toolWidth = Math.max(...view.rules.map((rule) => rule.tool.length));
     for (const rule of view.rules) {
       const message = rule.message === undefined ? "" : `  "${rule.message}"`;
+      const expansion = expandPatternVariables(rule.pattern, ctx);
+      // Unresolvable rules never match, so the listing has to say why.
+      const suffix = expansion.ok
+        ? expansion.pattern === rule.pattern
+          ? ""
+          : ` → ${expansion.pattern}`
+        : `  (unresolved: ${expansion.unresolved.join(", ")})`;
       lines.push(
-        `  ${rule.tool.padEnd(toolWidth)}  ${rule.action.padEnd(5)}  ${rule.pattern}${message}`,
+        `  ${rule.tool.padEnd(toolWidth)}  ${rule.action.padEnd(5)}  ${rule.pattern}${message}${suffix}`,
       );
     }
   }
@@ -511,7 +520,14 @@ export default function permissionExtension(pi: ExtensionAPI) {
           return;
         }
         reload(ctx.cwd);
-        ctx.ui.notify(formatPermissionList(layerViews(ctx.isProjectTrusted(), scope)), "info");
+        ctx.ui.notify(
+          formatPermissionList(layerViews(ctx.isProjectTrusted(), scope), {
+            home,
+            cwd: ctx.cwd,
+            env: process.env,
+          }),
+          "info",
+        );
         return;
       }
 

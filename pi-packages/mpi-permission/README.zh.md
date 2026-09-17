@@ -87,7 +87,9 @@ deny 时，返回给模型的工具错误包含命中规则说明，随后换行
 ## 匹配
 
 - `*` 匹配零个或多个任意字符（含 `/`），`?` 精确匹配一个字符，其余按字面值。
-- 模式开头的 `~` 或 `$HOME` 展开为主目录。
+- 模式在求值时展开变量：开头的 `~` 与 `$HOME` 展开为主目录，`$PWD` 展开为会话工作目录，`$NAME` 与 `${NAME}` 展开为该环境变量的值。任意位置都可用，因此 `$TMPDIR/*` 和 `src/$NAME/*` 都会展开。替换值原样插入，因此值里若含 `*` 或 `?` 仍按通配符生效。
+- 模式引用的变量未设置或为空时该模式永不命中：规则被跳过，而不会去匹配字面量 `$NAME` 文本。不构成变量名的 `$` 保持字面量（`a$1`、`a${}`）。
+- `\$` 表示字面量 `$` 并阻止展开，用于匹配命令文本里带变量的情形（`rm \$TMPDIR/*` 匹配 Bash 段 `rm $TMPDIR/x`，而不是 `rm /tmp/x`）。JSON 中写作 `\\$`。
 - 层级按 全局 → 项目 → 会话 拼接；在整个列表上最后匹配者胜，因此后面的层覆盖前面的层。
 - 未命中任何规则默认 `allow`。
 
@@ -127,7 +129,7 @@ deny 时，返回给模型的工具错误包含命中规则说明，随后换行
 | 形式 | 效果 |
 |------|------|
 | `/permission` | 覆盖三个层级的 settings 式 overlay。 |
-| `/permission list [all \| global \| project \| session]` | 打印选定层级（默认 `all`）的规则，并标注来源文件，以及 `(not created)`、`(untrusted — ignored)` 或加载错误。 |
+| `/permission list [all \| global \| project \| session]` | 打印选定层级（默认 `all`）的规则，并标注来源文件，以及 `(not created)`、`(untrusted — ignored)`、加载错误，或模式变量无法解析时的 `(unresolved: NAME)`。展开结果与原文不同时显示 `原文 → 展开`。 |
 | `/permission probe [on \| off]` | 在当前会话启用（默认）或关闭 `permission_probe`。 |
 
 `list` 只写入聊天记录，文本不会进入模型上下文，再次执行会替换上一条列表。两个子命令都支持斜杠自动补全。未知子命令、范围或参数会提示 `Error: Usage: /permission [list [all|global|project|session] | probe [on|off]]`。
@@ -136,6 +138,8 @@ deny 时，返回给模型的工具错误包含命中规则说明，随后换行
 global · /home/user/.pi/agent/mpi-permission.json
   bash                ask    *
   bash                allow  git *
+  external_directory  allow  $TMPDIR/* → /tmp/*
+  external_directory  ask    $OTHER_UNSET/*  (unresolved: OTHER_UNSET)
 project · /repo/.pi/mpi-permission.json (not created)
   (no rules)
 session · session (in-memory)
@@ -167,6 +171,7 @@ Global 与 Project 的编辑立即写入对应文件；项目未受信任时 Pro
 ## 限制
 
 - 不支持按子代理定制规则集；子代理会话加载同样的配置文件，且因无 UI，`ask` 视为拦截。
+- 变量只在规则模式里展开，bash 命令里不展开。`cat $TMPDIR/x` 不会给守卫提供可判定路径，`external_directory` 看不到它；这类命令文本要用 `\$` 写 `bash` 规则覆盖。
 - Bash 路径扫描是静态 permission preflight，不是 OS sandbox；它无法推断任意程序内部的文件访问（如 `python -c 'open("../x")'`）、运行时定义的 alias/function 或无法解析的变量值。对内部 IO 不可见的命令应使用更严格的 Bash 规则。
 - Bash 解析使用 vendored [`unbash` 4.0.10](https://github.com/webpro-nl/unbash) ESM runtime，遵循 ISC 许可证（`vendor/UNBASH-LICENSE`）。
 - `bash` 规则匹配的是 AST 规整后的 token 形式（引号已去除），模式匹配 `git commit -m a b` 而非原始引号形式。

@@ -29,7 +29,7 @@
         { "$ref": "#/definitions/action" },
         {
           "type": "object",
-          "description": "Ordered wildcard rules over the tool's subject (* = any chars, ? = one char, leading ~ or $HOME expands). Last matching rule wins; put \"*\" first. An empty object adds no rules and is equivalent to omitting the key.",
+          "description": "Ordered wildcard rules over the tool's subject (* = any chars, ? = one char). Patterns expand variables at match time: leading ~ or $HOME = home, $PWD = session cwd, $NAME / ${NAME} = that environment variable, anywhere in the pattern. An unset or empty variable makes the rule match nothing. Backslash escapes the dollar sign for a literal $ (in JSON: \\$). Last matching rule wins; put \"*\" first. An empty object adds no rules and is equivalent to omitting the key.",
           "propertyNames": { "minLength": 1 },
           "additionalProperties": { "$ref": "#/definitions/effect" }
         }

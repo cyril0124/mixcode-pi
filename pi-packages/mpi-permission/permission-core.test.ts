@@ -11,7 +11,8 @@ import {
   evaluateExternalDirectoryPath,
   evaluateToolCall,
   evaluateToolCallDecisions,
-  expandHomeInPattern,
+  expandPatternVariables,
+  type PatternContext,
   externalPathFromRaw,
   externalPathOf,
   extractSubject,
@@ -29,6 +30,12 @@ import {
 
 const CWD = "/project/myapp";
 const HOME = "/home/alice";
+const CTX: PatternContext = { home: HOME, cwd: CWD, env: {} };
+
+/** Braced reference text for cases the lint rule would flag as a template string. */
+function braced(body: string): string {
+  return "$" + "{" + body + "}";
+}
 
 function parsed(raw: unknown): PermissionConfig {
   const result = parsePermissionConfig(raw);
@@ -64,11 +71,97 @@ test("matchesPattern: regex metacharacters are literal", () => {
   assert.equal(matchesPattern("x(1)", "x(1)"), true);
 });
 
-test("expandHomeInPattern: ~ and $HOME at pattern start", () => {
-  assert.equal(expandHomeInPattern("~/projects/*", HOME), "/home/alice/projects/*");
-  assert.equal(expandHomeInPattern("$HOME/projects/*", HOME), "/home/alice/projects/*");
-  assert.equal(expandHomeInPattern("~", HOME), "/home/alice");
-  assert.equal(expandHomeInPattern("a/~/b", HOME), "a/~/b");
+test("expandPatternVariables: leading ~ and $HOME expand to home", () => {
+  assert.deepEqual(expandPatternVariables("~/projects/*", CTX), {
+    ok: true,
+    pattern: "/home/alice/projects/*",
+  });
+  assert.deepEqual(expandPatternVariables("$HOME/projects/*", CTX), {
+    ok: true,
+    pattern: "/home/alice/projects/*",
+  });
+  assert.deepEqual(expandPatternVariables("~", CTX), { ok: true, pattern: "/home/alice" });
+  assert.deepEqual(expandPatternVariables("a/~/b", CTX), { ok: true, pattern: "a/~/b" });
+});
+
+test("expandPatternVariables: bare and braced references expand anywhere from env and cwd", () => {
+  const ctx: PatternContext = { home: HOME, cwd: CWD, env: { TMPDIR: "/tmp", X: "1" } };
+  assert.deepEqual(expandPatternVariables("$TMPDIR/*", ctx), { ok: true, pattern: "/tmp/*" });
+  assert.deepEqual(expandPatternVariables(`${braced("TMPDIR")}/a/$X/b`, ctx), {
+    ok: true,
+    pattern: "/tmp/a/1/b",
+  });
+  assert.deepEqual(expandPatternVariables("$PWD/src/*", ctx), {
+    ok: true,
+    pattern: "/project/myapp/src/*",
+  });
+  assert.deepEqual(expandPatternVariables(`${braced("PWD")}/src`, ctx), {
+    ok: true,
+    pattern: "/project/myapp/src",
+  });
+  assert.deepEqual(expandPatternVariables("cfg-$HOME-x", ctx), {
+    ok: true,
+    pattern: "cfg-/home/alice-x",
+  });
+});
+
+test("expandPatternVariables: unresolved variables are reported, not matched literally", () => {
+  const ctx: PatternContext = { home: HOME, cwd: CWD, env: { EMPTY: "" } };
+  assert.deepEqual(expandPatternVariables("$TMPDIR/*", ctx), { ok: false, unresolved: ["TMPDIR"] });
+  assert.deepEqual(expandPatternVariables(`${braced("EMPTY")}/*`, ctx), {
+    ok: false,
+    unresolved: ["EMPTY"],
+  });
+  assert.deepEqual(expandPatternVariables("$A/$B/$A", ctx), { ok: false, unresolved: ["A", "B"] });
+  assert.deepEqual(expandPatternVariables("~/", ctx), { ok: true, pattern: "/home/alice/" });
+});
+
+test("expandPatternVariables: dangling or malformed dollars stay literal", () => {
+  const ctx: PatternContext = { home: HOME, cwd: CWD, env: { X: "1" } };
+  const patterns = ["a$1/b", "a$/b", "a" + braced("") + "b", "a$", braced("1") + "/x", "a$X-b"];
+  for (const pattern of patterns) {
+    const expected = pattern === "a$X-b" ? "a1-b" : pattern;
+    assert.deepEqual(expandPatternVariables(pattern, ctx), { ok: true, pattern: expected });
+  }
+});
+
+test("expandPatternVariables: a backslash escapes the dollar sign", () => {
+  const ctx: PatternContext = { home: HOME, cwd: CWD, env: { TMPDIR: "/tmp" } };
+  const escaped = "\\" + "$";
+  assert.deepEqual(expandPatternVariables(`${escaped}TMPDIR/*`, ctx), {
+    ok: true,
+    pattern: "$TMPDIR/*",
+  });
+  assert.deepEqual(expandPatternVariables(`${escaped}{TMPDIR}/*`, ctx), {
+    ok: true,
+    pattern: braced("TMPDIR") + "/*",
+  });
+  // The escape has no effect where no reference follows, and an escaped
+  // reference stays literal even when the variable resolves.
+  assert.deepEqual(expandPatternVariables("a\\b", ctx), { ok: true, pattern: "a\\b" });
+  assert.deepEqual(expandPatternVariables(`${escaped}TMPDIR/$TMPDIR/*`, ctx), {
+    ok: true,
+    pattern: "$TMPDIR//tmp/*",
+  });
+});
+
+test("expandPatternVariables: substituted values are never rescanned", () => {
+  const ctx: PatternContext = {
+    home: "/home/u$SER/o",
+    cwd: CWD,
+    env: { A: "$B", SER: "REPLACED" },
+  };
+  // `~` expands in the same pass as variables, so a `$` inside the home path
+  // never becomes a reference.
+  assert.deepEqual(expandPatternVariables("~/y", ctx), {
+    ok: true,
+    pattern: "/home/u$SER/o/y",
+  });
+  assert.deepEqual(expandPatternVariables("$HOME/y", ctx), {
+    ok: true,
+    pattern: "/home/u$SER/o/y",
+  });
+  assert.deepEqual(expandPatternVariables("$A", ctx), { ok: true, pattern: "$B" });
 });
 
 // ─── config parsing ──────────────────────────────────────────────────────────
@@ -400,6 +493,88 @@ test("externalPathOf: resolves symlink escapes through the deepest existing ance
   }
 });
 
+test("evaluate: patterns expand environment variables at match time", () => {
+  const previous = process.env.MPI_PERMISSION_TEST_TMPDIR;
+  process.env.MPI_PERMISSION_TEST_TMPDIR = "/srv/data";
+  try {
+    const layers = layersOf([
+      "global",
+      { external_directory: { "*": "deny", "$MPI_PERMISSION_TEST_TMPDIR/*": "allow" } },
+    ]);
+    const decide = (externalPath: string) =>
+      evaluateExternalDirectoryPath({ layers, externalPath, cwd: CWD, home: HOME }).action;
+    assert.equal(decide("/srv/data/report.txt"), "allow");
+    assert.equal(decide("/srv/other/report.txt"), "deny");
+    // Bash-scanned static paths go through the same expander.
+    const bash = (command: string) => {
+      const decisions = evaluateToolCallDecisions({
+        layers,
+        toolName: "bash",
+        input: { command },
+        cwd: CWD,
+        home: HOME,
+      });
+      return decisions.map((decision) => decision.action);
+    };
+    assert.deepEqual(bash("ls /srv/data/x"), ["allow", "allow"]);
+    assert.deepEqual(bash("rm /srv/other/report.txt"), ["allow", "deny"]);
+  } finally {
+    if (previous === undefined) delete process.env.MPI_PERMISSION_TEST_TMPDIR;
+    else process.env.MPI_PERMISSION_TEST_TMPDIR = previous;
+  }
+});
+
+test("evaluate: braced home and $PWD references expand in path patterns", () => {
+  const layers = layersOf([
+    "global",
+    { read: { "*": "ask", "${HOME}/*": "allow", "$PWD/src/*": "allow" } },
+  ]);
+  assert.equal(evaluate(layers, "read", { path: "/home/alice/notes.md" }).action, "allow");
+  assert.equal(evaluate(layers, "read", { path: "src/a.ts" }).action, "allow");
+  assert.equal(evaluate(layers, "read", { path: "test/a.ts" }).action, "ask");
+  assert.equal(evaluate(layers, "read", { path: "/elsewhere/a.ts" }).action, "ask");
+});
+
+test("evaluate: a pattern with an unresolved variable never matches", () => {
+  delete process.env.MPI_PERMISSION_TEST_UNSET;
+  // The rule is skipped instead of matching a literal "$..." path, so the `*`
+  // fallback decides under either ordering.
+  const gated = layersOf([
+    "global",
+    { external_directory: { "$MPI_PERMISSION_TEST_UNSET/*": "deny", "*": "allow" } },
+  ]);
+  assert.equal(
+    evaluateExternalDirectoryPath({
+      layers: gated,
+      externalPath: "/srv/x.txt",
+      cwd: CWD,
+      home: HOME,
+    }).action,
+    "allow",
+  );
+  const allowed = layersOf([
+    "global",
+    { external_directory: { "$MPI_PERMISSION_TEST_UNSET/*": "allow", "*": "deny" } },
+  ]);
+  assert.equal(
+    evaluateExternalDirectoryPath({
+      layers: allowed,
+      externalPath: "/srv/x.txt",
+      cwd: CWD,
+      home: HOME,
+    }).action,
+    "deny",
+  );
+  assert.deepEqual(
+    expandPatternVariables("$MPI_PERMISSION_TEST_UNSET/*", {
+      home: HOME,
+      cwd: CWD,
+      env: process.env,
+    }),
+    { ok: false, unresolved: ["MPI_PERMISSION_TEST_UNSET"] },
+  );
+});
+
 test("external_directory: trailing slash patterns match the directory itself without changing Bash rules", () => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "mpi-permission-relative-"));
   try {
@@ -427,6 +602,29 @@ test("externalPathFromRaw: expands known home and cwd variables", () => {
   assert.equal(externalPathFromRaw("$HOME/notes", CWD, HOME), "/home/alice/notes");
   assert.equal(externalPathFromRaw("~/notes", CWD, HOME), "/home/alice/notes");
   assert.equal(externalPathFromRaw("$PWD/src", CWD, HOME), null);
+});
+
+test("evaluateToolCallDecisions: an escaped dollar targets literal Bash text", () => {
+  const layers = layersOf(["global", { bash: { "*": "allow", "rm \\$TMPDIR/*": "deny" } }]);
+  const decisions = evaluateToolCallDecisions({
+    layers,
+    toolName: "bash",
+    input: { command: "rm $TMPDIR/x" },
+    cwd: CWD,
+    home: HOME,
+  });
+  // Bash segments keep the shell text verbatim, so the guard sees no path and
+  // the deny comes from the Bash rule alone.
+  assert.deepEqual(
+    decisions.map((decision) => decision.action),
+    ["deny"],
+  );
+  assert.equal(decisions[0]!.source?.pattern, "rm \\$TMPDIR/*");
+  assert.deepEqual(expandPatternVariables(decisions[0]!.source!.pattern, CTX), {
+    ok: true,
+    pattern: "rm $TMPDIR/*",
+  });
+  assert.deepEqual(splitBashCommand("rm $TMPDIR/x"), ["rm $TMPDIR/x"]);
 });
 
 test("evaluateToolCallDecisions: bash file commands trigger external_directory", () => {

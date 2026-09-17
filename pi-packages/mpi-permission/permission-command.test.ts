@@ -142,6 +142,81 @@ test("/permission list shows ask-dialog grants as session rules", async () => {
   }
 });
 
+test("/permission list shows the expanded pattern next to the configured one", async () => {
+  const harness = await createHarness();
+  const previous = process.env.MPI_PERMISSION_LIST_DIR;
+  process.env.MPI_PERMISSION_LIST_DIR = "/srv/data";
+  try {
+    await fs.writeFile(
+      path.join(path.dirname(harness.workDir), "mpi-permission.json"),
+      JSON.stringify({
+        bash: { "*": "ask", "git *": "allow" },
+        external_directory: {
+          "$MPI_PERMISSION_LIST_DIR/*": "allow",
+          "~/notes/**": "deny",
+          "*": "ask",
+        },
+        read: { "/abs/*": "allow" },
+      }),
+    );
+
+    await harness.command.handler("list global", harness.ctx);
+    const listed = harness.notices.at(-1)!;
+    // A pattern with no reference keeps its literal text, with no arrow.
+    assert.match(listed.message, /^ {2}read\s+allow\s+\/abs\/\*$/m);
+    assert.match(listed.message, /^ {2}bash\s+ask\s+\*$/m);
+    // Referenced patterns show the configured text and its resolved value.
+    assert.match(
+      listed.message,
+      /^ {2}external_directory\s+allow\s+\$MPI_PERMISSION_LIST_DIR\/\* → \/srv\/data\/\*$/m,
+    );
+    const home = process.env.HOME || os.homedir();
+    assert.ok(
+      listed.message.includes(`  external_directory  deny   ~/notes/** → ${home}/notes/**`),
+      listed.message,
+    );
+  } finally {
+    if (previous === undefined) delete process.env.MPI_PERMISSION_LIST_DIR;
+    else process.env.MPI_PERMISSION_LIST_DIR = previous;
+    await harness.dispose();
+  }
+});
+
+test("/permission list marks rules whose variables cannot be resolved", async () => {
+  const harness = await createHarness();
+  const previous = process.env.MPI_PERMISSION_LIST_DIR;
+  process.env.MPI_PERMISSION_LIST_DIR = "/srv/data";
+  try {
+    delete process.env.MPI_PERMISSION_LIST_UNSET;
+    await fs.writeFile(
+      path.join(path.dirname(harness.workDir), "mpi-permission.json"),
+      JSON.stringify({
+        external_directory: {
+          "*": "deny",
+          "$MPI_PERMISSION_LIST_DIR/*": "allow",
+          "$MPI_PERMISSION_LIST_UNSET/*": "ask",
+        },
+      }),
+    );
+
+    await harness.command.handler("list global", harness.ctx);
+    const listed = harness.notices.at(-1)!;
+    assert.match(
+      listed.message,
+      /^ {2}external_directory\s+allow\s+\$MPI_PERMISSION_LIST_DIR\/\* → \/srv\/data\/\*$/m,
+    );
+    assert.match(
+      listed.message,
+      /^ {2}external_directory\s+ask\s+\$MPI_PERMISSION_LIST_UNSET\/\* {2}\(unresolved: MPI_PERMISSION_LIST_UNSET\)$/m,
+    );
+    assert.match(listed.message, /^ {2}external_directory\s+deny\s+\*$/m);
+  } finally {
+    if (previous === undefined) delete process.env.MPI_PERMISSION_LIST_DIR;
+    else process.env.MPI_PERMISSION_LIST_DIR = previous;
+    await harness.dispose();
+  }
+});
+
 test("/permission completes the subcommand grammar", async () => {
   const harness = await createHarness();
   try {

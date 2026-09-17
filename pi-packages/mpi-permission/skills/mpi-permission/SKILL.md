@@ -19,7 +19,7 @@ Ask before writing when the policy is underspecified: global vs project, which t
 
 If the file exists, read it and edit in place. Keep unrelated keys.
 
-Session rules live in memory (`/permission` overlay and "Always allow"). There is no session JSON file. `/permission list` prints them alongside the global and project layers.
+Session rules live in memory (`/permission` overlay and "Always allow"). There is no session JSON file. `/permission list` prints them alongside the global and project layers. A pattern that expands to a different string shows `configured → expanded`; one whose variables cannot resolve shows `(unresolved: NAME)`.
 
 ## 2. Fail closed
 
@@ -53,7 +53,9 @@ For a custom deny message, use `{ "action": "deny", "message": "Ask the user to 
 ## 4. Matching
 
 - `*` = any chars (including `/`), `?` = one char, else literal.
-- Leading `~` or `$HOME` in a pattern expands to home.
+- Patterns expand variables at match time: leading `~` and `$HOME` = home, `$PWD` = session cwd, `$NAME` / `${NAME}` = that environment variable, anywhere in the pattern. Values are inserted verbatim, so `*` inside a value still acts as a wildcard.
+- A pattern whose variable is unset or empty matches nothing: the rule is skipped. `$` that starts no name stays literal (`a$1`, `a${}`).
+- `\$` is a literal `$` and suppresses expansion, for patterns that target command text containing a reference (`rm \$TMPDIR/*` in JSON: `"rm \\$TMPDIR/*"`).
 - Layers concatenate global → project → session. Last match wins across the whole list.
 - Unmatched calls default to `allow`. Missing files are a no-op. The package does not intervene.
 
