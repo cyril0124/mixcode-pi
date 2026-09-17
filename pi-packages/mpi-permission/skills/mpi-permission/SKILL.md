@@ -34,6 +34,7 @@ Root is `"allow"` / `"ask"` / `"deny"`, or an object.
 | `"<tool>": "allow" \| "ask" \| "deny"` | One action for every call of that tool |
 | `"<tool>": { "<pattern>": action, ... }` | Pattern rules; **last matching rule wins**. Put `"*"` first, specific rules after |
 | `"$schema": string` | Editor schema ref. Ignored at eval |
+| `"<tool>": {}` | Equivalent to omitting the key; parsing drops it |
 
 Keys: real tool names (`bash`, `read`, `edit`, `write`, `grep`, `find`, `ls`, any extension tool), `*` (fallback when the tool has no matching rule of its own), `external_directory`.
 
@@ -67,7 +68,7 @@ Per-tool subject:
 
 ### `external_directory`
 
-When a path-taking tool resolves outside cwd, also evaluate `external_directory` rules. Bash static path args of common file commands (`cd`, `ls`, `cat`, `rm`, `cp`, `mv`, `mkdir`, and related) are scanned too. Combine by severity. No rules under this key means the guard is off. `"*": "ask"` gates every detected external path. `"../"` matches the parent directory. `"../*"` matches content under it.
+When a path-taking tool resolves outside cwd, also evaluate `external_directory` rules. Bash static path args of common file commands (`cd`, `ls`, `cat`, `rm`, `cp`, `mv`, `mkdir`, and related) are scanned too. Combine by severity. The guard is off while the key has no rules, whether absent or `{}`. `"*": "ask"` gates every detected external path. `"../"` matches the parent directory. `"../*"` matches content under it.
 
 ## Permission probe
 

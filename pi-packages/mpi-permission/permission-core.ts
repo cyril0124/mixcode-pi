@@ -276,8 +276,9 @@ export function parsePermissionConfig(
       if (!parsed.ok) return parsed;
       rules.push({ pattern, ...parsed.effect });
     }
-    if (rules.length === 0)
-      return { ok: false, error: `${JSON.stringify(key)}: rules object must not be empty` };
+    // An empty pattern object adds no rules, so the key disappears from the
+    // config instead of becoming an entry with an empty rule list.
+    if (rules.length === 0) continue;
     entries.push({ tool: key, rules });
   }
   return {

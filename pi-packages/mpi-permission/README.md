@@ -40,6 +40,7 @@ Root value is an action string or an object. Keys are actual tool names (`bash`,
 | `"<tool>": "allow" \| "ask" \| "deny"` | One action for every call of that tool. |
 | `"<tool>": { "<pattern>": action, ... }` | Pattern rules over the tool's subject; **last matching rule wins**, so put `"*"` first and specific rules after it. |
 | `"$schema": string` | Optional editor schema reference; accepted, preserved on overlay writes, ignored by evaluation. |
+| `"<tool>": {}` | An empty pattern object is valid and adds no rules, exactly like omitting the key. Parsing drops such a key, so `/permission list`, the overlay, and a saved config all omit it. |
 
 The root key `doom_loop` is invalid in this file. Configure repeated-call protection through `doomLoop` in global [mpi-stuck-guard.json](../mpi-stuck-guard/README.md#doom-loop).
 
@@ -105,7 +106,7 @@ Per-tool subject:
 
 When a path-taking tool (`read` / `edit` / `write` / `ls`, and `grep` / `find` with a `path` input) resolves outside the working directory, the path is also evaluated against the `external_directory` rules. Bash AST scanning applies the same guard to static path arguments of common file commands (`cd`, `ls`, `cat`, `rm`, `cp`, `mv`, `mkdir`, `touch`, `chmod`, `chown`, `find`, and related inspection commands), redirection targets, command/process substitutions, and static nested shell scripts. Existing path ancestors are realpathed before containment is checked, so an in-project symlink cannot hide an external target; missing trailing segments are supported. Multiple ask decisions from one command are combined into one dialog.
 
-The final decision is the most severe tool or guard action (`deny` > `ask` > `allow`). No rules under `external_directory` means the guard is off; use `"*": "ask"` to gate every detected external path. A trailing slash is equivalent to the same path without it, so `"../"` matches the parent directory itself while `"../*"` matches content under it.
+The final decision is the most severe tool or guard action (`deny` > `ask` > `allow`). The guard is off while `external_directory` has no rules, whether the key is absent or an empty object; use `"*": "ask"` to gate every detected external path. A trailing slash is equivalent to the same path without it, so `"../"` matches the parent directory itself while `"../*"` matches content under it.
 
 ## Ask dialog
 

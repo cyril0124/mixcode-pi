@@ -88,14 +88,44 @@ test("parse: per-tool string shorthand and pattern object", () => {
   assert.equal(config.entries[1]!.rules.length, 2);
 });
 
-test("parse: fail loud on invalid action, empty object, bad shapes", () => {
+test("parse: fail loud on invalid action and bad shapes", () => {
   assert.equal(parsePermissionConfig({ bash: "maybe" }).ok, false);
-  assert.equal(parsePermissionConfig({ bash: {} }).ok, false);
   assert.equal(parsePermissionConfig({ bash: 42 }).ok, false);
   assert.equal(parsePermissionConfig({ bash: ["allow"] }).ok, false);
   assert.equal(parsePermissionConfig([]).ok, false);
   assert.equal(parsePermissionConfig("sometimes").ok, false);
   assert.equal(parsePermissionConfig({ doom_loop: { "*": "ask" } }).ok, false);
+});
+
+test("parse: an empty rules object adds no rules", () => {
+  const raw = { "*": "allow", external_directory: {}, bash: {} };
+  assert.equal(Value.Check(permissionSchema, raw), true);
+  const config = parsed(raw);
+  assert.deepEqual(
+    config.entries.map((entry) => entry.tool),
+    ["*"],
+  );
+  assert.deepEqual(serializePermissionConfig(config), { "*": "allow" });
+
+  // Empty pattern names and effect objects are invalid.
+  assert.equal(Value.Check(permissionSchema, { bash: { "": "ask" } }), false);
+  assert.equal(parsePermissionConfig({ bash: { "": "ask" } }).ok, false);
+});
+
+test("evaluate: an empty external_directory key leaves the guard off", () => {
+  const emptyKey = layersOf(["global", { read: { "*": "allow" }, external_directory: {} }]);
+  const omitted = layersOf(["global", { read: { "*": "allow" } }]);
+  const withRules = layersOf([
+    "global",
+    { read: { "*": "allow" }, external_directory: { "*": "deny" } },
+  ]);
+  const externalRead = { path: "/etc/passwd" };
+  assert.deepEqual(
+    evaluate(emptyKey, "read", externalRead),
+    evaluate(omitted, "read", externalRead),
+  );
+  assert.equal(evaluate(emptyKey, "read", externalRead).action, "allow");
+  assert.equal(evaluate(withRules, "read", externalRead).action, "deny");
 });
 
 test("doom_loop is rejected with the stuck-guard configuration location", () => {

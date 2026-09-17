@@ -29,8 +29,7 @@
         { "$ref": "#/definitions/action" },
         {
           "type": "object",
-          "description": "Ordered wildcard rules over the tool's subject (* = any chars, ? = one char, leading ~ or $HOME expands). Last matching rule wins; put \"*\" first.",
-          "minProperties": 1,
+          "description": "Ordered wildcard rules over the tool's subject (* = any chars, ? = one char, leading ~ or $HOME expands). Last matching rule wins; put \"*\" first. An empty object adds no rules and is equivalent to omitting the key.",
           "propertyNames": { "minLength": 1 },
           "additionalProperties": { "$ref": "#/definitions/effect" }
         }
