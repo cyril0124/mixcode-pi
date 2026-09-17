@@ -48,6 +48,7 @@ References:
 ## Built-in Extensions
 
 - Packages live in `pi-packages/<name>/` with a `package.json` `pi` field. Runtime packages declare `pi.extensions` and default-export an `ExtensionFactory`. Packages with `pi.skills` expose their installed `skills/` root through public `resources_discover`, since built-ins use `<agentDir>/extensions/`, not Pi package settings.
+- Packages with a user-edited JSON config must ship a config cookbook at `skills/<name>/SKILL.md`, marked `disable-model-invocation: true`, so the user can have an agent write the config.
 - First-party directory, package name, and `binary-entry.ts` `builtinPackages` key must match and start with `mpi-`. Vendored packages keep upstream names. Do not prefix protocol strings (commands, `customType`, keymap actions).
 - At startup, `ensurePackageExtensions` (`src/core/ensure-package-extensions.ts`) copies valid packages to `<agentDir>/extensions/`; `agentDir` is `PI_CODING_AGENT_DIR` or `~/.pi/agent`. Pi discovers entries there; `resources_discover` supplies skill roots to MixCode and independent subagent ResourceLoaders. Never copy package skills to `<agentDir>/skills`.
 - `binary-entry.ts` embeds package files with `import ... with { type: "text" }` and passes `builtinPackages` to `materializeBinaryRuntimeAssets`, which writes `runtimeDir/packages/` before `ensurePackageExtensions`. New built-ins require `pi-packages/mpi-<name>/package.json`, declared extension/skill resources, and matching binary text imports.
