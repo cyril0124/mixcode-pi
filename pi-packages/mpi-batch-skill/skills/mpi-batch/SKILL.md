@@ -57,9 +57,9 @@ Enter in an Agent tab or Home:
 
 Arguments must follow `--`. Single/double quotes group literal arguments and retain empty strings. Backslash escapes the next character outside single quotes. Unclosed quotes and trailing escapes fail before script loading. No shell variable, command, or glob expansion occurs.
 
-The invocation directory is the calling Agent tab's workdir, or the instance workdir on Home. Relative script paths and new-tab workdirs resolve against it; `currentWorkdir()` / `current_workdir()` returns it. `scriptDir()` / `script_dir()` returns the script file's own directory, which differs from the invocation directory when the script lives elsewhere. Existing tabs keep their directory under `append` and `clear`.
+The invocation directory is the calling Agent tab's workdir, or the instance workdir on Home. Relative script paths and new-tab workdirs resolve against it; `currentWorkdir()` / `current_workdir()` returns it. `scriptDir()` / `script_dir()` returns the directory of the file calling it, which differs from the invocation directory when the file lives elsewhere. In Lua, a module loaded through `require` therefore sees its own directory, while `scriptDir()` in TypeScript always reports the entry script. Existing tabs keep their directory under `append` and `clear`.
 
-`/batch` leaves `process.cwd()` unchanged. For script-owned file I/O, resolve relative paths against the API workdir explicitly, or against `scriptDir()` / `script_dir()` for files stored beside the script.
+`/batch` leaves `process.cwd()` unchanged. For script-owned file I/O, resolve relative paths against the API workdir explicitly, or against `scriptDir()` / `script_dir()` for files stored beside the calling file.
 
 Each invocation captures a fixed snapshot of tabs and models. Model resolution uses the captured instance default provider and disabled model IDs. See the API reference for selection rules.
 

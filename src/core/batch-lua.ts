@@ -142,8 +142,8 @@ export async function runLuaScript(
   lualib.luaL_openlibs(L);
   prependScriptDirToPackagePath(L, scriptPath, lua, to_luastring, to_jsstring);
 
-  // Derived from the script path so the CLI, dry-run, and interactive /batch
-  // entry points all report the same directory.
+  // Fallback for `script_dir` when the caller's chunk has no file name; the CLI,
+  // dry-run, and interactive /batch entry points all derive it from the script path.
   const scriptDir = resolveBatchScriptDir(scriptPath);
   const requests: BatchTabRequest[] = [];
 
@@ -220,7 +220,7 @@ export async function runLuaScript(
   lua.lua_setfield(L, -2, to_luastring("current_workdir"));
 
   lua.lua_pushcfunction(L, () => {
-    lua.lua_pushstring(L, to_luastring(scriptDir));
+    lua.lua_pushstring(L, to_luastring(callingScriptDir(L, lua, scriptDir, to_jsstring)));
     return 1;
   });
   lua.lua_setfield(L, -2, to_luastring("script_dir"));
@@ -603,6 +603,29 @@ function setStringField(
  */
 export function resolveBatchScriptDir(scriptPath: string): string {
   return path.dirname(path.resolve(scriptPath));
+}
+
+/**
+ * Directory reported by `mixcode.script_dir()`. The caller's chunk decides it, so a
+ * module loaded with `require` sees its own directory instead of the entry script's.
+ *
+ * Level 0 is this C function, so level 1 is the caller. The entry script runs from
+ * a string and has no file name, so it and every other string-loaded chunk (`load`,
+ * `dofile` on a string) fall back to `entryDir`.
+ */
+function callingScriptDir(
+  L: any,
+  lua: any,
+  entryDir: string,
+  to_jsstring: (s: Uint8Array) => string,
+): string {
+  const ar = new lua.lua_Debug();
+  if (lua.lua_getstack(L, 1, ar) === 0) return entryDir;
+  if (lua.lua_getinfo(L, "S", ar) === 0) return entryDir;
+  const source = ar.source ? to_jsstring(ar.source) : "";
+  // Fengari prefixes file-backed chunks with "@"; others use "=" or "[string ...]".
+  if (!source.startsWith("@")) return entryDir;
+  return resolveBatchScriptDir(source.slice(1));
 }
 
 /**

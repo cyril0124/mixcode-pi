@@ -19,7 +19,7 @@
 
 脚本参数必须放在 `--` 后。单双引号用于组合参数，空引号保留为空字符串。反斜杠转义下一个字符，但单引号内不转义。引号未闭合或末尾存在未完成的转义时，在加载前报错。不展开 shell 变量、命令或 glob。
 
-调用目录是发起命令的 Agent tab workdir；Home 使用实例 workdir。相对脚本路径和新 tab workdir 以调用目录为基准，`currentWorkdir()` / `current_workdir()` 返回该目录，`scriptDir()` / `script_dir()` 返回脚本文件自身所在目录；脚本不在调用目录内时，两者不同。`append` 和 `clear` 复用的已有 tab 保留原 workdir。
+调用目录是发起命令的 Agent tab workdir；Home 使用实例 workdir。相对脚本路径和新 tab workdir 以调用目录为基准，`currentWorkdir()` / `current_workdir()` 返回该目录，`scriptDir()` / `script_dir()` 返回调用它的文件所在目录；脚本不在调用目录内时，两者不同。`append` 和 `clear` 复用的已有 tab 保留原 workdir。
 
 `/batch` 保持 `process.cwd()` 不变。脚本自行读写相对路径文件时，应显式基于 API workdir 解析路径；与脚本放在一起的文件则基于 `scriptDir()` / `script_dir()`。
 
@@ -69,14 +69,14 @@ apply
 | `mixcode.open_tab(opts)` | 建 tab 或按 **精确标题** 复用，可选发 prompt |
 | `mixcode.args()` | 两种入口中 `--` 后的参数，1-indexed 数组 |
 | `mixcode.current_workdir()` | 调用目录，见[运行](#运行) |
-| `mixcode.script_dir()` | 脚本文件自身所在目录（绝对路径）；脚本不在调用目录内时与 `mixcode.current_workdir()` 不同 |
+| `mixcode.script_dir()` | 调用方文件自身所在目录（绝对路径）；被 `require` 加载的模块返回该模块自己的目录。脚本不在调用目录内时与 `mixcode.current_workdir()` 不同 |
 | `mixcode.tab_exists(name)` | 调用快照：是否已有同名 tab |
 | `mixcode.list_tabs()` | 调用快照：已有 tab 列表 |
 | `mixcode.list_models()` | 调用时的模型目录，包含禁用项但不提供 disabled 字段（`id`/`provider`/`model_id`/`display_name`/`context_window`/`reasoning`） |
 | `mixcode.resolve_model(query)` | 将精确模型 ID 解析为已启用的 `provider/modelId`，见[模型解析](#模型解析) |
 | `mixcode.render(tpl, vars)` / `render(...)` | `{name}` 模板；`{{` / `}}` 转义字面量 |
 
-Lua 每次调用都会重新读取并执行文件，提供 `os.getenv`、`io` 等标准库。`require` 优先在脚本所在目录查找（`helper` → `<脚本目录>/helper.lua`，`sub.mod` → `<脚本目录>/sub/mod.lua`），之后走 fengari 默认的 `package.path`，其末尾是相对 MixCode 进程目录的 `./?.lua`。设置 `LUA_PATH` 会替换这份默认路径，除非值里用 `;;` 保留默认部分。根目录 [`mixcode-batch.d.lua`](../mixcode-batch.d.lua) 是指向 `mpi-batch-skill` 随包分发的 [Lua API reference](../pi-packages/mpi-batch-skill/skills/mpi-batch/references/mixcode-batch.d.lua) 的软链接。
+Lua 每次调用都会重新读取并执行文件，提供 `os.getenv`、`io` 等标准库。`require` 优先在脚本所在目录查找（`helper` → `<脚本目录>/helper.lua`，`sub.mod` → `<脚本目录>/sub/mod.lua`），之后走 fengari 默认的 `package.path`，其末尾是相对 MixCode 进程目录的 `./?.lua`。设置 `LUA_PATH` 会替换这份默认路径，除非值里用 `;;` 保留默认部分。`mixcode.script_dir()` 返回调用它的那个文件所在目录，被 `require` 加载的模块因此能找到与自身放在一起的文件；入口脚本返回自己的目录。TypeScript 侧不同，`scriptDir()` 始终返回入口脚本目录。根目录 [`mixcode-batch.d.lua`](../mixcode-batch.d.lua) 是指向 `mpi-batch-skill` 随包分发的 [Lua API reference](../pi-packages/mpi-batch-skill/skills/mpi-batch/references/mixcode-batch.d.lua) 的软链接。
 
 ### `open_tab` 字段
 

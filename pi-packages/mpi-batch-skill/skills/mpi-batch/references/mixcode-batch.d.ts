@@ -129,9 +129,10 @@ interface MixCodeBatchApi {
    */
   currentWorkdir(): string;
   /**
-   * Absolute directory containing this script file. Symlinks are not resolved.
+   * Absolute directory containing the entry script file. Symlinks are not resolved.
    * Differs from currentWorkdir() when the script is kept outside the invocation
-   * directory.
+   * directory. Always the entry script. Lua's `script_dir()` reports the file that
+   * calls it, so a required module sees its own directory.
    */
   scriptDir(): string;
   /** Whether a tab with this exact title exists in this invocation's snapshot. */

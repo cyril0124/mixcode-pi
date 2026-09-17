@@ -68,9 +68,10 @@ function mixcode.open_tab(opts) end
 ---@return string
 function mixcode.current_workdir() end
 
----Return the absolute directory containing this script file. Symlinks are not
----resolved. Differs from current_workdir() when the script is kept outside the
----invocation directory.
+---Return the absolute directory of the file calling this function. A module loaded
+---through require returns that module's own directory; the entry script returns its
+---own directory. Symlinks are not resolved. Differs from current_workdir() when the
+---file is kept outside the invocation directory.
 ---@return string
 function mixcode.script_dir() end
 

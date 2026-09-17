@@ -19,7 +19,7 @@ Enter this command in an Agent tab or Home:
 
 Script arguments must follow `--`. Single and double quotes group arguments; empty quoted strings survive. Backslash escapes the next character except inside single quotes. Unclosed quotes and trailing escapes fail before loading. There is no shell variable, command, or glob expansion.
 
-The invocation directory is the calling Agent tab's workdir, or the instance workdir on Home. Relative script paths and new-tab workdirs resolve against this directory; `currentWorkdir()` / `current_workdir()` returns it, and `scriptDir()` / `script_dir()` returns the script file's own directory, which differs from the invocation directory when the script lives elsewhere. Existing tabs keep their workdir under `append` and `clear`.
+The invocation directory is the calling Agent tab's workdir, or the instance workdir on Home. Relative script paths and new-tab workdirs resolve against this directory; `currentWorkdir()` / `current_workdir()` returns it, and `scriptDir()` / `script_dir()` returns the directory of the file calling it, which differs from the invocation directory when the script lives elsewhere. Existing tabs keep their workdir under `append` and `clear`.
 
 `/batch` leaves `process.cwd()` unchanged. For the script's own relative file I/O, resolve paths against the API workdir explicitly, or against `scriptDir()` / `script_dir()` for files stored beside the script.
 
@@ -69,14 +69,14 @@ Scripts collect a plan once, before dispatch. They cannot read agent replies or 
 | `mixcode.open_tab(opts)` | Create tab or reuse by **exact title**, optionally dispatch prompt |
 | `mixcode.args()` | Arguments after `--` in either entry point, 1-indexed array |
 | `mixcode.current_workdir()` | Invocation directory; see [running](#running) |
-| `mixcode.script_dir()` | Absolute directory of the script file; differs from `mixcode.current_workdir()` when the script lives elsewhere |
+| `mixcode.script_dir()` | Absolute directory of the calling file; a module loaded through `require` reports its own directory. Differs from `mixcode.current_workdir()` when the script lives elsewhere |
 | `mixcode.tab_exists(name)` | Invocation snapshot: whether a tab with the given name exists |
 | `mixcode.list_tabs()` | Invocation snapshot: list of existing tabs |
 | `mixcode.list_models()` | Invocation model catalog, including disabled entries without a disabled field (`id`/`provider`/`model_id`/`display_name`/`context_window`/`reasoning`) |
 | `mixcode.resolve_model(query)` | Resolve an exact model id to an enabled `provider/modelId`; see [model resolution](#model-resolution) |
 | `mixcode.render(tpl, vars)` / `render(...)` | `{name}` template; `{{` / `}}` escape literals |
 
-Lua rereads and executes the file on each invocation. Standard libraries such as `os.getenv` and `io` are available. `require` searches the script's directory first (`helper` → `<script dir>/helper.lua`, `sub.mod` → `<script dir>/sub/mod.lua`), then fengari's stock `package.path`, whose last entries are `./?.lua` relative to the MixCode process directory. Setting `LUA_PATH` replaces that stock path, unless the value keeps the default through `;;`. The root [`mixcode-batch.d.lua`](../mixcode-batch.d.lua) symlinks to the [Lua API reference](../pi-packages/mpi-batch-skill/skills/mpi-batch/references/mixcode-batch.d.lua) shipped with `mpi-batch-skill`.
+Lua rereads and executes the file on each invocation. Standard libraries such as `os.getenv` and `io` are available. `require` searches the script's directory first (`helper` → `<script dir>/helper.lua`, `sub.mod` → `<script dir>/sub/mod.lua`), then fengari's stock `package.path`, whose last entries are `./?.lua` relative to the MixCode process directory. Setting `LUA_PATH` replaces that stock path, unless the value keeps the default through `;;`. `mixcode.script_dir()` reports the directory of the file that calls it, so a module loaded through `require` finds files kept beside itself. Calls from the entry script report the entry script's directory. TypeScript differs, since `scriptDir()` always reports the entry script. The root [`mixcode-batch.d.lua`](../mixcode-batch.d.lua) symlinks to the [Lua API reference](../pi-packages/mpi-batch-skill/skills/mpi-batch/references/mixcode-batch.d.lua) shipped with `mpi-batch-skill`.
 
 ### `open_tab` fields
 

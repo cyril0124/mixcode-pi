@@ -160,6 +160,28 @@ test("runLuaScript exposes script_dir independent of the invocation workdir", as
   assert.equal(plan.requests[0]!.prompt, "/tmp/scripts/nested");
 });
 
+test("script_dir inside a required module reports that module's directory", async () => {
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "batch-lua-"));
+  try {
+    const moduleDir = path.join(dir, "sub");
+    await fsPromises.mkdir(moduleDir, { recursive: true });
+    await fsPromises.writeFile(
+      path.join(moduleDir, "mod.lua"),
+      "return { dir = mixcode.script_dir() }\n",
+    );
+    const scriptPath = path.join(dir, "main.lua");
+    await fsPromises.writeFile(
+      scriptPath,
+      'local mod = require("sub.mod")\n' +
+        'mixcode.open_tab({ name = "mod", prompt = mod.dir .. "|" .. mixcode.script_dir() })\n',
+    );
+    const plan = await loadBatchRequests(scriptPath, { workdir: dir, tabs: [] });
+    assert.equal(plan.requests[0]!.prompt, `${moduleDir}|${dir}`);
+  } finally {
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("runLuaScript exposes tab_exists", async () => {
   const script = `
     if mixcode.tab_exists("known") then
