@@ -8,7 +8,7 @@ import { test } from "node:test";
 
 const execFileAsync = promisify(execFile);
 
-test("tmux TUI shows separate Steer and Follow-up queues", {
+test("tmux TUI edits dual queues and resumes paused follow-up rounds in order", {
   skip:
     process.env.MIXCODE_RUN_TMUX_FOLLOWUP !== "1"
       ? "set MIXCODE_RUN_TMUX_FOLLOWUP=1 to run real tmux follow-up TUI smoke"
@@ -154,26 +154,95 @@ test("tmux TUI shows separate Steer and Follow-up queues", {
       (plain) => /Follow-up \(1\)[\s\S]*follow again/.test(plain) && !/Steer \(1\)/.test(plain),
     );
     assert.match(afterEsc.plain, /Follow-up \(1\)[\s\S]*follow again/);
+    assert.match(afterEsc.plain, /Paused · \/follow-up-next to resume/);
 
-    // Release the blocked tool so follow-up can deliver after idle.
-    await fsPromises.writeFile(path.join(dir, "release"), "1");
-    const idleDeadline = Date.now() + 15_000;
-    let idleOk = false;
-    while (Date.now() < idleDeadline) {
-      try {
-        const idle = JSON.parse(await fsPromises.readFile(path.join(dir, "idle.json"), "utf8")) as {
-          pendingFollowUps: string[];
-        };
-        if (Array.isArray(idle.pendingFollowUps) && idle.pendingFollowUps.length === 0) {
-          idleOk = true;
-          break;
-        }
-      } catch {
-        // not yet
-      }
-      await delay(150);
-    }
-    assert.equal(idleOk, true, "follow-up should be consumed after turn ends");
+    // A next task appended while paused must stay queued and retain its command
+    // prefix when Ctrl+U restores it to the editor.
+    await submitText(tmux, label, session, "/follow-up-next next task");
+    const withNext = await waitForPane(
+      tmux,
+      label,
+      session,
+      (plain) => /Follow-up \(2\)/.test(plain) && /Round 2 · next · next task/.test(plain),
+    );
+    assert.match(withNext.plain, /Round 1 · follow again/);
+    assert.match(withNext.plain, /Paused · \/follow-up-next to resume/);
+
+    await tmuxRun(tmux, label, ["send-keys", "-t", session, "C-u"]);
+    const editingNext = await waitForPane(
+      tmux,
+      label,
+      session,
+      (plain) => /Follow-up \(1\)/.test(plain) && /\/follow-up-next next task/.test(plain),
+    );
+    assert.doesNotMatch(editingNext.plain, /Round 2 · next/);
+    assert.match(editingNext.plain, /Round 1 · follow again/);
+    await tmuxRun(tmux, label, ["send-keys", "-t", session, "Enter"]);
+    await waitForPane(
+      tmux,
+      label,
+      session,
+      (plain) => /Follow-up \(2\)/.test(plain) && /Round 2 · next · next task/.test(plain),
+    );
+
+    await submitText(tmux, label, session, "/follow-up after next");
+    await waitForPane(tmux, label, session, (plain) => /Follow-up \(3\)/.test(plain));
+    await submitText(tmux, label, session, "/follow-up last batch");
+    const rounds = await waitForPane(tmux, label, session, (plain) =>
+      /Follow-up \(4\)/.test(plain),
+    );
+    assert.match(rounds.plain, /Round 1 · follow again/);
+    assert.match(rounds.plain, /Round 2 · next · next task/);
+    assert.match(rounds.plain, /Round 3 · after next/);
+    assert.match(rounds.plain, /Round 3 · last batch/);
+    assert.match(rounds.plain, /Paused · \/follow-up-next to resume/);
+
+    // Idle is not permission to drain a queue paused by Esc.
+    await Bun.write(path.join(dir, "release"), "1");
+    const paused = await waitForSnapshot(dir, (snapshot) => snapshot.isIdle);
+    assert.equal(paused.followUpsPaused, true);
+    assert.deepEqual(paused.pendingFollowUps, [
+      "follow again",
+      "next task",
+      "after next",
+      "last batch",
+    ]);
+    assert.deepEqual(paused.modelUserMessages.slice(-2), ["do work", "steer again"]);
+    await waitForPane(
+      tmux,
+      label,
+      session,
+      (plain) => /Follow-up \(4\)/.test(plain) && /Paused · \/follow-up-next to resume/.test(plain),
+    );
+
+    // Only a bare command resumes; commands and edited-away text must never
+    // become user messages, and the next task must divide adjacent batches.
+    await submitText(tmux, label, session, "/follow-up-next");
+    const drained = await waitForSnapshot(
+      dir,
+      (snapshot) =>
+        snapshot.isIdle && !snapshot.followUpsPaused && snapshot.pendingFollowUps.length === 0,
+    );
+    assert.deepEqual(drained.modelUserMessages.slice(-5), [
+      "do work",
+      "steer again",
+      "follow again",
+      "next task",
+      "after next\n\nlast batch",
+    ]);
+    const resumed = await waitForPane(
+      tmux,
+      label,
+      session,
+      (plain) => !/Follow-up \(\d+\)/.test(plain) && /Echo: after next/.test(plain),
+    );
+    assert.doesNotMatch(resumed.plain, /Paused · \/follow-up-next to resume/);
+    await submitText(tmux, label, session, "/follow-up-next /color red");
+    const red = await waitForSnapshot(dir, (snapshot) => snapshot.color === "red");
+    assert.deepEqual(red.modelUserMessages, drained.modelUserMessages);
+    await submitText(tmux, label, session, "/follow-up /color blue");
+    const blue = await waitForSnapshot(dir, (snapshot) => snapshot.color === "blue");
+    assert.deepEqual(blue.modelUserMessages, drained.modelUserMessages);
   } finally {
     await tmuxRun(tmux, label, ["kill-session", "-t", session]).catch(() => undefined);
     // Safe: isolated socket only.
@@ -181,6 +250,48 @@ test("tmux TUI shows separate Steer and Follow-up queues", {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
+
+interface HarnessSnapshot {
+  color?: string;
+  isIdle: boolean;
+  pendingFollowUps: string[];
+  followUpsPaused: boolean;
+  modelUserMessages: string[];
+}
+
+async function waitForSnapshot(
+  dir: string,
+  matches: (snapshot: HarnessSnapshot) => boolean,
+): Promise<HarnessSnapshot> {
+  const deadline = Date.now() + 15_000;
+  let snapshot: HarnessSnapshot | undefined;
+  while (Date.now() < deadline) {
+    let raw: string | undefined;
+    try {
+      raw = await Bun.file(path.join(dir, "idle.json")).text();
+    } catch (error) {
+      // The fixture creates the first snapshot only after the release signal.
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+    if (raw !== undefined) {
+      snapshot = JSON.parse(raw) as HarnessSnapshot;
+      if (matches(snapshot)) return snapshot;
+    }
+    await delay(100);
+  }
+  assert.fail(`timed out waiting for harness state: ${JSON.stringify(snapshot)}`);
+}
+
+async function submitText(
+  tmux: string,
+  label: string,
+  session: string,
+  text: string,
+): Promise<void> {
+  await tmuxRun(tmux, label, ["send-keys", "-t", session, "-l", text]);
+  await waitForPane(tmux, label, session, (plain) => plain.includes(text));
+  await tmuxRun(tmux, label, ["send-keys", "-t", session, "Enter"]);
+}
 
 async function resolveTmux(): Promise<string> {
   try {

@@ -36,6 +36,8 @@ export async function handleSubmittedInput(
   /** Input editor: restore text after a bash-already-running conflict; /editor reads and writes the draft. */
   editorActions?: Pick<MixCodeEditorActions, "setText"> &
     Partial<Pick<MixCodeEditorActions, "getText">>,
+  /** Internal queue submissions wait for deferred confirmation actions. */
+  queuedCommand = false,
 ): Promise<void> {
   const parsed = parseInput(text);
   const active = activeTabOverride ?? getActiveTab(state);
@@ -88,6 +90,21 @@ export async function handleSubmittedInput(
       workspaceFile,
       settingsDeps,
       editorActions,
+      queuedCommand,
+      submitQueuedInput: (queuedText) =>
+        handleSubmittedInput(
+          state,
+          runtime,
+          queuedText,
+          tui,
+          onStateChanged,
+          authInputHost,
+          workspaceFile,
+          active,
+          settingsDeps,
+          editorActions,
+          true,
+        ),
     });
     if (result === SKIP_FINALIZE) return;
   }

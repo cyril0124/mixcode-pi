@@ -1,66 +1,74 @@
-# 转向与后续队列管理 (Steer & Follow-up Queue)
+# 转向与后续队列
 
 [English Documentation](queue-and-follow-up.md)
 
-MixCode Pi 在 Agent 执行过程中提供双队列机制：**转向队列 (Steer)** 与 **后续队列 (Follow-up)**。
+MixCode 将轮次中的转向消息与用户后续消息分开。两个队列都属于当前 Tab 的运行时会话；待发消息、轮次边界和暂停状态均不跨重启持久化。
 
-## 设计意图与动机
+## 队列语义
 
-当 Agent 正在输出或执行长链条工具循环时，用户输入的意图具有截然不同的诉求，单队列模型无法兼顾：
-1. **紧急中途干预 (Steer)**：用户发现 Agent 正在执行错误的命令或修改了非预期的文件，需要立即在下一个工具执行完毕时注入上下文纠偏，同时不丢弃当前轮次已生成的有效成果。
-2. **有序排队执行 (Follow-up)**：用户希望预先布置下一阶段任务（如“修改完后执行全部测试”），要求严格等待当前 Agent 任务完全收敛、空闲后再作为全新独立轮次执行。
+| 输入 | 忙碌时 | 空闲时 |
+|---|---|---|
+| 普通 Prompt | 在下一个投递点转向当前轮次 | 开始普通轮次，不恢复暂停的后续队列 |
+| `/follow-up <text>` | 追加批量后续消息 | 未暂停时立即执行；暂停时只追加，不恢复 |
+| `Alt+Enter` | 追加批量后续消息 | 未暂停时正常提交；暂停时追加批量后续消息，不恢复 |
+| `/follow-up-next <text>` | 追加独占一个轮次的后续消息 | 未暂停时立即执行；暂停时只追加，不恢复 |
+| `/follow-up-next` | 恢复用户后续队列，等待当前轮次结束 | 恢复并执行排队的用户后续消息 |
 
-MixCode 通过双队列将二者的处理时机、中断表现与生命周期完全解耦。
+`/follow-up` 必须携带文本，否则报错 `Error: Usage: /follow-up <message>`。不带文本的 `/follow-up-next` 在用户后续队列为空时报错 `Error: No follow-up messages to resume`。文本提示词与显式恢复要求模型已启用；排队的本地命令使用各自的命令校验。
 
-## 队列行为与语义
+### 后续轮次
+
+用户后续消息按 FIFO 入队顺序执行。来自 `/follow-up` 或 `Alt+Enter` 的相邻批量条目合并到同一轮次。每个 `/follow-up-next <text>` 条目独占一轮，并隔开前后的批量消息，不会插到先前消息之前。
 
 ```text
-当 Agent 正在执行时用户提交消息
-   │
-   ├─ 普通 Prompt ─────────────> 转向队列 (Steer Queue - 轮次中动态注入)
-   │                                 │
-   │                                 ├─ 在下一个工具调用完成时注入当前模型上下文
-   │                                 └─ 按 `Esc` → 立即刷新为新 Prompt 发送
-   │
-   └─ `/follow-up <text>` / Alt+Enter ──> 后续队列 (Follow-up Queue - 轮次后排队)
-                                     │
-                                     └─ 在 `Esc` / 中断中存活；待 Agent 空闲后自动作为新轮次发送
+入队：batch A, batch B, next C, batch D
+执行：[A + B] -> [C] -> [D]
+轮次：   1       2      3
 ```
 
-### 队列差异对比
+当前 Agent 运行结束并空闲后，MixCode 投递一个用户轮次。成功结束后才继续下一轮。一个轮次包含完整的 Agent 运行及其工具循环，不是单次模型回复或工具调用。
 
-| 特性 | 转向队列 (Steer) | 后续队列 (Follow-up) |
-|---|---|---|
-| 触发方式 | Agent 运行中提交普通 Prompt | `/follow-up <text>` 或 `Alt+Enter` |
-| 消费时机 | 当前轮次中作为 Steering Message 注入 | 当前轮次结束且 Agent 空闲后触发新轮次 |
-| 中断表现 (`Esc`) | 刷新为新轮次立即发送；压缩进行中时队列等待压缩结束，`Esc` 改为中断压缩 | 在中断与轮次交替中完整保留 |
-| 弹出编辑 | Follow-up 为空时按 `Ctrl+U`；两个队列都有消息时按 `Ctrl+U,S` | Steer 为空时按 `Ctrl+U`；两个队列都有消息时按 `Ctrl+U,F` |
+### 排队执行 slash 命令
+
+`/follow-up /color red` 和 `/follow-up-next /color red` 都会在轮到该条目时执行 MixCode 本地命令。命令作用于入队时的 Tab，不受之后焦点切换影响。本地命令独占一个队列步骤，不与相邻文本合并，也不发送给模型；原有确认与校验仍然适用。命令抛出错误时暂停剩余队列，不自动重试失败命令。Ctrl+U 取回命令时保留原有 follow-up 前缀。
+
+`/close-session`、`/delete-session`、`/close-all-sessions`、`/delete-all-sessions` 会等待确认及确认后的操作与持久化结束。取消时消费该命令并暂停剩余任务。其他浮层替换对话框时，包括打开退出确认，也会取消正在等待共用对话框位置的排队确认。不同 Tab 排队的确认共用一个对话框位置；单会话确认显示时切换到所属 Tab。其他本地命令保留其处理器的完成语义，包括打开后即返回的选择器。
+
+已注册的扩展命令、`/skill:<name>` 和具名提示词模板独占队列步骤，避免相邻普通文本被当成命令参数。它们仍使用 Pi SDK 分发与展开。两个 follow-up 包装命令都保留内容中的内部空白与换行。
+
+重载扩展或更换工作目录时保留运行中的队列，并将调度交接到重建的 SDK 会话。关闭或清空所属会话时丢弃剩余任务。
+
+### 暂停与恢复
+
+按 `Esc` 或 Agent 最终失败会暂停整个剩余用户后续队列。消息仍然可见，顺序与轮次边界保持不变。工具错误和可恢复的重试不会暂停队列。
+
+只有不带文本的 `/follow-up-next` 会显式恢复暂停的后续消息。普通 Prompt、`/follow-up <text>`、`/follow-up-next <text>` 和 `Alt+Enter` 都不会取消暂停。当前仍在运行时，恢复操作会等待其空闲。
+
+转向队列独立处理：`Esc` 将待发转向消息立即刷新为新轮次。压缩期间，转向消息等待压缩结束，`Esc` 改为中断压缩。这两种操作都不会恢复暂停的用户后续消息。
 
 ### 编辑排队消息
 
 `Ctrl+U` 根据可见队列状态工作：
 
-- 只有一个非空队列：直接将该队列的最新消息弹回编辑器。
-- 两个队列都非空：进入一秒选择状态，不修改任何队列。按 `S` 选择 Steer，按 `F` 选择 Follow-up，按 `Esc` 取消。
+- 只有一个非空队列：将该队列最新消息弹回编辑器。
+- 两个队列都非空：进入一秒选择状态，不修改队列。按 `S` 选择 Steer，按 `F` 选择 Follow-up，按 `Esc` 取消。
 - 两个队列都为空：预备进入 Vim；在一秒内按 `u` 或 `Ctrl+U` 确认。
 
-如果确认前所选队列变空，不会回退并弹出另一队列的消息。
+如果确认前所选队列变空，不会回退到另一队列。弹出 `next` 条目时，编辑器恢复 `/follow-up-next <text>`，重新提交后仍独占一轮。弹出消息不会恢复队列。
 
-## 并发门控保障 (`dispatchTurn`)
+## 运行时归属与并发
 
-在状态快速切换时，通过 `dispatchTurn` 防止并发 `prompt()` 竞争穿透 `isStreaming` 检查：
+`MixCodeTabInfo.followUpQueue` 以 `{ text: string, kind: "batch" | "next", command?: boolean }` 保存用户条目，`followUpsPaused` 控制其投递。`pendingFollowUps` 是展示用聚合列表，先放本地用户文本，再放 SDK 后续文本。
 
-```text
-dispatchTurn(tab, send)
-   │
-   ├─ 获取 tab.promptDispatchGate（Promise.withResolvers）
-   ├─ 附带 preflightResult 信号执行 send()
-   └─ 在 Prompt 预检完成或发生异常时释放门控
-```
+SDK 的 follow-up 模式保持 `all`。扩展伴随消息和内部续跑留在 SDK 队列，保持 SDK 投递行为；用户轮次边界和暂停状态不会改变它们的类别。TUI 用 `SDK` 标记这些条目，不分配用户轮次编号。
 
-## TUI 队列可视化渲染
+`dispatchTurn` 通过 Tab 的 `promptDispatchGate` 串行执行 Prompt 预检，在预检完成或失败时释放。这可以防止快速提交穿透忙碌状态检查。用户后续消息的投递等待当前 Agent 运行结束并空闲。
 
-排队消息以专属边框显示在编辑器上方：
-- 只有一个非空队列时，其编辑提示为 `Ctrl+U->edit`。
-- 两个队列都非空时，Steer 显示 `Ctrl+U,S->edit`，Follow-up 显示 `Ctrl+U,F->edit`。
-- Steer 还显示 `Esc->send now`；Follow-up 在中断后保留，因此不显示该提示。
+## TUI 队列显示
+
+Steer 和 Follow-up 显示在编辑器上方的对话尾部，各有独立边框。每个框显示消息总数及最新至多五条消息。
+
+- 用户后续条目显示 `Round N`；相邻批量条目共用编号，独占条目还显示 `next`。编号相对于完整的待发用户队列，即使更早条目不在五条预览范围内，也不会重新编号。
+- 暂停时，Follow-up 框单独一行显示 `Paused · /follow-up-next to resume`。
+- 只有一个非空队列时显示 `Ctrl+U->edit`。两个队列都非空时，Steer 显示 `Ctrl+U,S->edit`，Follow-up 显示 `Ctrl+U,F->edit`。
+- 除压缩期间外，Steer 显示 `Esc->send now`；Follow-up 始终不显示此提示。

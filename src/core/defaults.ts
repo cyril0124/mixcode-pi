@@ -96,6 +96,8 @@ export function createTab(
     workdir,
     pendingMessages: [],
     pendingFollowUps: [],
+    followUpQueue: [],
+    followUpsPaused: false,
     promptHistory: [],
     draftInput: "",
     chatScrollOffset: 0,

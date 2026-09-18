@@ -285,6 +285,8 @@ export function isOverlayActive(state: MixCodeState): boolean {
 
 /** Clear whichever overlay is active, leaving the rest untouched. */
 export function closeActiveOverlay(state: MixCodeState): void {
+  // A replaced confirmation has no remaining key path to settle its queued task.
+  state.dismissQueuedConfirmation?.();
   state.workspaceOverlay.open = false;
   state.treeSelector.open = false;
   state.picker = undefined;

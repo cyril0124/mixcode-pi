@@ -8,31 +8,31 @@ import {
   type ExtensionFactory,
   getAgentDir,
   type ModelRuntime,
-  type SessionInfo,
   type SessionEntry,
+  type SessionInfo,
   SessionManager,
   type SessionShutdownEvent,
   type SettingsManager,
 } from "@earendil-works/pi-coding-agent";
 import { type AutocompleteProvider, matchesKey as matchesPiKey } from "@earendil-works/pi-tui";
-import { contentText } from "./runtime-tool-chat.js";
 import { runWithConsoleTab } from "../core/console-scope.js";
+import { nextAvailableAgentTitle } from "../core/defaults.js";
+import { clearPendingEscape } from "../core/escape.js";
 import { modelToRef, replaceRegisteredModels } from "../core/models.js";
 import { mixcodeScopedModels } from "../core/pi-models.js";
-import { nextAvailableAgentTitle } from "../core/defaults.js";
-import { onActiveTabChange } from "../core/tabs.js";
-import { clearPendingEscape } from "../core/escape.js";
-import { setPendingFollowUps, setPendingMessages, setTabStatus } from "../core/tab-state.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
+import { setPendingFollowUps, setPendingMessages, setTabStatus } from "../core/tab-state.js";
+import { onActiveTabChange } from "../core/tabs.js";
 import {
-  HOME_TAB_ID,
   type AgentRuntimeConfig,
+  HOME_TAB_ID,
   type MixCodeModel,
   type MixCodeModelRef,
   type MixCodeTabInfo,
   type QueueKind,
 } from "../core/types.js";
 import { MIXCODE_EXTENSION_KEYBINDINGS } from "./runtime-extension-theme.js";
+import { contentText } from "./runtime-tool-chat.js";
 import { getActiveToolInfos } from "./tools.js";
 
 export { MIXCODE_EXTENSION_KEYBINDINGS_MANAGER } from "./runtime-extension-theme.js";
@@ -43,29 +43,27 @@ import {
   type ExtensionManagerEntry,
   type ExtensionReloadResult,
 } from "../core/extension-manager.js";
+import { invalidateSessionCatalog } from "../core/session-catalog.js";
+import type { SessionLockHandle } from "../core/session-lock.js";
 import {
   appendSystemMessage,
   applyRuntimeTabModel,
   disposeChatRenderers,
-  entriesToChatLines,
   emitBeforeSwitch,
+  entriesToChatLines,
   inspectSessionImport,
   isNothingToCompactError,
   resetTabForNewSession,
   type SystemMessageKind,
 } from "./runtime-chat.js";
 import { applyEvent } from "./runtime-events.js";
-import { reloadRuntimeSessionFromDisk } from "./runtime-session-reload.js";
-import { invalidateSessionCatalog } from "../core/session-catalog.js";
-import { RuntimeSyncManager } from "./runtime-sync.js";
-import type { SessionLockHandle } from "../core/session-lock.js";
 import {
   extensionNewRuntimeSession,
   forkRuntimeSession,
   importRuntimeJsonl,
   navigateRuntimeTree,
-  retractRuntimeTurn,
   type RuntimeExtensionSessionContext,
+  retractRuntimeTurn,
   switchRuntimeSession,
 } from "./runtime-extension-session.js";
 import {
@@ -81,16 +79,24 @@ import {
   waitForCompactionIdle,
 } from "./runtime-follow-up.js";
 import {
+  attachFollowUpCommand,
+  discardFollowUps,
+  followUpCommand,
+  pauseFollowUps,
+  syncFollowUpPreview,
+  takeFollowUpBatch,
+} from "./runtime-follow-up-queue.js";
+import {
+  CHAT_WINDOW_EXPAND_CHUNK,
   createRuntimeServices,
   createRuntimeTabWithFallback,
   disposeRuntimeTabAfterShutdown,
+  type RuntimeLifecycleContext,
   reloadRuntimeTabWithFreshServices,
   replaceRuntimeTabSession,
   shutdownRuntimeTab,
   syncRuntimeChatFromSession,
   updateRuntimeTabWorkdir,
-  type RuntimeLifecycleContext,
-  CHAT_WINDOW_EXPAND_CHUNK,
 } from "./runtime-lifecycle.js";
 import { resolveRuntimeModel, resolveRuntimeModelFromSession } from "./runtime-model.js";
 import {
@@ -102,6 +108,8 @@ import {
   listSessionsForCwd,
   openOrCreateSession,
 } from "./runtime-session.js";
+import { reloadRuntimeSessionFromDisk } from "./runtime-session-reload.js";
+import { RuntimeSyncManager } from "./runtime-sync.js";
 import type {
   ChatLine,
   ExtensionArgumentCompleter,
@@ -877,12 +885,39 @@ export class MixCodeRuntime {
   async prompt(
     sessionId: string,
     text: string,
-    options?: { streamingBehavior?: "steer" | "followUp" },
+    options?: { streamingBehavior?: "steer" | "followUp"; followUpNext?: boolean },
   ): Promise<void> {
     const runtimeTab = this.requireTab(sessionId);
     const trimmed = text.trim();
     if (!trimmed) return;
     const streamingBehavior = options?.streamingBehavior ?? "steer";
+    if (streamingBehavior === "followUp") {
+      const commandName = trimmed.match(/^\/(\S+)/)?.[1];
+      const sdkCommand =
+        commandName !== undefined &&
+        (this.getExtensionCommands(sessionId).some((command) => command.name === commandName) ||
+          runtimeTab.agentSession.promptTemplates.some(
+            (template) => template.name === commandName,
+          ) ||
+          commandName.startsWith("skill:"));
+      runtimeTab.tab.followUpQueue.push({
+        text: trimmed,
+        kind: options?.followUpNext ? "next" : "batch",
+        ...(sdkCommand ? { command: true } : {}),
+      });
+      syncFollowUpPreview(runtimeTab);
+      this.emitChange({ type: "extension_ui_update" }, runtimeTab);
+      const busy =
+        !runtimeTab.agentSession.isIdle ||
+        runtimeTab.compactionInFlight ||
+        runtimeTab.followUpDrain !== undefined;
+      const alreadyDraining = runtimeTab.followUpDrain !== undefined;
+      const drain = this.drainFollowUps(runtimeTab);
+      if (!busy) await drain;
+      else if (!alreadyDraining)
+        void drain.catch((error: unknown) => this.reportPendingMessageFlushError(sessionId, error));
+      return;
+    }
     // Registered extension commands may await custom UI for a long time. Skills,
     // templates, and unknown slash input remain agent turns and need dispatchTurn.
     const commandName = trimmed.match(/^\/(\S+)/)?.[1];
@@ -912,31 +947,169 @@ export class MixCodeRuntime {
     }
     await dispatchTurn(runtimeTab, async (signalRegistered) => {
       if (runtimeTab.agentSession.isStreaming) {
-        // Already streaming: this instance owns the turn (and its lock); queue
-        // as steer (interrupt) or followUp (wait until idle).
+        // Already streaming: this instance owns the turn and its lock.
+        // User follow-ups were retained above; ordinary prompts steer this run.
         await runtimeTab.agentSession.prompt(trimmed, {
           streamingBehavior,
           preflightResult: signalRegistered,
         });
         return;
       }
-      runtimeTab.postRunWorkingStartedAt = undefined;
-      // A fresh prompt is a fresh run: drop any stale SDK continuation marker.
-      runtimeTab.sdkRunContinuation = false;
-      if (runtimeTab.compactionInFlight || runtimeTab.agentSession.isCompacting) {
-        throw new Error("Cannot prompt while compaction is running");
-      }
-      // Claim the cross-process turn lock, then branch off the latest on-disk
-      // state so this turn is a child of any messages another instance wrote.
-      const lock = this.sync.acquire(sessionId);
-      try {
-        if (lock) reloadRuntimeSessionFromDisk(runtimeTab);
-        await runtimeTab.agentSession.prompt(text, { preflightResult: signalRegistered });
-      } finally {
-        this.sync.markLocalWrite(sessionId);
-        lock?.release();
-      }
+      await this.sendIdlePrompt(runtimeTab, text, signalRegistered);
     });
+  }
+
+  private async sendIdlePrompt(
+    runtimeTab: RuntimeTab,
+    text: string,
+    preflightResult: (accepted: boolean) => void,
+  ): Promise<void> {
+    runtimeTab.postRunWorkingStartedAt = undefined;
+    runtimeTab.sdkRunContinuation = false;
+    if (runtimeTab.compactionInFlight || runtimeTab.agentSession.isCompacting) {
+      throw new Error("Error: Cannot prompt while compaction is running");
+    }
+    const sessionId = runtimeTab.tab.sessionId;
+    const lock = this.sync.acquire(sessionId);
+    try {
+      if (lock) reloadRuntimeSessionFromDisk(runtimeTab);
+      await runtimeTab.agentSession.prompt(text, { preflightResult });
+    } catch (error) {
+      pauseFollowUps(runtimeTab);
+      this.emitChange({ type: "extension_ui_update" }, runtimeTab);
+      throw error;
+    } finally {
+      this.sync.markLocalWrite(sessionId);
+      lock?.release();
+    }
+  }
+
+  /** Queue a host-owned local command as an exclusive task, without invoking the model. */
+  async queueFollowUpCommand(
+    sessionId: string,
+    text: string,
+    execute: () => Promise<void>,
+    kind: "batch" | "next" = "next",
+  ): Promise<void> {
+    const runtimeTab = this.requireTab(sessionId);
+    const entry = { text, kind, command: true };
+    attachFollowUpCommand(entry, execute);
+    runtimeTab.tab.followUpQueue.push(entry);
+    syncFollowUpPreview(runtimeTab);
+    this.emitChange({ type: "extension_ui_update" }, runtimeTab);
+    const alreadyDraining = runtimeTab.followUpDrain !== undefined;
+    const busy =
+      !runtimeTab.agentSession.isIdle || runtimeTab.compactionInFlight || alreadyDraining;
+    const drain = this.drainFollowUps(runtimeTab);
+    if (!busy) await drain;
+    else if (!alreadyDraining)
+      void drain.catch((error: unknown) => this.reportPendingMessageFlushError(sessionId, error));
+  }
+
+  async resumeFollowUps(sessionId: string): Promise<void> {
+    const runtimeTab = this.requireTab(sessionId);
+    if (runtimeTab.tab.followUpQueue.length === 0) {
+      throw new Error("Error: No follow-up messages to resume");
+    }
+    runtimeTab.tab.followUpsPaused = false;
+    // Resume can arrive from the settled notification before the previous drain unwinds.
+    // Acknowledge that failure now so its completion cannot pause this queue again.
+    runtimeTab.followUpRunFailed = false;
+    this.emitChange({ type: "extension_ui_update" }, runtimeTab);
+    const busy = !runtimeTab.agentSession.isIdle || runtimeTab.followUpDrain !== undefined;
+    const alreadyDraining = runtimeTab.followUpDrain !== undefined;
+    const drain = this.drainFollowUps(runtimeTab);
+    if (!busy) await drain;
+    else if (!alreadyDraining)
+      void drain.catch((error: unknown) => this.reportPendingMessageFlushError(sessionId, error));
+  }
+
+  private drainFollowUps(runtimeTab: RuntimeTab): Promise<void> {
+    if (runtimeTab.followUpDrain) return runtimeTab.followUpDrain;
+    if (runtimeTab.tab.followUpsPaused || runtimeTab.tab.followUpQueue.length === 0)
+      return Promise.resolve();
+    const queue = runtimeTab.tab.followUpQueue;
+    const ownsQueue = () =>
+      !this.isShuttingDown &&
+      this.tabs.get(runtimeTab.tab.sessionId) === runtimeTab &&
+      runtimeTab.tab.followUpQueue === queue;
+    // Defer entry so ownership is installed before preflight or lifecycle callbacks run.
+    const drain = Promise.resolve()
+      .then(async () => {
+        while (ownsQueue() && queue.length > 0 && !runtimeTab.tab.followUpsPaused) {
+          // Reload/workdir may replace the SDK session while retaining this logical queue.
+          // Capture per iteration; a new conversation replaces the queue and ends ownership.
+          const session = runtimeTab.agentSession;
+          await session.waitForIdle();
+          await waitForCompactionIdle(session);
+          if (!ownsQueue()) return;
+          if (runtimeTab.agentSession !== session) continue;
+          if (runtimeTab.compactionInFlight) return;
+          await dispatchTurn(runtimeTab, async (signalRegistered) => {
+            // A concurrent ordinary prompt may claim the session while this dispatch waits.
+            if (
+              !session.isIdle ||
+              runtimeTab.tab.followUpsPaused ||
+              runtimeTab.agentSession !== session ||
+              !ownsQueue()
+            )
+              return;
+            const batch = takeFollowUpBatch(runtimeTab);
+            if (batch.length === 0) return;
+            let accepted = false;
+            this.emitChange({ type: "extension_ui_update" }, runtimeTab);
+            try {
+              const executeCommand = followUpCommand(batch[0]!);
+              if (executeCommand) {
+                // Commands may start their own prompt/compaction. Release preflight
+                // ownership before calling the host so nested dispatch cannot deadlock.
+                accepted = true;
+                signalRegistered();
+                await executeCommand();
+                return;
+              }
+              await this.sendIdlePrompt(
+                runtimeTab,
+                batch.map((entry) => entry.text).join("\n\n"),
+                (value) => {
+                  accepted = value;
+                  signalRegistered();
+                },
+              );
+              await session.waitForIdle();
+              if (runtimeTab.followUpRunFailed) pauseFollowUps(runtimeTab);
+            } catch (error) {
+              // Failed preflight has not delivered user text; preserve it for explicit retry.
+              if (!accepted && ownsQueue()) queue.unshift(...batch);
+              if (ownsQueue()) pauseFollowUps(runtimeTab);
+              throw error;
+            } finally {
+              if (ownsQueue()) {
+                syncFollowUpPreview(runtimeTab);
+                this.emitChange({ type: "extension_ui_update" }, runtimeTab);
+              }
+            }
+          });
+        }
+      })
+      .finally(() => {
+        if (runtimeTab.followUpDrain === drain) runtimeTab.followUpDrain = undefined;
+        // Manual compaction may finish while the old drain is returning from its guard.
+        if (
+          ownsQueue() &&
+          runtimeTab.agentSession.isIdle &&
+          !runtimeTab.compactionInFlight &&
+          !runtimeTab.tab.followUpsPaused &&
+          runtimeTab.tab.followUpQueue.length > 0 &&
+          this.tabs.get(runtimeTab.tab.sessionId) === runtimeTab
+        ) {
+          void this.drainFollowUps(runtimeTab).catch((error: unknown) =>
+            this.reportPendingMessageFlushError(runtimeTab.tab.sessionId, error),
+          );
+        }
+      });
+    runtimeTab.followUpDrain = drain;
+    return drain;
   }
 
   async executeShellCommand(
@@ -1066,6 +1239,7 @@ export class MixCodeRuntime {
 
   abortTab(sessionId: string): boolean {
     const runtimeTab = this.requireTab(sessionId);
+    pauseFollowUps(runtimeTab);
     // Pi interactive Esc: streaming → abort agent; else if bash → abortBash().
     if (!runtimeTab.agentSession.isStreaming) {
       if (runtimeTab.agentSession.isBashRunning) {
@@ -1112,6 +1286,8 @@ export class MixCodeRuntime {
       runtimeTab.agentSession.abortBranchSummary();
       if (runtimeTab.agentSession.isBashRunning) runtimeTab.agentSession.abortBash();
       if (runtimeTab.agentSession.isStreaming) runtimeTab.agentSession.agent.abort();
+      runtimeTab.tab.followUpQueue = [];
+      runtimeTab.tab.followUpsPaused = false;
       runtimeTab.agentSession.clearQueue();
       runtimeTab.tab.retryInfo = undefined;
       setPendingMessages(runtimeTab.tab, []);
@@ -1180,6 +1356,12 @@ export class MixCodeRuntime {
   }
 
   private schedulePendingMessageFlush(sessionId: string, agentSession: AgentSession): void {
+    const runtimeTab = this.tabs.get(sessionId);
+    if (runtimeTab && runtimeTab.agentSession === agentSession && !runtimeTab.followUpDrain) {
+      void this.drainFollowUps(runtimeTab).catch((error: unknown) =>
+        this.reportPendingMessageFlushError(sessionId, error),
+      );
+    }
     scheduleRuntimePendingMessageFlush(
       sessionId,
       agentSession,
@@ -1360,6 +1542,7 @@ export class MixCodeRuntime {
     await this.shutdownRuntimeTab(runtimeTab, { type: "session_shutdown", reason: "quit" });
     this.sync.unregister(sessionId);
     this.tabs.delete(sessionId);
+    discardFollowUps(runtimeTab);
     this.pendingExtensionShutdown.delete(sessionId);
   }
 
@@ -1378,6 +1561,7 @@ export class MixCodeRuntime {
       if (result.status === "fulfilled") {
         this.sync.unregister(entries[index]![0]);
         this.tabs.delete(entries[index]![0]);
+        discardFollowUps(entries[index]![1]);
         continue;
       }
       for (let remainingIndex = index; remainingIndex < entries.length; remainingIndex++) {
@@ -1386,6 +1570,7 @@ export class MixCodeRuntime {
         disposeRuntimeTabAfterShutdown(runtimeTab, this.extensionUiHost);
         this.sync.unregister(sessionId);
         this.tabs.delete(sessionId);
+        discardFollowUps(runtimeTab);
       }
       throw result.reason;
     }
@@ -1411,6 +1596,7 @@ export class MixCodeRuntime {
     }
     this.sync.unregister(sessionId);
     this.tabs.delete(sessionId);
+    discardFollowUps(runtimeTab);
   }
 
   async deleteAllTabs(): Promise<void> {
@@ -1484,6 +1670,9 @@ export class MixCodeRuntime {
       runtimeTab.compactionInFlight = false;
       this.sync.markLocalWrite(sessionId);
       lock?.release();
+      void this.drainFollowUps(runtimeTab).catch((error: unknown) =>
+        this.reportPendingMessageFlushError(sessionId, error),
+      );
     }
   }
 

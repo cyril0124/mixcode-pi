@@ -808,7 +808,9 @@ function handleEditorControlKeys(
       runtimeTab?.agentSession?.isStreaming === true ||
       runtimeTab?.agentSession?.isCompacting === true ||
       runtimeTab?.compactionInFlight === true;
-    if (busy) {
+    // A paused queue remains paused even at idle; Alt+Enter still appends a
+    // batch follow-up instead of submitting an unrelated ordinary prompt.
+    if (busy || active.followUpsPaused) {
       if (!runtime) throw new Error("Queueing follow-up requires runtime prompt support");
       editorActions.addToHistory?.(text, active.sessionId);
       editorActions.setText("");

@@ -1,35 +1,36 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage, Usage } from "@earendil-works/pi-ai";
+import { clearPendingEscape } from "../core/escape.js";
+import { clearChatScrollAnchor } from "../core/overlays.js";
+import {
+  setPendingFollowUps,
+  setPendingMessages,
+  setTabContextTokens,
+  setTabStatus,
+} from "../core/tab-state.js";
 import {
   appendEmptyRunNotice,
   appendSystemMessage,
   contextTokensFromUsage,
-  isNothingToCompactError,
   customEntryToChatLine,
   customMessageToChatLine,
   disposeChatRenderers,
   entriesToChatLines,
+  isNothingToCompactError,
   maybeAppendCacheMissNotice,
   surfaceAssistantStopReason,
   syncContextUsage,
 } from "./runtime-chat.js";
-import { clearPendingEscape } from "../core/escape.js";
-import {
-  setTabContextTokens,
-  setPendingFollowUps,
-  setPendingMessages,
-  setTabStatus,
-} from "../core/tab-state.js";
+import { pauseFollowUps } from "./runtime-follow-up-queue.js";
 import {
   contentImages,
-  userMessageText,
   normalizeToolResult,
   summarizeToolContent,
   summarizeToolResult,
   summarizeUnknown,
   toolExecutionToChatLine,
+  userMessageText,
 } from "./runtime-tool-chat.js";
-import { clearChatScrollAnchor } from "../core/overlays.js";
 import type { ChatLine, RuntimeEvent, RuntimeTab, ToolResultLike } from "./runtime-types.js";
 
 function normalizeCompactionFailureMessage(message: string): string {
@@ -58,6 +59,7 @@ export function applyEvent(
   }
   switch (event.type) {
     case "agent_start": {
+      runtimeTab.followUpRunFailed = false;
       runtimeTab.currentRunChatStartIndex = runtimeTab.chat.length;
       // This run's prompt is persisted later (at message_end), so the leaf here
       // is the last pre-run entry. Retract uses it to tell this run's own user
@@ -92,6 +94,11 @@ export function applyEvent(
       clearPendingEscape(runtimeTab.tab);
       runtimeTab.currentRunChatStartIndex = undefined;
       runtimeTab.currentRunStartLeafId = undefined;
+      break;
+    case "agent_settled":
+      // Retry and overflow recovery can remove failed assistant messages from context.
+      // Decide only after all SDK continuations, using the latest event outcome.
+      if (runtimeTab.followUpRunFailed) pauseFollowUps(runtimeTab);
       break;
     case "message_start":
       appendMessageStart(runtimeTab, event.message);
@@ -130,6 +137,8 @@ export function applyEvent(
       break;
     case "message_end":
       if (event.message.role === "assistant") {
+        runtimeTab.followUpRunFailed =
+          event.message.stopReason === "error" || event.message.stopReason === "aborted";
         updateStreamingAssistant(runtimeTab, event.message, { final: true });
         surfaceAssistantStopReason(runtimeTab, event.message);
         maybeAppendCacheMissNotice(runtimeTab, event.message);
@@ -157,6 +166,10 @@ export function applyEvent(
       // MixCode already shows the working loader while status is running.
       break;
     case "compaction_end": {
+      if (event.errorMessage && !isNothingToCompactError(event.errorMessage)) {
+        runtimeTab.followUpRunFailed = true;
+        pauseFollowUps(runtimeTab);
+      }
       // SDK compact-and-retry (willRetry) calls agent.continue() after this event.
       runtimeTab.tab.activeCompactionReason = undefined;
       const sdkWillContinue = Boolean(event.result && event.willRetry);
@@ -234,6 +247,7 @@ export function applyEvent(
     case "auto_retry_end":
       runtimeTab.tab.retryInfo = undefined;
       if (!event.success) {
+        runtimeTab.followUpRunFailed = true;
         // No continuation follows a failed/cancelled retry. Close the restored
         // timer into a measured duration unless another path (abortTab's retry
         // branch, or the final attempt's agent_end) already left the working
@@ -294,11 +308,10 @@ export function syncQueueState(
   setPendingMessages(runtimeTab.tab, [...preservedSteer, ...steering]);
   runtimeTab.queuedPromptCount = steering.length;
 
-  const preservedFollowUp = runtimeTab.tab.pendingFollowUps.slice(
-    0,
-    Math.max(0, runtimeTab.tab.pendingFollowUps.length - runtimeTab.queuedFollowUpCount),
-  );
-  setPendingFollowUps(runtimeTab.tab, [...preservedFollowUp, ...followUp]);
+  setPendingFollowUps(runtimeTab.tab, [
+    ...runtimeTab.tab.followUpQueue.map((entry) => entry.text),
+    ...followUp,
+  ]);
   runtimeTab.queuedFollowUpCount = followUp.length;
 }
 

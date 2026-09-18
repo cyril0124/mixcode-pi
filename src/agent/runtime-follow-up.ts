@@ -8,6 +8,7 @@ import {
 } from "./pi-session-internals.js";
 import { drainPendingMessages } from "./runtime-chat.js";
 import { syncQueueState } from "./runtime-events.js";
+import { syncFollowUpPreview } from "./runtime-follow-up-queue.js";
 import type { RuntimeTab } from "./runtime-types.js";
 
 /**
@@ -156,6 +157,14 @@ export function popRuntimePendingMessage(
   runtimeTab: RuntimeTab,
   kind: QueueKind,
 ): string | undefined {
+  if (kind === "followUp" && runtimeTab.agentSession.getFollowUpMessages().length === 0) {
+    const entry = runtimeTab.tab.followUpQueue.pop();
+    if (entry) {
+      syncFollowUpPreview(runtimeTab);
+      if (entry.kind === "next") return `/follow-up-next ${entry.text}`;
+      return entry.command ? `/follow-up ${entry.text}` : entry.text;
+    }
+  }
   const messages =
     kind === "followUp" ? runtimeTab.tab.pendingFollowUps : runtimeTab.tab.pendingMessages;
   const wasRuntimeQueued =

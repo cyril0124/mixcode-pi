@@ -30,6 +30,7 @@ import {
   syncOwnedAppOverlay,
 } from "./app-overlays.js";
 import type { OverlayTui } from "./app-types.js";
+import { assertQueuedConfirmationCanOpen } from "./queued-command-completion.js";
 import { themeForId } from "./themes.js";
 
 export function applyThinkingLevel(
@@ -66,6 +67,7 @@ export function openQuitConfirm(state: MixCodeState, tui: OverlayTui): void {
 }
 
 export function openDeleteAllSessionsConfirm(state: MixCodeState, tui: OverlayTui): void {
+  assertQueuedConfirmationCanOpen(state);
   // Same mutual-exclusion + centered-panel mechanism as openQuitConfirm, guarding
   // /delete-all-sessions (a destructive, hard-to-undo action) behind a Y/N step.
   closeTreeSelectorIfOpen(state, tui);
@@ -78,6 +80,7 @@ export function openDeleteAllSessionsConfirm(state: MixCodeState, tui: OverlayTu
 }
 
 export function openCloseAllSessionsConfirm(state: MixCodeState, tui: OverlayTui): void {
+  assertQueuedConfirmationCanOpen(state);
   // Same shape as openDeleteAllSessionsConfirm, but for the non-destructive
   // /close-all-sessions (tabs close, session files are kept).
   closeTreeSelectorIfOpen(state, tui);
@@ -95,6 +98,7 @@ export function openSessionActionConfirm(
   action: "close" | "delete",
   tab: MixCodeState["tabs"][number],
 ): void {
+  assertQueuedConfirmationCanOpen(state);
   closeTreeSelectorIfOpen(state, tui);
   closeActiveOverlay(state);
   state.sessionActionConfirm = { action, sessionId: tab.sessionId };
