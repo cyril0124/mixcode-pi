@@ -60,6 +60,8 @@ ctx.ui.select / confirm / input
 
 扩展的 `renderCall` 或 `renderResult` 返回 `undefined` 时，`ToolExecutionComponent` 使用 Pi 原生 fallback。Renderer 抛出的异常会显示为错误文本；result renderer 抛错时同时保留原始结果 fallback。
 
+工具 renderer 的 `context.invalidate()` 会使该组件的缓存输出失效，并请求宿主重绘。流式事件替换聊天行后，它仍会刷新当前行，包括定时器和异步回调触发的更新。
+
 `ctx.ui.setTitle(title)` 在调用方 session 所在 tab 处于激活状态时立即写终端标题（OSC 0）；非激活 tab 只存储标题，切回该 tab 时重新应用。切到没有存储标题的 tab 不改变当前终端标题（与 Pi 一致：标题保持到被覆盖）。
 
 ### 松键输入

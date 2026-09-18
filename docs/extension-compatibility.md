@@ -60,6 +60,8 @@ Exception: when a custom overlay is hidden (`handle.hide()` called by the extens
 
 `ToolExecutionComponent` treats an extension `renderCall` or `renderResult` return of `undefined` as a request for Pi's native fallback. Renderer exceptions remain visible as error text; result-renderer exceptions also retain the native raw-result fallback.
 
+A tool renderer's `context.invalidate()` invalidates cached output for its component and requests a host repaint. This also refreshes the current chat row after streaming events replace it, including updates from timers and asynchronous callbacks.
+
 `ctx.ui.setTitle(title)` writes the terminal title (OSC 0) immediately when the calling session's tab is active. Inactive tabs store the title, and it is re-applied when their tab becomes active. Switching to a tab without a stored title leaves the terminal title unchanged (Pi semantics: the title persists until overwritten).
 
 ### Key-release input

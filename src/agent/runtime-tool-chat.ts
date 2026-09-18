@@ -45,6 +45,10 @@ function toolImageWidthCells(runtimeTab: RuntimeTab): number {
   return runtimeTab.agentSession.settingsManager.getImageWidthCells();
 }
 
+// A Pi component outlives the ChatLine closures replaced by streaming events.
+// Its original requestRender callback must invalidate every closure's cache.
+const toolRenderRevisions = new WeakMap<ToolExecutionComponent, { value: number }>();
+
 export function toolExecutionToChatLine(
   runtimeTab: RuntimeTab,
   options: {
@@ -62,10 +66,12 @@ export function toolExecutionToChatLine(
   const toolName = options.toolName || "unknown";
   const definition = runtimeTab.agentSession.getToolDefinition(toolName);
   const previousComponent = options.previous?.toolExecutionComponent;
-  let toolRenderDirty = true;
+  const renderRevision = (previousComponent && toolRenderRevisions.get(previousComponent)) ?? {
+    value: 0,
+  };
   const ui = {
     requestRender: () => {
-      toolRenderDirty = true;
+      renderRevision.value += 1;
       runtimeTab.requestRender?.();
     },
   } as unknown as PiTui;
@@ -83,6 +89,7 @@ export function toolExecutionToChatLine(
       ui,
       runtimeTab.tab.workdir,
     );
+  toolRenderRevisions.set(component, renderRevision);
 
   const restoreKeybindings = applyMixCodeKeybindings();
   try {
@@ -124,6 +131,7 @@ export function toolExecutionToChatLine(
   let renderedShowImages = toolShowImages(runtimeTab);
   let renderedImageWidthCells = toolImageWidthCells(runtimeTab);
   let renderedWidth: number | undefined;
+  let renderedRevision = -1;
   let renderedLines: string[] | undefined;
   line.renderToolCall = (width) => {
     const restore = applyMixCodeKeybindings();
@@ -136,27 +144,31 @@ export function toolExecutionToChatLine(
       if (expanded !== renderedExpanded) {
         renderedExpanded = expanded;
         component.setExpanded(expanded);
-        toolRenderDirty = true;
+        renderRevision.value += 1;
       }
       const showImages = toolShowImages(runtimeTab);
       if (showImages !== renderedShowImages) {
         renderedShowImages = showImages;
         component.setShowImages(showImages);
-        toolRenderDirty = true;
+        renderRevision.value += 1;
       }
       const imageWidthCells = toolImageWidthCells(runtimeTab);
       if (imageWidthCells !== renderedImageWidthCells) {
         renderedImageWidthCells = imageWidthCells;
         component.setImageWidthCells(imageWidthCells);
-        toolRenderDirty = true;
+        renderRevision.value += 1;
       }
       const renderedWidthNow = Math.max(1, Math.floor(width));
-      if (!toolRenderDirty && renderedWidth === renderedWidthNow && renderedLines) {
+      if (
+        renderedRevision === renderRevision.value &&
+        renderedWidth === renderedWidthNow &&
+        renderedLines
+      ) {
         return renderedLines;
       }
+      renderedRevision = renderRevision.value;
       renderedLines = component.render(renderedWidthNow);
       renderedWidth = renderedWidthNow;
-      toolRenderDirty = false;
       return renderedLines;
     } finally {
       restore();
