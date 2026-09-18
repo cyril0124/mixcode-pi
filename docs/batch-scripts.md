@@ -17,7 +17,7 @@ Enter this command in an Agent tab or Home:
 /batch "scripts/review batch.ts" -- "packages/core" '' 'literal\path'
 ```
 
-Script arguments must follow `--`. Single and double quotes group arguments; empty quoted strings survive. Backslash escapes the next character except inside single quotes. Unclosed quotes and trailing escapes fail before loading. There is no shell variable, command, or glob expansion.
+Script arguments must follow `--`. Single and double quotes group arguments; empty quoted strings survive. Backslash escapes the next character except inside single quotes. Unclosed quotes and trailing escapes fail before loading. There is no shell variable, command, or glob expansion. A leading `@` on `<script>` is stripped, so paths inserted by the editor's `@` file autocomplete run as-is; arguments after `--` keep `@` unchanged.
 
 The invocation directory is the calling Agent tab's workdir, or the instance workdir on Home. Relative script paths and new-tab workdirs resolve against this directory; `currentWorkdir()` / `current_workdir()` returns it, and `scriptDir()` / `script_dir()` returns the directory of the file calling it, which differs from the invocation directory when the script lives elsewhere. Existing tabs keep their workdir under `append` and `clear`.
 

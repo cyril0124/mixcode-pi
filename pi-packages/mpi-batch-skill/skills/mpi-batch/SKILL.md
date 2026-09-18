@@ -55,7 +55,7 @@ Enter in an Agent tab or Home:
 /batch review.lua -- '' 'literal\path'
 ```
 
-Arguments must follow `--`. Single/double quotes group literal arguments and retain empty strings. Backslash escapes the next character outside single quotes. Unclosed quotes and trailing escapes fail before script loading. No shell variable, command, or glob expansion occurs.
+Arguments must follow `--`. Single/double quotes group literal arguments and retain empty strings. Backslash escapes the next character outside single quotes. Unclosed quotes and trailing escapes fail before script loading. No shell variable, command, or glob expansion occurs. A leading `@` on the script path is stripped, so a path inserted by the editor's `@` file autocomplete runs as-is; arguments after `--` keep `@` unchanged.
 
 The invocation directory is the calling Agent tab's workdir, or the instance workdir on Home. Relative script paths and new-tab workdirs resolve against it; `currentWorkdir()` / `current_workdir()` returns it. `scriptDir()` / `script_dir()` returns the directory of the file calling it, which differs from the invocation directory when the file lives elsewhere. In Lua, a module loaded through `require` therefore sees its own directory, while `scriptDir()` in TypeScript always reports the entry script. Existing tabs keep their directory under `append` and `clear`.
 

@@ -101,7 +101,7 @@ test("/batch from empty Home preserves quoted paths, empty args, and literal she
   });
 });
 
-for (const args of ["", '"unfinished.ts', "run.ts extra", '""', "run.ts -- trailing\\"]) {
+for (const args of ["", "@", '"unfinished.ts', "run.ts extra", '""', "run.ts -- trailing\\"]) {
   test(`/batch rejects malformed arguments: ${JSON.stringify(args)}`, async () => {
     await withRuntime(async ({ state, submit, stateFile }) => {
       await assert.rejects(
@@ -113,6 +113,17 @@ for (const args of ["", '"unfinished.ts', "run.ts extra", '""', "run.ts -- trail
     });
   });
 }
+
+test("/batch strips the file-autocomplete @ from the script but keeps it in script args", async () => {
+  await withRuntime(async ({ root, state, runtime, submit }) => {
+    await Bun.write(path.join(root, "inspect at.ts"), inspectScript);
+    await submit(String.raw`/batch "@inspect at.ts" -- "@kept" @bare`);
+    assert.deepEqual(JSON.parse(userTexts(runtime, state.tabs[0]!.sessionId)[0]!), {
+      args: ["@kept", "@bare"],
+      cwd: root,
+    });
+  });
+});
 
 test("/batch uses Agent workdir and Home instance workdir without process chdir", async () => {
   await withRuntime(async ({ root, state, runtime, submit }) => {

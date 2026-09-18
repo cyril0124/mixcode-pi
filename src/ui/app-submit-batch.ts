@@ -67,6 +67,8 @@ export const BATCH_COMMAND_HANDLERS = {
 /** Quotes group literal arguments; backslash escapes outside single quotes.
  * Empty quoted arguments survive. No variable, command, or glob expansion runs.
  * Unclosed quotes, trailing escapes, and missing separators fail before loading.
+ * A leading `@` on the script is the editor's file-autocomplete prefix, not part of
+ * the path; script arguments after `--` keep it.
  */
 function parseBatchArguments(input: string): { file: string; args: string[] } {
   const tokens: string[] = [];
@@ -98,7 +100,8 @@ function parseBatchArguments(input: string): { file: string; args: string[] } {
   }
   if (quote) throw new Error("Error: Invalid batch arguments: unclosed quote");
   if (started) tokens.push(token);
-  const [file, separator, ...args] = tokens;
+  const [fileToken, separator, ...args] = tokens;
+  const file = fileToken?.startsWith("@") ? fileToken.slice(1) : fileToken;
   if (!file || file === "--" || (separator !== undefined && separator !== "--")) {
     throw new Error("Error: Usage: /batch <script> [-- <args...>]");
   }

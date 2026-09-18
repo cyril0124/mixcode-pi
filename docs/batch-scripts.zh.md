@@ -17,7 +17,7 @@
 /batch "scripts/review batch.ts" -- "packages/core" '' 'literal\path'
 ```
 
-脚本参数必须放在 `--` 后。单双引号用于组合参数，空引号保留为空字符串。反斜杠转义下一个字符，但单引号内不转义。引号未闭合或末尾存在未完成的转义时，在加载前报错。不展开 shell 变量、命令或 glob。
+脚本参数必须放在 `--` 后。单双引号用于组合参数，空引号保留为空字符串。反斜杠转义下一个字符，但单引号内不转义。引号未闭合或末尾存在未完成的转义时，在加载前报错。不展开 shell 变量、命令或 glob。`<script>` 开头的 `@` 会被去掉，编辑器 `@` 文件补全插入的路径可直接执行；`--` 之后的参数保留 `@`。
 
 调用目录是发起命令的 Agent tab workdir；Home 使用实例 workdir。相对脚本路径和新 tab workdir 以调用目录为基准，`currentWorkdir()` / `current_workdir()` 返回该目录，`scriptDir()` / `script_dir()` 返回调用它的文件所在目录；脚本不在调用目录内时，两者不同。`append` 和 `clear` 复用的已有 tab 保留原 workdir。
 
