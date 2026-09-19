@@ -1,5 +1,5 @@
-import type { Model, ThinkingLevelMap } from "@earendil-works/pi-ai";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
+import type { Model, ThinkingLevelMap } from "@earendil-works/pi-ai";
 import type { MixCodeUiSettings } from "./mixcode-settings.js";
 import type { TabColorName } from "./tab-colors.js";
 
@@ -138,6 +138,10 @@ export interface MixCodeTabInfo {
   pendingMessages: string[];
   /** Follow-up queue (delivered after the agent is fully idle). Separate from steer pendingMessages. */
   pendingFollowUps: string[];
+  /** User follow-ups in submission order; adjacent batch entries share a run. */
+  followUpQueue: Array<{ text: string; kind: "batch" | "next"; command?: boolean }>;
+  /** Explicit resume is required after abort or a terminal run failure. */
+  followUpsPaused: boolean;
   promptHistory: string[];
   draftInput: string;
   chatScrollOffset: number;
@@ -402,6 +406,8 @@ export interface MixCodeState {
   deleteAllSessionsConfirmOpen: boolean;
   closeAllSessionsConfirmOpen: boolean;
   sessionActionConfirm: SessionActionConfirm | null;
+  /** Cancel queued confirmation waiters when another overlay replaces their dialog. */
+  dismissQueuedConfirmation?: () => void;
   commandPaletteOpen: boolean;
   commandPalette: CommandPaletteState;
   settingsPanel: SettingsPanelState;

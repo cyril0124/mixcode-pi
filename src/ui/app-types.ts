@@ -30,6 +30,10 @@ export interface LocalCommandContext {
   args: string;
   /** Argument text with quotes and internal whitespace preserved. */
   rawArgs: string;
+  /** Execute deferred input through the original host, pinned to its owning tab. */
+  submitQueuedInput?: (text: string) => Promise<void>;
+  /** Deferred commands wait for confirmation and its asynchronous action. */
+  queuedCommand?: boolean;
   tui: OverlayTui;
   onStateChanged?: (state: MixCodeState) => void | Promise<void>;
   authInputHost?: AuthInputHost;

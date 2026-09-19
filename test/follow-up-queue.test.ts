@@ -252,9 +252,10 @@ test("streaming steer and followUp land in separate queues and dual UI", async (
     assert.deepEqual(tab.pendingMessages, ["steer now"]);
     assert.deepEqual(tab.pendingFollowUps, ["follow later"]);
     assert.equal(runtimeTab.queuedPromptCount, 1);
-    assert.equal(runtimeTab.queuedFollowUpCount, 1);
+    assert.deepEqual(tab.followUpQueue, [{ text: "follow later", kind: "batch" }]);
     assert.deepEqual([...runtimeTab.agentSession.getSteeringMessages()], ["steer now"]);
-    assert.deepEqual([...runtimeTab.agentSession.getFollowUpMessages()], ["follow later"]);
+    // Deferred user work must not enter the SDK queue, which drains before settled idle.
+    assert.deepEqual([...runtimeTab.agentSession.getFollowUpMessages()], []);
 
     const preview = stripAnsi(renderQueuePreview(tab, 80).join("\n"));
     assert.match(preview, /Steer \(1\)/);

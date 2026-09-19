@@ -121,13 +121,16 @@ function streamMessage(message: AssistantMessage, options?: SimpleStreamOptions)
   return stream;
 }
 
-function lastUserText(context: Context): string {
-  const users = context.messages.filter((m) => m.role === "user");
-  const last = users.at(-1);
-  if (!last || !("content" in last)) return "";
-  if (typeof last.content === "string") return last.content;
-  return last.content.map((b) => (b.type === "text" ? b.text : "")).join("\n");
+function userMessages(context: Context): string[] {
+  return context.messages
+    .filter((message) => message.role === "user")
+    .map((message) => {
+      if (typeof message.content === "string") return message.content;
+      return message.content.map((block) => (block.type === "text" ? block.text : "")).join("\n");
+    });
 }
+
+let modelUserMessages: string[] = [];
 
 const model: MixCodeModel = {
   ...MIXCODE_FAUX_MODEL,
@@ -139,7 +142,8 @@ const model: MixCodeModel = {
 const runtime = new MixCodeRuntime({
   sessionsRoot: path.join(root, "sessions"),
   streamFn: (_m, context, options) => {
-    const text = lastUserText(context);
+    modelUserMessages = userMessages(context);
+    const text = modelUserMessages.at(-1) ?? "";
     if (text === "do work") {
       return streamMessage(
         toolCallMessage({ type: "toolCall", id: "tc-1", name: "slow_tool", arguments: {} }),
@@ -215,29 +219,23 @@ void (async () => {
   }
 })();
 
-// Poll for release signal file written by the tmux driver after Esc checks.
+// Keep the terminal alive after release so the driver can verify paused idle,
+// explicitly resume through the editor, and observe the resulting model input.
 const releaseFile = path.join(root, "release");
 void (async () => {
   for (let i = 0; i < 600; i++) {
     if (fs.existsSync(releaseFile)) {
       releaseTool();
-      // Wait for follow-up delivery after idle.
-      for (let j = 0; j < 100; j++) {
-        if (tab.pendingFollowUps.length === 0 && !runtime.getTab("s1")?.agentSession.isStreaming) {
-          fs.writeFileSync(
-            path.join(root, "idle.json"),
-            JSON.stringify({ pendingFollowUps: tab.pendingFollowUps }),
-          );
-          break;
-        }
-        await Bun.sleep(50);
-      }
-      try {
-        tui.stop();
-      } catch {
-        // ignore
-      }
-      process.exit(0);
+      const snapshot = JSON.stringify({
+        isIdle: runtime.getTab("s1")?.agentSession.isIdle ?? false,
+        pendingFollowUps: tab.pendingFollowUps,
+        followUpsPaused: tab.followUpsPaused,
+        color: tab.color,
+        modelUserMessages,
+      });
+      // Atomic replacement prevents the driver from observing partial JSON.
+      await Bun.write(path.join(root, "idle.json.tmp"), snapshot);
+      await fs.promises.rename(path.join(root, "idle.json.tmp"), path.join(root, "idle.json"));
     }
     await Bun.sleep(100);
   }

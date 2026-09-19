@@ -57,6 +57,7 @@ import type {
   MixCodeKeyRuntime,
   OverlayTui,
 } from "./app-types.js";
+import { takeQueuedCommandCompletion } from "./queued-command-completion.js";
 import { getConfiguredQuitOptions, quitMixCode } from "./quit.js";
 import { renderCommandPalette, renderTabJumpOverlay } from "./rendering.js";
 import { openTreeSelector, type TreeSelectorRuntime } from "./components/tree-selector.js";
@@ -176,12 +177,14 @@ export function handleDeleteAllSessionsConfirmKey(
   if (matchesKey(data, "escape") || data.toLowerCase() === "n") {
     state.deleteAllSessionsConfirmOpen = false;
     closeAppOverlay(tui);
+    takeQueuedCommandCompletion(state)?.reject(new Error("Error: Queued command cancelled"));
     tui.requestRender();
     return true;
   }
   if (data.toLowerCase() === "y") {
     if (!runtime) throw new Error("Deleting all sessions requires runtime support");
     const confirmedRuntime = runtime;
+    const completion = takeQueuedCommandCompletion(state);
     state.deleteAllSessionsConfirmOpen = false;
     closeAppOverlay(tui);
     void (async () => {
@@ -198,7 +201,11 @@ export function handleDeleteAllSessionsConfirmKey(
       clampHomeSelectedTabIndex(state);
       await onStateChanged?.(state);
       tui.requestRender();
-    })().catch((error: unknown) => showErrorOverlay(tui, error));
+      completion?.resolve();
+    })().catch((error: unknown) => {
+      if (completion) completion.reject(error);
+      else showErrorOverlay(tui, error);
+    });
     return true;
   }
   return true;
@@ -216,12 +223,14 @@ export function handleCloseAllSessionsConfirmKey(
   if (matchesKey(data, "escape") || data.toLowerCase() === "n") {
     state.closeAllSessionsConfirmOpen = false;
     closeAppOverlay(tui);
+    takeQueuedCommandCompletion(state)?.reject(new Error("Error: Queued command cancelled"));
     tui.requestRender();
     return true;
   }
   if (data.toLowerCase() === "y") {
     if (!runtime) throw new Error("Closing all sessions requires runtime support");
     const confirmedRuntime = runtime;
+    const completion = takeQueuedCommandCompletion(state);
     state.closeAllSessionsConfirmOpen = false;
     closeAppOverlay(tui);
     void (async () => {
@@ -238,7 +247,11 @@ export function handleCloseAllSessionsConfirmKey(
       clampHomeSelectedTabIndex(state);
       await onStateChanged?.(state);
       tui.requestRender();
-    })().catch((error: unknown) => showErrorOverlay(tui, error));
+      completion?.resolve();
+    })().catch((error: unknown) => {
+      if (completion) completion.reject(error);
+      else showErrorOverlay(tui, error);
+    });
     return true;
   }
   return true;
@@ -256,6 +269,7 @@ export function handleSessionActionConfirmKey(
     const wasLive = sessionActionConfirmIsLive(state);
     state.sessionActionConfirm = null;
     if (wasLive) closeAppOverlay(tui);
+    takeQueuedCommandCompletion(state)?.reject(new Error("Error: Queued command cancelled"));
     tui.requestRender();
     return true;
   }
@@ -264,6 +278,7 @@ export function handleSessionActionConfirmKey(
     const confirmedRuntime = runtime;
     const { action, sessionId } = confirm;
     const wasLive = sessionActionConfirmIsLive(state);
+    const completion = takeQueuedCommandCompletion(state);
     state.sessionActionConfirm = null;
     if (wasLive) closeAppOverlay(tui);
     void (async () => {
@@ -274,7 +289,11 @@ export function handleSessionActionConfirmKey(
       }
       await onStateChanged?.(state);
       tui.requestRender();
-    })().catch((error: unknown) => showErrorOverlay(tui, error));
+      completion?.resolve();
+    })().catch((error: unknown) => {
+      if (completion) completion.reject(error);
+      else showErrorOverlay(tui, error);
+    });
     return true;
   }
   return true;

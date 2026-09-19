@@ -846,15 +846,35 @@ function renderQueuePreviewInner(tab: MixCodeTabInfo, width: number): string[] {
     lines.push(
       ...renderOneQueueBox(
         "Follow-up",
-        tab.pendingFollowUps,
+        followUpPreviewMessages(tab),
         width,
         maxQueue,
         false,
         dualQueues ? "Ctrl+U,F->edit" : "Ctrl+U->edit",
+        tab.followUpsPaused ? "Paused · /follow-up-next to resume" : undefined,
       ),
     );
   }
   return lines;
+}
+
+function followUpPreviewMessages(tab: MixCodeTabInfo): string[] {
+  let round = 0;
+  let previousKind: "batch" | "next" | undefined;
+  // Number the whole queue before the display limit is applied. Each next item
+  // ends both adjacent batches, so its neighbors cannot share its round.
+  const messages = tab.followUpQueue.map((item) => {
+    if (item.command || item.kind === "next" || previousKind !== "batch") round += 1;
+    previousKind = item.command ? "next" : item.kind;
+    const kindLabel = item.command ? "command · " : item.kind === "next" ? "next · " : "";
+    return `Round ${round} · ${kindLabel}${item.text}`;
+  });
+  // SDK companions are not user rounds. The aggregate appends them after the
+  // local queue; keep them visible without inventing local dispatch boundaries.
+  for (const text of tab.pendingFollowUps.slice(tab.followUpQueue.length)) {
+    messages.push(`SDK · ${text}`);
+  }
+  return messages;
 }
 
 function renderOneQueueBox(
@@ -864,6 +884,7 @@ function renderOneQueueBox(
   maxQueue: number,
   escSendNow: boolean,
   editShortcut: string,
+  statusHint?: string,
 ): string[] {
   const innerWidth = Math.max(12, width - 2);
   const itemWidth = Math.max(8, innerWidth - 2);
@@ -875,6 +896,7 @@ function renderOneQueueBox(
   const shortcuts = escSendNow ? `${editShortcut}  Esc->send now` : editShortcut;
   const body = [
     `${title}  ${shortcuts}`,
+    ...(statusHint ? [statusHint] : []),
     ...shown.map((message) => `↳ ${normalizePendingMessage(message, itemWidth)}`),
   ];
   return box(label, body, width, activeRenderTheme, true);

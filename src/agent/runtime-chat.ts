@@ -655,6 +655,8 @@ export function resetTabForNewSession(tab: MixCodeTabInfo, sessionId: string): v
   tab.currentContextTokens = undefined;
   tab.pendingMessages = [];
   tab.pendingFollowUps = [];
+  tab.followUpQueue = [];
+  tab.followUpsPaused = false;
   tab.queueEditArmedAt = undefined;
   clearQueueEditToast(tab);
   tab.chatScrollOffset = 0;

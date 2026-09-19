@@ -215,6 +215,10 @@ export interface RuntimeTab {
   queuedPromptCount: number;
   /** Count of runtime-mirrored follow-up messages at the tail of tab.pendingFollowUps. */
   queuedFollowUpCount: number;
+  /** Owns the local FIFO drain across async preflight, runs, and SDK continuations. */
+  followUpDrain?: Promise<void>;
+  /** Latest run outcome, retained even when SDK recovery removes error messages. */
+  followUpRunFailed?: boolean;
   /**
    * Serializes replaceRuntimeTabSession on this tab so a concurrent resume/new/fork
    * cannot dispose the session installed by an in-flight replace before bindExtensions.

@@ -1,6 +1,6 @@
 import type { SessionInfo } from "@earendil-works/pi-coding-agent";
 import type { RuntimeTab } from "../agent/runtime.js";
-import type { LocalCommand } from "../core/commands.js";
+import { type LocalCommand, parseInput } from "../core/commands.js";
 import { createSessionId, createTab, uniqueTabTitle } from "../core/defaults.js";
 import { assertModelEnabled } from "../core/models.js";
 import {
@@ -10,8 +10,8 @@ import {
   noteTabsReplaced,
 } from "../core/open-tabs-store.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
-import { activateTab, groupTabsByColor, renameAgentTab, setAgentTabColor } from "../core/tabs.js";
 import { isTabColorName, TAB_COLOR_NAMES } from "../core/tab-colors.js";
+import { activateTab, groupTabsByColor, renameAgentTab, setAgentTabColor } from "../core/tabs.js";
 import { pushToast } from "../core/toast.js";
 import { HOME_TAB_ID, type MixCodeState } from "../core/types.js";
 import {
@@ -38,20 +38,62 @@ import {
 } from "./app-types.js";
 import { renderSessionInfoText as formatSessionInfoText } from "./components/session-info.js";
 import { openTreeSelector, type TreeSelectorRuntime } from "./components/tree-selector.js";
+import { runCommandConfirmation } from "./queued-command-completion.js";
 import {
   openSessionSelector,
   resumeSelectedSession,
   type SessionSelectorRuntime,
 } from "./session-resume.js";
 
-const handleFollowUp: LocalCommandHandler = async ({ active, args, runtime }) => {
+const handleFollowUp: LocalCommandHandler = async ({
+  active,
+  rawArgs,
+  runtime,
+  submitQueuedInput,
+}) => {
   // Queue as followUp (wait until idle). Do not send "/follow-up ..." as model text.
-  const message = args.trim();
+  const message = rawArgs.trim();
   if (!message) {
     throw new Error("Error: Usage: /follow-up <message>");
   }
+  if (parseInput(message).kind === "local-command") {
+    if (!submitQueuedInput) throw new Error("Error: Queued commands require an input host");
+    await runtime.queueFollowUpCommand(
+      active!.sessionId,
+      message,
+      () => submitQueuedInput(message),
+      "batch",
+    );
+    return undefined;
+  }
   assertModelEnabled(active!.model);
   await runtime.prompt(active!.sessionId, message, { streamingBehavior: "followUp" });
+  return undefined;
+};
+
+const handleFollowUpNext: LocalCommandHandler = async ({
+  active,
+  rawArgs,
+  runtime,
+  submitQueuedInput,
+}) => {
+  const message = rawArgs.trim();
+  if (message && parseInput(message).kind === "local-command") {
+    if (!submitQueuedInput) throw new Error("Error: Queued commands require an input host");
+    await runtime.queueFollowUpCommand(active!.sessionId, message, () =>
+      submitQueuedInput(message),
+    );
+    return undefined;
+  }
+  assertModelEnabled(active!.model);
+  if (message) {
+    await runtime.prompt(active!.sessionId, message, {
+      streamingBehavior: "followUp",
+      followUpNext: true,
+    });
+  } else {
+    await runtime.resumeFollowUps(active!.sessionId);
+  }
   return undefined;
 };
 
@@ -330,10 +372,18 @@ const handleCloseSession: LocalCommandHandler = async ({
   args,
   tui,
   onStateChanged,
+  queuedCommand,
 }): Promise<typeof SKIP_FINALIZE> => {
   if (!sessionActionSkipsConfirm(args, "close-session")) {
-    openSessionActionConfirm(state, tui, "close", active!);
-    await onStateChanged?.(state);
+    await runCommandConfirmation(
+      state,
+      queuedCommand,
+      async () => {
+        openSessionActionConfirm(state, tui, "close", active!);
+        await onStateChanged?.(state);
+      },
+      active!.sessionId,
+    );
     return SKIP_FINALIZE;
   }
   await closeExistingAgentTab(state, runtime, active!.sessionId);
@@ -349,10 +399,18 @@ const handleDeleteSession: LocalCommandHandler = async ({
   args,
   tui,
   onStateChanged,
+  queuedCommand,
 }): Promise<typeof SKIP_FINALIZE> => {
   if (!sessionActionSkipsConfirm(args, "delete-session")) {
-    openSessionActionConfirm(state, tui, "delete", active!);
-    await onStateChanged?.(state);
+    await runCommandConfirmation(
+      state,
+      queuedCommand,
+      async () => {
+        openSessionActionConfirm(state, tui, "delete", active!);
+        await onStateChanged?.(state);
+      },
+      active!.sessionId,
+    );
     return SKIP_FINALIZE;
   }
   await deleteAgentTab(state, runtime, active!.sessionId);
@@ -363,26 +421,46 @@ const handleDeleteSession: LocalCommandHandler = async ({
 
 const handleDeleteAllSessions: LocalCommandHandler = async ({
   state,
+  active,
   tui,
   onStateChanged,
+  queuedCommand,
 }): Promise<typeof SKIP_FINALIZE> => {
   // Destructive (closes every tab and deletes every session file): gate
   // behind a Y/N confirmation instead of running immediately. The actual
   // deletion happens in handleDeleteAllSessionsConfirmKey once confirmed.
-  openDeleteAllSessionsConfirm(state, tui);
-  await onStateChanged?.(state);
+  await runCommandConfirmation(
+    state,
+    queuedCommand,
+    async () => {
+      openDeleteAllSessionsConfirm(state, tui);
+      await onStateChanged?.(state);
+    },
+    active?.sessionId,
+    false,
+  );
   return SKIP_FINALIZE;
 };
 
 const handleCloseAllSessions: LocalCommandHandler = async ({
   state,
+  active,
   tui,
   onStateChanged,
+  queuedCommand,
 }): Promise<typeof SKIP_FINALIZE> => {
   // Same Y/N gate as delete-all-sessions; the confirmed close happens in
   // handleCloseAllSessionsConfirmKey (keeps session files, unlike delete).
-  openCloseAllSessionsConfirm(state, tui);
-  await onStateChanged?.(state);
+  await runCommandConfirmation(
+    state,
+    queuedCommand,
+    async () => {
+      openCloseAllSessionsConfirm(state, tui);
+      await onStateChanged?.(state);
+    },
+    active?.sessionId,
+    false,
+  );
   return SKIP_FINALIZE;
 };
 
@@ -476,10 +554,10 @@ const handleColor: LocalCommandHandler = ({ state, active, args, runtime, tui })
   const input = args.trim().toLowerCase();
   const color = input === "" || input === "clear" ? undefined : input;
   if (color !== undefined && !isTabColorName(color)) {
-    appendActiveSystemMessage(
-      state,
-      runtime,
+    runtime.appendSystemMessage(
+      active!.sessionId,
       `Error: Unknown color: ${input} (valid: ${TAB_COLOR_NAMES.join(", ")}, clear)`,
+      "error",
     );
     tui.requestRender();
     return SKIP_FINALIZE;
@@ -523,6 +601,7 @@ const handleCompact: LocalCommandHandler = async ({ active, args, runtime }) => 
 export const SESSION_COMMAND_HANDLERS = {
   fork: handleFork,
   "follow-up": handleFollowUp,
+  "follow-up-next": handleFollowUpNext,
   tree: handleTree,
   "close-session": handleCloseSession,
   "delete-session": handleDeleteSession,

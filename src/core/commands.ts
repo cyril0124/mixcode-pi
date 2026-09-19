@@ -8,6 +8,7 @@ export type LocalCommand =
   | "workdir"
   | "fork"
   | "follow-up"
+  | "follow-up-next"
   | "tree"
   | "close-session"
   | "delete-session"
@@ -172,6 +173,16 @@ export const LOCAL_COMMANDS: Array<{
     palette: {
       label: "Queue Follow-up",
       description: "Send after the agent finishes (not in-flight steer)",
+      requires: "session",
+    },
+  },
+  {
+    name: "follow-up-next",
+    description: "Queue a separate follow-up round, or resume queued follow-ups without a message",
+    argumentHint: "[message]",
+    palette: {
+      label: "Queue or Resume Follow-up",
+      description: "Queue a separate round; no message resumes paused follow-ups",
       requires: "session",
     },
   },
