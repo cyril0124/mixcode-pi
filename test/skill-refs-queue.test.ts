@@ -48,7 +48,7 @@ async function withQueuedSkill(
   const started = Promise.withResolvers<void>();
   const released = Promise.withResolvers<void>();
   const requests: ModelRequest[] = [];
-  let runtimeTab: RuntimeTab;
+  let runtimeTab!: RuntimeTab;
   const model = { ...MIXCODE_FAUX_MODEL, provider: "skill-queue-test", id: "skill-queue-test" };
   const runtime = new MixCodeRuntime({
     sessionsRoot: path.join(dir, "sessions"),
@@ -120,6 +120,9 @@ async function withQueuedSkill(
   } finally {
     released.resolve();
     await running;
+    // A queued follow-up runs as its own turn after `running` settles; wait for
+    // the drain so closeTab never races the in-flight follow-up turn.
+    await runtimeTab.followUpDrain;
     await runtime.closeTab("skill-queue");
     await fs.rm(dir, { recursive: true, force: true });
   }
