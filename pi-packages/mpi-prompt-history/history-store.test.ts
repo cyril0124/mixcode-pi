@@ -117,6 +117,69 @@ test("appendHistoryEntry writes strict Codex-compatible fields and trims oldest 
   }
 });
 
+test("appendHistoryEntry trims a large history within the startup latency budget", async () => {
+  const dir = await tempDir("large-trim");
+  const file = nodePath.join(dir, "history.jsonl");
+  try {
+    const rows = Array.from({ length: 16_000 }, (_, index) => ({
+      session_id: "large",
+      ts: 10,
+      text: `${index.toString().padStart(5, "0")} ${"中x".repeat(128)}`,
+    }));
+    const newest = { session_id: "large", ts: 11, text: "newest" };
+    const expected = `${[...rows.slice(-3), newest].map((row) => JSON.stringify(row)).join("\n")}\n`;
+    await fsPromises.writeFile(file, `${rows.map((row) => JSON.stringify(row)).join("\n")}\n`);
+
+    const start = performance.now();
+    await appendHistoryEntry(
+      file,
+      { sessionId: newest.session_id, text: newest.text, timestampSeconds: newest.ts },
+      Buffer.byteLength(expected),
+    );
+    const elapsedMs = performance.now() - start;
+
+    assert.equal(await fsPromises.readFile(file, "utf8"), expected);
+    // Local tmpfs/disk I/O plus one linear pass has ample margin below this budget.
+    assert.ok(elapsedMs < 2_000, `history trim blocked for ${elapsedMs.toFixed(0)}ms`);
+  } finally {
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("appendHistoryEntry preserves bytes under budget and complete UTF-8 rows at the boundary", async () => {
+  const dir = await tempDir("trim-boundaries");
+  const file = nodePath.join(dir, "history.jsonl");
+  const first = { session_id: "s1", ts: 1, text: "最旧" };
+  const middle = { session_id: "s1", ts: 2, text: "中文\u{20000}" };
+  const newest = { session_id: "s1", ts: 3, text: "latest\nline" };
+  const firstLine = JSON.stringify(first);
+  const middleLine = JSON.stringify(middle);
+  const newestLine = `${JSON.stringify(newest)}\n`;
+  const initial = `${firstLine}\r\n\r\n${middleLine}\r\n`;
+  const normalizedTail = `${middleLine}\n${newestLine}`;
+  const cases = [
+    { budget: Buffer.byteLength(initial + newestLine), expected: initial + newestLine },
+    { budget: Buffer.byteLength(normalizedTail), expected: normalizedTail },
+    { budget: Buffer.byteLength(normalizedTail) - 1, expected: newestLine },
+    { budget: Buffer.byteLength(newestLine), expected: newestLine },
+    { budget: Buffer.byteLength(newestLine) - 1, expected: "" },
+    { budget: 1, expected: "" },
+  ];
+  try {
+    for (const { budget, expected } of cases) {
+      await fsPromises.writeFile(file, initial);
+      await appendHistoryEntry(
+        file,
+        { sessionId: newest.session_id, text: newest.text, timestampSeconds: newest.ts },
+        budget,
+      );
+      assert.equal(await fsPromises.readFile(file, "utf8"), expected, `budget=${budget}`);
+    }
+  } finally {
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("appendHistoryEntry preserves raw submitted text", async () => {
   const dir = await tempDir("raw");
   const file = nodePath.join(dir, "history.jsonl");
@@ -392,6 +455,294 @@ test("ensurePromptHistoryState writes index records with session name fallback",
     // Newest first.
     assert.equal(records[0]?.id, "unnamed");
     assert.equal((await fsPromises.stat(indexFile)).mode & 0o777, 0o600);
+  } finally {
+    await fsPromises.rm(agentDir, { recursive: true, force: true });
+  }
+});
+
+test("ensurePromptHistoryState preserves the millisecond cutoff and timestamp precedence", async () => {
+  const agentDir = await tempDir("cutoff");
+  const now = Date.UTC(2026, 5, 20, 0, 0, 0, 500);
+  const cutoff = now - 30 * 24 * 60 * 60 * 1000;
+  try {
+    const sessionsRoot = nodePath.join(agentDir, "sessions");
+    await writeSessionFixture(sessionsRoot, "cutoff", [
+      {
+        type: "session",
+        id: "cutoff",
+        cwd: "/repo",
+        timestamp: new Date(cutoff - 1).toISOString(),
+      },
+      { type: "message", message: { role: "user", content: "excluded", timestamp: cutoff - 1 } },
+      {
+        type: "message",
+        timestamp: new Date(now + 100_000).toISOString(),
+        message: {
+          role: "user",
+          timestamp: cutoff,
+          content: [
+            { type: "text", text: "  boundary " },
+            { type: "image" },
+            { type: "text", text: "line  " },
+          ],
+        },
+      },
+      {
+        type: "message",
+        timestamp: new Date(now - 1_000).toISOString(),
+        message: { role: "user", content: "  fallback  ", timestamp: "invalid" },
+      },
+      { type: "custom", timestamp: new Date(now + 1_000).toISOString() },
+    ]);
+    const result = await ensurePromptHistoryState({
+      agentDir,
+      sessionsRoot,
+      now: () => new Date(now),
+    });
+    assert.deepEqual(result.warnings, []);
+    assert.deepEqual(await readJsonl(result.paths.historyFile), [
+      { session_id: "cutoff", ts: Math.floor(cutoff / 1000), text: "boundary \nline" },
+      { session_id: "cutoff", ts: Math.floor((now - 1000) / 1000), text: "fallback" },
+    ]);
+    const index = await readJsonl(result.paths.sessionIndexFile);
+    assert.equal(index[0]?.updated_at, new Date(now + 1000).toISOString());
+  } finally {
+    await fsPromises.rm(agentDir, { recursive: true, force: true });
+  }
+});
+
+test("ensurePromptHistoryState keeps first-header identity and cleared-name title fallback", async () => {
+  const agentDir = await tempDir("identity");
+  try {
+    const sessionsRoot = nodePath.join(agentDir, "sessions");
+    const file = await writeSessionFixture(sessionsRoot, "filename-id", [
+      { type: "session", id: "header-id", cwd: "/first", timestamp: "2026-06-20T00:00:00Z" },
+      { type: "session", id: "later-header", cwd: "/later" },
+      { type: "message", message: { role: "user", content: "  first\n prompt  " } },
+      { type: "session_info", name: "Previous name" },
+      { type: "session_info", name: "  " },
+      { type: "session_info", name: 123 },
+    ]);
+    const result = await ensurePromptHistoryState({ agentDir, sessionsRoot });
+    assert.deepEqual(result.warnings, []);
+    assert.deepEqual(await readJsonl(result.paths.sessionIndexFile), [
+      {
+        id: "filename-id",
+        title: "first prompt",
+        cwd: "/first",
+        path: file,
+        updated_at: "2026-06-20T00:00:00.000Z",
+      },
+    ]);
+  } finally {
+    await fsPromises.rm(agentDir, { recursive: true, force: true });
+  }
+});
+
+test("ensurePromptHistoryState indexes the newest duplicate id and backfills both files", async () => {
+  const agentDir = await tempDir("duplicate-id");
+  try {
+    const sessionsRoot = nodePath.join(agentDir, "sessions");
+    await writeSessionFixture(nodePath.join(sessionsRoot, "a"), "duplicate", [
+      { type: "session", id: "duplicate", cwd: "/old", timestamp: "2026-06-19T00:00:00Z" },
+      {
+        type: "message",
+        message: { role: "user", content: "older", timestamp: Date.UTC(2026, 5, 19) },
+      },
+    ]);
+    const latestFile = await writeSessionFixture(nodePath.join(sessionsRoot, "b"), "duplicate", [
+      { type: "session", id: "duplicate", cwd: "/new", timestamp: "2026-06-20T00:00:00Z" },
+      {
+        type: "message",
+        message: { role: "user", content: "newer", timestamp: Date.UTC(2026, 5, 20) },
+      },
+    ]);
+    const result = await ensurePromptHistoryState({
+      agentDir,
+      sessionsRoot,
+      now: () => new Date(Date.UTC(2026, 5, 20)),
+    });
+    assert.deepEqual(result.warnings, []);
+    assert.equal(result.scannedSessions, 2);
+    assert.deepEqual(await readJsonl(result.paths.historyFile), [
+      { session_id: "duplicate", ts: Date.UTC(2026, 5, 19) / 1000, text: "older" },
+      { session_id: "duplicate", ts: Date.UTC(2026, 5, 20) / 1000, text: "newer" },
+    ]);
+    assert.deepEqual(await readJsonl(result.paths.sessionIndexFile), [
+      {
+        id: "duplicate",
+        title: "newer",
+        cwd: "/new",
+        path: latestFile,
+        updated_at: "2026-06-20T00:00:00.000Z",
+      },
+    ]);
+  } finally {
+    await fsPromises.rm(agentDir, { recursive: true, force: true });
+  }
+});
+
+test("ensurePromptHistoryState tolerates malformed lines and headerless or empty files", async () => {
+  const agentDir = await tempDir("incomplete");
+  try {
+    const sessionsRoot = nodePath.join(agentDir, "sessions");
+    await fsPromises.mkdir(sessionsRoot);
+    const file = nodePath.join(sessionsRoot, "headerless.jsonl");
+    await fsPromises.writeFile(
+      file,
+      `{ broken\n${JSON.stringify({
+        type: "message",
+        timestamp: "2026-06-20T00:00:00Z",
+        message: { role: "user", content: "still indexed" },
+      })}\n`,
+    );
+    const emptyFile = nodePath.join(sessionsRoot, "empty.jsonl");
+    await fsPromises.writeFile(emptyFile, "\n\n");
+    await fsPromises.utimes(
+      emptyFile,
+      new Date("2026-06-19T00:00:00Z"),
+      new Date("2026-06-19T00:00:00Z"),
+    );
+    const result = await ensurePromptHistoryState({
+      agentDir,
+      sessionsRoot,
+      now: () => new Date(Date.UTC(2026, 5, 20)),
+    });
+    assert.deepEqual(result.warnings, []);
+    assert.deepEqual(await readJsonl(result.paths.historyFile), [
+      { session_id: "headerless", ts: Date.UTC(2026, 5, 20) / 1000, text: "still indexed" },
+    ]);
+    assert.deepEqual(await readJsonl(result.paths.sessionIndexFile), [
+      {
+        id: "headerless",
+        title: "still indexed",
+        cwd: "",
+        path: file,
+        updated_at: "2026-06-20T00:00:00.000Z",
+      },
+      {
+        id: "empty",
+        title: "empty",
+        cwd: "",
+        path: emptyFile,
+        updated_at: "2026-06-19T00:00:00.000Z",
+      },
+    ]);
+  } finally {
+    await fsPromises.rm(agentDir, { recursive: true, force: true });
+  }
+});
+
+test("backfill merges a prompt written by the lock holder after scanning", async () => {
+  const agentDir = await tempDir("backfill-lock");
+  let held: ReturnType<typeof acquirePidLock> | undefined;
+  try {
+    const sessionsRoot = nodePath.join(agentDir, "sessions");
+    const timestamp = Date.UTC(2026, 5, 20);
+    await writeSessionFixture(sessionsRoot, "s1", [
+      { type: "session", id: "s1", cwd: "/repo" },
+      { type: "message", message: { role: "user", content: "backfill", timestamp } },
+    ]);
+    const paths = promptHistoryPaths(agentDir);
+    await appendHistoryEntry(
+      paths.historyFile,
+      { sessionId: "s1", text: "previous", timestampSeconds: timestamp / 1000 - 1 },
+      MB,
+    );
+    held = acquirePidLock(paths.dataDir, HISTORY_LOCK_ID);
+    const scanned = Promise.withResolvers<void>();
+    const ensure = ensurePromptHistoryState({
+      agentDir,
+      sessionsRoot,
+      now: () => {
+        scanned.resolve();
+        return new Date(timestamp);
+      },
+    });
+    await scanned.promise;
+    // This writer owns the real PID lock, just like a peer finishing an append.
+    const peerRecord = { session_id: "s1", ts: timestamp / 1000 + 1, text: "concurrent" };
+    await fsPromises.appendFile(paths.historyFile, `${JSON.stringify(peerRecord)}\n`);
+    held.release();
+    held = undefined;
+    const result = await ensure;
+    assert.deepEqual(result.warnings, []);
+    assert.deepEqual(await readJsonl(paths.historyFile), [
+      { session_id: "s1", ts: timestamp / 1000 - 1, text: "previous" },
+      { session_id: "s1", ts: timestamp / 1000, text: "backfill" },
+      peerRecord,
+    ]);
+  } finally {
+    held?.release();
+    await fsPromises.rm(agentDir, { recursive: true, force: true });
+  }
+});
+
+test("ensurePromptHistoryState preserves unpaired UTF-16 code units in retained text", async () => {
+  const agentDir = await tempDir("retained-text");
+  try {
+    const sessionsRoot = nodePath.join(agentDir, "sessions");
+    const text = "unpaired \ud800 and \udfff";
+    const title = "title \ud800";
+    const file = await writeSessionFixture(sessionsRoot, "unicode", [
+      { type: "session", id: "unicode", cwd: "/repo", timestamp: "2026-06-20T00:00:00Z" },
+      { type: "session_info", name: title },
+      {
+        type: "message",
+        message: { role: "user", content: text, timestamp: Date.UTC(2026, 5, 20) },
+      },
+    ]);
+    const result = await ensurePromptHistoryState({
+      agentDir,
+      sessionsRoot,
+      now: () => new Date(Date.UTC(2026, 5, 20)),
+    });
+    assert.deepEqual(result.warnings, []);
+    assert.deepEqual(await readJsonl(result.paths.historyFile), [
+      { session_id: "unicode", ts: Date.UTC(2026, 5, 20) / 1000, text },
+    ]);
+    assert.deepEqual(await readJsonl(result.paths.sessionIndexFile), [
+      { id: "unicode", title, cwd: "/repo", path: file, updated_at: "2026-06-20T00:00:00.000Z" },
+    ]);
+  } finally {
+    await fsPromises.rm(agentDir, { recursive: true, force: true });
+  }
+});
+
+test("backfill keeps a contiguous suffix when an oversized prompt separates older rows", async () => {
+  const agentDir = await tempDir("backfill-budget");
+  const timestamp = Date.UTC(2026, 5, 20);
+  try {
+    const sessionsRoot = nodePath.join(agentDir, "sessions");
+    const oldest = { session_id: "budget", ts: timestamp / 1000, text: "older" };
+    const newest = { session_id: "budget", ts: timestamp / 1000 + 2, text: "中文\u{20000}" };
+    const newestLine = `${JSON.stringify(newest)}\n`;
+    // Either small record fits, but the oversized middle record excludes the oldest.
+    await fsPromises.writeFile(
+      promptHistoryPaths(agentDir).configFile,
+      JSON.stringify({
+        maxBytes: Buffer.byteLength(newestLine) + Buffer.byteLength(JSON.stringify(oldest)) + 1,
+      }),
+    );
+    await writeSessionFixture(sessionsRoot, "budget", [
+      { type: "session", id: "budget", cwd: "/repo" },
+      { type: "message", message: { role: "user", content: oldest.text, timestamp } },
+      {
+        type: "message",
+        message: { role: "user", content: "large".repeat(1000), timestamp: timestamp + 1000 },
+      },
+      {
+        type: "message",
+        message: { role: "user", content: newest.text, timestamp: timestamp + 2000 },
+      },
+    ]);
+    const result = await ensurePromptHistoryState({
+      agentDir,
+      sessionsRoot,
+      now: () => new Date(timestamp),
+    });
+    assert.deepEqual(result.warnings, []);
+    assert.equal(await fsPromises.readFile(result.paths.historyFile, "utf8"), newestLine);
   } finally {
     await fsPromises.rm(agentDir, { recursive: true, force: true });
   }

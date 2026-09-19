@@ -6,11 +6,12 @@
 //
 // Pure Node on purpose: these packages also load under upstream `pi` (Node +
 // jiti), where Bun globals do not exist.
+import type { Dirent, Stats } from "node:fs";
 import * as fs from "node:fs/promises";
-import type { Dirent } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { setTimeout as sleep } from "node:timers/promises";
+import { performance } from "node:perf_hooks";
+import { setTimeout as sleep, setImmediate as yieldToEventLoop } from "node:timers/promises";
 import { acquirePidLock, PidLockBusyError, type PidLockHandle } from "./pid-lock.js";
 
 const HISTORY_FILENAME = "history.jsonl";
@@ -21,6 +22,7 @@ const ALLOWED_CONFIG_KEYS = new Set(["$schema", "maxBytes"]);
 
 export const HISTORY_LOCK_ID = "prompt-history";
 const HISTORY_LOCK_POLL_MS = 20;
+const SESSION_PARSE_TIME_SLICE_MS = 10;
 
 /** Trim budget when the config file is absent or omits `maxBytes`. */
 export const DEFAULT_HISTORY_MAX_BYTES = 15 * 1024 * 1024;
@@ -62,12 +64,18 @@ interface RawSessionMessageEntry {
   message?: { role?: string; content?: unknown; timestamp?: number | string };
 }
 
-interface ParsedSessionFile {
+interface SessionPrompt {
+  text: string;
+  timestampMs: number;
+}
+
+interface SessionHistorySummary {
   path: string;
   id: string;
   cwd: string;
+  title: string;
   updatedAt: Date;
-  entries: RawSessionMessageEntry[];
+  prompts: SessionPrompt[];
 }
 
 function homeDir(env: NodeJS.ProcessEnv = process.env): string {
@@ -174,8 +182,10 @@ export async function appendHistoryEntry(
 
 /**
  * Backfill recent prompts and rebuild the session index when either output is
- * missing or stale. Scans every session JSONL under `sessionsRoot`, so callers
- * run it in the background and at most once per root per process.
+ * missing or stale. Scans every session JSONL under `sessionsRoot`, retaining
+ * only prompt candidates and index metadata between files. Parsing yields to
+ * the event loop between time slices; callers start it in the background at
+ * most once per root per process.
  */
 export async function ensurePromptHistoryState(options: {
   agentDir: string;
@@ -247,7 +257,7 @@ export function buildPromptHistoryPrompt(options: {
 
 async function backfillHistory(
   historyFile: string,
-  sessions: ParsedSessionFile[],
+  sessions: SessionHistorySummary[],
   since: Date,
   maxBytes: number,
 ): Promise<number> {
@@ -264,17 +274,14 @@ async function backfillHistory(
     });
     if (uniqueAdditions.length === 0) return 0;
     const merged = [...existing, ...uniqueAdditions].sort((left, right) => left.ts - right.ts);
-    const text = merged.length
-      ? `${merged.map((record) => JSON.stringify(record)).join("\n")}\n`
-      : "";
-    await writePrivateFile(historyFile, trimHistoryText(text, maxBytes));
+    await writePrivateFile(historyFile, serializeHistoryWithinBudget(merged, maxBytes));
     return uniqueAdditions.length;
   });
 }
 
 async function buildSessionIndex(
   indexFile: string,
-  sessions: ParsedSessionFile[],
+  sessions: SessionHistorySummary[],
 ): Promise<{ indexed: number }> {
   const records = new Map<string, SessionIndexRecord>();
   for (const session of sessions) {
@@ -323,71 +330,124 @@ async function readHistoryRecords(historyFile: string): Promise<RawHistoryRecord
 }
 
 function userHistoryRecordsFromSession(
-  session: ParsedSessionFile,
+  session: SessionHistorySummary,
   since: Date,
 ): RawHistoryRecord[] {
   const records: RawHistoryRecord[] = [];
-  for (const entry of session.entries) {
-    if (entry.type !== "message" || entry.message?.role !== "user") continue;
-    const timestampMs =
-      timestampMillis(entry.message.timestamp) ?? timestampMillis(entry.timestamp);
-    if (timestampMs === undefined || timestampMs < since.getTime()) continue;
-    const text = extractText(entry.message.content).trim();
-    if (!text) continue;
-    records.push({ session_id: session.id, ts: Math.floor(timestampMs / 1000), text });
+  for (const prompt of session.prompts) {
+    // Filter before rounding: prompts just before a millisecond cutoff must
+    // not survive merely because the persisted log uses whole seconds.
+    if (prompt.timestampMs < since.getTime()) continue;
+    records.push({
+      session_id: session.id,
+      ts: Math.floor(prompt.timestampMs / 1000),
+      text: prompt.text,
+    });
   }
   return records;
 }
 
-function sessionIndexRecord(session: ParsedSessionFile): SessionIndexRecord {
+function sessionIndexRecord(session: SessionHistorySummary): SessionIndexRecord {
   return {
     id: session.id,
-    title: latestSessionName(session.entries) || firstUserMessage(session.entries) || session.id,
+    title: session.title,
     updated_at: session.updatedAt.toISOString(),
     path: session.path,
     cwd: session.cwd,
   };
 }
 
-/** Trivial JSONL parse; malformed lines are skipped like Pi's own session reader. */
-function parseSessionEntries(content: string): RawSessionMessageEntry[] {
-  const entries: RawSessionMessageEntry[] = [];
-  for (const line of content.trim().split("\n")) {
-    if (!line.trim()) continue;
-    try {
-      entries.push(JSON.parse(line) as RawSessionMessageEntry);
-    } catch {
-      // Skip malformed lines.
-    }
-  }
-  return entries;
-}
-
-async function parseSessionFiles(files: string[]): Promise<ParsedSessionFile[]> {
-  const parsed: ParsedSessionFile[] = [];
+async function parseSessionFiles(files: string[]): Promise<SessionHistorySummary[]> {
+  const summaries: SessionHistorySummary[] = [];
   for (const file of files) {
     const session = await parseSessionFile(file);
-    if (session) parsed.push(session);
+    if (session) summaries.push(session);
   }
-  return parsed;
+  return summaries;
 }
 
-async function parseSessionFile(filePath: string): Promise<ParsedSessionFile | undefined> {
+/**
+ * Summarize one file without retaining assistant/tool payloads. Timestamp
+ * filtering happens after the scan, at the same clock boundary as backfill.
+ */
+async function parseSessionFile(filePath: string): Promise<SessionHistorySummary | undefined> {
+  let content: string;
+  let info: Stats;
   try {
-    const [text, info] = await Promise.all([fs.readFile(filePath, "utf8"), fs.stat(filePath)]);
-    const entries = parseSessionEntries(text);
-    const header = entries.find((entry) => entry.type === "session");
-    return {
-      path: filePath,
-      id: sessionIdFromPath(filePath, typeof header?.id === "string" ? header.id : undefined),
-      cwd: typeof header?.cwd === "string" ? header.cwd : "",
-      updatedAt: sessionUpdatedAt(entries, info.mtime),
-      entries,
-    };
-  } catch {
-    // Unreadable/disappeared session files are skipped; the rest still index.
+    [content, info] = await Promise.all([fs.readFile(filePath, "utf8"), fs.stat(filePath)]);
+  } catch (error) {
+    // Session files are optional index inputs: a filesystem read/stat failure
+    // skips that snapshot, including a file removed or made unreadable by a peer.
+    if (typeof (error as NodeJS.ErrnoException).code !== "string") throw error;
     return undefined;
   }
+
+  let headerSeen = false;
+  let headerId: string | undefined;
+  let cwd = "";
+  let sessionName = "";
+  let firstPrompt = "";
+  let latestTimestamp: number | undefined;
+  const prompts: SessionPrompt[] = [];
+  let yieldAt = performance.now() + SESSION_PARSE_TIME_SLICE_MS;
+
+  for (const line of content.trim().split("\n")) {
+    if (performance.now() >= yieldAt) {
+      await yieldToEventLoop();
+      yieldAt = performance.now() + SESSION_PARSE_TIME_SLICE_MS;
+    }
+    if (!line.trim()) continue;
+    let raw: unknown;
+    try {
+      raw = JSON.parse(line);
+    } catch (error) {
+      if (!(error instanceof SyntaxError)) throw error;
+      // Malformed JSONL rows are ignored, as in the session reader.
+      continue;
+    }
+    // Null session rows invalidate the file; malformed JSON syntax only drops a row.
+    if (raw === null) return undefined;
+    if (typeof raw !== "object" || Array.isArray(raw)) continue;
+    const entry = raw as RawSessionMessageEntry;
+
+    if (!headerSeen && entry.type === "session") {
+      headerSeen = true;
+      headerId = typeof entry.id === "string" ? entry.id : undefined;
+      cwd = typeof entry.cwd === "string" ? entry.cwd : "";
+    }
+    if (entry.type === "session_info" && typeof entry.name === "string") {
+      // An explicit empty name clears the previous name and restores fallback.
+      sessionName = entry.name.trim();
+    }
+    const timestampMs =
+      timestampMillis(entry.message?.timestamp) ?? timestampMillis(entry.timestamp);
+    if (timestampMs !== undefined) {
+      latestTimestamp =
+        latestTimestamp === undefined ? timestampMs : Math.max(latestTimestamp, timestampMs);
+    }
+    if (entry.type !== "message" || entry.message?.role !== "user") continue;
+    const text = extractText(entry.message.content);
+    if (!firstPrompt) firstPrompt = firstLine(text);
+    const trimmed = text.trim();
+    if (timestampMs !== undefined && trimmed) {
+      prompts.push({ text: copyRetainedText(trimmed), timestampMs });
+    }
+  }
+
+  const id = copyRetainedText(sessionIdFromPath(filePath, headerId));
+  return {
+    path: filePath,
+    id,
+    cwd: copyRetainedText(cwd),
+    title: copyRetainedText(sessionName || firstPrompt || id),
+    updatedAt: latestTimestamp === undefined ? info.mtime : new Date(latestTimestamp),
+    prompts,
+  };
+}
+
+/** Detach retained strings from JSONL backing storage, preserving every UTF-16 code unit. */
+function copyRetainedText(text: string): string {
+  return Buffer.from(text, "utf16le").toString("utf16le");
 }
 
 async function listSessionJsonlTree(
@@ -418,25 +478,6 @@ async function listSessionJsonlTree(
   return { files, latestMtime };
 }
 
-function latestSessionName(entries: RawSessionMessageEntry[]): string {
-  return (
-    [...entries]
-      .reverse()
-      .find((entry) => entry.type === "session_info" && typeof entry.name === "string")
-      ?.name?.trim() ?? ""
-  );
-}
-
-function firstUserMessage(entries: RawSessionMessageEntry[]): string {
-  for (const entry of entries) {
-    if (entry.type === "message" && entry.message?.role === "user") {
-      const text = firstLine(extractText(entry.message.content));
-      if (text) return text;
-    }
-  }
-  return "";
-}
-
 function sessionIdFromPath(filePath: string, fallback?: string): string {
   const file =
     filePath
@@ -455,14 +496,37 @@ function historyKey(record: RawHistoryRecord): string {
   return `${record.session_id}\0${record.ts}\0${record.text}`;
 }
 
+function serializeHistoryWithinBudget(records: RawHistoryRecord[], maxBytes: number): string {
+  const newestRows: string[] = [];
+  let keptBytes = 0;
+  // Backfill already has canonical records. Serialize only the suffix that can
+  // survive trimming, so discarded prompt payloads never form a giant string.
+  for (let index = records.length - 1; index >= 0; index--) {
+    const row = JSON.stringify(records[index]);
+    const rowBytes = Buffer.byteLength(row) + 1;
+    // Stop at the first overflow: skipping a large row would change the suffix.
+    if (keptBytes + rowBytes > maxBytes) break;
+    keptBytes += rowBytes;
+    newestRows.push(row);
+  }
+  return newestRows.length ? `${newestRows.reverse().join("\n")}\n` : "";
+}
+
 function trimHistoryText(text: string, maxBytes: number): string {
   const limit = Math.max(0, maxBytes);
   if (Buffer.byteLength(text) <= limit) return text;
   const lines = text.split(/\r?\n/).filter((line) => line.length > 0);
-  while (lines.length > 0 && Buffer.byteLength(`${lines.join("\n")}\n`) > limit) {
-    lines.shift();
+  let firstKept = lines.length;
+  let keptBytes = 0;
+  // The retained history is a contiguous suffix. Count UTF-8 bytes once per
+  // row, including its output newline, instead of repeatedly joining the file.
+  while (firstKept > 0) {
+    const rowBytes = Buffer.byteLength(lines[firstKept - 1]!) + 1;
+    if (keptBytes + rowBytes > limit) break;
+    keptBytes += rowBytes;
+    firstKept--;
   }
-  return lines.length ? `${lines.join("\n")}\n` : "";
+  return firstKept < lines.length ? `${lines.slice(firstKept).join("\n")}\n` : "";
 }
 
 async function pathExists(filePath: string): Promise<boolean> {
@@ -519,13 +583,6 @@ async function withHistoryFileLock<T>(historyFile: string, run: () => Promise<T>
 async function ensurePrivateDir(dirPath: string): Promise<void> {
   await fs.mkdir(dirPath, { recursive: true, mode: 0o700 });
   await fs.chmod(dirPath, 0o700);
-}
-
-function sessionUpdatedAt(entries: RawSessionMessageEntry[], fallback: Date): Date {
-  const timestamps = entries
-    .map((entry) => timestampMillis(entry.message?.timestamp) ?? timestampMillis(entry.timestamp))
-    .filter((value): value is number => value !== undefined);
-  return timestamps.length > 0 ? new Date(Math.max(...timestamps)) : fallback;
 }
 
 function timestampMillis(value: unknown): number | undefined {

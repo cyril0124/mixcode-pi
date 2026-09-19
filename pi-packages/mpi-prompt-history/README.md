@@ -22,6 +22,8 @@ Files are written atomically (temp + rename) with mode `0600`; the data dir is `
 | `session_start` | once per sessions root per process: backfill the last 30 days from session JSONL (deduplicated on `session_id`+`ts`+`text`) and rebuild the index when stale |
 | `before_agent_start` | append a five-line pointer block naming both file paths to the system prompt |
 
+A rebuild processes one session file at a time and retains only user-prompt candidates and index metadata between files. Retained strings are copied out of the file's backing storage. Parsing yields to the event loop between JSONL rows after roughly 10 ms of work; parsing an individual row remains synchronous. The 30-day cutoff is evaluated once after the scan. Both recording and backfill trim history with a linear UTF-8 byte count, preserving complete newest rows within the configured budget. Backfill serializes only the rows that survive trimming.
+
 The pointer block contains paths only, never history content.
 
 ## Commands
