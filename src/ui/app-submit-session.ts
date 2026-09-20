@@ -642,6 +642,18 @@ function renderSessionInfoText(
   // Context usage is footer-only (syncTabContextUsage), not part of this dump.
   const entries =
     typeof runtimeTab.session.getEntries === "function" ? runtimeTab.session.getEntries() : [];
-  const models = runtimeTab.agentSession.modelRuntime;
-  return formatSessionInfoText(runtimeTab.session, info, { entries, models, ...identity });
+  const session = runtimeTab.agentSession;
+  const models = session.modelRuntime;
+  const cacheWarming = session.settingsManager?.getCacheWarmingMode
+    ? {
+        mode: session.settingsManager.getCacheWarmingMode(),
+        status: session.cacheWarmingStatus,
+      }
+    : undefined;
+  return formatSessionInfoText(runtimeTab.session, info, {
+    entries,
+    models,
+    cacheWarming,
+    ...identity,
+  });
 }

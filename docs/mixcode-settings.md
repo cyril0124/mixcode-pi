@@ -43,7 +43,7 @@ The file uses JSONC syntax: regular JSON plus comments and trailing commas. If t
 | `disabledProviders` | string array of provider ids | `[]` | Globally disable providers across MixCode sessions and extension/subagent model discovery and execution. Models stay listed in `/models` but are dimmed as disabled and cannot be selected or used. Takes effect on `/reload` or restart. Editable via `/settings`. |
 | `disabledModels` | string array of `provider/modelId` | `[]` | Globally disable individual models across the same paths as `disabledProviders`. Provider-level disable covers all of that provider's models. Takes effect on `/reload` or restart. Editable via `/settings`. |
 
-Image display, Mermaid rendering, code-block indent, cache-miss notices, and the startup tool set are **not** configured in this file. They live in Pi global `settings.json` (same store as `hideThinkingBlock`):
+Image display, Mermaid rendering, code-block indent, cache warming, cache-miss notices, and the startup tool set are **not** configured in this file. They live in Pi global `settings.json` (same store as `hideThinkingBlock`):
 
 | Pi setting | Values | Default | Effect |
 | --- | --- | --- | --- |
@@ -54,6 +54,7 @@ Image display, Mermaid rendering, code-block indent, cache-miss notices, and the
 | `images.blockImages` | boolean | `false` | Strip images before they reach the model (SDK `convertToLlm`). |
 | `markdown.mermaid` | `off` \| `final` \| `streaming` | `streaming` | When to turn ` ```mermaid ` fences into terminal diagrams. |
 | `markdown.codeBlockIndent` | string | two spaces (`"  "`) | Prefix on each rendered code-block line. Empty string aligns code with the fence so a copied block stays flush Markdown. Edit `settings.json` directly; `/settings` does not expose this row. |
+| `cacheWarming` | `off` \| `streaming` \| `idle` | `streaming` (Pi default) | Global-only prompt-cache refresh mode. Editable as "Cache warming" in `/settings`; see [cache warming](#cache-warming). |
 | `showCacheMissNotices` | boolean | `false` | Show transcript warnings for significant prompt-cache misses, including re-billed tokens and estimated excess cost when it is at least `$0.01`. |
 | `defaultTools` | string array of tool names | unset (`read`, `bash`, `edit`, `write`) | Built-in tools active at session start. Narrowing it removes built-ins, including MixCode's own `bash` wrapper, from every new session; extension-registered tools stay active, matching Pi. Edit `settings.json` directly; `/settings` does not expose this row. |
 | `externalEditor` | command string | unset → `$VISUAL`/`$EDITOR`, else `nano` (`notepad` on Windows) | Editor command for Ctrl+G, `/editor`, `/system-prompt`, and `/system-tools`. `/console-history` checks the project value, global value, `$VISUAL`, and `$EDITOR`; if all are unset, it tries `nvim`, `vim`, then the built-in viewer. |
@@ -63,6 +64,20 @@ Image display, Mermaid rendering, code-block indent, cache-miss notices, and the
 | `showHardwareCursor` | boolean | `false` (or `PI_HARDWARE_CURSOR=1`) | Show the terminal hardware cursor instead of the drawn cursor. |
 | `terminal.clearOnShrink` | boolean | `false` (or `PI_CLEAR_ON_SHRINK=1`) | Full re-render clearing emptied rows when content shrinks. |
 | `terminal.showTerminalProgress` | boolean | `false` | Drive the terminal progress indicator (OSC 9;4) while any tab is working. |
+
+## Cache warming
+
+Open `/settings`, type `cache warming`, press Enter, select a mode, and press Enter to save. Browsing or cancelling does not change the mode. The picker explains that refresh requests consume tokens and may cost money.
+
+- `off`: no refresh requests; selecting it cancels pending and in-flight warming in every open tab without interrupting the agent's work.
+- `streaming`: allow cost-aware refreshes during agent runs, including long tool calls. This is Pi's default when unset.
+- `idle`: also allow refreshes between runs when Pi considers continuation profitable.
+
+The value is stored in `<agentDir>/settings.json`, shared with Pi, and applies to open tabs and future sessions. Project settings cannot override it. Saving does not discard per-tab in-memory compaction budgets. Persistence errors remain visible in the picker.
+
+`/session` shows a snapshot of the mode, Pi's warming status, and refresh/miss cost estimates when available. Its cache-warming usage section counts persisted successful refreshes and their tokens and cost across the session, including after reopening or turning warming off. These amounts are already included in the ordinary session totals; they are not added again. Refresh cost is a decision estimate that may remain visible after warming stops, while the usage section reports recorded provider usage. Re-run `/session` to refresh the snapshot.
+
+Pi retains ownership of scheduling, profitability checks, model support, and safety limits. Enabling warming does not guarantee a refresh; missing cache-lifetime or pricing metadata can leave it inactive. The setting does not introduce a new MixCode scheduler or provider call path.
 
 ## Parsing Rules
 

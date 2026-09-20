@@ -109,6 +109,7 @@ const handleSettings: LocalCommandHandler = async ({
       {
         setHideThinkingBlock: runtime.setHideThinkingBlock.bind(runtime),
         setShowCacheMissNotices: runtime.setShowCacheMissNotices.bind(runtime),
+        setCacheWarmingMode: runtime.setCacheWarmingMode.bind(runtime),
       },
       // Home Enter /settings is app-level: keep the panel on Home. Agent-tab
       // and ctl --tab submits stay owned by the target session.
