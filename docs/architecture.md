@@ -96,6 +96,16 @@ MixCodeRuntime
   └─ pi-ai Model           Resolves provider/modelId; faux provider streams via pi-ai createFauxCore
 ```
 
+## Background Session Catalog
+
+`src/core/session-catalog.ts` warms and caches complete Pi `SessionInfo[]` listings for startup and background session lookup. Source runs use a worker thread. Compiled `mpi` launches itself with the internal `--mixcode-session-catalog-worker` argument; `src/core/session-catalog-stream.ts` owns that subprocess's JSONL transport.
+
+The child writes one `{"type":"session","session":...}` frame per session, preserving all fields including `allMessagesText`, then `{"type":"done","count":N}`. It waits for each write to finish, bounding queued output to one frame. The parent assembles byte fragments once per line, validates each frame, restores dates, and yields between frames after roughly 10 ms of parsing. A single session is parsed synchronously and is never truncated.
+
+A listing is returned and cached only after a matching completion count, EOF, and exit code 0. Invalid or truncated output rejects with `Error: Invalid session catalog stream: ...`; worker diagnostics are surfaced on failure. Cancellation rejects with `AbortError`, closes the reader, and terminates the child, escalating from SIGTERM to SIGKILL after one second if necessary. Failed and cancelled listings never publish partial results. stderr is drained concurrently and the child is reaped before settling.
+
+Unsignaled requests share in-flight work; successful listings retain the existing per-root invalidation and newest-first ordering. The interactive `/resume` selector's progress loaders call Pi directly and do not use this transport.
+
 ## UI and Keybindings
 
 Authoritative key list and Escape dispatch: [Keybindings & Escape](keybindings-and-escape.md).

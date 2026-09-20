@@ -1,7 +1,12 @@
 import * as fsPromises from "node:fs/promises";
 import * as path from "node:path";
 import { Worker } from "node:worker_threads";
-import { SessionManager, type SessionInfo } from "@earendil-works/pi-coding-agent";
+import { type SessionInfo, SessionManager } from "@earendil-works/pi-coding-agent";
+import {
+  readSessionCatalogProcess,
+  sessionCatalogAbortError,
+  writeSessionCatalog,
+} from "./session-catalog-stream.js";
 
 export type SessionCatalogRequest =
   | { mode: "current"; cwd: string; sessionsRoot: string }
@@ -76,7 +81,7 @@ export function listSessionsInBackground(
   request: SessionCatalogRequest,
   signal?: AbortSignal,
 ): Promise<SessionInfo[]> {
-  if (signal?.aborted) return Promise.reject(abortError());
+  if (signal?.aborted) return Promise.reject(sessionCatalogAbortError());
 
   const key = requestKey(request);
   const cached = cache.get(key);
@@ -135,7 +140,7 @@ export async function runSessionCatalogWorkerCommand(args: string[]): Promise<bo
       Buffer.from(encoded, "base64url").toString("utf8"),
     ) as SessionCatalogRequest;
     const sessions = await executeSessionCatalogRequest(request);
-    process.stdout.write(JSON.stringify({ type: "result", sessions } satisfies WorkerResult));
+    await writeSessionCatalog(sessions, process.stdout);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     process.stderr.write(`${message}\n`);
@@ -192,7 +197,7 @@ function runListingWorkerThread(
       void worker.terminate();
       callback();
     };
-    const onAbort = (): void => finish(() => reject(abortError()));
+    const onAbort = (): void => finish(() => reject(sessionCatalogAbortError()));
 
     signal?.addEventListener("abort", onAbort, { once: true });
     worker.once("message", (message: WorkerResult) => {
@@ -229,27 +234,7 @@ async function runListingSubprocess(
     stdout: "pipe",
     stderr: "pipe",
   });
-  const onAbort = (): void => {
-    child.kill("SIGTERM");
-  };
-  signal?.addEventListener("abort", onAbort, { once: true });
-  try {
-    if (signal?.aborted) throw abortError();
-    const [stdout, stderr, code] = await Promise.all([
-      new Response(child.stdout as ReadableStream<Uint8Array>).text(),
-      new Response(child.stderr as ReadableStream<Uint8Array>).text(),
-      child.exited,
-    ]);
-    if (signal?.aborted) throw abortError();
-    if (code !== 0) {
-      throw new Error(stderr.trim() || `Session listing process exited with code ${code}`);
-    }
-    const message = JSON.parse(stdout) as WorkerResult;
-    if (message.type === "error") throw new Error(message.message);
-    return message.sessions.map(restoreSessionDates);
-  } finally {
-    signal?.removeEventListener("abort", onAbort);
-  }
+  return readSessionCatalogProcess(child, signal);
 }
 
 /**
@@ -334,10 +319,4 @@ function restoreSessionDates(session: SessionInfo): SessionInfo {
     created: new Date(session.created),
     modified: new Date(session.modified),
   };
-}
-
-function abortError(): Error {
-  const error = new Error("Session listing cancelled");
-  error.name = "AbortError";
-  return error;
 }

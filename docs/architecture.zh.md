@@ -94,6 +94,16 @@ MixCodeRuntime
   └─ pi-ai Model           provider/modelId 解析，faux provider 经 pi-ai createFauxCore 流式输出
 ```
 
+## 后台会话目录
+
+`src/core/session-catalog.ts` 为启动和后台会话查找预热、缓存完整的 Pi `SessionInfo[]`。源码运行使用 worker 线程；编译版 `mpi` 通过内部参数 `--mixcode-session-catalog-worker` 启动自身子进程，其 JSONL 传输由 `src/core/session-catalog-stream.ts` 管理。
+
+子进程为每个会话输出一条 `{"type":"session","session":...}`，保留包括 `allMessagesText` 在内的全部字段，最后输出 `{"type":"done","count":N}`。每次写入完成后才发送下一条，将待写缓冲限制为一帧。父进程按行收集字节片段，每行仅合并一次，校验帧并恢复日期，解析累计约 10 毫秒后在帧之间让出事件循环。单个会话仍同步解析，数据不会被截断。
+
+仅在结束帧计数匹配、到达 EOF 且退出码为 0 时返回并缓存目录。非法或截断输出以 `Error: Invalid session catalog stream: ...` 报错，子进程失败诊断向调用方传递。取消以 `AbortError` 拒绝，关闭读取并终止子进程；若 SIGTERM 后一秒仍未退出，则发送 SIGKILL。失败和取消均不发布部分结果。stderr 并行读取，子进程回收后才结束请求。
+
+不带取消信号的请求共享进行中的工作；成功结果沿用按根目录失效和最新在前的排序规则。交互式 `/resume` 选择器的进度加载器直接调用 Pi，不使用这条传输路径。
+
 ## UI 和快捷键
 
 快捷键与 Escape 分发的权威说明见 [快捷键与 Escape](keybindings-and-escape.zh.md)。
