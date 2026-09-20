@@ -46,34 +46,31 @@ test("MixCode system prompt includes active tool promptGuidelines", async () => 
   try {
     // Builtin read/edit/write guidelines are Pi-provided and must survive.
     assert.match(
-      runtimeTab.agentSession.agent.state.systemPrompt,
+      runtimeTab.agentSession.systemPrompt,
       /Use read to examine files instead of cat or sed\./,
     );
     assert.match(
-      runtimeTab.agentSession.agent.state.systemPrompt,
+      runtimeTab.agentSession.systemPrompt,
       /Use write only for new files or complete rewrites\./,
     );
     assert.match(
-      runtimeTab.agentSession.agent.state.systemPrompt,
+      runtimeTab.agentSession.systemPrompt,
       /- edit: Make precise file edits with exact text replacement/,
     );
     assert.match(
-      runtimeTab.agentSession.agent.state.systemPrompt,
+      runtimeTab.agentSession.systemPrompt,
       /Each edits\[\]\.oldText is matched against the original file, not after earlier edits are applied/,
     );
     assert.match(
-      runtimeTab.agentSession.agent.state.systemPrompt,
+      runtimeTab.agentSession.systemPrompt,
       /Keep edits\[\]\.oldText as small as possible while still being unique in the file\. Do not pad with large unchanged regions\./,
     );
     assert.match(
-      runtimeTab.agentSession.agent.state.systemPrompt,
+      runtimeTab.agentSession.systemPrompt,
       /Use bash for file operations like ls, rg, find/,
     );
     // Extension-provided guideline for the active custom tool must be present.
-    assert.match(
-      runtimeTab.agentSession.agent.state.systemPrompt,
-      new RegExp(GUIDELINE.replace(/\./g, "\\.")),
-    );
+    assert.match(runtimeTab.agentSession.systemPrompt, new RegExp(GUIDELINE.replace(/\./g, "\\.")));
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }
@@ -167,18 +164,15 @@ test("Pi-triggered setActiveTools rebuild keeps the MixCode system prompt", asyn
   const { dir, runtimeTab } = await createRuntimeTab();
   try {
     // MixCode's builder never emits Pi's default "Pi documentation" block.
-    assert.doesNotMatch(runtimeTab.agentSession.agent.state.systemPrompt, /Pi documentation/);
+    assert.doesNotMatch(runtimeTab.agentSession.systemPrompt, /Pi documentation/);
 
     // Simulate an extension calling pi.setActiveTools() at runtime, which makes
     // Pi rebuild the base system prompt via its own builder.
     runtimeTab.agentSession.setActiveToolsByName(runtimeTab.agentSession.getActiveToolNames());
 
     // After the rebuild the live prompt must still be MixCode's, not Pi's default.
-    assert.doesNotMatch(runtimeTab.agentSession.agent.state.systemPrompt, /Pi documentation/);
-    assert.match(
-      runtimeTab.agentSession.agent.state.systemPrompt,
-      new RegExp(GUIDELINE.replace(/\./g, "\\.")),
-    );
+    assert.doesNotMatch(runtimeTab.agentSession.systemPrompt, /Pi documentation/);
+    assert.match(runtimeTab.agentSession.systemPrompt, new RegExp(GUIDELINE.replace(/\./g, "\\.")));
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }

@@ -20,6 +20,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import type { Model } from "@earendil-works/pi-ai";
 import {
   DEFAULT_COMPACTION_SETTINGS,
   type ExtensionAPI,
@@ -71,18 +72,25 @@ export function fitReserveToWindow(contextWindow: number, reserveTokens: number)
 }
 
 /**
- * Reserve tokens from global then project settings.json (absolute token
- * counts, project wins). ExtensionContext exposes no live SettingsManager;
- * this is the portable substitute.
+ * Reserve tokens from global then project settings.json. Per-model overrides
+ * take precedence over ordinary budgets after the two scopes are merged.
+ * ExtensionContext exposes no live SettingsManager; this is the portable substitute.
  */
-export function resolveReserveTokens(cwd: string, agentDir?: string): number {
+export function resolveReserveTokens(
+  cwd: string,
+  agentDir?: string,
+  model?: Pick<Model<string>, "provider" | "id">,
+): number {
   const globalDir =
     agentDir ??
     process.env.PI_CODING_AGENT_DIR ??
     path.join(process.env.HOME || os.homedir(), ".pi", "agent");
-  const global = readReserveTokens(path.join(globalDir, "settings.json"));
-  const project = readReserveTokens(path.join(cwd, ".pi", "settings.json"));
-  return project ?? global ?? DEFAULT_RESERVE_TOKENS;
+  const modelKey = model ? `${model.provider}/${model.id}` : undefined;
+  const global = readReserveTokens(path.join(globalDir, "settings.json"), modelKey);
+  const project = readReserveTokens(path.join(cwd, ".pi", "settings.json"), modelKey);
+  return (
+    project?.model ?? global?.model ?? project?.default ?? global?.default ?? DEFAULT_RESERVE_TOKENS
+  );
 }
 
 /** Whether a native compact without retry should auto-resume (length-truncated answer). */
@@ -109,17 +117,33 @@ export function isTinyLengthStall(
   return totalTokens >= contextWindow * 0.85;
 }
 
-function readReserveTokens(settingsPath: string): number | undefined {
-  // Sync API callers; try/catch ENOENT instead of exists+read race.
+function readReserveTokens(
+  settingsPath: string,
+  modelKey?: string,
+): { default?: number; model?: number } | undefined {
+  // Optional settings probe: missing/malformed files retain the extension's fallback.
+  // Pi's settings loader owns reporting invalid user configuration.
   try {
     const raw = JSON.parse(fs.readFileSync(settingsPath, "utf8")) as {
-      compaction?: { reserveTokens?: number };
+      compaction?: {
+        reserveTokens?: unknown;
+        modelOverrides?: Record<string, { reserveTokens?: unknown }>;
+      };
     };
     const reserve = raw.compaction?.reserveTokens;
-    if (typeof reserve === "number" && Number.isFinite(reserve) && reserve > 0) {
-      return Math.round(reserve);
-    }
-    return undefined;
+    const modelReserve = modelKey
+      ? raw.compaction?.modelOverrides?.[modelKey]?.reserveTokens
+      : undefined;
+    return {
+      default:
+        typeof reserve === "number" && Number.isFinite(reserve) && reserve >= 0
+          ? Math.round(reserve)
+          : undefined,
+      model:
+        typeof modelReserve === "number" && Number.isSafeInteger(modelReserve) && modelReserve >= 0
+          ? modelReserve
+          : undefined,
+    };
   } catch {
     return undefined;
   }
@@ -256,7 +280,7 @@ export function createLengthResumeExtension(options?: {
       if (!(contextWindow > 0) || typeof tokens !== "number" || !(tokens > 0)) return;
       const reserve = fitReserveToWindow(
         contextWindow,
-        resolveReserveTokens(ctx.cwd, options?.agentDir),
+        resolveReserveTokens(ctx.cwd, options?.agentDir, ctx.model),
       );
       if (tokens <= contextWindow - reserve * 1.5 && tokens <= contextWindow * 0.85) return;
 

@@ -1,6 +1,6 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type {
-  Context,
+  TranscriptContext,
   ImageContent,
   SimpleStreamOptions,
   TextContent,
@@ -34,7 +34,7 @@ import type { mixcodeFauxStream } from "./faux-stream.js";
 
 export type MixCodeStreamFn = (
   model: MixCodeModel,
-  context: Context,
+  context: TranscriptContext,
   options?: SimpleStreamOptions,
 ) => ReturnType<typeof mixcodeFauxStream> | Promise<ReturnType<typeof mixcodeFauxStream>>;
 export type RuntimeEvent =

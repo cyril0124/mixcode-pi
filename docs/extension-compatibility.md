@@ -150,6 +150,12 @@ Supported:
 
 System prompts, AGENTS, and project context flow directly through the Pi resource loader pipeline.
 
+MixCode assembles the host prompt from the collected options and stores it as a system-message section in the Pi transcript. Prompt and tool changes are recorded on the next request; opening an existing session does not rewrite its history. `before_agent_start` sees the host prompt, including the date and tool guidelines. Its `systemPrompt` return value overrides the provider's leading prompt for that run without replacing persisted instructions.
+
+Provider `stream` / `streamSimple` implementations and `MixCodeStreamFn` receive a normalized `TranscriptContext`. Read instructions and tool declarations with `getCurrentSystemPrompt(context.messages)` and `getCurrentTools(context.messages)`; the context has no separate `systemPrompt` or `tools` fields. Wrappers must preserve system messages and the normalized context. Use `normalizeContext()` when constructing a provider input from a raw `Context`.
+
+Compiled `mpi` embeds Pi TUI's native helpers for macOS, Windows, and Linux X11 on x64 and arm64. `src/cli/binary-assets.ts` extracts them under the process runtime directory's `native/` tree; the pi-tui patch includes `PI_PACKAGE_DIR` in native-module lookup. Loading a helper does not guarantee clipboard access: a platform clipboard service or display must still be available.
+
 When `ctx.switchSession()`, session-selector resume, or `/import` targets a different working directory, the replacement session rebuilds its cwd-bound services. Extension `ctx.cwd`, relative tool paths, project settings, and project resources use the target session's cwd before `session_start` and `withSession` run. An import's explicit cwd override is the effective target. Same-directory replacements reuse services and reload extensions; they do not share services with another live tab. A cancelled switch does not load the target project's extensions.
 
 ### Session identity

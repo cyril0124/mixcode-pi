@@ -29,9 +29,9 @@ test("runtime lets Pi resource loader discover project system prompt before MixC
       workdir: repo,
     });
 
-    assert.match(runtimeTab.agentSession.agent.state.systemPrompt, /Project system prompt/);
-    assert.match(runtimeTab.agentSession.agent.state.systemPrompt, /Append prompt/);
-    assert.doesNotMatch(runtimeTab.agentSession.agent.state.systemPrompt, /Fallback prompt/);
+    assert.match(runtimeTab.agentSession.systemPrompt, /Project system prompt/);
+    assert.match(runtimeTab.agentSession.systemPrompt, /Append prompt/);
+    assert.doesNotMatch(runtimeTab.agentSession.systemPrompt, /Fallback prompt/);
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }

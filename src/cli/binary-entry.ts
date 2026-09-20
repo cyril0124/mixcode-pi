@@ -65,6 +65,24 @@ import clankolasImagePath from "../../node_modules/@earendil-works/pi-coding-age
 import photonWasmPath from "../../node_modules/@silvia-odwyer/photon-node/photon_rs_bg.wasm" with {
   type: "file",
 };
+import darwinArm64Helper from "../../node_modules/@earendil-works/pi-tui/native/darwin/prebuilds/darwin-arm64/darwin-platform.node" with {
+  type: "file",
+};
+import darwinX64Helper from "../../node_modules/@earendil-works/pi-tui/native/darwin/prebuilds/darwin-x64/darwin-platform.node" with {
+  type: "file",
+};
+import linuxArm64Helper from "../../node_modules/@earendil-works/pi-tui/native/linux/prebuilds/linux-arm64/linux-platform-x11.node" with {
+  type: "file",
+};
+import linuxX64Helper from "../../node_modules/@earendil-works/pi-tui/native/linux/prebuilds/linux-x64/linux-platform-x11.node" with {
+  type: "file",
+};
+import win32Arm64Helper from "../../node_modules/@earendil-works/pi-tui/native/win32/prebuilds/win32-arm64/win32-platform.node" with {
+  type: "file",
+};
+import win32X64Helper from "../../node_modules/@earendil-works/pi-tui/native/win32/prebuilds/win32-x64/win32-platform.node" with {
+  type: "file",
+};
 import diffViewerIndex from "../../pi-packages/mpi-diff-viewer/index.ts" with { type: "text" };
 import diffViewerSessionDiff from "../../pi-packages/mpi-diff-viewer/session-diff.ts" with {
   type: "text",
@@ -413,6 +431,12 @@ import optimizePromptSchemaJson from "../../pi-packages/mpi-optimize-prompt/mpi-
   type: "text",
 };
 import lengthResumeIndex from "../../pi-packages/mpi-length-resume/index.ts" with { type: "text" };
+import lengthResumeReadme from "../../pi-packages/mpi-length-resume/README.md" with {
+  type: "text",
+};
+import lengthResumeReadmeZh from "../../pi-packages/mpi-length-resume/README.zh.md" with {
+  type: "text",
+};
 import lengthResumePackageJson from "../../pi-packages/mpi-length-resume/package.json" with {
   type: "text",
 };
@@ -594,6 +618,14 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
   exportVendorHighlight,
   interactiveAssets: { "clankolas.png": clankolasImagePath },
   photonWasmPath,
+  nativePlatformHelpers: {
+    "darwin/prebuilds/darwin-arm64/darwin-platform.node": darwinArm64Helper,
+    "darwin/prebuilds/darwin-x64/darwin-platform.node": darwinX64Helper,
+    "linux/prebuilds/linux-arm64/linux-platform-x11.node": linuxArm64Helper,
+    "linux/prebuilds/linux-x64/linux-platform-x11.node": linuxX64Helper,
+    "win32/prebuilds/win32-arm64/win32-platform.node": win32Arm64Helper,
+    "win32/prebuilds/win32-x64/win32-platform.node": win32X64Helper,
+  },
   packageJson,
   builtinPackages: {
     "mpi-diff-viewer": {
@@ -786,6 +818,8 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
     "mpi-length-resume": {
       "index.ts": lengthResumeIndex,
       "package.json": lengthResumePackageJson,
+      "README.md": lengthResumeReadme,
+      "README.zh.md": lengthResumeReadmeZh,
     },
     "mpi-model-attach": {
       "index.ts": modelAttachIndex,

@@ -2,7 +2,6 @@ import { existsSync, realpathSync } from "node:fs";
 import * as path from "node:path";
 import {
   type BuildSystemPromptOptions,
-  buildSystemPrompt,
   formatSkillsForPrompt,
   getDocsPath,
 } from "@earendil-works/pi-coding-agent";
@@ -38,18 +37,10 @@ export interface SystemPromptSection {
 }
 
 /**
- * MixCode system prompt on top of Pi's buildSystemPrompt.
- *
- * Always passes a customPrompt so Pi never injects its default "Pi documentation"
- * block. Tools/guidelines (incl. rg/fd search rules) stay MixCode-owned because
- * Pi's customPrompt path skips them; Current date is MixCode-only and layered
- * around Pi's append/context/skills/cwd assembly. Also returns an exact
- * section breakdown for display (/system-prompt token stats). MixCode-owned fragments
- * are captured directly; the Pi-assembled tail (project context, skills, cwd)
- * is reconstructed with the same template Pi's buildSystemPrompt uses, so
- * sections.concatenate === prompt by construction. Extension contributions
- * (tool snippets/guidelines, appendSystemPrompt, skills, context files) all
- * flow through these options and are therefore accounted for.
+ * Assemble the host prompt and its exact display fragments from Pi's collected
+ * options. MixCode owns the text format, date, documentation, and search rules;
+ * Pi owns skill formatting and persists the result as a transcript system section.
+ * Tool guidelines, project context, and extension sections retain their order.
  */
 export function buildMixCodeSystemPromptSections(options: MixCodeSystemPromptPartsOptions): {
   prompt: string;
@@ -59,6 +50,7 @@ export function buildMixCodeSystemPromptSections(options: MixCodeSystemPromptPar
     customPrompt,
     selectedTools,
     toolSnippets,
+    toolGuidelines,
     promptGuidelines,
     appendSystemPrompt,
     cwd,
@@ -72,30 +64,18 @@ export function buildMixCodeSystemPromptSections(options: MixCodeSystemPromptPar
   const toolsSection = buildToolsAndGuidelinesSection({
     selectedTools,
     toolSnippets,
-    promptGuidelines,
+    promptGuidelines: [
+      ...(selectedTools ?? ["read", "bash", "edit", "write"]).flatMap(
+        (name) => toolGuidelines?.[name] ?? [],
+      ),
+      ...(promptGuidelines ?? []),
+    ],
     searchTools,
   });
   const docsSection = buildDocsSection();
 
-  const prompt = buildSystemPrompt({
-    customPrompt: identity + toolsSection + docsSection,
-    selectedTools,
-    appendSystemPrompt,
-    cwd,
-    contextFiles,
-    skills,
-  });
-
-  // Pi ends with cwd only; MixCode also stamps the calendar date. Pi's
-  // customPrompt branch ends the prompt with a trailing newline after the cwd
-  // line, so the stamp regex must carry it through instead of failing to match.
   const date = currentDate();
   const promptCwd = cwd.replace(/\\/g, "/");
-  const trailingNl = prompt.endsWith("\n") ? "\n" : "";
-  const stamped = prompt.replace(
-    /(\nCurrent working directory: [^\n]*)(\n?)$/,
-    `\nCurrent date: ${date}$1$2`,
-  );
 
   const sections: SystemPromptSection[] = [
     { name: "Identity", text: identity },
@@ -106,9 +86,7 @@ export function buildMixCodeSystemPromptSections(options: MixCodeSystemPromptPar
     sections.push({ name: "Append (appendSystemPrompt)", text: `\n\n${appendSystemPrompt}` });
   }
 
-  // Tail below mirrors Pi's buildSystemPrompt template (context files, skills,
-  // cwd). If upstream changes that format, section concatenation stops matching
-  // the prompt and the /system-prompt stats footer says so instead of lying.
+  // Build the text once so display accounting cannot drift from the provider prompt.
   const files = contextFiles ?? [];
   if (files.length > 0) {
     sections.push({
@@ -132,12 +110,17 @@ export function buildMixCodeSystemPromptSections(options: MixCodeSystemPromptPar
   if (skillFileReadTool && skills && skills.length > 0) {
     sections.push({ name: "Skills", text: formatSkillsForPrompt(skills, skillFileReadTool) });
   }
+  for (const [name, content] of Object.entries(options.sections ?? {})) {
+    if (content) {
+      sections.push({ name: `Extension: ${name}`, text: `\n\n<${name}>\n${content}\n</${name}>` });
+    }
+  }
   sections.push({
     name: "Environment (date & cwd)",
-    text: `\nCurrent date: ${date}\nCurrent working directory: ${promptCwd}${trailingNl}`,
+    text: `\nCurrent date: ${date}\nCurrent working directory: ${promptCwd}\n`,
   });
 
-  return { prompt: stamped, sections };
+  return { prompt: sections.map((section) => section.text).join(""), sections };
 }
 
 /**

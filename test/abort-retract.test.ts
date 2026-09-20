@@ -193,9 +193,16 @@ test("retractCurrentTurn rewinds the leaf and returns the user message text when
       model: fauxModel(),
     });
 
-    const branchBefore = runtimeTab.session.getBranch().length;
     const pending = runtime.prompt("s1", "please retract me");
     await waitFor(() => runtimeTab.agentSession.agent.state.isStreaming === true);
+    // Pi persists prompt/tool declarations before the user message. Retraction
+    // must preserve that exact parent branch while removing the submitted turn.
+    const submittedBranch = runtimeTab.session.getBranch();
+    const userIndex = submittedBranch.findLastIndex(
+      (entry) => entry.type === "message" && entry.message.role === "user",
+    );
+    assert.ok(userIndex >= 0);
+    const branchBeforeUser = submittedBranch.slice(0, userIndex);
     // The submitted user message is now part of the branch.
     assert.ok(
       runtimeTab.session.getBranch().some((e) => e.type === "message" && e.message.role === "user"),
@@ -206,9 +213,8 @@ test("retractCurrentTurn rewinds the leaf and returns the user message text when
     await pending.catch(() => undefined);
 
     assert.equal(result?.editorText, "please retract me");
-    // Leaf rewound to before the user message: branch is back to its pre-prompt length,
-    // and no user message remains on the active branch.
-    await waitFor(() => runtimeTab.session.getBranch().length === branchBefore);
+    // The entire parent branch survives unchanged, with no retracted user message.
+    assert.deepEqual(runtimeTab.session.getBranch(), branchBeforeUser);
     assert.equal(
       runtimeTab.session.getBranch().some((e) => e.type === "message" && e.message.role === "user"),
       false,
@@ -573,9 +579,16 @@ test("retractCurrentTurn restores editor text before a delayed abort settles", a
       model: fauxModel(),
     });
 
-    const branchBefore = runtimeTab.session.getBranch().length;
     const pending = runtime.prompt("s1", "please retract me");
     await waitFor(() => runtimeTab.agentSession.agent.state.isStreaming === true);
+    // Pi persists prompt/tool declarations before the user message. Retraction
+    // must preserve that exact parent branch while removing the submitted turn.
+    const submittedBranch = runtimeTab.session.getBranch();
+    const userIndex = submittedBranch.findLastIndex(
+      (entry) => entry.type === "message" && entry.message.role === "user",
+    );
+    assert.ok(userIndex >= 0);
+    const branchBeforeUser = submittedBranch.slice(0, userIndex);
 
     let settled = false;
     const retractPromise = runtime.retractCurrentTurn("s1").then((result) => {
@@ -591,7 +604,7 @@ test("retractCurrentTurn restores editor text before a delayed abort settles", a
     await pending.catch(() => undefined);
 
     assert.equal(result?.editorText, "please retract me");
-    await waitFor(() => runtimeTab.session.getBranch().length === branchBefore);
+    assert.deepEqual(runtimeTab.session.getBranch(), branchBeforeUser);
     assert.equal(
       runtimeTab.session.getBranch().some((e) => e.type === "message" && e.message.role === "user"),
       false,

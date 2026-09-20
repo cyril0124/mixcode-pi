@@ -7,6 +7,8 @@ import { test, type TestContext } from "node:test";
 import {
   createFauxCore,
   fauxAssistantMessage,
+  getCurrentSystemPrompt,
+  getCurrentTools,
   InMemoryCredentialStore,
 } from "@earendil-works/pi-ai";
 import { ModelRuntime, type ExtensionFactory } from "@earendil-works/pi-coding-agent";
@@ -96,8 +98,10 @@ async function createFixture(t: TestContext, selectedTools: string[]) {
     // Capture tool definitions and system prompt sent to the model.
     streamFn: (requestModel, context, options) => {
       requests.push({
-        tools: (context.tools ?? []).map((tool) => tool.name).sort(),
-        systemPrompt: context.systemPrompt,
+        tools: getCurrentTools(context.messages)
+          .map((tool) => tool.name)
+          .sort(),
+        systemPrompt: getCurrentSystemPrompt(context.messages),
       });
       core.setResponses([fauxAssistantMessage("Recorded tool selection.")]);
       return core.stream(requestModel, context, options);

@@ -1,8 +1,8 @@
 diff --git a/dist/utils/retry.js b/dist/utils/retry.js
-index ce8c4cb..f945894 100644
+index 6538c63c99f75a4f232ebd413adf80571a0f39b4..591cd1ec41deb2271a0e4569fdcc8df73efab788 100644
 --- a/dist/utils/retry.js
 +++ b/dist/utils/retry.js
-@@ -34,6 +34,10 @@ const RETRYABLE_PROVIDER_ERROR_PATTERN = buildProviderErrorPattern([
+@@ -36,6 +36,10 @@ const RETRYABLE_PROVIDER_ERROR_PATTERN = buildProviderErrorPattern([
      // Wrapper/provider text for transient upstream failures, including OpenRouter
      // "Provider returned error" responses (#2264).
      "provider.?returned.?error",

@@ -514,13 +514,15 @@ test("runtime keeps queued prompts when flush prompt fails", async () => {
     tab.pendingMessages.push("restored pending", "queued prompt");
     runtimeTab.queuedPromptCount = 1;
     let promptText = "";
-    (
-      runtimeTab.agentSession.agent as unknown as {
-        prompt: (messages: Array<{ content: Array<{ text?: string }> }>) => Promise<void>;
-      }
-    ).prompt = async (messages) => {
+    runtimeTab.agentSession.agent.prompt = async (input) => {
+      const messages = typeof input === "string" ? [] : Array.isArray(input) ? input : [input];
       promptText = messages
-        .map((message) => message.content.map((block) => block.text ?? "").join("\n"))
+        .filter((message) => message.role === "user")
+        .map((message) =>
+          typeof message.content === "string"
+            ? message.content
+            : message.content.map((block) => (block.type === "text" ? block.text : "")).join("\n"),
+        )
         .join("\n\n");
       throw new Error("queued prompt failed");
     };

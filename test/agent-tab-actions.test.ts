@@ -131,7 +131,7 @@ for (const extension of ["lua", "ts"]) {
         assert.deepEqual(current.session.getEntries(), oldEntries);
         assert.deepEqual(current.agentSession.agent.state.messages, []);
         assert.deepEqual(current.chat, []);
-        assert.match(current.agentSession.agent.state.systemPrompt, /Original identity/);
+        assert.match(current.agentSession.systemPrompt, /Original identity/);
         assert.equal(tab.customBasePrompt, true);
         assert.equal(tab.workdir, dir);
         assert.equal(tab.chatScrollOffset, 0);

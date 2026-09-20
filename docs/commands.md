@@ -19,7 +19,7 @@ Commands operate across three distinct persistence tiers:
 | `/batch` | `<script> [-- <args...>]` | Workdir | Runs a Lua or TypeScript/JavaScript batch script in the current TUI. See [Batch scripts](batch-scripts.md#running). |
 | `/models` | `[provider/modelId]` | Session | Opens interactive model selector or switches model directly. |
 | `/thinking` | `[off\|minimal\|low\|medium\|high\|xhigh\|max]` | Session | Sets model reasoning/thinking effort level. |
-| `/context-limit` | `<tokens\|reset>` | Session | Sets artificial context window limit for testing or compaction tuning. |
+| `/context-limit` | `<tokens\|reset>` | Session | Sets an artificial context window and matching compaction budgets, including configured per-model budgets, for this tab. `reset` restores its captured ordinary and per-model budgets without writing settings. |
 | `/workdir` | `[path]` | Workdir | Switches active agent working directory and updates file watchers. |
 | `/new-session` | `[--focus\|--no-focus] [title]` | Workdir | Opens a new agent tab with an optional custom title. Default focuses the new tab; `--no-focus` leaves the current tab focused. A taken title becomes `title-N`. See [Tab titles](workspace-and-tabs.md#tab-titles). |
 | `/fork` | - | Workdir | Clones current conversation branch into a new tab that owns its runtime services. Title is `{source}-fork`, or `{source}-fork-N` if taken. See [Tab titles](workspace-and-tabs.md#tab-titles). |

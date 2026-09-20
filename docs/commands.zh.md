@@ -19,7 +19,7 @@ MixCode 在 `src/core/commands.ts` 中注册了内置本地 Slash 命令。这�
 | `/batch` | `<script> [-- <args...>]` | Workdir | 在当前 TUI 执行 Lua 或 TypeScript/JavaScript 批处理脚本。见[批处理脚本](batch-scripts.zh.md#运行)。 |
 | `/models` | `[provider/modelId]` | Session | 打开交互式模型选择器或直接切换当前 Tab 模型。 |
 | `/thinking` | `[off\|minimal\|low\|medium\|high\|xhigh\|max]` | Session | 调整模型思考 / 推理深度（Reasoning Effort）。 |
-| `/context-limit` | `<tokens\|reset>` | Session | 人为设置上下文窗口上限（用于测试或压缩调优）。 |
+| `/context-limit` | `<tokens\|reset>` | Session | 设置当前标签的上下文窗口与匹配的压缩预算，包括已配置的按模型预算。`reset` 恢复该标签记录的普通预算和按模型预算，不写入 settings。 |
 | `/workdir` | `[path]` | Workdir | 切换当前 Agent 工作目录并更新文件监听。 |
 | `/new-session` | `[--focus\|--no-focus] [title]` | Workdir | 新建 Agent Tab，可指定自定义标题。默认 focus 到新 Tab；`--no-focus` 留在当前 Tab。已占用的标题变为 `title-N`。见 [Tab 标题](workspace-and-tabs.zh.md#tab-标题)。 |
 | `/fork` | - | Workdir | 将当前会话分支复制到新 Tab，新 Tab 拥有独立的运行时服务。标题为 `{source}-fork`，已被占用则为 `{source}-fork-N`。见 [Tab 标题](workspace-and-tabs.zh.md#tab-标题)。 |

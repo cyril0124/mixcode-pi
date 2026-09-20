@@ -4,6 +4,9 @@ import {
   createAssistantMessageEventStream,
   fauxAssistantMessage,
   fauxProvider,
+  getCurrentSystemPrompt,
+  getCurrentTools,
+  normalizeContext,
   type AssistantMessageEventStream,
   type Provider,
   type SimpleStreamOptions,
@@ -48,7 +51,57 @@ function modelOf(provider: Provider) {
   return provider.getModels()[0]!;
 }
 
-const context = { messages: [] };
+const context = normalizeContext({ messages: [] });
+
+for (const entryPoint of ["stream", "streamSimple"] as const) {
+  for (const enabled of [true, false]) {
+    test(`provider wrapper preserves transcript changes through ${entryPoint}, enabled=${enabled}`, async () => {
+      const initialTool = {
+        name: "inspect",
+        description: "Inspect the workspace.",
+        parameters: { type: "object" as const, properties: {} },
+      };
+      const nextTool = { ...initialTool, name: "write" };
+      const transcript = normalizeContext({
+        systemPrompt: "Initial instructions.",
+        tools: [initialTool],
+        messages: [
+          { role: "user", content: "Update the workspace.", timestamp: 1 },
+          {
+            role: "system",
+            content: "Later instructions.",
+            toolsRemoved: [{ name: "inspect" }],
+            toolsAdded: [nextTool],
+            timestamp: 2,
+          },
+        ],
+      });
+      const { provider, setResponses } = fauxProvider({
+        provider: "watchdog-transcript-test",
+      });
+      setResponses([
+        (received) =>
+          fauxAssistantMessage(
+            JSON.stringify({
+              prompt: getCurrentSystemPrompt(received.messages),
+              tools: getCurrentTools(received.messages).map((tool) => tool.name),
+              roles: received.messages.map((message) => message.role),
+            }),
+          ),
+      ]);
+      const wrapped = wrapProvider(provider, options({ enabled }));
+      const result = await wrapped[entryPoint](modelOf(provider), transcript).result();
+      assert.equal(result.stopReason, "stop");
+      const text = result.content.find((block) => block.type === "text");
+      assert.ok(text);
+      const observed = JSON.parse(text.text);
+      assert.match(observed.prompt, /Initial instructions\./);
+      assert.match(observed.prompt, /Later instructions\./);
+      assert.deepEqual(observed.tools, ["write"]);
+      assert.deepEqual(observed.roles, ["system", "user", "system"]);
+    });
+  }
+}
 
 test("provider wrapper forwards the public stream entry point", async () => {
   const source = createAssistantMessageEventStream();

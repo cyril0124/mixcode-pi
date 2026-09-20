@@ -10,6 +10,8 @@ export interface BinaryRuntimeAssets {
   exportVendorHighlight: string;
   interactiveAssets?: Record<string, string>;
   photonWasmPath?: string;
+  /** Native Pi TUI helpers: paths relative to native/ mapped to embedded files. */
+  nativePlatformHelpers?: Record<string, string>;
   packageJson: Record<string, unknown>;
   /** Built-in extension packages: { packageName: { filename: content } } */
   builtinPackages?: Record<string, Record<string, string>>;
@@ -39,6 +41,7 @@ export async function materializeBinaryRuntimeAssets(
     await writeInteractiveAssets(assetsDir, assets.interactiveAssets ?? {});
   }
   if (assets.photonWasmPath) await writePhotonWasm(runtimeDir, assets.photonWasmPath);
+  await writeInteractiveAssets(path.join(runtimeDir, "native"), assets.nativePlatformHelpers ?? {});
   if (assets.builtinPackages) await writeBuiltinPackages(runtimeDir, assets.builtinPackages);
 }
 

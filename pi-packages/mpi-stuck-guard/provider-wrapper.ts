@@ -4,7 +4,7 @@ import {
   type AssistantMessage,
   type AssistantMessageEvent,
   type AssistantMessageEventStream,
-  type Context,
+  type TranscriptContext,
   type Model,
   type Provider,
   type SimpleStreamOptions,
@@ -80,7 +80,7 @@ function terminalError(
 function wrapStream(
   provider: Provider,
   model: Model<Api>,
-  _context: Context,
+  _context: TranscriptContext,
   options: StreamOptions | SimpleStreamOptions | undefined,
   open: (options: StreamOptions | SimpleStreamOptions | undefined) => AssistantMessageEventStream,
   watchdogOptions: ProviderWrapperOptions,
@@ -216,7 +216,7 @@ export function wrapProvider(
   const resolveOptions = typeof options === "function" ? options : () => options;
   const wrapped = Object.create(provider) as WatchdogProvider;
   Object.defineProperty(wrapped, "stream", {
-    value: (model: Model<Api>, context: Context, streamOptions?: StreamOptions) =>
+    value: (model: Model<Api>, context: TranscriptContext, streamOptions?: StreamOptions) =>
       wrapStream(
         provider,
         model,
@@ -227,7 +227,7 @@ export function wrapProvider(
       ),
   });
   Object.defineProperty(wrapped, "streamSimple", {
-    value: (model: Model<Api>, context: Context, streamOptions?: SimpleStreamOptions) =>
+    value: (model: Model<Api>, context: TranscriptContext, streamOptions?: SimpleStreamOptions) =>
       wrapStream(
         provider,
         model,

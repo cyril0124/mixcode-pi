@@ -20,6 +20,40 @@ describe("fitReserveToWindow", () => {
 });
 
 describe("resolveReserveTokens", () => {
+  it("resolves model overrides before ordinary budgets across both scopes", async () => {
+    const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mpi-length-model-budget-"));
+    const agentDir = path.join(root, "agent");
+    const cwd = path.join(root, "cwd");
+    try {
+      await fsPromises.mkdir(agentDir);
+      await fsPromises.mkdir(path.join(cwd, ".pi"), { recursive: true });
+      await fsPromises.writeFile(
+        path.join(agentDir, "settings.json"),
+        JSON.stringify({
+          compaction: {
+            reserveTokens: 5000,
+            modelOverrides: { "provider/model": { reserveTokens: 12000 } },
+          },
+        }),
+      );
+      await fsPromises.writeFile(
+        path.join(cwd, ".pi/settings.json"),
+        JSON.stringify({ compaction: { reserveTokens: 800 } }),
+      );
+      const model = { provider: "provider", id: "model" };
+      assert.equal(resolveReserveTokens(cwd, agentDir, model), 12000);
+      assert.equal(resolveReserveTokens(cwd, agentDir, { ...model, id: "other" }), 800);
+      await fsPromises.writeFile(
+        path.join(cwd, ".pi/settings.json"),
+        JSON.stringify({
+          compaction: { modelOverrides: { "provider/model": { reserveTokens: 0 } } },
+        }),
+      );
+      assert.equal(resolveReserveTokens(cwd, agentDir, model), 0);
+    } finally {
+      await fsPromises.rm(root, { recursive: true, force: true });
+    }
+  });
   it("merges absolute Pi settings: project over global, default 16384", async () => {
     const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mpi-length-resume-budgets-"));
     const agentDir = path.join(root, "agent");

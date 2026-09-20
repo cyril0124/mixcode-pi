@@ -1,8 +1,8 @@
 diff --git a/dist/core/agent-session.d.ts b/dist/core/agent-session.d.ts
-index 89f96e8..0bc6f51 100644
+index b66ebcb0b8aa2907543560cd274429b65f9747d4..2bffcabff08a90636daf2532046e5ec204a4a358 100644
 --- a/dist/core/agent-session.d.ts
 +++ b/dist/core/agent-session.d.ts
-@@ -436,6 +436,29 @@ export declare class AgentSession {
+@@ -477,6 +477,30 @@ export declare class AgentSession {
      /** Get pending steering messages (read-only) */
      getSteeringMessages(): readonly string[];
      /** Get pending follow-up messages (read-only) */
@@ -23,7 +23,8 @@ index 89f96e8..0bc6f51 100644
 +    /**
 +     * MIXCODE_SYSTEM_PROMPT_HOOK: install a host assembler that receives the
 +     * collected BuildSystemPromptOptions and returns the final prompt plus the
-+     * options to publish to extensions; rebuilds and applies immediately.
++     * options to publish to extensions. The effective session prompt updates
++     * immediately; transcripts receive prompt changes on the next request.
 +     */
 +    setSystemPromptAssembler(assembler: (options: import("./system-prompt.ts").BuildSystemPromptOptions) => {
 +        prompt: string;
@@ -33,35 +34,55 @@ index 89f96e8..0bc6f51 100644
      get resourceLoader(): ResourceLoader;
      /**
 diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js
-index 66e874e..d82a1a4 100644
+index 638646dacdbcb9c00bbc0de14f28abb700c8dc3f..e9119032bd47a15c66f183f38bb0871191489758 100644
 --- a/dist/core/agent-session.js
 +++ b/dist/core/agent-session.js
-@@ -764,8 +764,24 @@ export class AgentSession {
-             toolSnippets,
-             promptGuidelines,
-         };
-+        // MIXCODE_SYSTEM_PROMPT_HOOK: hosts may own final prompt assembly.
-+        if (this._systemPromptAssembler) {
-+            const assembled = this._systemPromptAssembler(this._baseSystemPromptOptions);
-+            this._baseSystemPromptOptions = assembled.options;
-+            return assembled.prompt;
-+        }
-         return buildSystemPrompt(this._baseSystemPromptOptions);
+@@ -659,7 +659,22 @@ export class AgentSession {
      }
-+    /**
-+     * MIXCODE_SYSTEM_PROMPT_HOOK: install a host assembler that receives the
-+     * collected BuildSystemPromptOptions and returns the final prompt plus the
-+     * options to publish to extensions; rebuilds and applies immediately.
-+     */
+     /** Current effective system prompt, including changes not yet sent to the model. */
+     get systemPrompt() {
+-        return buildSystemPrompt(this._runSystemPromptOptions ?? this._baseSystemPromptOptions);
++        return this._renderSystemPrompt(this._runSystemPromptOptions ?? this._baseSystemPromptOptions);
++    }
++    // MIXCODE_SYSTEM_PROMPT_HOOK: render from collected options at every public boundary,
++    // including extension hooks and mid-run tool changes. Forced extension prompts win.
++    _renderSystemPrompt(options) {
++        if (options.forceSystemPrompt !== undefined)
++            return options.forceSystemPrompt;
++        if (!this._systemPromptAssembler)
++            return buildSystemPrompt(options);
++        const assembled = this._systemPromptAssembler(options);
++        Object.assign(options, normalizeBuildSystemPromptOptions(assembled.options));
++        return assembled.prompt;
++    }
 +    setSystemPromptAssembler(assembler) {
 +        this._systemPromptAssembler = assembler;
-+        this._baseSystemPrompt = this._rebuildSystemPrompt(this.getActiveToolNames());
-+        this.agent.state.systemPrompt = this._systemPromptOverride ?? this._baseSystemPrompt;
-+    }
-     // =========================================================================
-     // Prompting
-     // =========================================================================
-@@ -1201,6 +1217,43 @@ export class AgentSession {
++        this._rebuildSystemPrompt(this.getActiveToolNames());
+     }
+     /** Current retry attempt (0 if not retrying) */
+     get retryAttempt() {
+@@ -810,7 +825,10 @@ export class AgentSession {
+             const tool = this._toolRegistry.get(name);
+             return tool ? [tool] : [];
+         });
+-        const sections = diffSystemPromptSections(getCurrentSystemMessage(messages)?.sections ?? {}, buildSystemPromptSections(options));
++        const promptSections = this._systemPromptAssembler
++            ? { preamble: this._renderSystemPrompt({ ...options, forceSystemPrompt: undefined }) }
++            : buildSystemPromptSections(options);
++        const sections = diffSystemPromptSections(getCurrentSystemMessage(messages)?.sections ?? {}, promptSections);
+         return sections ? { role: "system", content: "", sections, timestamp: Date.now() } : undefined;
+     }
+     /**
+@@ -1022,7 +1040,7 @@ export class AgentSession {
+             this._pendingNextTurnMessages = [];
+             // Emit before_agent_start extension event
+             const selectedToolsBefore = this._baseSystemPromptOptions.selectedTools;
+-            const result = await this._extensionRunner.emitBeforeAgentStart(expandedText, currentImages, this._baseSystemPromptOptions);
++            const result = await this._extensionRunner.emitBeforeAgentStart(expandedText, currentImages, this._baseSystemPromptOptions, (options) => this._renderSystemPrompt(options));
+             // Handlers may edit event.systemPromptOptions.selectedTools or call setActiveTools(),
+             // which updates the live loadout instead. An explicit edit wins; otherwise the live
+             // loadout is authoritative, so a setActiveTools() call is not undone here.
+@@ -1313,6 +1331,43 @@ export class AgentSession {
          this._emitQueueUpdate();
          return { steering, followUp };
      }
@@ -105,7 +126,7 @@ index 66e874e..d82a1a4 100644
      /** Number of pending messages (includes both steering and follow-up) */
      get pendingMessageCount() {
          return this._steeringMessages.length + this._followUpMessages.length;
-@@ -2109,13 +2162,29 @@ export class AgentSession {
+@@ -2211,13 +2266,29 @@ export class AgentSession {
          const excludedToolNames = this._excludedToolNames;
          const isAllowedTool = (name) => (!allowedToolNames || allowedToolNames.has(name)) && !excludedToolNames?.has(name);
          const registeredTools = this._extensionRunner.getAllRegisteredTools();
@@ -136,7 +157,7 @@ index 66e874e..d82a1a4 100644
          const definitionRegistry = new Map(Array.from(this._baseToolDefinitions.entries())
              .filter(([name]) => isAllowedTool(name))
              .map(([name, definition]) => [
-@@ -2125,7 +2194,7 @@ export class AgentSession {
+@@ -2227,7 +2298,7 @@ export class AgentSession {
                  sourceInfo: createSyntheticSourceInfo(`<builtin:${name}>`, { source: "builtin" }),
              },
          ]));
@@ -145,7 +166,7 @@ index 66e874e..d82a1a4 100644
              definitionRegistry.set(tool.definition.name, {
                  definition: tool.definition,
                  sourceInfo: tool.sourceInfo,
-@@ -2145,7 +2214,7 @@ export class AgentSession {
+@@ -2247,7 +2318,7 @@ export class AgentSession {
          })
              .filter((entry) => entry !== undefined));
          const runner = this._extensionRunner;
@@ -154,7 +175,7 @@ index 66e874e..d82a1a4 100644
          const wrappedBuiltInTools = wrapRegisteredTools(Array.from(this._baseToolDefinitions.values())
              .filter((definition) => isAllowedTool(definition.name))
              .map((definition) => ({
-@@ -2828,4 +2897,53 @@ export class AgentSession {
+@@ -2966,4 +3037,53 @@ export class AgentSession {
          return this._extensionRunner;
      }
  }
@@ -210,31 +231,10 @@ index 66e874e..d82a1a4 100644
  //# sourceMappingURL=agent-session.js.map
 \ No newline at end of file
 diff --git a/dist/core/extensions/loader.js b/dist/core/extensions/loader.js
-index e8e8859..3eb03b9 100644
+index be748bf45bea69461ef4f2a9a4dfc99bb3cbb1b1..0140819423f623d9cb2ce819aefe2520b3b3beda 100644
 --- a/dist/core/extensions/loader.js
 +++ b/dist/core/extensions/loader.js
-@@ -54,6 +54,20 @@ const VIRTUAL_MODULES = {
-     "@mariozechner/pi-ai/providers/all": _bundledPiAiProviders,
-     "@mariozechner/pi-coding-agent": _bundledPiCodingAgent,
- };
-+// MIXCODE_TYPEBOX_FIX: Bun --compile can break TypeBox's Type proxy when exposed
-+// only via namespace re-exports. Re-bind Type from the typebox module object.
-+for (const key of ["@earendil-works/pi-ai", "@earendil-works/pi-ai/compat", "@mariozechner/pi-ai", "@mariozechner/pi-ai/compat"]) {
-+    const mod = VIRTUAL_MODULES[key];
-+    if (mod && VIRTUAL_MODULES.typebox) {
-+        VIRTUAL_MODULES[key] = new Proxy(mod, {
-+            get(target, prop, receiver) {
-+                if (prop === "Type") return VIRTUAL_MODULES.typebox.Type ?? VIRTUAL_MODULES.typebox;
-+                return Reflect.get(target, prop, receiver);
-+            },
-+        });
-+    }
-+}
-+
- const require = createRequire(import.meta.url);
- const isNodeSeaBinary = ("sea" in process.features && process.features.sea === true) ||
-     process.getBuiltinModule("node:sea")?.isSea() === true;
-@@ -115,8 +129,18 @@ function getAliases() {
+@@ -85,8 +85,18 @@ function getAliases() {
  let extensionCacheCwd;
  let extensionCacheGeneration = 0;
  const extensionCache = new Map();
@@ -253,7 +253,7 @@ index e8e8859..3eb03b9 100644
      extensionCacheCwd = undefined;
      extensionCacheGeneration++;
  }
-@@ -412,7 +436,22 @@ async function loadExtensionModule(extensionPath, cacheToken) {
+@@ -397,7 +407,22 @@ async function loadExtensionModule(extensionPath, cacheToken) {
          if (cachedFactory) {
              return cachedFactory;
          }
@@ -261,7 +261,7 @@ index e8e8859..3eb03b9 100644
 +        if (inflight) {
 +            return inflight;
 +        }
-     }
++    }
 +    const importPromise = importExtensionModuleUncached(extensionPath, cacheToken).finally(() => {
 +        if (inflightExtensionModules.get(extensionPath) === importPromise) {
 +            inflightExtensionModules.delete(extensionPath);
@@ -269,15 +269,64 @@ index e8e8859..3eb03b9 100644
 +    });
 +    if (isCurrentCacheToken(cacheToken)) {
 +        inflightExtensionModules.set(extensionPath, importPromise);
-+    }
+     }
 +    return importPromise;
 +}
 +async function importExtensionModuleUncached(extensionPath, cacheToken) {
-     const jiti = createJiti(import.meta.url, {
-         moduleCache: false,
-         // Compiled binaries and the bundled Node distribution use embedded modules.
+     const createJitiImpl = await getCreateJiti();
+     // Compiled binaries and the bundled Node distribution use embedded modules.
+     // Source TypeScript reuses host modules and root tsconfig paths. Unbundled
+diff --git a/dist/core/extensions/runner.d.ts b/dist/core/extensions/runner.d.ts
+index 5d7d345ab9ff41ffb08a5938b6a43659b7660972..97861d025526c1757ea34216955043a7573a815c 100644
+--- a/dist/core/extensions/runner.d.ts
++++ b/dist/core/extensions/runner.d.ts
+@@ -159,7 +159,7 @@ export declare class ExtensionRunner {
+     emitContext(messages: AgentMessage[]): Promise<AgentMessage[]>;
+     emitBeforeProviderRequest(payload: unknown): Promise<unknown>;
+     emitBeforeProviderHeaders(headers: ProviderHeaders): Promise<ProviderHeaders>;
+-    emitBeforeAgentStart(prompt: string, images: ImageContent[] | undefined, systemPromptOptions: BuildSystemPromptOptions): Promise<BeforeAgentStartCombinedResult>;
++    emitBeforeAgentStart(prompt: string, images: ImageContent[] | undefined, systemPromptOptions: BuildSystemPromptOptions, renderSystemPrompt?: (options: NormalizedBuildSystemPromptOptions) => string): Promise<BeforeAgentStartCombinedResult>;
+     emitResourcesDiscover(cwd: string, reason: ResourcesDiscoverEvent["reason"]): Promise<{
+         skillPaths: Array<{
+             path: string;
+diff --git a/dist/core/extensions/runner.js b/dist/core/extensions/runner.js
+index a9b57dace0913f9628c7b49207dea97238d79953..0a5a7d839789eefae9073435af1e7b8bda64f6e6 100644
+--- a/dist/core/extensions/runner.js
++++ b/dist/core/extensions/runner.js
+@@ -908,9 +908,9 @@ export class ExtensionRunner {
+         }
+         return headers;
+     }
+-    async emitBeforeAgentStart(prompt, images, systemPromptOptions) {
++    async emitBeforeAgentStart(prompt, images, systemPromptOptions, renderSystemPrompt = buildSystemPrompt) {
+         const currentOptions = normalizeBuildSystemPromptOptions(systemPromptOptions);
+-        const renderCurrentSystemPrompt = () => buildSystemPrompt(currentOptions);
++        const renderCurrentSystemPrompt = () => renderSystemPrompt(currentOptions);
+         const ctx = Object.defineProperties({}, Object.getOwnPropertyDescriptors(this.createContext()));
+         ctx.getSystemPrompt = () => {
+             this.assertActive();
+diff --git a/dist/core/extensions/virtual-modules.js b/dist/core/extensions/virtual-modules.js
+index 77b6d6d2627037b93d8eb0b9f7c2369ddffc1cbf..6dec74da0297198c077307d92edf0b2a0bfa78e5 100644
+--- a/dist/core/extensions/virtual-modules.js
++++ b/dist/core/extensions/virtual-modules.js
+@@ -35,4 +35,14 @@ export const VIRTUAL_MODULES = {
+     "@mariozechner/pi-ai/providers/all": bundledPiAiProviders,
+     "@mariozechner/pi-coding-agent": bundledPiCodingAgent,
+ };
++// MIXCODE_TYPEBOX_FIX: keep Type bound to the bundled TypeBox module in compiled hosts.
++for (const key of ["@earendil-works/pi-ai", "@earendil-works/pi-ai/compat", "@mariozechner/pi-ai", "@mariozechner/pi-ai/compat"]) {
++    const mod = VIRTUAL_MODULES[key];
++    VIRTUAL_MODULES[key] = new Proxy(mod, {
++        get(target, prop, receiver) {
++            if (prop === "Type") return VIRTUAL_MODULES.typebox.Type ?? VIRTUAL_MODULES.typebox;
++            return Reflect.get(target, prop, receiver);
++        },
++    });
++}
+ //# sourceMappingURL=virtual-modules.js.map
+\ No newline at end of file
 diff --git a/dist/core/footer-data-provider.js b/dist/core/footer-data-provider.js
-index efc80fe..4f6b043 100644
+index efc80fec6699a530d6f4ceeaef974410092e64da..4f6b043428c686c82c24402324a02f63a55548f7 100644
 --- a/dist/core/footer-data-provider.js
 +++ b/dist/core/footer-data-provider.js
 @@ -273,65 +273,52 @@ export class FooterDataProvider {
@@ -377,7 +426,7 @@ index efc80fe..4f6b043 100644
      }
  }
 diff --git a/dist/core/keybindings.d.ts b/dist/core/keybindings.d.ts
-index b6c3bdc..1600548 100644
+index 08e03f2a4ccf493895a7ee67e5f9eae9f27df02c..862e588bf63a0264db91026b01117851cfa2bd45 100644
 --- a/dist/core/keybindings.d.ts
 +++ b/dist/core/keybindings.d.ts
 @@ -425,4 +425,5 @@ export declare class KeybindingsManager extends TuiKeybindingsManager {
@@ -388,7 +437,7 @@ index b6c3bdc..1600548 100644
  //# sourceMappingURL=keybindings.d.ts.map
 \ No newline at end of file
 diff --git a/dist/core/keybindings.js b/dist/core/keybindings.js
-index 2513d09..bf6074e 100644
+index 795c6a199bcb4cc88351be9bbef2e73cb8e4e61f..5969a652c15b161f187b088cf891b536c9145bf1 100644
 --- a/dist/core/keybindings.js
 +++ b/dist/core/keybindings.js
 @@ -318,4 +318,9 @@ export class KeybindingsManager extends TuiKeybindingsManager {
@@ -403,10 +452,10 @@ index 2513d09..bf6074e 100644
  //# sourceMappingURL=keybindings.js.map
 \ No newline at end of file
 diff --git a/dist/core/session-manager.d.ts b/dist/core/session-manager.d.ts
-index a8d1415..136448b 100644
+index b6f73c347cdef7e6f82152c958e1d211f2f8e199..b710f1cc467551a1d3884d81dd0ccf5608140947 100644
 --- a/dist/core/session-manager.d.ts
 +++ b/dist/core/session-manager.d.ts
-@@ -165,6 +165,8 @@ export declare function buildContextEntries(entries: SessionEntry[], leafId?: st
+@@ -177,6 +177,8 @@ export declare function buildContextEntries(entries: SessionEntry[], leafId?: st
   */
  export declare function buildSessionContext(entries: SessionEntry[], leafId?: string | null, byId?: Map<string, SessionEntry>): SessionContext;
  export declare function getDefaultSessionDir(cwd: string, agentDir?: string): string;
@@ -416,10 +465,10 @@ index a8d1415..136448b 100644
  export declare function loadEntriesFromFile(filePath: string): FileEntry[];
  /** Exported for testing */
 diff --git a/dist/core/session-manager.js b/dist/core/session-manager.js
-index fbb784f..bc8876f 100644
+index 08c8f98b05ed1b64038fbfecb5140cb38cc8e616..8b9e0468b18f19b0d0ce1078872440bf54a21bd2 100644
 --- a/dist/core/session-manager.js
 +++ b/dist/core/session-manager.js
-@@ -239,7 +239,7 @@ export function buildSessionContext(entries, leafId, byId) {
+@@ -242,7 +242,7 @@ export function buildSessionContext(entries, leafId, byId) {
   * Compute the default session directory for a cwd.
   * Encodes cwd into a safe directory name under ~/.pi/agent/sessions/.
   */
@@ -429,10 +478,10 @@ index fbb784f..bc8876f 100644
      const resolvedAgentDir = resolvePath(agentDir);
      const safePath = `--${resolvedCwd.replace(/^[/\\]/, "").replace(/[/\\:]/g, "-")}--`;
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index e2b640b..3f4fe9d 100644
+index 205144dbf79e7fc8b15ffc5d9db9922aef3d87de..103c7d7d547c93c0e77108e94d0dda3066a4e7f3 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
-@@ -26,11 +26,44 @@ export { hasTrustRequiringProjectResources, type ProjectTrustDecision, ProjectTr
+@@ -27,11 +27,44 @@ export { hasTrustRequiringProjectResources, type ProjectTrustDecision, ProjectTr
  export { type MainOptions, main } from "./main.ts";
  export { InteractiveMode, type InteractiveModeOptions, type JsonAgentSessionEvent, type ModelInfo, type PrintModeOptions, RpcClient, type RpcClientOptions, type RpcCommand, type RpcEventListener, type RpcExtensionUIRequest, type RpcExtensionUIResponse, type RpcResponse, type RpcSessionState, runPrintMode, runRpcMode, } from "./modes/index.ts";
  export { ArminComponent, AssistantMessageComponent, BashExecutionComponent, BorderedLoader, BranchSummaryMessageComponent, CompactionSummaryMessageComponent, CustomEditor, type CustomEditorOptions, CustomMessageComponent, DynamicBorder, ExtensionEditorComponent, ExtensionInputComponent, ExtensionSelectorComponent, FooterComponent, keyHint, keyText, LoginDialogComponent, ModelSelectorComponent, OAuthSelectorComponent, type RenderDiffOptions, rawKeyHint, renderDiff, SessionSelectorComponent, type SettingsCallbacks, type SettingsConfig, SettingsSelectorComponent, ShowImagesSelectorComponent, SkillInvocationMessageComponent, ThemeSelectorComponent, ThinkingSelectorComponent, ToolExecutionComponent, type ToolExecutionOptions, TreeSelectorComponent, truncateToVisualLines, UserMessageComponent, UserMessageSelectorComponent, type VisualTruncateResult, } from "./modes/interactive/components/index.ts";
@@ -480,7 +529,7 @@ index e2b640b..3f4fe9d 100644
  //# sourceMappingURL=index.d.ts.map
 \ No newline at end of file
 diff --git a/dist/index.js b/dist/index.js
-index 01017cd..ee586dd 100644
+index 01017cdbf6a26b3d36e236c7f9e835fbf0fa5c3a..ee586dd259a62096695cf74cbf902a05f02ed490 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -36,7 +36,21 @@ export { InteractiveMode, RpcClient, runPrintMode, runRpcMode, } from "./modes/i
@@ -546,7 +595,7 @@ index 01017cd..ee586dd 100644
  //# sourceMappingURL=index.js.map
 \ No newline at end of file
 diff --git a/dist/modes/interactive/components/markdown-transform.d.ts b/dist/modes/interactive/components/markdown-transform.d.ts
-index c819366..25c5fcb 100644
+index c819366a7a8f47b5cdb1aafb24bc1c813b7e1417..25c5fcb66f824d0b8101cf9d264c4dd27cc6b61f 100644
 --- a/dist/modes/interactive/components/markdown-transform.d.ts
 +++ b/dist/modes/interactive/components/markdown-transform.d.ts
 @@ -1,3 +1,4 @@
@@ -556,7 +605,7 @@ index c819366..25c5fcb 100644
  //# sourceMappingURL=markdown-transform.d.ts.map
 \ No newline at end of file
 diff --git a/dist/modes/interactive/components/markdown-transform.js b/dist/modes/interactive/components/markdown-transform.js
-index 5ac4c56..7e9caa7 100644
+index 5ac4c5670ab3bf0365535c3d078016a58babee49..7e9caa779193472582b1cd919c45a9edb5dfa8fd 100644
 --- a/dist/modes/interactive/components/markdown-transform.js
 +++ b/dist/modes/interactive/components/markdown-transform.js
 @@ -1,7 +1,7 @@
@@ -569,7 +618,7 @@ index 5ac4c56..7e9caa7 100644
      for (const transformer of transformers) {
          try {
 diff --git a/dist/modes/interactive/components/mermaid.js b/dist/modes/interactive/components/mermaid.js
-index 6015ae4..8984f3c 100644
+index 6015ae42db8b0a3571ac4c7748caa2f715b2ff44..8984f3cc8f89fc5805ccded2a3478f007ae59833 100644
 --- a/dist/modes/interactive/components/mermaid.js
 +++ b/dist/modes/interactive/components/mermaid.js
 @@ -51,6 +51,11 @@ export function createMermaidMarkdownTransformer(options) {
