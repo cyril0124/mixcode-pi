@@ -15,9 +15,11 @@ The extension registers `bash` through Pi's `createBashToolDefinition` with cust
 | Window expires | The command keeps running in the background. The tool result gains a handle (pid + log path) and succeeds, so the turn continues. |
 | Background command writes nothing | After 60s of log silence a `bash-detached-stall` message asks the model to check on the job; see [Stall reminders](#stall-reminders). |
 | Background command ends | After the log stream finishes or fails, a `bash-detached-exit` message carries the exit code and last output. It uses `steer` while the model is busy and starts a turn when idle. |
-| `timeout` reached | The command's process group is killed, in the foreground (Pi's `Command timed out after N seconds` error) or in the background (reported in the completion notice). |
+| `timeout` reached | Termination starts for the command's process group, in the foreground (Pi's `Command timed out after N seconds` error) or in the background (reported in the completion notice). |
 
-`timeout` bounds the command's total life, foreground plus background. When the model passes a `timeout` shorter than the foreground window, the command is killed before it can ever detach.
+`timeout` counts foreground plus background runtime. On Unix, foreground cancellation, timeout, and `/bash-logs` stop send `SIGTERM` to the process group so cleanup traps can run, then send `SIGKILL` after a three-second grace period if the group still exists. Cleanup may extend runtime beyond `timeout` by up to three seconds. Exiting the parent shell does not cancel escalation while descendants remain in the group. Repeated stop requests do not restart the grace period. Windows retains immediate termination; POSIX cleanup traps are not supported there.
+
+A command that starts termination before the foreground window expires stays in the foreground until termination settles, even if cleanup crosses that window. Cancellation still reports `aborted`; timeout still reports a timeout even when a cleanup trap exits successfully. Host-exit emergency cleanup uses immediate `SIGKILL` for foreground commands and jobs already stopping.
 
 ## Configuration
 
@@ -219,7 +221,7 @@ The preview starts at the newest output. A live or flushing log is re-read every
 
 The hint under the preview is the visible range, like `1-21/3574`. If the overlay is too narrow, it drops hints from the middle.
 
-Press `x` and the hint becomes `kill job #<pid> and its children? y confirms, any other key cancels`. Only `y` sends `SIGKILL` to the process group, the same signal a timeout uses. The usual completion notice reports the result. `q`, `Esc`, `j`, `k`, and every other key cancel and leave the overlay open. Finished jobs have no `x`. Their pid may already belong to something else.
+Press `x` and the hint becomes `kill job #<pid> and its children? y confirms, any other key cancels`. Only `y` starts the termination sequence described in [Behavior](#behavior). The notification says `Stopping job #<pid> and its children.`; the usual completion notice reports the result. `q`, `Esc`, `j`, `k`, and every other key cancel and leave the overlay open. Finished jobs have no `x`. Their pid may already belong to something else.
 
 The preview loads at most the last 200000 bytes. If it skipped earlier output, the first line says so. `Ctrl+E` or `v` closes the overlay and opens the log file in `$VISUAL`/`$EDITOR`. The TUI stops while the editor runs and starts again when it exits. If the editor cannot start, a notification names the failure.
 
@@ -229,5 +231,5 @@ The preview loads at most the last 200000 bytes. If it skipped earlier output, t
 
 - A detached command is a process-group leader that outlives both the turn and `mpi` itself. Stop it with `kill -- -<pid>` (the pid in the handle); killing only that pid leaves the command's own children running.
 - When `mpi` exits, a still-running command keeps going but no completion notice is delivered, and its `timeout` is no longer enforced. The log file keeps whatever it writes.
-- Aborting a turn kills a command that is still in the foreground; a command that already detached keeps running.
+- Aborting a turn starts termination for a command still in the foreground; a command that already detached keeps running.
 - The completion notice is dropped when its session was replaced or closed while the command ran.

@@ -11,10 +11,12 @@ import { type BashOperations, getShellConfig } from "@earendil-works/pi-coding-a
  */
 
 /**
- * Injected when the model omits `timeout`. It bounds the command's total life,
- * including the part that runs in the background after detaching.
+ * Injected when the model omits `timeout`. It starts termination after this
+ * total runtime, including time spent in the background after detaching.
  */
 export const BASH_DEFAULT_TIMEOUT_SECONDS = 300;
+
+const PROCESS_TREE_TERM_GRACE_MS = 3000;
 
 /** Foreground blocking window before a command is handed to the background. */
 export const DEFAULT_FOREGROUND_SECONDS = 30;
@@ -81,7 +83,7 @@ export function stripCommandPrelude(command: string, commandPrefix?: string): st
 /** Idle window after `exit` before stdio is considered drained (pi's grace). */
 const EXIT_STDIO_GRACE_MS = 100;
 
-const SYSTEM_PROMPT_NOTE = `Bash execution policy: the bash tool applies a default timeout of ${BASH_DEFAULT_TIMEOUT_SECONDS} seconds when the timeout argument is omitted, and that timeout bounds the command's total life. A command still running after a shorter foreground window is moved to the background instead of being killed: the tool result then reports its pid and a log file. Follow it with \`tail\`, stop it with \`kill\`, and never poll in a loop waiting for it - its exit code is delivered to you automatically once it finishes.`;
+const SYSTEM_PROMPT_NOTE = `Bash execution policy: the bash tool applies a default timeout of ${BASH_DEFAULT_TIMEOUT_SECONDS} seconds when the timeout argument is omitted. The timeout covers foreground and background execution; on Unix it starts termination with SIGTERM, followed by SIGKILL after up to ${PROCESS_TREE_TERM_GRACE_MS / 1000} seconds for cleanup. A command still running after a shorter foreground window is moved to the background instead of being killed: the tool result then reports its pid and a log file. Follow it with \`tail\`, stop it with \`kill\`, and never poll in a loop waiting for it - its exit code is delivered to you automatically once it finishes.`;
 
 export function appendBashTimeoutNote(systemPrompt: string): string {
   if (systemPrompt.includes(SYSTEM_PROMPT_NOTE)) return systemPrompt;
@@ -225,25 +227,134 @@ export function killTree(pid: number): void {
   }
 }
 
+/** Live execution owners; manual stop must not signal an already-reused pid. */
+const stopHandlers = new Map<number, () => void>();
+const terminatingChildren = new Set<number>();
+
+/**
+ * Stop a live owned command using its existing termination deadline.
+ * Unknown or finished pids are ignored; repeated requests do not resend TERM.
+ */
+export function stopBashJob(pid: number): void {
+  stopHandlers.get(pid)?.();
+}
+
+interface ProcessTreeTermination {
+  settled: Promise<void>;
+  /** Shell exit alone is insufficient: only an empty group cancels escalation. */
+  finishIfGone(): void;
+}
+
+function signalProcess(target: number, signal: NodeJS.Signals | 0): boolean {
+  try {
+    process.kill(target, signal);
+    return true;
+  } catch (error) {
+    // ESRCH means the target exited between observation and signalling.
+    if ((error as NodeJS.ErrnoException).code === "ESRCH") return false;
+    throw error;
+  }
+}
+
+/** Send TERM once, retaining ownership until the group is gone or KILL is sent. */
+function terminateProcessTree(pid: number): ProcessTreeTermination {
+  if (process.platform === "win32") {
+    // Windows has no POSIX process groups or catchable TERM; retain its stop path.
+    killTree(pid);
+    return { settled: Promise.resolve(), finishIfGone() {} };
+  }
+
+  const completion = Promise.withResolvers<void>();
+  let target = -pid;
+  if (!signalProcess(target, "SIGTERM")) {
+    target = pid;
+    if (!signalProcess(target, "SIGTERM")) {
+      return { settled: Promise.resolve(), finishIfGone() {} };
+    }
+  }
+  terminatingChildren.add(pid);
+  let finished = false;
+  const finish = (error?: unknown) => {
+    if (finished) return;
+    finished = true;
+    clearTimeout(timer);
+    terminatingChildren.delete(pid);
+    if (error) completion.reject(error);
+    else completion.resolve();
+  };
+  // Keep this timer referenced: host idleness must not strand surviving children.
+  const timer = setTimeout(() => {
+    try {
+      signalProcess(target, "SIGKILL");
+      finish();
+    } catch (error) {
+      finish(error);
+    }
+  }, PROCESS_TREE_TERM_GRACE_MS);
+
+  return {
+    settled: completion.promise,
+    finishIfGone() {
+      if (finished) return;
+      try {
+        if (!signalProcess(target, 0)) finish();
+      } catch (error) {
+        finish(error);
+      }
+    },
+  };
+}
+
 /**
  * Resolve when the child has exited and its stdio has fallen idle.
  *
  * A detached descendant can hold the pipes open past `exit`, so resolving on
  * `exit` alone truncates late output while waiting for `close` alone can hang.
  * The grace timer is re-armed by every chunk, mirroring pi's own bash wait.
+ * During termination, keep pipes readable through process-group cleanup and
+ * drain once more afterward before closing them or publishing completion.
  */
-function waitForExit(child: ChildProcess): Promise<number | null> {
+function waitForExit(
+  child: ChildProcess,
+  getTermination: () => ProcessTreeTermination | undefined,
+): Promise<number | null> {
   return new Promise((resolve, reject) => {
     let settled = false;
     let exitCode: number | null = null;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let waitingForTermination = false;
+    let terminationSettled = false;
 
-    const finalize = (code: number | null) => {
-      if (settled) return;
-      settled = true;
-      if (timer) clearTimeout(timer);
+    const closeStreams = () => {
       child.stdout?.destroy();
       child.stderr?.destroy();
+    };
+    const finalize = (code: number | null) => {
+      if (settled) return;
+      const termination = getTermination();
+      termination?.finishIfGone();
+      if (termination && !terminationSettled) {
+        if (waitingForTermination) return;
+        waitingForTermination = true;
+        if (timer) clearTimeout(timer);
+        // A parent can exit before its children's traps. Keep their pipes open,
+        // then allow one final idle drain after group termination settles.
+        void termination.settled.then(
+          () => {
+            terminationSettled = true;
+            arm();
+          },
+          (error: unknown) => {
+            settled = true;
+            closeStreams();
+            reject(error);
+          },
+        );
+        return;
+      }
+      settled = true;
+      if (timer) clearTimeout(timer);
+      closeStreams();
       resolve(code);
     };
     const arm = () => {
@@ -324,7 +435,7 @@ function installExitHook(): void {
   if (exitHookInstalled) return;
   exitHookInstalled = true;
   process.on("exit", () => {
-    for (const pid of foregroundChildren) killTree(pid);
+    for (const pid of new Set([...foregroundChildren, ...terminatingChildren])) killTree(pid);
   });
 }
 
@@ -455,9 +566,24 @@ export function createDetachingBashOperations(options: {
       child.stdout?.on("data", handleChunk);
       child.stderr?.on("data", handleChunk);
 
-      const onAbort = () => {
-        if (child.pid) killTree(child.pid);
+      const stopping = Promise.withResolvers<"stopping">();
+      const stopFailure = Promise.withResolvers<never>();
+      let termination: ProcessTreeTermination | undefined;
+      const stop = () => {
+        if (!child.pid || termination) return;
+        // Signal failures belong to the tool result, never an uncaught timer or
+        // AbortSignal callback. Observe escalation failures before shell exit.
+        try {
+          termination = terminateProcessTree(child.pid);
+        } catch (error) {
+          stopFailure.reject(error);
+          return;
+        }
+        void termination.settled.catch(stopFailure.reject);
+        stopping.resolve("stopping");
       };
+      if (child.pid) stopHandlers.set(child.pid, stop);
+      const onAbort = stop;
       if (signal) signal.addEventListener("abort", onAbort, { once: true });
 
       const timeoutTimer =
@@ -465,23 +591,30 @@ export function createDetachingBashOperations(options: {
           ? undefined
           : setTimeout(() => {
               timedOut = true;
-              if (child.pid) killTree(child.pid);
+              stop();
             }, timeoutMs);
 
-      const exited = waitForExit(child).finally(() => {
-        if (child.pid) foregroundChildren.delete(child.pid);
+      const exited = Promise.race([
+        waitForExit(child, () => termination),
+        stopFailure.promise,
+      ]).finally(() => {
         if (timeoutTimer) clearTimeout(timeoutTimer);
         if (signal) signal.removeEventListener("abort", onAbort);
+        if (child.pid) {
+          foregroundChildren.delete(child.pid);
+          stopHandlers.delete(child.pid);
+        }
       });
 
       const exitedTagged = exited.then(() => "exited" as const);
       let detachTimer: ReturnType<typeof setTimeout> | undefined;
-      let outcome: "exited" | "detach";
+      let outcome: "exited" | "detach" | "stopping";
       try {
         outcome =
           options.foregroundSeconds > 0
             ? await Promise.race([
                 exitedTagged,
+                stopping.promise,
                 new Promise<"detach">((resolve) => {
                   detachTimer = setTimeout(
                     () => resolve("detach"),
@@ -495,7 +628,7 @@ export function createDetachingBashOperations(options: {
         if (detachTimer) clearTimeout(detachTimer);
       }
 
-      if (outcome === "exited") {
+      if (outcome !== "detach") {
         const exitCode = await exited;
         buffered = undefined;
         if (signal?.aborted) throw new Error("aborted");
