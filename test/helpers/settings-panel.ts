@@ -1,4 +1,4 @@
-import type { SettingsManager } from "@earendil-works/pi-coding-agent";
+import type { CacheWarmingMode, SettingsManager } from "@earendil-works/pi-coding-agent";
 import type { RawMixCodeSettings } from "../../src/core/mixcode-settings.js";
 import type { MixCodeState } from "../../src/core/types.js";
 import type { OverlayTui } from "../../src/ui/app-types.js";
@@ -24,6 +24,7 @@ export function createSettingsPanel(
     tui?: OverlayTui;
     setHideThinkingBlock?: (hide: boolean) => Promise<void>;
     setShowCacheMissNotices?: (show: boolean) => Promise<void>;
+    setCacheWarmingMode?: (mode: CacheWarmingMode) => Promise<void>;
   },
 ): SettingsPanel {
   return new SettingsPanel(
@@ -33,6 +34,7 @@ export function createSettingsPanel(
       settingsManager,
       setHideThinkingBlock: init?.setHideThinkingBlock,
       setShowCacheMissNotices: init?.setShowCacheMissNotices,
+      setCacheWarmingMode: init?.setCacheWarmingMode,
     },
     {
       mixcodeRaw: init?.mixcodeRaw ?? {},

@@ -477,11 +477,38 @@ index 08c8f98b05ed1b64038fbfecb5140cb38cc8e616..8b9e0468b18f19b0d0ce1078872440bf
      const resolvedCwd = resolvePath(cwd);
      const resolvedAgentDir = resolvePath(agentDir);
      const safePath = `--${resolvedCwd.replace(/^[/\\]/, "").replace(/[/\\:]/g, "-")}--`;
+diff --git a/dist/core/settings-manager.js b/dist/core/settings-manager.js
+index ed9d8d264da6f3315874bc909edeea0daef28b5a..256308eaa20f4b410c050872a63e82d62cdba673 100644
+--- a/dist/core/settings-manager.js
++++ b/dist/core/settings-manager.js
+@@ -639,9 +639,13 @@ export class SettingsManager {
+         return mode !== undefined && CACHE_WARMING_MODES.includes(mode) ? mode : "streaming";
+     }
+     setCacheWarmingMode(mode) {
++        // MIXCODE_WARMING_OVERRIDES: changing this global-only mode must not
++        // discard a live session's unrelated applyOverrides(), such as context budgets.
++        const effectiveSettings = this.settings;
+         this.globalSettings.cacheWarming = mode;
+         this.markModified("cacheWarming");
+         this.save();
++        this.settings = { ...effectiveSettings, cacheWarming: mode };
+     }
+     getProviderRetrySettings() {
+         return {
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index 205144dbf79e7fc8b15ffc5d9db9922aef3d87de..103c7d7d547c93c0e77108e94d0dda3066a4e7f3 100644
+index 205144dbf79e7fc8b15ffc5d9db9922aef3d87de..db1c7eda9325bfad409598b68ca0b3359e30a0be 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
-@@ -27,11 +27,44 @@ export { hasTrustRequiringProjectResources, type ProjectTrustDecision, ProjectTr
+@@ -1,6 +1,8 @@
+ export { type Args, parseArgs } from "./cli/args.ts";
+ export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageDir, getReadmePath, VERSION, } from "./config.ts";
+ export { AgentSession, type AgentSessionConfig, type AgentSessionEvent, type AgentSessionEventListener, type ModelCycleResult, type ParsedSkillBlock, type PromptOptions, parseSkillBlock, type SessionStats, } from "./core/agent-session.ts";
++export { formatCacheWarmingStatus } from "./core/cache-warmer.ts";
++export { CACHE_WARMING_MODES } from "./core/settings-manager.ts";
+ export { readStoredCredential } from "./core/auth-storage.ts";
+ export type { CacheWarmingDecision, CacheWarmingStatus } from "./core/cache-warmer.ts";
+ export { type BranchPreparation, type BranchSummaryResult, type CollectEntriesResult, type CompactionResult, type CutPointResult, calculateContextTokens, collectEntriesForBranchSummary, compact, DEFAULT_COMPACTION_SETTINGS, estimateTokens, type FileOperations, findCutPoint, findTurnStartIndex, type GenerateBranchSummaryOptions, generateBranchSummary, generateSummary, generateSummaryWithUsage, getLastAssistantUsage, prepareBranchEntries, serializeConversation, shouldCompact, } from "./core/compaction/index.ts";
+@@ -27,11 +29,44 @@ export { hasTrustRequiringProjectResources, type ProjectTrustDecision, ProjectTr
  export { type MainOptions, main } from "./main.ts";
  export { InteractiveMode, type InteractiveModeOptions, type JsonAgentSessionEvent, type ModelInfo, type PrintModeOptions, RpcClient, type RpcClientOptions, type RpcCommand, type RpcEventListener, type RpcExtensionUIRequest, type RpcExtensionUIResponse, type RpcResponse, type RpcSessionState, runPrintMode, runRpcMode, } from "./modes/index.ts";
  export { ArminComponent, AssistantMessageComponent, BashExecutionComponent, BorderedLoader, BranchSummaryMessageComponent, CompactionSummaryMessageComponent, CustomEditor, type CustomEditorOptions, CustomMessageComponent, DynamicBorder, ExtensionEditorComponent, ExtensionInputComponent, ExtensionSelectorComponent, FooterComponent, keyHint, keyText, LoginDialogComponent, ModelSelectorComponent, OAuthSelectorComponent, type RenderDiffOptions, rawKeyHint, renderDiff, SessionSelectorComponent, type SettingsCallbacks, type SettingsConfig, SettingsSelectorComponent, ShowImagesSelectorComponent, SkillInvocationMessageComponent, ThemeSelectorComponent, ThinkingSelectorComponent, ToolExecutionComponent, type ToolExecutionOptions, TreeSelectorComponent, truncateToVisualLines, UserMessageComponent, UserMessageSelectorComponent, type VisualTruncateResult, } from "./modes/interactive/components/index.ts";
@@ -529,10 +556,19 @@ index 205144dbf79e7fc8b15ffc5d9db9922aef3d87de..103c7d7d547c93c0e77108e94d0dda30
  //# sourceMappingURL=index.d.ts.map
 \ No newline at end of file
 diff --git a/dist/index.js b/dist/index.js
-index 01017cdbf6a26b3d36e236c7f9e835fbf0fa5c3a..ee586dd259a62096695cf74cbf902a05f02ed490 100644
+index 01017cdbf6a26b3d36e236c7f9e835fbf0fa5c3a..8fdd28b3349d259ce2eb2f52888f3bcb2e545bea 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -36,7 +36,21 @@ export { InteractiveMode, RpcClient, runPrintMode, runRpcMode, } from "./modes/i
+@@ -3,6 +3,8 @@ export { parseArgs } from "./cli/args.js";
+ // Config paths
+ export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageDir, getReadmePath, VERSION, } from "./config.js";
+ export { AgentSession, parseSkillBlock, } from "./core/agent-session.js";
++export { formatCacheWarmingStatus } from "./core/cache-warmer.js";
++export { CACHE_WARMING_MODES } from "./core/settings-manager.js";
+ export { readStoredCredential } from "./core/auth-storage.js";
+ // Compaction
+ export { calculateContextTokens, collectEntriesForBranchSummary, compact, DEFAULT_COMPACTION_SETTINGS, estimateTokens, findCutPoint, findTurnStartIndex, generateBranchSummary, generateSummary, generateSummaryWithUsage, getLastAssistantUsage, prepareBranchEntries, serializeConversation, shouldCompact, } from "./core/compaction/index.js";
+@@ -36,7 +38,21 @@ export { InteractiveMode, RpcClient, runPrintMode, runRpcMode, } from "./modes/i
  // UI components for extensions
  export { ArminComponent, AssistantMessageComponent, BashExecutionComponent, BorderedLoader, BranchSummaryMessageComponent, CompactionSummaryMessageComponent, CustomEditor, CustomMessageComponent, DynamicBorder, ExtensionEditorComponent, ExtensionInputComponent, ExtensionSelectorComponent, FooterComponent, keyHint, keyText, LoginDialogComponent, ModelSelectorComponent, OAuthSelectorComponent, rawKeyHint, renderDiff, SessionSelectorComponent, SettingsSelectorComponent, ShowImagesSelectorComponent, SkillInvocationMessageComponent, ThemeSelectorComponent, ThinkingSelectorComponent, ToolExecutionComponent, TreeSelectorComponent, truncateToVisualLines, UserMessageComponent, UserMessageSelectorComponent, } from "./modes/interactive/components/index.js";
  // Theme utilities for custom tools and extensions
@@ -555,7 +591,7 @@ index 01017cdbf6a26b3d36e236c7f9e835fbf0fa5c3a..ee586dd259a62096695cf74cbf902a05
  // Clipboard utilities
  export { copyToClipboard } from "./utils/clipboard.js";
  export { parseFrontmatter, stripFrontmatter } from "./utils/frontmatter.js";
-@@ -45,4 +59,37 @@ export { formatDimensionNote, resizeImage } from "./utils/image-resize.js";
+@@ -45,4 +61,37 @@ export { formatDimensionNote, resizeImage } from "./utils/image-resize.js";
  export { detectSupportedImageMimeTypeFromFile } from "./utils/mime.js";
  // Shell utilities
  export { getPowerShellConfig, getShellConfig } from "./utils/shell.js";

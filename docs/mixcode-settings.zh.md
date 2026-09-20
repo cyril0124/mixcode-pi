@@ -43,7 +43,7 @@ MixCode Pi 从其根状态目录读取 `mixcode_settings.json`。默认路径为
 | `disabledProviders` | provider id 字符串数组 | `[]` | 在 MixCode 会话以及扩展/子代理模型发现和执行中全局禁用对应 provider。模型仍会在 `/models` 中列出但呈置灰禁用状态且无法选择或使用。在 `/reload` 或重启后生效。可通过 `/settings` 编辑。 |
 | `disabledModels` | `provider/modelId` 字符串数组 | `[]` | 在相同路径下全局禁用单个模型。Provider 级别的禁用涵盖该 provider 下的所有模型。在 `/reload` 或重启后生效。可通过 `/settings` 编辑。 |
 
-图片显示、Mermaid 渲染、代码块缩进、cache miss 提示与会话启动工具集**不**在此文件中配置。它们位于 Pi 全局 `settings.json`（与 `hideThinkingBlock` 相同存储）：
+图片显示、Mermaid 渲染、代码块缩进、缓存保温、cache miss 提示与会话启动工具集**不**在此文件中配置。它们位于 Pi 全局 `settings.json`（与 `hideThinkingBlock` 相同存储）：
 
 | Pi 配置项 | 可选值 | 默认值 | 效果 |
 | --- | --- | --- | --- |
@@ -54,6 +54,7 @@ MixCode Pi 从其根状态目录读取 `mixcode_settings.json`。默认路径为
 | `images.blockImages` | 布尔值 | `false` | 在图片到达模型前予以剔除（SDK `convertToLlm`）。 |
 | `markdown.mermaid` | `off` \| `final` \| `streaming` | `streaming` | 何时将 ` ```mermaid ` 代码块转为终端图表。 |
 | `markdown.codeBlockIndent` | 字符串 | 两个空格（`"  "`） | 渲染代码块每一行时的前缀。空字符串使代码与围栏对齐，复制后仍是顶格 Markdown。需直接编辑 `settings.json`，`/settings` 不暴露该项。 |
+| `cacheWarming` | `off` \| `streaming` \| `idle` | `streaming`，与 Pi 默认值一致 | 仅限全局的 prompt cache 刷新模式，在 `/settings` 的 "Cache warming" 中编辑，详见[缓存保温](#缓存保温)。 |
 | `showCacheMissNotices` | 布尔值 | `false` | 在发生显著 prompt cache miss 时显示会话警告，包含重新计费的 token 数；估算额外成本至少为 `$0.01` 时同时显示成本。 |
 | `defaultTools` | 工具名字符串数组 | 未设置（`read`、`bash`、`edit`、`write`） | 会话启动时激活的内置工具集。收窄该列表会在所有新会话中移除对应内置工具（包括 MixCode 自己包装的 `bash`）；扩展注册的工具保持激活，与 Pi 一致。需直接编辑 `settings.json`，`/settings` 不暴露该项。 |
 | `externalEditor` | 命令字符串 | 未设置 → `$VISUAL`/`$EDITOR`，再未设置 → `nano`（Windows 为 `notepad`） | Ctrl+G、`/editor`、`/system-prompt` 和 `/system-tools` 使用的编辑器命令。`/console-history` 依次检查项目值、全局值、`$VISUAL` 和 `$EDITOR`；均未设置时再依次尝试 `nvim`、`vim` 和内置查看器。 |
@@ -63,6 +64,20 @@ MixCode Pi 从其根状态目录读取 `mixcode_settings.json`。默认路径为
 | `showHardwareCursor` | 布尔值 | `false`（或 `PI_HARDWARE_CURSOR=1`） | 显示终端硬件光标而非绘制光标。 |
 | `terminal.clearOnShrink` | 布尔值 | `false`（或 `PI_CLEAR_ON_SHRINK=1`） | 内容变矮时整帧重绘并清除空出的行。 |
 | `terminal.showTerminalProgress` | 布尔值 | `false` | 任一 tab 工作期间驱动终端进度指示（OSC 9;4）。 |
+
+## 缓存保温
+
+打开 `/settings`，输入 `cache warming`，按 Enter 展开选项，选择模式后再按 Enter 保存。浏览或取消不会改变模式。选项界面会说明刷新请求消耗 token，可能产生费用。
+
+- `off`：不发送刷新请求；选择后取消所有打开标签中待执行和进行中的保温，不中断 Agent 的任务。
+- `streaming`：允许在 Agent 运行期间按成本判断刷新，包括长时间工具调用。这是 Pi 在未配置时的默认值。
+- `idle`：当 Pi 判断继续对话值得保温时，也允许在两轮之间刷新。
+
+设置写入 `<agentDir>/settings.json`，与 Pi 共享，对已打开标签和未来会话生效。项目设置不能覆盖它。保存不会清除各标签的内存压缩预算。写入失败时，错误保留在选项界面。
+
+`/session` 显示模式、Pi 保温状态，以及可计算时的刷新与缓存失效成本估计。保温用量部分统计整个会话中已持久化的成功刷新次数、token 和费用，重新打开会话或关闭保温后仍可查看。这些用量已包含在普通会话总额中，不会再次相加。刷新成本是决策估计，停止保温后也可能保留显示；用量部分则来自 provider 已记录的实际消耗。再次执行 `/session` 更新快照。
+
+调度、收益判断、模型支持和时限由 Pi 负责。启用保温不保证一定刷新；缺少缓存时效或价格元数据时，可能仍处于 inactive 状态。该设置不引入新的 MixCode 调度器或 provider 调用路径。
 
 ## 解析规则
 

@@ -4,6 +4,7 @@ import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import {
   type AgentSession,
   type AgentSessionServices,
+  type CacheWarmingMode,
   type CreateAgentSessionServicesOptions,
   type ExtensionFactory,
   getAgentDir,
@@ -513,6 +514,56 @@ export class MixCodeRuntime {
     const errors = settingsManager.drainErrors();
     if (errors.length > 0) {
       throw new Error(errors.map(({ scope, error }) => `${scope}: ${error.message}`).join("; "));
+    }
+  }
+
+  private cacheWarmingUpdate: Promise<void> = Promise.resolve();
+
+  /** Serialize persistence, rollback, and live-session updates in selection order. */
+  setCacheWarmingMode(mode: CacheWarmingMode): Promise<void> {
+    const update = this.cacheWarmingUpdate.then(() => this.persistCacheWarmingMode(mode));
+    // Keep later selections runnable after a failure; callers retain the rejecting promise.
+    this.cacheWarmingUpdate = update.then(
+      () => undefined,
+      () => undefined,
+    );
+    return update;
+  }
+
+  private async persistCacheWarmingMode(mode: CacheWarmingMode): Promise<void> {
+    const settingsManager = this.settingsManager;
+    if (!settingsManager) throw new Error("Error: Settings manager is not available");
+    const previous = settingsManager.getCacheWarmingMode();
+    settingsManager.setCacheWarmingMode(mode);
+    await settingsManager.flush();
+    const errors = settingsManager.drainErrors();
+    if (errors.length > 0) {
+      // Pi updates its in-memory global value before writing. Restore the visible
+      // mode on failure; do not change any running session before persistence succeeds.
+      settingsManager.setCacheWarmingMode(previous);
+      await settingsManager.flush();
+      errors.push(...settingsManager.drainErrors());
+      throw new Error(
+        `Error: Failed to save cache warming: ${errors.map(({ error }) => error.message).join("; ")}`,
+      );
+    }
+    const sessions = [...this.tabs.values()].map(({ agentSession }) => agentSession);
+    for (const session of sessions) {
+      // Reconcile all warmers before awaiting any write: one failed tab store
+      // must not leave later tabs warming after the global mode becomes off.
+      session.setCacheWarmingMode(mode);
+    }
+    const synchronizationErrors: string[] = [];
+    for (const session of sessions) {
+      await session.settingsManager.flush();
+      synchronizationErrors.push(
+        ...session.settingsManager.drainErrors().map(({ error }) => error.message),
+      );
+    }
+    if (synchronizationErrors.length > 0) {
+      throw new Error(
+        `Error: Failed to synchronize cache warming: ${synchronizationErrors.join("; ")}`,
+      );
     }
   }
 

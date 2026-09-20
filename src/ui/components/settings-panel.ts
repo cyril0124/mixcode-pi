@@ -5,7 +5,11 @@
  */
 
 import { matchesKey, truncateToWidth, visibleWidth, type Component } from "@earendil-works/pi-tui";
-import type { SettingsManager } from "@earendil-works/pi-coding-agent";
+import {
+  CACHE_WARMING_MODES,
+  type CacheWarmingMode,
+  SettingsManager,
+} from "@earendil-works/pi-coding-agent";
 import { homeDir } from "../../core/paths.js";
 import {
   DEFAULT_BOXED_HIDDEN_THINKING,
@@ -46,6 +50,7 @@ interface PanelCtx {
   piSettingsFile: string;
   setHideThinkingBlock?: (hide: boolean) => Promise<void>;
   setShowCacheMissNotices?: (show: boolean) => Promise<void>;
+  setCacheWarmingMode?: (mode: CacheWarmingMode) => Promise<void>;
   availableModels: MixCodeModelRef[];
 }
 
@@ -69,6 +74,8 @@ interface NumberItem {
 
 interface EnumItem {
   kind: "enum";
+  description?: string;
+  optionDescription?: (value: string) => string;
   label: string;
   section: "pi" | "mixcode";
   defaultValue: string;
@@ -200,6 +207,27 @@ const ITEMS: SettingItem[] = [
       if (v === "off" || v === "final" || v === "streaming") {
         settingsManager.setMermaidRenderingMode(v);
       }
+    },
+  },
+  {
+    kind: "enum",
+    label: "cacheWarming",
+    description: "Refresh requests use tokens and may cost money. Global setting only.",
+    optionDescription: (value) =>
+      ({
+        off: "No refresh requests",
+        streaming: "During agent runs when profitable",
+        idle: "Also between runs when profitable",
+      })[value] ?? "",
+    section: "pi",
+    defaultValue: SettingsManager.inMemory().getCacheWarmingMode(),
+    getValue: ({ settingsManager }) => settingsManager.getGlobalSettings().cacheWarming,
+    getOptions: () => [...CACHE_WARMING_MODES],
+    setValue: async ({ settingsManager, setCacheWarmingMode }, value) => {
+      const mode = CACHE_WARMING_MODES.find((candidate) => candidate === value);
+      if (mode === undefined) throw new Error(`Error: Invalid cache warming mode: ${value}`);
+      if (setCacheWarmingMode) await setCacheWarmingMode(mode);
+      else settingsManager.setCacheWarmingMode(mode);
     },
   },
   {
@@ -419,6 +447,7 @@ export interface SettingsPanelDeps {
   /** Production persistence paths so write errors surface and live state stays synchronized. */
   setHideThinkingBlock?: (hide: boolean) => Promise<void>;
   setShowCacheMissNotices?: (show: boolean) => Promise<void>;
+  setCacheWarmingMode?: (mode: CacheWarmingMode) => Promise<void>;
 }
 
 export class SettingsPanel implements Component {
@@ -494,6 +523,7 @@ export async function openSettingsPanel(
   runtimeRef: {
     setHideThinkingBlock?: (hide: boolean) => Promise<void>;
     setShowCacheMissNotices?: (show: boolean) => Promise<void>;
+    setCacheWarmingMode?: (mode: CacheWarmingMode) => Promise<void>;
   },
   ownerSessionId = state.activeTabId,
 ): Promise<SettingsPanel> {
@@ -505,6 +535,7 @@ export async function openSettingsPanel(
       settingsManager,
       setHideThinkingBlock: runtimeRef.setHideThinkingBlock,
       setShowCacheMissNotices: runtimeRef.setShowCacheMissNotices,
+      setCacheWarmingMode: runtimeRef.setCacheWarmingMode,
     },
     { mixcodeRaw, mixcodeFile, piSettingsFile },
   );
@@ -564,6 +595,7 @@ function applyLiveEffects(panel: SettingsPanel): void {
 const ITEM_LABELS: Record<string, string> = {
   theme: "Theme",
   hideThinkingBlock: "Hide thinking blocks",
+  cacheWarming: "Cache warming",
   showCacheMissNotices: "Cache miss notices",
   defaultProvider: "Default provider",
   defaultModel: "Default model",
@@ -851,6 +883,9 @@ function renderEnumFocusLines(
     sel(padLine(row, innerWidth)),
   ];
 
+  if (item.kind === "enum" && item.description) {
+    lines.push(dim(truncateToWidth(`  ${item.description}`, innerWidth, "…")));
+  }
   const opts = item.getOptions(ctx);
   if (opts.length === 0) {
     lines.push(dim("    (no options available)"));
@@ -872,7 +907,9 @@ function renderEnumFocusLines(
       const optSelected = oi === panel.enumIndex;
       const optMarker = optSelected ? accent("› ") : "  ";
       const checked = item.kind === "multi-enum" ? (multiSelected!.has(opt) ? "[x] " : "[ ] ") : "";
-      const optRow = `  ${optMarker}${checked}${truncateToWidth(opt, Math.max(1, innerWidth - 4 - checked.length), "…")}`;
+      const description = item.kind === "enum" ? item.optionDescription?.(opt) : undefined;
+      const optionText = description ? `${opt}: ${description}` : opt;
+      const optRow = `  ${optMarker}${checked}${truncateToWidth(optionText, Math.max(1, innerWidth - 4 - checked.length), "…")}`;
       lines.push(optSelected ? sel(padLine(optRow, innerWidth)) : dim(optRow));
     }
     if (endIndex < opts.length) {
@@ -883,11 +920,20 @@ function renderEnumFocusLines(
   lines.push(
     "",
     dim(
-      item.kind === "multi-enum"
-        ? "  ↑↓ move  ⏎ toggle  esc back · takes effect on /reload"
-        : "  ↑↓ select  ⏎ choose  esc back",
+      panel.editError
+        ? `  ${panel.editError}  ⏎ retry  esc back`
+        : item.kind === "multi-enum"
+          ? "  ↑↓ move  ⏎ toggle  esc back · takes effect on /reload"
+          : "  ↑↓ select  ⏎ choose  esc back",
     ),
   );
+  // Drop decorative rows before options or save errors on short terminals.
+  const bodyBudget = settingsOverlayBodyBudget();
+  for (const expendable of ["", pathLine(filePath), sectionHeader(sectionTitle)]) {
+    if (lines.length <= bodyBudget) break;
+    const index = lines.indexOf(expendable);
+    if (index >= 0) lines.splice(index, 1);
+  }
   return lines;
 }
 
@@ -950,7 +996,13 @@ export function formatSettingsPath(filePath: string, maxWidth: number): string {
 }
 
 function panelCtx(panel: SettingsPanel): PanelCtx {
-  const { state, settingsManager, setHideThinkingBlock, setShowCacheMissNotices } = panel.deps;
+  const {
+    state,
+    settingsManager,
+    setHideThinkingBlock,
+    setShowCacheMissNotices,
+    setCacheWarmingMode,
+  } = panel.deps;
   return {
     state,
     settingsManager,
@@ -959,6 +1011,7 @@ function panelCtx(panel: SettingsPanel): PanelCtx {
     piSettingsFile: panel.piSettingsFile,
     setHideThinkingBlock,
     setShowCacheMissNotices,
+    setCacheWarmingMode,
     availableModels: state.availableModels,
   };
 }
@@ -998,7 +1051,7 @@ function saveSetting(
       }
       applyLiveEffects(panel);
       const label = ITEM_LABELS[item.label] ?? item.label;
-      panel.editError = `Failed to save ${label}: ${messages.join("; ")}`;
+      panel.editError = `Error: Failed to save ${label}: ${messages.join("; ")}`;
       refreshSettingsPanel(panel);
     }
   })();

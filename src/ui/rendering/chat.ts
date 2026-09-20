@@ -960,7 +960,7 @@ function prettyJson(value: unknown): string {
 /** Pi-style plain dump: bold headers, dim labels, normal values. */
 function renderSystemPlainDump(body: string, width: number): string[] {
   const innerWidth = Math.max(1, width - 1);
-  const sectionHeaders = new Set(["Session Info", "Messages", "Tokens", "Cost"]);
+  const sectionHeaders = new Set(["Session Info", "Messages", "Tokens", "Cache Warming", "Cost"]);
   const lines: string[] = [];
   for (const raw of body.split(/\r?\n/)) {
     if (!raw.trim()) {

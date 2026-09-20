@@ -619,6 +619,7 @@ test("Home Enter opens settings with the app configuration", async () => {
     testRuntime({
       setHideThinkingBlock: async () => undefined,
       setShowCacheMissNotices: async () => undefined,
+      setCacheWarmingMode: async () => undefined,
     }),
     undefined,
     () => false,

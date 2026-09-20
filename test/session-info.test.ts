@@ -1,10 +1,19 @@
+import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
+import * as fs from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "node:test";
 import {
   computeCacheWaste,
+  createAgentSession,
   getUsageCostBreakdown,
+  SessionManager,
+  SettingsManager,
+  type CacheWarmingStatus,
   type SessionEntry,
 } from "@earendil-works/pi-coding-agent";
+import { MIXCODE_FAUX_MODEL } from "../src/agent/faux-stream.js";
 import { formatSessionTokens, renderSessionInfoText } from "../src/ui/components/session-info.js";
 
 function usage(
@@ -159,6 +168,7 @@ test("system-plain session dump uses bold headers and dim labels", async () => {
   const text = renderSessionInfoText({ getSessionName: () => "Daily work" }, BASE_STATS, {
     tabTitle: "Agent-01",
     workdir: "/repo",
+    cacheWarming: { mode: "off", status: { state: "inactive", reason: "cache warming disabled" } },
   });
   const rendered = renderWithTheme(MIXCODE_DARK_THEME, () =>
     renderConversation([{ role: "system", text, variant: "system-plain" }], 80).join("\n"),
@@ -167,6 +177,7 @@ test("system-plain session dump uses bold headers and dim labels", async () => {
   assert.match(rendered, new RegExp(escapeRegExp(MIXCODE_DARK_THEME.bold("Messages"))));
   assert.match(rendered, new RegExp(escapeRegExp(MIXCODE_DARK_THEME.bold("Tokens"))));
   assert.match(rendered, new RegExp(escapeRegExp(MIXCODE_DARK_THEME.bold("Cost"))));
+  assert.match(rendered, new RegExp(escapeRegExp(MIXCODE_DARK_THEME.bold("Cache Warming"))));
   assert.match(rendered, new RegExp(escapeRegExp(MIXCODE_DARK_THEME.dim("Tab:"))));
   assert.match(rendered, new RegExp(escapeRegExp(MIXCODE_DARK_THEME.dim("Workdir:"))));
   assert.match(rendered, new RegExp(escapeRegExp(MIXCODE_DARK_THEME.dim("File:"))));
@@ -176,6 +187,108 @@ test("system-plain session dump uses bold headers and dim labels", async () => {
   // Value text should not be forced dim-only: File path uses theme.text.
   assert.match(rendered, new RegExp(escapeRegExp(MIXCODE_DARK_THEME.text("Daily work"))));
   assert.match(rendered, new RegExp(escapeRegExp(MIXCODE_DARK_THEME.text("/tmp/session.jsonl"))));
+});
+
+test("session cache warming shows waiting and unavailable states without invented economics", () => {
+  const waiting = renderSessionInfoText({}, BASE_STATS, {
+    cacheWarming: {
+      mode: "streaming",
+      status: { state: "inactive", reason: "waiting for a request" },
+    },
+  });
+  assert.match(
+    waiting,
+    /Cache Warming\nMode: streaming\nStatus: Inactive \(waiting for a request\)/,
+  );
+  assert.doesNotMatch(waiting, /Cache miss penalty:|Refresh cost:/);
+
+  const unavailable = renderSessionInfoText({}, BASE_STATS, {
+    cacheWarming: { mode: "idle" },
+  });
+  assert.match(unavailable, /Mode: idle\nStatus: Inactive \(cache warming unavailable\)/);
+  assert.doesNotMatch(unavailable, /Cache miss penalty:|Refresh cost:/);
+});
+
+for (const state of ["scheduled", "refreshing"] as const) {
+  test(`session cache warming shows ${state} economics with Pi status wording`, () => {
+    const status: CacheWarmingStatus = {
+      state,
+      nextWarmAt: 0,
+      decision: {
+        phase: "streaming",
+        warmCost: 0.125,
+        missCost: 1.5,
+        continuationProbability: 0.8,
+        expectedSavings: 1.075,
+        economicsAvailable: true,
+        action: "warm",
+      },
+    };
+    const text = renderSessionInfoText({}, BASE_STATS, {
+      cacheWarming: { mode: "streaming", status },
+    });
+    assert.match(text, state === "scheduled" ? /Status: Decision now/ : /Status: Warming cache/);
+    assert.match(text, /80% continuation probability while agent is running/);
+    assert.match(text, /expected savings \$1\.075 >= \$0\.050 -> warm/);
+    assert.match(text, /Cache miss penalty: \$1\.500\nRefresh cost: \$0\.125/);
+  });
+}
+
+test("persisted cache warming usage survives reopen and remains included once with mode off", async (t) => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mixcode-session-warming-"));
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  const manager = SessionManager.create(dir, path.join(dir, "sessions"));
+  manager.appendMessage({
+    role: "assistant",
+    api: "anthropic-messages",
+    provider: "anthropic",
+    model: "claude-sonnet-4-5",
+    content: [{ type: "text", text: "done" }],
+    stopReason: "stop",
+    timestamp: Date.now(),
+    usage: usage(100, 20, 0, 0, 0.5),
+  });
+  manager.appendUsage("cache_warm", "anthropic", "claude-sonnet-4-5", usage(2, 1, 1000, 10, 0.125));
+  manager.appendUsage("cache_warm", "anthropic", "claude-sonnet-4-5", usage(3, 1, 2000, 20, 0.25));
+  // Other billed work belongs in the total, but never in the warming subtotal.
+  manager.appendUsage("helper", "anthropic", "claude-sonnet-4-5", usage(5, 2, 0, 0, 0.125));
+  const file = manager.getSessionFile();
+  assert.ok(file);
+  const reopened = SessionManager.open(file);
+  const { session } = await createAgentSession({
+    cwd: dir,
+    agentDir: path.join(dir, "agent"),
+    sessionManager: reopened,
+    settingsManager: SettingsManager.inMemory({ packages: [], cacheWarming: "off" }),
+    model: MIXCODE_FAUX_MODEL,
+    noTools: "all",
+  });
+  t.after(() => session.dispose());
+  const stats = session.getSessionStats();
+  assert.deepEqual(stats.tokens, {
+    input: 110,
+    output: 24,
+    cacheRead: 3000,
+    cacheWrite: 30,
+    total: 3164,
+  });
+  assert.equal(stats.cost, 1);
+  const text = renderSessionInfoText(reopened, stats, {
+    cacheWarming: {
+      mode: session.settingsManager.getCacheWarmingMode(),
+      status: session.cacheWarmingStatus,
+    },
+  });
+  assert.match(text, /Mode: off/);
+  assert.match(text, /Usage \(included in total\): 2 refreshes/);
+  assert.match(
+    text,
+    / {2}Input: 5\n {2}Cache read: 3,000\n {2}Cache write: 30\n {2}Output: 2\n {2}Cost: \$0\.375/,
+  );
+  assert.match(text, /Tokens\nInput: 3,140/);
+  assert.match(text, /Output: 24\nTotal: 3,164/);
+  assert.match(text, /Cost\nTotal: \$1\.000/);
+  assert.deepEqual(session.getSessionStats(), stats);
 });
 
 function escapeRegExp(value: string): string {

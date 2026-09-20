@@ -2,11 +2,16 @@
  * /session dump formatter aligned with Pi interactive-mode handleSessionCommand.
  * Cache waste + usage breakdown come from Pi (patched public exports).
  */
+import type {
+  CacheWarmingMode,
+  CacheWarmingStatus,
+  ModelPriceSource,
+  SessionEntry,
+} from "@earendil-works/pi-coding-agent";
 import {
   computeCacheWaste,
+  formatCacheWarmingStatus,
   getUsageCostBreakdown,
-  type ModelPriceSource,
-  type SessionEntry,
 } from "@earendil-works/pi-coding-agent";
 
 export type SessionStatsLike = {
@@ -51,6 +56,7 @@ export function renderSessionInfoText(
     models?: ModelPriceSource;
     tabTitle?: string;
     workdir?: string;
+    cacheWarming?: { mode: CacheWarmingMode; status?: CacheWarmingStatus };
   } = {},
 ): string {
   const name = session.getSessionName?.() ?? undefined;
@@ -86,6 +92,24 @@ export function renderSessionInfoText(
   }
   lines.push(`Output: ${output.toLocaleString()}`, `Total: ${total.toLocaleString()}`);
 
+  if (options.cacheWarming) {
+    const { mode, status } = options.cacheWarming;
+    lines.push(
+      "",
+      "Cache Warming",
+      `Mode: ${mode}`,
+      `Status: ${status ? formatCacheWarmingStatus(status) : "Inactive (cache warming unavailable)"}`,
+    );
+    const decision = status?.decision;
+    if (decision?.economicsAvailable) {
+      lines.push(
+        `Cache miss penalty: $${decision.missCost.toFixed(3)}`,
+        `Refresh cost: $${decision.warmCost.toFixed(3)}`,
+      );
+    }
+    lines.push(...renderCacheWarmingUsage(entries));
+  }
+
   if (info.cost > 0 || cacheWaste.missedTokens > 0) {
     lines.push("", "Cost", `Total: $${info.cost.toFixed(3)}`);
     if (usageBreakdown.length > 1) {
@@ -107,4 +131,32 @@ export function renderSessionInfoText(
   }
 
   return lines.join("\n");
+}
+
+/** Persisted warming usage is already in session totals, including earlier branches. */
+function renderCacheWarmingUsage(entries: SessionEntry[]): string[] {
+  let refreshes = 0;
+  let input = 0;
+  let cacheRead = 0;
+  let cacheWrite = 0;
+  let output = 0;
+  let cost = 0;
+  for (const entry of entries) {
+    if (entry.type !== "usage" || entry.kind !== "cache_warm") continue;
+    refreshes++;
+    input += entry.usage.input;
+    cacheRead += entry.usage.cacheRead;
+    cacheWrite += entry.usage.cacheWrite;
+    output += entry.usage.output;
+    cost += entry.usage.cost.total;
+  }
+  if (refreshes === 0) return [];
+  return [
+    `Usage (included in total): ${refreshes} ${refreshes === 1 ? "refresh" : "refreshes"}`,
+    `  Input: ${input.toLocaleString()}`,
+    `  Cache read: ${cacheRead.toLocaleString()}`,
+    `  Cache write: ${cacheWrite.toLocaleString()}`,
+    `  Output: ${output.toLocaleString()}`,
+    `  Cost: $${cost.toFixed(3)}`,
+  ];
 }
