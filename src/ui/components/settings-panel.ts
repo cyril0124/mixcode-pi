@@ -13,6 +13,7 @@ import {
   DEFAULT_ICON_MODE,
   DEFAULT_INLINE_WIDGETS,
   DEFAULT_OVERSIZED_ASSISTANT_MESSAGE,
+  DEFAULT_SHOW_RESPONSE_MODEL_NOTICES,
   ICON_MODES,
   loadRawMixCodeSettings,
   resolveHideThinkingBlock,
@@ -381,6 +382,21 @@ const ITEMS: SettingItem[] = [
       for (const tab of ctx.state.tabs) clearConversationCache(tab.sessionId);
     },
   },
+  {
+    kind: "boolean",
+    label: "showResponseModelNotices",
+    section: "mixcode",
+    defaultValue: DEFAULT_SHOW_RESPONSE_MODEL_NOTICES,
+    getValue: ({ mixcodeRaw }) => mixcodeRaw.ui?.showResponseModelNotices,
+    setValue: async (ctx, v) => {
+      const next: RawMixCodeSettings = {
+        ...ctx.mixcodeRaw,
+        ui: { ...ctx.mixcodeRaw.ui, showResponseModelNotices: v },
+      };
+      await writeRawMixCodeSettings(ctx.mixcodeFile, next);
+      replaceRaw(ctx.mixcodeRaw, next);
+    },
+  },
 ];
 
 function replaceRaw(target: RawMixCodeSettings, next: RawMixCodeSettings): void {
@@ -551,6 +567,8 @@ function applyLiveEffects(panel: SettingsPanel): void {
     icons: { mode: raw.ui?.icons?.mode ?? DEFAULT_ICON_MODE },
     inlineWidgets: raw.ui?.inlineWidgets === true,
     boxedHiddenThinking: raw.ui?.boxedHiddenThinking ?? DEFAULT_BOXED_HIDDEN_THINKING,
+    showResponseModelNotices:
+      raw.ui?.showResponseModelNotices ?? DEFAULT_SHOW_RESPONSE_MODEL_NOTICES,
   };
   for (const tab of state.tabs) {
     tab.inlineWidgets = state.ui.inlineWidgets;
@@ -576,6 +594,7 @@ const ITEM_LABELS: Record<string, string> = {
   "icons.mode": "Icon mode",
   inlineWidgets: "Inline widgets",
   boxedHiddenThinking: "Thinking tail preview",
+  showResponseModelNotices: "Response model notices",
   "oversized.enabled": "Collapse oversized messages",
   "oversized.maxLines": "Oversized max lines",
   "oversized.maxBytes": "Oversized max bytes",

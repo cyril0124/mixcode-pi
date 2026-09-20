@@ -1,3 +1,43 @@
+diff --git a/dist/api/openai-responses-shared.js b/dist/api/openai-responses-shared.js
+index 53597d2c3becdd2c03d4fd265c213a36b403f26b..7a973f3195eca4ac2e30ab035525f185ed39c771 100644
+--- a/dist/api/openai-responses-shared.js
++++ b/dist/api/openai-responses-shared.js
+@@ -430,7 +430,19 @@ export async function processResponsesStream(openaiStream, output, stream, model
+             });
+         }
+     };
++    // MIXCODE: retain the server-reported name separately from the requested model.
++    // Terminal metadata wins; absent/invalid metadata must not erase an earlier name.
++    const captureResponseModel = (response) => {
++        const reported = response?.model;
++        if (typeof reported !== "string" || reported.trim().length === 0)
++            return;
++        if (reported === model.id)
++            delete output.responseModel;
++        else
++            output.responseModel = reported;
++    };
+     const finalizeResponse = (response) => {
++        captureResponseModel(response);
+         sawTerminalResponseEvent = true;
+         backfillReasoningSignatures(response.output ?? []);
+         if (response?.id) {
+@@ -476,6 +488,7 @@ export async function processResponsesStream(openaiStream, output, stream, model
+     };
+     for await (const event of openaiStream) {
+         if (event.type === "response.created") {
++            captureResponseModel(event.response);
+             output.responseId = event.response.id;
+         }
+         else if (event.type === "response.output_item.added") {
+@@ -641,6 +654,7 @@ export async function processResponsesStream(openaiStream, output, stream, model
+             throw new Error(`Error Code ${event.code}: ${event.message}` || "Unknown error");
+         }
+         else if (event.type === "response.failed") {
++            captureResponseModel(event.response);
+             sawTerminalResponseEvent = true;
+             output.rawStopReason = event.response?.status;
+             const error = event.response?.error;
 diff --git a/dist/utils/retry.js b/dist/utils/retry.js
 index 6538c63c99f75a4f232ebd413adf80571a0f39b4..591cd1ec41deb2271a0e4569fdcc8df73efab788 100644
 --- a/dist/utils/retry.js

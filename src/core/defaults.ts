@@ -5,6 +5,7 @@ import {
   DEFAULT_HIDE_THINKING_BLOCK,
   DEFAULT_ICON_MODE,
   DEFAULT_OVERSIZED_ASSISTANT_MESSAGE,
+  DEFAULT_SHOW_RESPONSE_MODEL_NOTICES,
 } from "./mixcode-settings.js";
 import {
   HOME_TAB_ID,
@@ -43,6 +44,7 @@ export function createInitialState(
       icons: { mode: DEFAULT_ICON_MODE },
       inlineWidgets: false,
       boxedHiddenThinking: DEFAULT_BOXED_HIDDEN_THINKING,
+      showResponseModelNotices: DEFAULT_SHOW_RESPONSE_MODEL_NOTICES,
     },
     activeTabId: HOME_TAB_ID,
     recentAgentTabIds: [],

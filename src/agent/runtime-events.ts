@@ -10,6 +10,7 @@ import {
 } from "../core/tab-state.js";
 import {
   appendEmptyRunNotice,
+  appendResponseModelNotice,
   appendSystemMessage,
   contextTokensFromUsage,
   customEntryToChatLine,
@@ -141,6 +142,7 @@ export function applyEvent(
           event.message.stopReason === "error" || event.message.stopReason === "aborted";
         updateStreamingAssistant(runtimeTab, event.message, { final: true });
         surfaceAssistantStopReason(runtimeTab, event.message);
+        appendResponseModelNotice(runtimeTab, event.message);
         maybeAppendCacheMissNotice(runtimeTab, event.message);
       }
       break;

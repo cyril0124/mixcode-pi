@@ -309,13 +309,14 @@ export class MixCodeRoot implements Component {
     return this.state.ui?.oversizedAssistantMessage ?? DEFAULT_OVERSIZED_ASSISTANT_MESSAGE;
   }
 
-  /** Pi SettingsManager mirrors used by chat render (images + mermaid). */
+  /** Pi and MixCode display settings shared by live and diagnostic chat rendering. */
   private chatSurfaceRenderOptions() {
     return {
       mermaidRenderingMode: this.state.mermaidRenderingMode ?? ("streaming" as const),
       showImages: this.state.showImages !== false,
       imageWidthCells: this.state.imageWidthCells ?? 60,
       boxedHiddenThinking: this.state.ui?.boxedHiddenThinking === true,
+      showResponseModelNotices: this.state.ui?.showResponseModelNotices !== false,
     };
   }
 

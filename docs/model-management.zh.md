@@ -18,6 +18,24 @@ MixCode Pi 提供模型发现、选择、思考深度调整、全局模型禁用
 - **选择模型**：运行 `/models [provider/modelId]` 或按 `Ctrl+P` → **Choose Model**。
 - **调整思考深度**：运行 `/thinking [tier]`。可用档位由模型决定——模型的 `thinkingLevelMap` 可以屏蔽 `off`、`minimal`、`low`、`medium`、`high`、`xhigh`、`max` 中的任意档。`/thinking <未知值>` 会回报该模型的合法取值。
 
+## 响应报告的模型名
+
+显示由 [`ui.showResponseModelNotices`](mixcode-settings.zh.md#支持的配置项) 控制，也可在 `/settings` 中修改 “Response model notices”。
+
+已结束的 assistant 消息具有非空 `responseModel`，且与请求的 `model` 不同时，聊天记录在该消息下方显示以 `[Model mismatch]` 开头的纯文本提示，使用主题提示色。
+
+```text
+[Model mismatch] requested model-a → returned model-b · via provider
+```
+
+`via` 表示这次请求使用的配置 provider。窄屏时完整提示换行，不丢弃模型名或 provider。
+
+每条响应各自显示提示。仅含工具调用、截断、失败或中止的响应，只要已收到模型信息，也会显示。同名或缺失名称时不显示。比较采用原始名称，因此快照后缀、网关别名也可能触发提示。`returned` 只是服务端报告的名称，不代表已验证底层模型；MixCode 不解码 thinking 签名。
+
+采集覆盖 Anthropic Messages 的 `message_start.message.model`、OpenAI Completions 的 `chunk.model`，以及 OpenAI / Azure / Codex Responses 的 `response.model`，包括 Codex SSE 和 WebSocket。Responses 的有效终态名称优先于初始名称；终态名称缺失或无效时保留先前名称。其他 adapter 和扩展 provider 只有提供 `AssistantMessage.responseModel` 时才会显示。
+
+模型名作为消息元数据保存在会话 JSONL 中。恢复会话或切换分支时，从当前显示的消息重建提示；没有元数据的旧消息保持原样。提示不进入模型上下文、不覆盖请求模型、不改变现有计费和重试行为，也不增加网络请求。显示时移除终端控制字符，窄终端自动换行。
+
 ## 在命令行列出模型
 
 ```bash
