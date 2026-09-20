@@ -3,7 +3,12 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { describe, it } from "node:test";
+import type { Model, ProviderAuth } from "@earendil-works/pi-ai";
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import {
+  createAuxModelRegistry,
+  type TestCompletion,
+} from "../../test/helpers/aux-model-registry.js";
 import {
   loadOptimizePromptConfig,
   parseOptimizePromptConfig,
@@ -24,10 +29,36 @@ import {
 } from "./core.js";
 import optimizePrompt, {
   cancelOptimize,
-  runOptimizePrompt,
+  runOptimizePrompt as runOptimizePromptCommand,
   runOptimizePromptConfig,
   type OptimizeAbortSlot,
 } from "./index.js";
+
+// Run command scenarios through ModelRegistry with a scripted provider transport.
+async function runOptimizePrompt(
+  options: Parameters<typeof runOptimizePromptCommand>[0] & {
+    complete?: TestCompletion;
+    models?: readonly Pick<Model<string>, "provider" | "id">[];
+    auth?: ProviderAuth;
+  },
+) {
+  const { complete, models, auth, ...commandOptions } = options;
+  if (!complete) return runOptimizePromptCommand(commandOptions);
+  const { registry } = await createAuxModelRegistry({
+    complete,
+    models: models ?? [options.ctx.model!],
+    auth,
+  });
+  const active = options.ctx.model;
+  return runOptimizePromptCommand({
+    ...commandOptions,
+    ctx: {
+      ...options.ctx,
+      modelRegistry: registry,
+      model: active ? registry.find(active.provider, active.id) : undefined,
+    },
+  });
+}
 
 describe("mpi-optimize-prompt core", () => {
   it("resolveOptimizeSource prefers args over editor draft", () => {
@@ -217,7 +248,103 @@ describe("mpi-optimize-prompt command", () => {
     assert.ok(shortcuts.some((key) => /ctrl\+shift\+c/i.test(key)));
   });
 
-  it("rewrites editor via completeSimple with live aboveEditor progress widget", async () => {
+  it("routes keyless local providers through the configured registry", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-optimize-keyless-"));
+    try {
+      let editor = "local draft";
+      const notices: string[] = [];
+      const result = await runOptimizePrompt({
+        ctx: {
+          model: { provider: "local", id: "rewrite" },
+          ui: {
+            getEditorText: () => editor,
+            setEditorText: (text: string) => {
+              editor = text;
+            },
+            setWidget: () => undefined,
+            notify: (message: string) => {
+              notices.push(message);
+            },
+          },
+        } as unknown as ExtensionCommandContext,
+        args: "",
+        getThinkingLevel: () => "off",
+        agentDir: dir,
+        auth: { apiKey: { name: "Local", resolve: async () => ({ auth: {} }) } },
+        complete: async (_model, _context, options) => {
+          assert.equal(options?.apiKey, undefined);
+          assert.equal(options?.reasoning, undefined);
+          return {
+            content: [{ type: "text", text: "local rewrite" }],
+            stopReason: "stop",
+          } as never;
+        },
+      });
+      assert.deepEqual(result, { ok: true, text: "local rewrite" });
+      assert.equal(editor, "local rewrite");
+      assert.deepEqual(notices, []);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps the draft and undo entry when request-time authentication fails", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-optimize-auth-failure-"));
+    try {
+      let editor = "untouched draft";
+      const draftSlot: OptimizeDraftSlot = { previous: "previous undo" };
+      const widgets: unknown[] = [];
+      const notices: string[] = [];
+      let transportCalls = 0;
+      const result = await runOptimizePrompt({
+        ctx: {
+          model: { provider: "private", id: "rewrite" },
+          ui: {
+            getEditorText: () => editor,
+            setEditorText: (text: string) => {
+              editor = text;
+            },
+            setWidget: (_key: string, content: unknown) => {
+              widgets.push(content);
+            },
+            notify: (message: string) => {
+              notices.push(message);
+            },
+          },
+        } as unknown as ExtensionCommandContext,
+        args: "",
+        getThinkingLevel: () => "off",
+        agentDir: dir,
+        draftSlot,
+        auth: {
+          apiKey: {
+            name: "Expired credentials",
+            resolve: async () => {
+              throw new Error("Credentials expired; sign in again");
+            },
+          },
+        },
+        complete: async () => {
+          transportCalls += 1;
+          return {
+            content: [{ type: "text", text: "unexpected rewrite" }],
+            stopReason: "stop",
+          } as never;
+        },
+      });
+      assert.equal(result.ok, false);
+      assert.match(notices.join("\n"), /Optimize failed: .*Credentials expired; sign in again/);
+      assert.equal(editor, "untouched draft");
+      assert.equal(draftSlot.previous, "previous undo");
+      assert.equal(transportCalls, 0);
+      assert.equal(typeof widgets[0], "function");
+      assert.equal(widgets.at(-1), undefined);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("rewrites editor via registry with live aboveEditor progress widget", async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-optimize-run-"));
     try {
       let editor = "fix the flaky test";
@@ -233,10 +360,6 @@ describe("mpi-optimize-prompt command", () => {
 
       const ctx = {
         model: { provider: "tab", id: "main" },
-        modelRegistry: {
-          find: (provider: string, modelId: string) => ({ provider, id: modelId }),
-          getApiKeyAndHeaders: async () => ({ ok: true as const, apiKey: "k" }),
-        },
         ui: {
           getEditorText: () => editor,
           setEditorText: (text: string) => {
@@ -340,10 +463,6 @@ describe("mpi-optimize-prompt command", () => {
       }> = [];
       const ctx = {
         model: { provider: "tab", id: "main" },
-        modelRegistry: {
-          find: (provider: string, modelId: string) => ({ provider, id: modelId }),
-          getApiKeyAndHeaders: async () => ({ ok: true as const, apiKey: "k" }),
-        },
         ui: {
           getEditorText: () => editor,
           setEditorText: (text: string) => {
@@ -359,6 +478,10 @@ describe("mpi-optimize-prompt command", () => {
         args: "",
         getThinkingLevel: () => "high",
         agentDir: dir,
+        models: [
+          { provider: "tab", id: "main" },
+          { provider: "override", id: "cheap" },
+        ],
         complete: async (model, context, options) => {
           completeCalls.push({
             provider: (model as { provider: string }).provider,
@@ -564,10 +687,6 @@ describe("mpi-optimize-prompt command", () => {
     let completeCalls = 0;
     const ctx = {
       model: { provider: "tab", id: "main" },
-      modelRegistry: {
-        find: () => ({ provider: "tab", id: "main" }),
-        getApiKeyAndHeaders: async () => ({ ok: true as const, apiKey: "k" }),
-      },
       ui: {
         getEditorText: () => "draft",
         setEditorText: () => undefined,
@@ -601,7 +720,7 @@ describe("mpi-optimize-prompt command", () => {
     assert.match(panels[0] ?? "", /^# opt-prompt/m);
   });
 
-  it("/opt-prompt-cancel aborts completeSimple and keeps draft", async () => {
+  it("/opt-prompt-cancel aborts the registry request and keeps draft", async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-optimize-cancel-"));
     try {
       let editor = "keep me";
@@ -626,10 +745,6 @@ describe("mpi-optimize-prompt command", () => {
       const notifies: string[] = [];
       const ctx = {
         model: { provider: "tab", id: "main" },
-        modelRegistry: {
-          find: () => ({ provider: "tab", id: "main" }),
-          getApiKeyAndHeaders: async () => ({ ok: true as const, apiKey: "k" }),
-        },
         ui: {
           getEditorText: () => editor,
           setEditorText: (text: string) => {
@@ -657,7 +772,7 @@ describe("mpi-optimize-prompt command", () => {
         },
       } as unknown as ExtensionCommandContext;
 
-      // Direct run with factory-equivalent slot (handler path uses completeSimple).
+      // Direct run with the same slot ownership contract as the factory.
       const resultPromise = runOptimizePrompt({
         ctx,
         args: "rewrite this",
@@ -694,10 +809,6 @@ describe("mpi-optimize-prompt command", () => {
       const draftSlot: OptimizeDraftSlot = {};
       const ctx = {
         model: { provider: "tab", id: "main" },
-        modelRegistry: {
-          find: () => ({ provider: "tab", id: "main" }),
-          getApiKeyAndHeaders: async () => ({ ok: true as const, apiKey: "k" }),
-        },
         ui: {
           getEditorText: () => editor,
           setEditorText: (text: string) => {
@@ -750,10 +861,6 @@ describe("mpi-optimize-prompt command", () => {
 
       const ctx = {
         model: { provider: "tab", id: "main" },
-        modelRegistry: {
-          find: () => ({ provider: "tab", id: "main" }),
-          getApiKeyAndHeaders: async () => ({ ok: true as const, apiKey: "k" }),
-        },
         ui: {
           getEditorText: () => editor,
           setEditorText: (text: string) => {
@@ -824,10 +931,6 @@ describe("mpi-optimize-prompt command", () => {
 
       const ctx = {
         model: { provider: "tab", id: "main" },
-        modelRegistry: {
-          find: () => ({ provider: "tab", id: "main" }),
-          getApiKeyAndHeaders: async () => ({ ok: true as const, apiKey: "k" }),
-        },
         ui: {
           getEditorText: () => editor,
           setEditorText: (text: string) => {
@@ -881,10 +984,6 @@ describe("mpi-optimize-prompt command", () => {
 
       const ctx = {
         model: { provider: "tab", id: "main" },
-        modelRegistry: {
-          find: () => ({ provider: "tab", id: "main" }),
-          getApiKeyAndHeaders: async () => ({ ok: true as const, apiKey: "k" }),
-        },
         ui: {
           getEditorText: () => editor,
           setEditorText: (text: string) => {
@@ -934,19 +1033,20 @@ describe("mpi-optimize-prompt command", () => {
       const abortSlot: OptimizeAbortSlot = {};
       const { promise: holdFirst, resolve: releaseFirst } = Promise.withResolvers<void>();
       const { promise: firstEntered, resolve: markFirst } = Promise.withResolvers<void>();
+      const { promise: secondEntered, resolve: markSecond } = Promise.withResolvers<void>();
+      const { promise: holdSecond, resolve: releaseSecond } = Promise.withResolvers<void>();
+      const widgets: unknown[] = [];
 
       const ctx = {
         model: { provider: "tab", id: "main" },
-        modelRegistry: {
-          find: () => ({ provider: "tab", id: "main" }),
-          getApiKeyAndHeaders: async () => ({ ok: true as const, apiKey: "k" }),
-        },
         ui: {
           getEditorText: () => editor,
           setEditorText: (text: string) => {
             editor = text;
           },
-          setWidget: () => undefined,
+          setWidget: (_key: string, content: unknown) => {
+            widgets.push(content);
+          },
           notify: () => undefined,
         },
       } as unknown as ExtensionCommandContext;
@@ -975,15 +1075,23 @@ describe("mpi-optimize-prompt command", () => {
         getThinkingLevel: () => "off",
         agentDir: dir,
         abortSlot,
-        complete: async () =>
-          ({
+        complete: async () => {
+          markSecond();
+          await holdSecond;
+          return {
             content: [{ type: "text", text: "second-done" }],
             stopReason: "stop",
-          }) as never,
+          } as never;
+        },
       });
 
+      await secondEntered;
       releaseFirst();
-      const [firstResult, secondResult] = await Promise.all([first, second]);
+      const firstResult = await first;
+      assert.equal(typeof widgets.at(-1), "function");
+      assert.equal(editor, "draft");
+      releaseSecond();
+      const secondResult = await second;
       assert.equal(firstResult.ok, false);
       assert.equal(firstResult.reason, "cancelled");
       assert.equal(secondResult.ok, true);
@@ -1004,10 +1112,6 @@ describe("mpi-optimize-prompt command", () => {
       const makeCtx = (get: () => string, set: (t: string) => void): ExtensionCommandContext =>
         ({
           model: { provider: "tab", id: "main" },
-          modelRegistry: {
-            find: () => ({ provider: "tab", id: "main" }),
-            getApiKeyAndHeaders: async () => ({ ok: true as const, apiKey: "k" }),
-          },
           ui: {
             getEditorText: get,
             setEditorText: set,
@@ -1095,10 +1199,6 @@ describe("mpi-optimize-prompt command", () => {
       const notifies: string[] = [];
       const ctx = {
         model: { provider: "tab", id: "main" },
-        modelRegistry: {
-          find: () => ({ provider: "tab", id: "main" }),
-          getApiKeyAndHeaders: async () => ({ ok: true as const, apiKey: "k" }),
-        },
         ui: {
           getEditorText: () => editor,
           setEditorText: (text: string) => {

@@ -17,9 +17,13 @@ Rewrite the input-editor draft (or slash args) into a clearer coding-agent promp
 
 `Ctrl+Shift+C` also cancels an in-flight optimize.
 
+Pi's model registry sends each request through the selected model's configured provider. It resolves authentication for each request and applies OAuth refresh, base URLs, headers, and environment settings. Local providers can run without API keys.
+
+Provider or authentication errors appear as `Optimize failed: ...`. The editor draft and undo entry stay unchanged. Cancelling clears progress immediately. A late response cannot replace the draft or clear another request's progress widget.
+
 ## Config (`<agentDir>/mpi-optimize-prompt.json`)
 
-The package ships `mpi-optimize-prompt.schema.json` (installed to `<agentDir>/extensions/mpi-optimize-prompt/`); reference it via a `$schema` key for editor completion — the key is accepted and preserved on writes.
+The package installs `mpi-optimize-prompt.schema.json` under `<agentDir>/extensions/mpi-optimize-prompt/`. Reference it with `$schema` for editor completion. Config writes preserve this key.
 
 ```json
 {

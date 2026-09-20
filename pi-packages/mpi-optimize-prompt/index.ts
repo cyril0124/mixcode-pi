@@ -1,5 +1,5 @@
 /**
- * mpi-optimize-prompt — Rewrite the input-editor draft (or slash args) via one-shot complete.
+ * mpi-optimize-prompt rewrites the editor draft through the configured model registry.
  *
  * Usage: /opt-prompt [text]
  * Cancel: /opt-prompt-cancel
@@ -10,11 +10,10 @@
  */
 
 import {
-  completeSimple,
   getSupportedThinkingLevels,
-  type AssistantMessage,
   type Model,
-} from "@earendil-works/pi-ai/compat";
+  type SimpleStreamOptions,
+} from "@earendil-works/pi-ai";
 import {
   getAgentDir,
   getMarkdownTheme,
@@ -48,7 +47,6 @@ import {
 const WIDGET_KEY = "mpi-optimize-prompt";
 const PANEL_ENTRY_TYPE = "mpi-optimize-prompt-panel";
 
-type CompleteFn = typeof completeSimple;
 type PanelData = { markdown: string };
 
 /** Per-factory cancel slot so each MixCode tab isolates in-flight optimize. */
@@ -82,29 +80,6 @@ function notifyOptimizeCancel(
     return;
   }
   ctx.ui.notify("No optimize run in progress", "warning");
-}
-
-function compactHeaders(
-  headers: Record<string, string | null> | undefined,
-): Record<string, string> | undefined {
-  if (!headers) return undefined;
-  const out: Record<string, string> = {};
-  for (const [key, value] of Object.entries(headers)) {
-    if (value !== null) out[key] = value;
-  }
-  return Object.keys(out).length > 0 ? out : undefined;
-}
-
-function hasRequestAuth(auth: {
-  apiKey?: string;
-  headers?: Record<string, string>;
-  env?: Record<string, string>;
-}): boolean {
-  return Boolean(
-    auth.apiKey ||
-      (auth.headers && Object.keys(auth.headers).length > 0) ||
-      (auth.env && Object.keys(auth.env).length > 0),
-  );
 }
 
 function formatError(error: unknown): string {
@@ -346,7 +321,6 @@ export async function runOptimizePrompt(options: {
   ctx: ExtensionCommandContext;
   args: string;
   getThinkingLevel: () => string;
-  complete?: CompleteFn;
   agentDir?: string;
   /** Render help as a chat markdown panel (factory wires appendEntry). */
   showMarkdown?: (markdown: string) => void;
@@ -458,43 +432,7 @@ export async function runOptimizePrompt(options: {
       return { ok: false, reason: "unknown_model" };
     }
 
-    let auth: { apiKey?: string; headers?: Record<string, string>; env?: Record<string, string> };
-    try {
-      const resolved = await ctx.modelRegistry.getApiKeyAndHeaders(model);
-      if (abort.signal.aborted) {
-        ctx.ui.notify("Optimize cancelled", "info");
-        return { ok: false, reason: "cancelled" };
-      }
-      if (
-        !resolved.ok ||
-        !hasRequestAuth({
-          apiKey: resolved.ok ? resolved.apiKey : undefined,
-          headers: resolved.ok ? compactHeaders(resolved.headers) : undefined,
-          env: resolved.ok ? resolved.env : undefined,
-        })
-      ) {
-        ctx.ui.notify(
-          resolved.ok ? `No credentials for ${model.provider}` : resolved.error,
-          "error",
-        );
-        return { ok: false, reason: "no_auth" };
-      }
-      auth = {
-        apiKey: resolved.apiKey,
-        headers: compactHeaders(resolved.headers),
-        env: resolved.env,
-      };
-    } catch (error: unknown) {
-      if (abort.signal.aborted) {
-        ctx.ui.notify("Optimize cancelled", "info");
-        return { ok: false, reason: "cancelled" };
-      }
-      ctx.ui.notify(formatError(error), "error");
-      return { ok: false, reason: "no_auth" };
-    }
-
     const systemPrompt = resolveOptimizeSystemPrompt(config);
-    const runComplete = options.complete ?? completeSimple;
     const stopProgress = startOptimizeProgressWidget(ctx, {
       modelLabel: `${target.provider}/${target.modelId}`,
       thinkingLabel: target.thinkingLevel,
@@ -503,18 +441,7 @@ export async function runOptimizePrompt(options: {
     });
     abortSlot.stopProgress = stopProgress;
     try {
-      const streamOptions: {
-        apiKey?: string;
-        headers?: Record<string, string>;
-        env?: Record<string, string>;
-        signal?: AbortSignal;
-        reasoning?: "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
-      } = {
-        apiKey: auth.apiKey,
-        headers: auth.headers,
-        env: auth.env,
-        signal: abort.signal,
-      };
+      const streamOptions: SimpleStreamOptions = { signal: abort.signal };
       if (target.thinkingLevel !== "off") {
         streamOptions.reasoning = target.thinkingLevel as
           | "minimal"
@@ -530,20 +457,23 @@ export async function runOptimizePrompt(options: {
         return { ok: false, reason: "cancelled" };
       }
 
-      const response: AssistantMessage = await runComplete(
-        model as Model<string>,
-        {
-          systemPrompt,
-          messages: [
-            {
-              role: "user",
-              content: [{ type: "text", text: formatOptimizeUserMessage(source) }],
-              timestamp: Date.now(),
-            },
-          ],
-        },
-        streamOptions,
-      );
+      // Resolve provider routing and auth inside the request, including keyless providers.
+      const response = await ctx.modelRegistry
+        .streamSimple(
+          model,
+          {
+            systemPrompt,
+            messages: [
+              {
+                role: "user",
+                content: [{ type: "text", text: formatOptimizeUserMessage(source) }],
+                timestamp: Date.now(),
+              },
+            ],
+          },
+          streamOptions,
+        )
+        .result();
       if (abort.signal.aborted || response.stopReason === "aborted") {
         ctx.ui.notify("Optimize cancelled", "info");
         return { ok: false, reason: "cancelled" };
@@ -561,8 +491,11 @@ export async function runOptimizePrompt(options: {
       ctx.ui.notify(`Optimize failed: ${formatError(error)}`, "error");
       return { ok: false, reason: formatError(error) };
     } finally {
-      if (abortSlot.stopProgress === stopProgress) abortSlot.stopProgress = undefined;
-      stopProgress();
+      // Only the request that owns the shared widget may clear it.
+      if (abortSlot.stopProgress === stopProgress) {
+        abortSlot.stopProgress = undefined;
+        stopProgress();
+      }
     }
   } finally {
     if (abortSlot.controller === abort) abortSlot.controller = undefined;
