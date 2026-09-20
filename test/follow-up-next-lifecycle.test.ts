@@ -370,7 +370,7 @@ test("manual compaction drains queued follow-ups only after the host finishes", 
       return streamMessage(assistantMessage(model, `done ${userText(context)}`), options);
     },
     extensionFactories: [
-      (pi) =>
+      (pi) => {
         pi.on("session_before_compact", async (event) => {
           await releaseCompact.promise;
           return {
@@ -380,7 +380,8 @@ test("manual compaction drains queued follow-ups only after the host finishes", 
               tokensBefore: 20,
             },
           };
-        }),
+        });
+      },
     ],
   });
   const cleanup = new FollowUpCleanup(runtime, dir, [releaseCompact.resolve]);

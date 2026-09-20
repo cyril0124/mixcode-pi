@@ -3,7 +3,11 @@ import * as fsPromises from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import test from "node:test";
-import { adjustCompactionSettingsForLimit } from "../src/core/context-limit.js";
+import { SettingsManager } from "@earendil-works/pi-coding-agent";
+import {
+  adjustCompactionSettingsForLimit,
+  captureCompactionBaseline,
+} from "../src/core/context-limit.js";
 import { createTab, MIXCODE_FAUX_MODEL, MixCodeRuntime } from "./helpers/mixcode.js";
 
 // Regression: /context-limit must not leak one tab's compaction override into
@@ -77,4 +81,43 @@ test("context-limit reset restores the tab baseline without touching siblings", 
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }
+});
+
+test("context-limit overrides model-specific budgets and reset restores every model baseline", () => {
+  const manager = SettingsManager.inMemory({
+    compaction: {
+      reserveTokens: 5000,
+      keepRecentTokens: 8000,
+      modelOverrides: {
+        "provider/model-a": { reserveTokens: 12000, keepRecentTokens: 20000 },
+        "provider/model-b": { reserveTokens: 6000 },
+      },
+    },
+  });
+  captureCompactionBaseline(manager);
+  const first = { provider: "provider", id: "model-a" };
+  const second = { provider: "provider", id: "model-b" };
+  const baseline = manager.getGlobalSettings();
+  adjustCompactionSettingsForLimit(manager, 4000, true);
+  for (const model of [first, second]) {
+    assert.deepEqual(manager.getCompactionSettings(model), {
+      enabled: true,
+      reserveTokens: 400,
+      keepRecentTokens: 1000,
+    });
+  }
+  adjustCompactionSettingsForLimit(manager, 10000, true);
+  assert.equal(manager.getCompactionSettings(second).reserveTokens, 1000);
+  adjustCompactionSettingsForLimit(manager, 10000, false);
+  assert.deepEqual(manager.getCompactionSettings(first), {
+    enabled: true,
+    reserveTokens: 12000,
+    keepRecentTokens: 20000,
+  });
+  assert.deepEqual(manager.getCompactionSettings(second), {
+    enabled: true,
+    reserveTokens: 6000,
+    keepRecentTokens: 8000,
+  });
+  assert.deepEqual(manager.getGlobalSettings(), baseline);
 });

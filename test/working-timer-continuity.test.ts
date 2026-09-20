@@ -211,6 +211,7 @@ test("auto-retry continuation preserves the working timer stamp", async () => {
       enabled: true,
       maxRetries: 2,
       baseDelayMs: 30,
+      maxAgentDelayMs: 60_000,
     });
     const trace = traceRuntime(runtime, "s1");
 
@@ -393,6 +394,7 @@ test("cancelling a retry countdown records the worked duration", async () => {
       enabled: true,
       maxRetries: 3,
       baseDelayMs: 10_000,
+      maxAgentDelayMs: 60_000,
     });
 
     const promptDone = runtime.prompt("s1", "hello");

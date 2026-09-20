@@ -7,6 +7,7 @@ import { test } from "node:test";
 import {
   Type,
   createAssistantMessageEventStream,
+  normalizeContext,
   type AssistantMessage,
   type Context,
   type Model,
@@ -374,10 +375,15 @@ test("runtime shows working state while compaction runs", async () => {
 });
 
 test("faux stream emits assistant text without external provider", async () => {
-  const stream = mixcodeFauxStream(MIXCODE_FAUX_MODEL, {
-    systemPrompt: "",
-    messages: [{ role: "user", content: [{ type: "text", text: "ping" }], timestamp: Date.now() }],
-  });
+  const stream = mixcodeFauxStream(
+    MIXCODE_FAUX_MODEL,
+    normalizeContext({
+      systemPrompt: "",
+      messages: [
+        { role: "user", content: [{ type: "text", text: "ping" }], timestamp: Date.now() },
+      ],
+    }),
+  );
   const eventTypes: string[] = [];
   for await (const event of stream) eventTypes.push(event.type);
   const result = await stream.result();
@@ -396,39 +402,45 @@ test("faux stream emits assistant text without external provider", async () => {
     /Inspecting/,
   );
   assert.match(result.content[1]?.type === "text" ? result.content[1].text : "", /ping/);
-  const noUser = mixcodeFauxStream(MIXCODE_FAUX_MODEL, { systemPrompt: "", messages: [] });
+  const noUser = mixcodeFauxStream(MIXCODE_FAUX_MODEL, normalizeContext({ messages: [] }));
   await noUser.result();
-  const stringUser = mixcodeFauxStream(MIXCODE_FAUX_MODEL, {
-    systemPrompt: "",
-    messages: [{ role: "user", content: "plain", timestamp: Date.now() }],
-  });
+  const stringUser = mixcodeFauxStream(
+    MIXCODE_FAUX_MODEL,
+    normalizeContext({
+      messages: [{ role: "user", content: "plain", timestamp: Date.now() }],
+    }),
+  );
   const stringResult = await stringUser.result();
   assert.match(
     stringResult.content[1]?.type === "text" ? stringResult.content[1].text : "",
     /plain/,
   );
-  const afterSystem = mixcodeFauxStream(MIXCODE_FAUX_MODEL, {
-    systemPrompt: "",
-    messages: [
-      { role: "user", content: "before system", timestamp: Date.now() },
-      { role: "system", content: "ignored", timestamp: Date.now() },
-    ] as never,
-  });
+  const afterSystem = mixcodeFauxStream(
+    MIXCODE_FAUX_MODEL,
+    normalizeContext({
+      messages: [
+        { role: "user", content: "before system", timestamp: Date.now() },
+        { role: "system", content: "Keep the response concise.", timestamp: Date.now() },
+      ],
+    }),
+  );
   const afterSystemResult = await afterSystem.result();
   assert.match(
     afterSystemResult.content[1]?.type === "text" ? afterSystemResult.content[1].text : "",
     /before system/,
   );
-  const imageUser = mixcodeFauxStream(MIXCODE_FAUX_MODEL, {
-    systemPrompt: "",
-    messages: [
-      {
-        role: "user",
-        content: [{ type: "image", mimeType: "image/png", data: "x" }],
-        timestamp: Date.now(),
-      },
-    ],
-  });
+  const imageUser = mixcodeFauxStream(
+    MIXCODE_FAUX_MODEL,
+    normalizeContext({
+      messages: [
+        {
+          role: "user",
+          content: [{ type: "image", mimeType: "image/png", data: "x" }],
+          timestamp: Date.now(),
+        },
+      ],
+    }),
+  );
   const imageResult = await imageUser.result();
   assert.match(
     imageResult.content[1]?.type === "text" ? imageResult.content[1].text : "",

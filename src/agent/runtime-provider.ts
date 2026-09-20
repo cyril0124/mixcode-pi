@@ -1,6 +1,6 @@
 import {
   type AssistantMessage,
-  type Context,
+  type TranscriptContext,
   createAssistantMessageEventStream,
   type SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
@@ -32,7 +32,7 @@ export async function registerMixCodeRuntimeProvider(
   // Defer streamFn so a synchronous throw becomes a rejection handled by bridgeRuntimeStream.
   const runtimeStreamSimple = (
     requestModel: MixCodeModel,
-    context: Context,
+    context: TranscriptContext,
     options?: SimpleStreamOptions,
   ) =>
     bridgeRuntimeStream(

@@ -1,3 +1,4 @@
+import type { SettingsManager } from "@earendil-works/pi-coding-agent";
 import { pushToast } from "./toast.js";
 import type { MixCodeTabInfo, PickerItem } from "./types.js";
 
@@ -139,21 +140,23 @@ export function applyContextLimitToSession(
 }
 
 type CompactionBudget = { reserveTokens?: number; keepRecentTokens?: number };
+type CompactionOverride = CompactionBudget & { modelOverrides?: Record<string, CompactionBudget> };
 
 interface CompactionOverrideTarget {
-  applyOverrides: (overrides: { compaction?: CompactionBudget }) => void;
+  applyOverrides: (overrides: { compaction?: CompactionOverride }) => void;
 }
 
-interface CompactionBaselineSource {
-  getCompactionSettings: () => { reserveTokens: number; keepRecentTokens: number };
-}
+type CompactionBaselineSource = Pick<
+  SettingsManager,
+  "getCompactionSettings" | "getGlobalSettings" | "getProjectSettings"
+>;
 
 // Per-manager baseline compaction budgets, captured once before any
 // /context-limit override mutates the manager. Keyed by manager identity so
 // each tab's own SettingsManager restores its own user-configured values on
 // reset instead of hardcoded SDK defaults. WeakMap avoids retaining disposed
 // managers.
-const compactionBaselines = new WeakMap<object, CompactionBudget>();
+const compactionBaselines = new WeakMap<object, CompactionOverride>();
 
 /**
  * Record a manager's current compaction budgets as its reset baseline.
@@ -166,7 +169,19 @@ export function captureCompactionBaseline(
 ): void {
   if (compactionBaselines.has(manager)) return;
   const { reserveTokens, keepRecentTokens } = manager.getCompactionSettings();
-  compactionBaselines.set(manager, { reserveTokens, keepRecentTokens });
+  const global = manager.getGlobalSettings().compaction?.modelOverrides ?? {};
+  const project = manager.getProjectSettings().compaction?.modelOverrides ?? {};
+  const modelOverrides: Record<string, CompactionBudget> = {};
+  // Pi merges per-model entries across scopes, then falls back to ordinary
+  // budgets. Capture both fields so reset cannot retain a temporary field.
+  for (const key of new Set([...Object.keys(global), ...Object.keys(project)])) {
+    modelOverrides[key] = {
+      reserveTokens: project[key]?.reserveTokens ?? global[key]?.reserveTokens ?? reserveTokens,
+      keepRecentTokens:
+        project[key]?.keepRecentTokens ?? global[key]?.keepRecentTokens ?? keepRecentTokens,
+    };
+  }
+  compactionBaselines.set(manager, { reserveTokens, keepRecentTokens, modelOverrides });
 }
 
 /**
@@ -187,7 +202,13 @@ export function adjustCompactionSettingsForLimit(
   }
   const reserveTokens = Math.max(1, Math.min(16384, Math.round(contextLimit * 0.1)));
   const keepRecent = Math.max(1, Math.round(contextLimit * 0.25));
-  settingsManager.applyOverrides({ compaction: { reserveTokens, keepRecentTokens: keepRecent } });
+  const budget = { reserveTokens, keepRecentTokens: keepRecent };
+  const keys = Object.keys(compactionBaselines.get(settingsManager)?.modelOverrides ?? {});
+  const modelOverrides = Object.fromEntries(keys.map((key) => [key, { ...budget }]));
+  // Per-model values otherwise take precedence over the reduced tab budget.
+  settingsManager.applyOverrides({
+    compaction: { ...budget, ...(keys.length ? { modelOverrides } : {}) },
+  });
 }
 
 /**

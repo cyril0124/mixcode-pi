@@ -145,7 +145,13 @@ MixCodeRuntime
 - `ctx.scopedModels`（由 MixCode 模型禁用列表解析而来，见[模型管理](model-management.zh.md)）
 - `/import <jsonl-path> [cwdOverride]` 的 MixCode 等价实现
 
-AGENTS / project context / system prompt 走 Pi resource loader 链路，不再靠 prompt injection 拼 workdir instructions。
+AGENTS、project context 和 system prompt 的配置由 Pi resource loader 收集。
+
+MixCode 根据收集到的选项组装宿主提示词，并将其作为 system 消息的一个 section 保存在 Pi transcript 中。提示词和工具的变更在下一次请求时记录；打开已有会话不会改写历史。`before_agent_start` 看到包含日期和工具规则的宿主提示词；其返回的 `systemPrompt` 仅覆盖本轮 provider 请求的首部提示词，不替换持久化指令。
+
+Provider 的 `stream` / `streamSimple` 实现以及 `MixCodeStreamFn` 接收规范化的 `TranscriptContext`。通过 `getCurrentSystemPrompt(context.messages)` 和 `getCurrentTools(context.messages)` 读取指令及工具声明，context 不再含独立的 `systemPrompt` 或 `tools` 字段。包装层必须保留 system 消息和规范化 context；从原始 `Context` 构造 provider 输入时使用 `normalizeContext()`。
+
+编译版 `mpi` 内嵌 Pi TUI 的 macOS、Windows 和 Linux X11 原生模块，覆盖 x64 与 arm64。`src/cli/binary-assets.ts` 将其释放到进程运行时目录的 `native/` 子树，pi-tui 补丁在查找原生模块时包含 `PI_PACKAGE_DIR`。成功加载模块不代表剪贴板一定可用，仍需平台剪贴板服务或显示服务。
 
 当 `ctx.switchSession()`、会话选择器恢复或 `/import` 的目标工作目录不同时，替换会话会重建绑定 cwd 的 services。在 `session_start` 和 `withSession` 执行前，扩展 `ctx.cwd`、工具相对路径、项目配置和项目资源均使用目标会话的 cwd。导入时显式指定的 cwd override 为有效目标目录。同目录替换复用 services 并重新加载扩展，不与其他存活标签共享 services。取消切换不会加载目标项目的扩展。
 

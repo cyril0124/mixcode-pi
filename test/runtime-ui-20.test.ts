@@ -532,7 +532,7 @@ test("runtime updates workdir, system prompt, and tool closures", async () => {
     assert.equal(runtimeTab.session.getCwd(), newDir);
     assert.equal(runtimeTab.agentSession.sessionManager.getCwd(), newDir);
     assert.match(
-      runtimeTab.agentSession.agent.state.systemPrompt,
+      runtimeTab.agentSession.systemPrompt,
       new RegExp(`Current working directory: ${escapeRegExp(newDir)}`),
     );
     const readTool = runtimeTab.agentSession.agent.state.tools.find((tool) => tool.name === "read");

@@ -13,6 +13,9 @@ test("binary runtime assets are written for both upstream Bun and dist layouts",
     const photonWasm = path.join(runtimeDir, "photon_rs_bg.wasm.source");
     await fsPromises.writeFile(sourceAsset, "image-bytes", "utf8");
     await fsPromises.writeFile(photonWasm, "wasm-bytes", "utf8");
+    const nativeHelper = path.join(runtimeDir, "clipboard.node.source");
+    const nativeBytes = new Uint8Array([0x7f, 0x45, 0x4c, 0x46, 0, 255]);
+    await Bun.write(nativeHelper, nativeBytes);
 
     await materializeBinaryRuntimeAssets(runtimeDir, {
       darkTheme: { name: "dark" },
@@ -24,6 +27,9 @@ test("binary runtime assets are written for both upstream Bun and dist layouts",
       exportVendorHighlight: "highlight",
       interactiveAssets: { "clankolas.png": sourceAsset },
       photonWasmPath: photonWasm,
+      nativePlatformHelpers: {
+        "linux/prebuilds/linux-x64/linux-platform-x11.node": nativeHelper,
+      },
       packageJson: {
         name: "mixcode-pi",
         version: "1.2.3",
@@ -104,6 +110,14 @@ test("binary runtime assets are written for both upstream Bun and dist layouts",
       "wasm-bytes",
     );
 
+    assert.deepEqual(
+      new Uint8Array(
+        await Bun.file(
+          path.join(runtimeDir, "native/linux/prebuilds/linux-x64/linux-platform-x11.node"),
+        ).arrayBuffer(),
+      ),
+      nativeBytes,
+    );
     // Built-in packages: nested-path files (e.g. "state/store.ts") must land in
     // their subdirectory, not flattened.
     const pkgDir = path.join(runtimeDir, "packages", "mpi-example");

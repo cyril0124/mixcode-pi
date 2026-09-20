@@ -3,7 +3,12 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
-import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai";
+import {
+  fauxAssistantMessage,
+  fauxProvider,
+  fauxToolCall,
+  type JsonObject,
+} from "@earendil-works/pi-ai";
 import {
   type AgentSession,
   createAgentSessionFromServices,
@@ -56,7 +61,7 @@ async function withSessions(
     createSession: () => Promise<AgentSession>;
     call: (
       session: AgentSession,
-      input?: Record<string, unknown>,
+      input?: JsonObject,
       tool?: string,
     ) => Promise<{ isError: boolean; text: string }>;
     configure: (value: unknown) => Promise<void>;

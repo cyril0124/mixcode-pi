@@ -67,6 +67,7 @@ test("runtime maps proxy upstream errors through Pi's public retry lifecycle", a
       enabled: true,
       maxRetries: 1,
       baseDelayMs: 1,
+      maxAgentDelayMs: 60_000,
     });
 
     await runtime.prompt("s1", "retry once");
@@ -113,6 +114,7 @@ test("error-continue waits for successful host auto-retry", async () => {
       enabled: true,
       maxRetries: 1,
       baseDelayMs: 1,
+      maxAgentDelayMs: 60_000,
     });
 
     await runtime.prompt("s1", "retry once");
@@ -166,6 +168,7 @@ test("error-continue takes over after host auto-retry is exhausted", async () =>
       enabled: true,
       maxRetries: 1,
       baseDelayMs: 1,
+      maxAgentDelayMs: 60_000,
     });
 
     await runtime.prompt("s1", "retry then continue");

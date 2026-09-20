@@ -68,7 +68,7 @@ test("clear rebuilds services when rebuildServices is set for a new base prompt"
       workdir: process.cwd(),
     });
     const services = initial.services;
-    assert.match(initial.agentSession.agent.state.systemPrompt ?? "", /old base identity/);
+    assert.match(initial.agentSession.systemPrompt ?? "", /old base identity/);
 
     const cleared = await runtime.clearTab("s1", {
       systemPrompt: "new base identity",
@@ -79,8 +79,8 @@ test("clear rebuilds services when rebuildServices is set for a new base prompt"
     });
 
     assert.notEqual(cleared.services, services);
-    assert.match(cleared.agentSession.agent.state.systemPrompt ?? "", /new base identity/);
-    assert.match(cleared.agentSession.agent.state.systemPrompt ?? "", /Available tools:/);
+    assert.match(cleared.agentSession.systemPrompt ?? "", /new base identity/);
+    assert.match(cleared.agentSession.systemPrompt ?? "", /Available tools:/);
   });
 });
 

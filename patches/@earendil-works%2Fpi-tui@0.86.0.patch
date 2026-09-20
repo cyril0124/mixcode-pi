@@ -29,20 +29,21 @@ index 5788d755400164552ed09c7d69bdd67083caa5b1..67d8f1c64772180ac8bf01152b4895bf
  markdownParser.use({ extensions: [...LATEX_MARKDOWN_EXTENSIONS] });
  export class Markdown {
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index 1460dd1160f1d8ccf9abf201844f7d9f01bc0fde..c7c08400f3b0531f0a970dae04147cc3a1a6695e 100644
+index 4a0657e57cc77703b2c271616302b7e80cb4ef2c..3f64820ee8072c260d27499dd69311d845220f79 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
-@@ -20,13 +20,15 @@ export type { EditorComponent } from "./editor-component.ts";
+@@ -20,8 +20,10 @@ export type { EditorComponent } from "./editor-component.ts";
  export { type FuzzyMatch, fuzzyFilter, fuzzyMatch } from "./fuzzy.ts";
  export { getKeybindings, type Keybinding, type KeybindingConflict, type KeybindingDefinition, type KeybindingDefinitions, type Keybindings, type KeybindingsConfig, KeybindingsManager, setKeybindings, TUI_KEYBINDINGS, } from "./keybindings.ts";
  export { decodeKittyPrintable, isKeyRelease, isKeyRepeat, isKittyProtocolActive, Key, type KeyEventType, type KeyId, matchesKey, parseKey, setKittyProtocolActive, } from "./keys.ts";
 +export { calculateScrollbarGeometry, paintScrollbarCell, type ScrollbarGeometry } from "./layout.ts";
  export { type RenderLatexOptions, renderLatex } from "./latex.ts";
+ export { getNativeClipboard, type NativeClipboard } from "./native-platform.ts";
++export { cropKittyImageLine, getKittyImageMetadata } from "./terminal-image.ts";
  export { StdinBuffer, type StdinBufferEventMap, type StdinBufferOptions } from "./stdin-buffer.ts";
  export { ProcessTerminal, type Terminal } from "./terminal.ts";
  export { parseOsc11BackgroundColor, parseTerminalColorSchemeReport, type RgbColor, type TerminalColorScheme, } from "./terminal-colors.ts";
-+export { cropKittyImageLine, getKittyImageMetadata } from "./terminal-image.ts";
- export { allocateImageId, type CellDimensions, calculateImageRows, deleteAllKittyImages, deleteKittyImage, detectCapabilities, encodeITerm2, encodeKitty, getCapabilities, getCellDimensions, getGifDimensions, getImageDimensions, getJpegDimensions, getPngDimensions, getWebpDimensions, hyperlink, type ImageDimensions, type ImageProtocol, type ImageRenderOptions, imageFallback, renderImage, resetCapabilitiesCache, setCapabilities, setCapabilityOverrides, setCellDimensions, type TerminalCapabilities, } from "./terminal-image.ts";
+@@ -29,5 +31,5 @@ export { allocateImageId, type CellDimensions, calculateImageRows, deleteAllKitt
  export { type Component, Container, CURSOR_MARKER, compositeTuiLine, type Focusable, isFocusable, isViewportTUI, type OverlayAnchor, type OverlayBounds, type OverlayHandle, type OverlayMargin, type OverlayOptions, type OverlayUnfocusOptions, type SizeValue, type TUI, type TuiInputListener, type TuiInputListenerResult, type TuiMode, type TuiMouseButton, type TuiMouseEvent, type TuiMouseEventResult, type TuiMouseEventType, type TuiStopOptions, type ViewportTUI, } from "./tui.ts";
  export { TuiAltScreen, type TuiAltScreenOptions } from "./tui-alt-screen.ts";
  export { TuiMainScreen, type TuiMainScreenRenderState } from "./tui-main-screen.ts";
@@ -51,7 +52,7 @@ index 1460dd1160f1d8ccf9abf201844f7d9f01bc0fde..c7c08400f3b0531f0a970dae04147cc3
  //# sourceMappingURL=index.d.ts.map
 \ No newline at end of file
 diff --git a/dist/index.js b/dist/index.js
-index 2a039acd70bda559eb9397a5b6d1c1e533a4e634..dcb20a4dcc00fdc0eca9f58d0ae2d6905179b86f 100644
+index d3c851910daada428705eb52f0b0f55080d4d7e7..4c3cc7979125b9bfa4b4ff5cacca427a913fc05c 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -25,6 +25,7 @@ export { fuzzyFilter, fuzzyMatch } from "./fuzzy.js";
@@ -61,8 +62,8 @@ index 2a039acd70bda559eb9397a5b6d1c1e533a4e634..dcb20a4dcc00fdc0eca9f58d0ae2d690
 +export { calculateScrollbarGeometry, paintScrollbarCell } from "./layout.js";
  // LaTeX rendering
  export { renderLatex } from "./latex.js";
- // Input buffering for batch splitting
-@@ -33,11 +34,12 @@ export { StdinBuffer } from "./stdin-buffer.js";
+ // Native platform integration
+@@ -35,11 +36,12 @@ export { StdinBuffer } from "./stdin-buffer.js";
  export { ProcessTerminal } from "./terminal.js";
  // Terminal colors
  export { parseOsc11BackgroundColor, parseTerminalColorSchemeReport, } from "./terminal-colors.js";
@@ -233,6 +234,21 @@ index 99485d8881b299a8a2e5dff990515ae132836daf..63ef8b10b34ab8b467ba4e6a573172fd
      }
  }
  function paintBox(box, screen, totalWidth) {
+diff --git a/dist/native-module-path.js b/dist/native-module-path.js
+index e09fde8ee762e32994fa53e86c59da85f4e88cb3..3360d4d3db876e26e6e69f8165fa8a75b6f6c0b6 100644
+--- a/dist/native-module-path.js
++++ b/dist/native-module-path.js
+@@ -6,6 +6,10 @@ const TUI_PACKAGE_NAME = "@earendil-works/pi-tui";
+ export function getNativeModuleCandidates(nativePath, options = {}) {
+     const moduleDir = dirname(fileURLToPath(options.moduleUrl ?? import.meta.url));
+     const candidates = [];
++    // MIXCODE_NATIVE_ASSETS: compiled hosts extract helpers beside their Pi assets.
++    if (process.env.PI_PACKAGE_DIR) {
++        candidates.push(join(process.env.PI_PACKAGE_DIR, nativePath));
++    }
+     try {
+         const packageEntry = (options.resolvePackage ?? moduleRequire.resolve)(TUI_PACKAGE_NAME);
+         candidates.push(join(dirname(packageEntry), "..", nativePath));
 diff --git a/dist/terminal-image.js b/dist/terminal-image.js
 index 40e1a9e1cf8b32f09d9ee5548875fa099501ab63..4bc7659afa0cb6f0748e5ef2b727f7b544586368 100644
 --- a/dist/terminal-image.js
@@ -267,7 +283,7 @@ index 40e1a9e1cf8b32f09d9ee5548875fa099501ab63..4bc7659afa0cb6f0748e5ef2b727f7b5
      controls.push(`y=${sourceY}`, `h=${sourceHeight}`, `r=${croppedRows}`);
      return `${line.slice(0, match.index)}\x1b_G${controls.join(",")};${line.slice(match.index + match[0].length)}`;
 diff --git a/dist/tui-alt-screen.d.ts b/dist/tui-alt-screen.d.ts
-index 4cc739e48496a2c0c05979b12443d383ea1b962d..1485408acfe9678c18d14b90b335c32c1af71b8e 100644
+index 0e4d31074f4a0ee62a47fc29dd6b7475a4f29cd7..cceea1db2bcf398896e328fe8a4e4fdd99597741 100644
 --- a/dist/tui-alt-screen.d.ts
 +++ b/dist/tui-alt-screen.d.ts
 @@ -3,8 +3,14 @@ import { type Component, TuiBase, type TuiStopOptions, VIEWPORT_TUI, type Viewpo
@@ -287,7 +303,7 @@ index 4cc739e48496a2c0c05979b12443d383ea1b962d..1485408acfe9678c18d14b90b335c32c
      searchMatchStyle?: (text: string) => string;
      /** Style the current transcript search match. */
 diff --git a/dist/tui-alt-screen.js b/dist/tui-alt-screen.js
-index 08dc17e0c44140a5ee5ca7ceac0cd58824e63435..8249d26347252eb97b1d79270a783b7dee08aa2a 100644
+index ecd81547869862260cd3923c9ba2e587c5b934c1..b0d4141323c72b100b3817720b67130aad7b8a3b 100644
 --- a/dist/tui-alt-screen.js
 +++ b/dist/tui-alt-screen.js
 @@ -19,7 +19,10 @@ const FOCUS_IN = "\x1b[I";
@@ -302,7 +318,7 @@ index 08dc17e0c44140a5ee5ca7ceac0cd58824e63435..8249d26347252eb97b1d79270a783b7d
  const OSC133_PROMPT_START = /^\x1b\]133;A(?:\x07|\x1b\\)/;
  const PAGE_SCROLL_OVERLAP = 4;
  const ALT_WHEEL_SCROLL_MULTIPLIER = 5;
-@@ -100,7 +103,9 @@ export class TuiAltScreen extends TuiBase {
+@@ -101,7 +104,9 @@ export class TuiAltScreen extends TuiBase {
          this.onRightClickPaste = options.onRightClickPaste;
          this.copyOnSelect = options.copyOnSelect ?? true;
          this.copySelection = options.copySelection;
@@ -313,7 +329,7 @@ index 08dc17e0c44140a5ee5ca7ceac0cd58824e63435..8249d26347252eb97b1d79270a783b7d
      }
      get viewportTop() {
          return this.getPrimaryScrollView().scrollTop;
-@@ -201,7 +206,7 @@ export class TuiAltScreen extends TuiBase {
+@@ -202,7 +207,7 @@ export class TuiAltScreen extends TuiBase {
          }
          else {
              const width = Math.max(1, this.terminal.columns);
@@ -322,7 +338,7 @@ index 08dc17e0c44140a5ee5ca7ceac0cd58824e63435..8249d26347252eb97b1d79270a783b7d
              this.lastDocument = this.applyLineResets(documentLines.map((line) => line.replaceAll(CURSOR_MARKER, ""))).map((line) => (isImageLine(line) || visibleWidth(line) <= width ? line : sliceByColumn(line, 0, width, true)));
              let buffer = `${BEGIN_SYNCHRONIZED_OUTPUT}${EXIT_ALT_SCREEN}${DISABLE_AUTOWRAP}`;
              for (let row = 0; row < this.lastDocument.length; row++) {
-@@ -1433,7 +1438,7 @@ export class TuiAltScreen extends TuiBase {
+@@ -1435,7 +1440,7 @@ export class TuiAltScreen extends TuiBase {
          if (this.refreshSearch(nextLayout)) {
              nextLayout = renderLayoutFrame(root, width, height, () => this.requestRender());
          }
@@ -331,7 +347,7 @@ index 08dc17e0c44140a5ee5ca7ceac0cd58824e63435..8249d26347252eb97b1d79270a783b7d
          screen = this.applySearchHighlights(screen, nextLayout);
          screen = this.compositeScrollToEndIndicator(screen, nextLayout, width);
          screen = this.compositeOverlays(screen, width, height);
-@@ -1443,6 +1448,7 @@ export class TuiAltScreen extends TuiBase {
+@@ -1445,6 +1450,7 @@ export class TuiAltScreen extends TuiBase {
          screen = this.compositeFlashes(screen, width, height);
          const cursorPos = this.extractCursorPosition(screen, height);
          screen = this.applyLineResets(screen).map((line) => {
@@ -339,7 +355,7 @@ index 08dc17e0c44140a5ee5ca7ceac0cd58824e63435..8249d26347252eb97b1d79270a783b7d
              if (isImageLine(line) || visibleWidth(line) <= width)
                  return line;
              return sliceByColumn(line, 0, width, true);
-@@ -1454,7 +1460,8 @@ export class TuiAltScreen extends TuiBase {
+@@ -1456,7 +1462,8 @@ export class TuiAltScreen extends TuiBase {
          const preparedKittyScreen = redrawImages && this.imageProtocol === "kitty"
              ? this.prepareKittyScreen(screen)
              : { lines: screen, evictedImageDeletion: "" };
@@ -368,10 +384,10 @@ index 887f5e8bd3c3ba9b467f9f6c6b5eb4af8a63f7f3..61d9bab9cd3e7a77036763e09e0f8038
          this.terminal.start((data) => this.handleTerminalInput(data), () => this.requestRender());
          this.afterTerminalStart();
 diff --git a/dist/utils.js b/dist/utils.js
-index 7b148e9e3efb6c49611be7bf416cb9a4e7d2f663..4725da7966a5c8eb0c10a0a196b0a116231dd8f6 100644
+index 31bb2e1105476b28d087c0def4f94862d723edff..f7f2f0e32a0dc3b8c5254799152f11ebd23a28fd 100644
 --- a/dist/utils.js
 +++ b/dist/utils.js
-@@ -712,7 +712,10 @@ function splitIntoTokensWithAnsi(text) {
+@@ -716,7 +716,10 @@ function splitIntoTokensWithAnsi(text) {
          while (end < text.length && !extractAnsiCode(text, end)) {
              end++;
          }

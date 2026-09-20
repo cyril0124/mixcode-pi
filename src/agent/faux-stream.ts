@@ -1,5 +1,5 @@
 import {
-  type Context,
+  type TranscriptContext,
   createFauxCore,
   fauxAssistantMessage,
   fauxText,
@@ -29,7 +29,7 @@ const fauxCore = createFauxCore({
   tokenSize: { min: 1 << 20, max: 1 << 20 },
 });
 
-const echoStep = (context: Context) =>
+const echoStep = (context: TranscriptContext) =>
   fauxAssistantMessage([
     fauxThinking("Inspecting the latest user request before answering."),
     fauxText(`Echo: ${lastUserText(context)}`),
@@ -37,27 +37,19 @@ const echoStep = (context: Context) =>
 
 export function mixcodeFauxStream(
   model: MixCodeModel,
-  context: Context,
+  context: TranscriptContext,
   options?: SimpleStreamOptions,
 ) {
   // The core consumes one queued response per stream call and errors on an
   // empty queue; queueing exactly one step per call keeps the echo infinite.
   fauxCore.setResponses([echoStep]);
-  // Contract (runtime-ui-24): echo works even when context carries junk-role
-  // entries. The core's usage estimator dispatches on message.role and throws
-  // on anything outside user/assistant/toolResult, so strip unknown roles.
-  const safeContext: Context = {
-    ...context,
-    messages: context.messages.filter(
-      (m) => m.role === "user" || m.role === "assistant" || m.role === "toolResult",
-    ),
-  };
+  // Preserve system messages: they carry the prompt and tool declarations.
   // cacheRetention "none" disables the core's prompt-cache simulation so faux
   // usage never reports cacheRead/cacheWrite tokens.
-  return fauxCore.stream(model, safeContext, { ...options, cacheRetention: "none" });
+  return fauxCore.stream(model, context, { ...options, cacheRetention: "none" });
 }
 
-function lastUserText(context: Context): string {
+function lastUserText(context: TranscriptContext): string {
   for (const message of [...context.messages].reverse()) {
     if (message.role !== "user") continue;
     if (typeof message.content === "string") return message.content;
