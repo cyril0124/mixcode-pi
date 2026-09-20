@@ -83,6 +83,7 @@ import {
   attachFollowUpCommand,
   discardFollowUps,
   followUpCommand,
+  type FollowUpInput,
   pauseFollowUps,
   syncFollowUpPreview,
   takeFollowUpBatch,
@@ -943,30 +944,8 @@ export class MixCodeRuntime {
     if (!trimmed) return;
     const streamingBehavior = options?.streamingBehavior ?? "steer";
     if (streamingBehavior === "followUp") {
-      const commandName = trimmed.match(/^\/(\S+)/)?.[1];
-      const sdkCommand =
-        commandName !== undefined &&
-        (this.getExtensionCommands(sessionId).some((command) => command.name === commandName) ||
-          runtimeTab.agentSession.promptTemplates.some(
-            (template) => template.name === commandName,
-          ) ||
-          commandName.startsWith("skill:"));
-      runtimeTab.tab.followUpQueue.push({
-        text: trimmed,
-        kind: options?.followUpNext ? "next" : "batch",
-        ...(sdkCommand ? { command: true } : {}),
-      });
-      syncFollowUpPreview(runtimeTab);
-      this.emitChange({ type: "extension_ui_update" }, runtimeTab);
-      const busy =
-        !runtimeTab.agentSession.isIdle ||
-        runtimeTab.compactionInFlight ||
-        runtimeTab.followUpDrain !== undefined;
-      const alreadyDraining = runtimeTab.followUpDrain !== undefined;
-      const drain = this.drainFollowUps(runtimeTab);
-      if (!busy) await drain;
-      else if (!alreadyDraining)
-        void drain.catch((error: unknown) => this.reportPendingMessageFlushError(sessionId, error));
+      this.appendFollowUpPrompts(runtimeTab, [trimmed], options?.followUpNext ? "next" : "batch");
+      await this.startFollowUpDrain(runtimeTab, true);
       return;
     }
     // Registered extension commands may await custom UI for a long time. Skills,
@@ -1010,6 +989,65 @@ export class MixCodeRuntime {
     });
   }
 
+  /**
+   * Append validated nonempty inputs as exclusive user rounds. Local commands
+   * carry host callbacks, whose confirmation and completion rules gate the next round.
+   * The entire sequence is visible before dispatch starts. Returns after enqueue;
+   * later failures surface on this tab and pause the queue. Existing FIFO order,
+   * pause state, and SDK continuations are preserved. Throws for an unknown tab.
+   */
+  queueFollowUpNextPrompts(sessionId: string, prompts: readonly FollowUpInput[]): void {
+    const runtimeTab = this.requireTab(sessionId);
+    this.appendFollowUpPrompts(runtimeTab, prompts, "next");
+    void this.startFollowUpDrain(runtimeTab, false);
+  }
+
+  private appendFollowUpPrompts(
+    runtimeTab: RuntimeTab,
+    prompts: readonly FollowUpInput[],
+    kind: "batch" | "next",
+  ): void {
+    // Classify all entries before publishing them. Resolve SDK names at most once
+    // for the sequence, and refresh the full queue preview only after the append.
+    let sdkCommands: Set<string> | undefined;
+    const entries = prompts.map((prompt) => {
+      if (typeof prompt !== "string") {
+        const entry = { text: prompt.text.trim(), kind, command: true };
+        attachFollowUpCommand(entry, prompt.execute);
+        return entry;
+      }
+      const text = prompt.trim();
+      const commandName = text.match(/^\/(\S+)/)?.[1];
+      let command = false;
+      if (commandName !== undefined) {
+        sdkCommands ??= new Set([
+          ...this.getExtensionCommands(runtimeTab.tab.sessionId).map((entry) => entry.name),
+          ...runtimeTab.agentSession.promptTemplates.map((entry) => entry.name),
+        ]);
+        command = commandName.startsWith("skill:") || sdkCommands.has(commandName);
+      }
+      return { text, kind, ...(command ? { command: true } : {}) };
+    });
+    // Avoid a spread argument limit for large script-generated sequences.
+    for (const entry of entries) runtimeTab.tab.followUpQueue.push(entry);
+    syncFollowUpPreview(runtimeTab);
+    this.emitChange({ type: "extension_ui_update" }, runtimeTab);
+  }
+
+  /** Interactive single submissions await idle execution; batch sequences only enqueue. */
+  private async startFollowUpDrain(runtimeTab: RuntimeTab, waitWhenIdle: boolean): Promise<void> {
+    const alreadyDraining = runtimeTab.followUpDrain !== undefined;
+    const busy =
+      !runtimeTab.agentSession.isIdle || runtimeTab.compactionInFlight || alreadyDraining;
+    const drain = this.drainFollowUps(runtimeTab);
+    if (waitWhenIdle && !busy) await drain;
+    else if (!alreadyDraining) {
+      void drain.catch((error: unknown) =>
+        this.reportPendingMessageFlushError(runtimeTab.tab.sessionId, error),
+      );
+    }
+  }
+
   private async sendIdlePrompt(
     runtimeTab: RuntimeTab,
     text: string,
@@ -1048,13 +1086,7 @@ export class MixCodeRuntime {
     runtimeTab.tab.followUpQueue.push(entry);
     syncFollowUpPreview(runtimeTab);
     this.emitChange({ type: "extension_ui_update" }, runtimeTab);
-    const alreadyDraining = runtimeTab.followUpDrain !== undefined;
-    const busy =
-      !runtimeTab.agentSession.isIdle || runtimeTab.compactionInFlight || alreadyDraining;
-    const drain = this.drainFollowUps(runtimeTab);
-    if (!busy) await drain;
-    else if (!alreadyDraining)
-      void drain.catch((error: unknown) => this.reportPendingMessageFlushError(sessionId, error));
+    await this.startFollowUpDrain(runtimeTab, true);
   }
 
   async resumeFollowUps(sessionId: string): Promise<void> {

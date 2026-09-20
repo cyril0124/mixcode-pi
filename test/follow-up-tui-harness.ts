@@ -4,7 +4,8 @@
  *
  * Env:
  *   MIXCODE_FOLLOWUP_HARNESS_DIR  - workdir/sessions root
- *   MIXCODE_FOLLOWUP_MARKER       - file written when dual queues are ready
+ *   MIXCODE_FOLLOWUP_MARKER       - file written when the scenario is ready
+ *   MIXCODE_FOLLOWUP_BATCH        - leave input queues empty for interactive /batch testing
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -16,6 +17,7 @@ import {
   type SimpleStreamOptions,
   type ToolCall,
 } from "@earendil-works/pi-ai";
+import { SettingsManager } from "@earendil-works/pi-coding-agent";
 import {
   MIXCODE_FAUX_MODEL,
   MixCodeRuntime,
@@ -27,6 +29,7 @@ import {
 
 const root = process.env.MIXCODE_FOLLOWUP_HARNESS_DIR;
 const marker = process.env.MIXCODE_FOLLOWUP_MARKER;
+const batchScenario = process.env.MIXCODE_FOLLOWUP_BATCH === "1";
 if (!root || !marker) {
   console.error("MIXCODE_FOLLOWUP_HARNESS_DIR and MIXCODE_FOLLOWUP_MARKER are required");
   process.exit(2);
@@ -140,6 +143,8 @@ const model: MixCodeModel = {
 };
 
 const runtime = new MixCodeRuntime({
+  agentDir: path.join(root, "agent"),
+  settingsManager: SettingsManager.inMemory({ packages: [] }),
   sessionsRoot: path.join(root, "sessions"),
   streamFn: (_m, context, options) => {
     modelUserMessages = userMessages(context);
@@ -196,14 +201,16 @@ void (async () => {
   await Bun.sleep(400);
   void runtime.prompt("s1", "do work");
   await toolRunning;
-  await runtime.prompt("s1", "steer now");
-  await runtime.prompt("s1", "follow later", { streamingBehavior: "followUp" });
+  if (!batchScenario) {
+    await runtime.prompt("s1", "steer now");
+    await runtime.prompt("s1", "follow later", { streamingBehavior: "followUp" });
+  }
 
-  // Wait until UI state has both queues.
+  // Batch verification submits its script through the real editor after startup.
   for (let i = 0; i < 100; i++) {
     if (
-      tab.pendingMessages.includes("steer now") &&
-      tab.pendingFollowUps.includes("follow later")
+      batchScenario ||
+      (tab.pendingMessages.includes("steer now") && tab.pendingFollowUps.includes("follow later"))
     ) {
       tui.requestRender();
       fs.writeFileSync(

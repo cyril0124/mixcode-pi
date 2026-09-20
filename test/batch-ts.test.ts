@@ -204,6 +204,87 @@ for (const extension of ["lua", "ts"]) {
   });
 }
 
+test("Lua and TS collect exclusive prompt sequences and preview every round", async () => {
+  const prompts = ["first task", "/skill:review keep  spacing\nnext line", "/unknown"];
+  const ts = await withScript(
+    "sequence.ts",
+    `export default api => api.openTab({ name: "sequence", prompts: ${JSON.stringify(prompts)} });`,
+    (file) => loadBatchRequests(file),
+  );
+  const lua = await withScript(
+    "sequence.lua",
+    'mixcode.open_tab({name="sequence", prompts={"first task", [[/skill:review keep  spacing\nnext line]], "/unknown"}})',
+    (file) => loadBatchRequests(file),
+  );
+  assert.deepEqual(ts, lua);
+  assert.deepEqual(ts.requests[0]!.prompts, prompts);
+  assert.match(formatBatchPlan(ts), /prompts: 3 exclusive round\(s\)/);
+  for (const [index, prompt] of prompts.entries()) {
+    assert.ok(formatBatchPlan(ts).includes(`${index + 1}. ${prompt}`));
+  }
+});
+
+for (const extension of ["ts", "lua"]) {
+  test(`${extension} rejects malformed prompt sequences before collecting a plan`, async () => {
+    const invalid =
+      extension === "ts"
+        ? [
+            'prompts: "text"',
+            "prompts: []",
+            'prompts: ["valid", 42]',
+            'prompts: ["valid", "  "]',
+            'prompts: ["valid", , "last"]',
+            'prompt: "first", prompts: ["second"]',
+            'prompts: ["valid", null]',
+            'prompts: ["valid", " !echo forbidden"]',
+            'prompts: ["!!echo forbidden"]',
+          ]
+        : [
+            'prompts="text"',
+            "prompts={}",
+            'prompts={"valid", 42}',
+            'prompts={"valid", "  "}',
+            'prompts={[1]="first", [3]="last"}',
+            'prompts={[1]="first", extra="last"}',
+            'prompts={[0]="first"}',
+            'prompt="first", prompts={"second"}',
+            'prompts={"valid", false}',
+            'prompts={"valid", " !echo forbidden"}',
+            'prompts={"!!echo forbidden"}',
+          ];
+    for (const fields of invalid) {
+      const source =
+        extension === "ts"
+          ? `export default api => api.openTab({name:"bad-sequence", ${fields}});`
+          : `mixcode.open_tab({name="bad-sequence", ${fields}})`;
+      await withScript(`invalid.${extension}`, source, async (file) => {
+        await assert.rejects(loadBatchRequests(file), (error: unknown) => {
+          assert.ok(error instanceof Error);
+          assert.ok(error.message.includes(file), error.message);
+          assert.match(error.message, /Error:.*prompts.*bad-sequence/);
+          return true;
+        });
+      });
+    }
+  });
+}
+
+test("TS snapshots the prompts array and treats nullish sequences as omitted", async () => {
+  const plan = await withScript(
+    "snapshot.ts",
+    `export default api => {
+      const prompts = ["original"];
+      api.openTab({name: "snapshot", prompts});
+      prompts[0] = "changed";
+      api.openTab({name: "none", prompt: "single", prompts: null});
+    };`,
+    (file) => loadBatchRequests(file),
+  );
+  assert.deepEqual(plan.requests[0]!.prompts, ["original"]);
+  assert.equal(plan.requests[1]!.prompts, undefined);
+  assert.equal(plan.requests[1]!.prompt, "single");
+});
+
 test("loadBatchRequests awaits async .ts scripts", async () => {
   const plan = await withScript(
     "async.ts",

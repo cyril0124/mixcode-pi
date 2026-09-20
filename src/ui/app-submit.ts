@@ -91,7 +91,7 @@ export async function handleSubmittedInput(
       settingsDeps,
       editorActions,
       queuedCommand,
-      submitQueuedInput: (queuedText) =>
+      submitQueuedInput: (queuedText, target = active) =>
         handleSubmittedInput(
           state,
           runtime,
@@ -100,7 +100,7 @@ export async function handleSubmittedInput(
           onStateChanged,
           authInputHost,
           workspaceFile,
-          active,
+          target,
           settingsDeps,
           editorActions,
           true,

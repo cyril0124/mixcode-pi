@@ -1,4 +1,5 @@
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
+import type { FollowUpInput } from "../agent/runtime-follow-up-queue.js";
 import type { MixCodeRuntime } from "../agent/runtime.js";
 import type { BatchExecutorHost, BatchTabRequest } from "../core/batch-lua.js";
 import { applyContextLimitToSession } from "../core/context-limit.js";
@@ -25,6 +26,8 @@ export function createBatchExecutorHost(options: {
   runtime: MixCodeRuntime;
   tui: Pick<OverlayTui, "requestRender">;
   onStateChanged?: (state: MixCodeState) => void | Promise<void>;
+  /** Dispatch a queued local command on its owner, including confirmation and persistence. */
+  submitQueuedInput?: (sessionId: string, text: string) => Promise<void>;
 }): BatchExecutorHost {
   const { state, runtime, tui, onStateChanged } = options;
   const persist = async () => {
@@ -112,6 +115,22 @@ export function createBatchExecutorHost(options: {
           if (onStateChanged) await persist();
         },
       );
+    },
+    async queuePrompts(sessionId, prompts) {
+      const tab = state.tabs.find((item) => item.sessionId === sessionId);
+      if (!tab) throw new Error(`Cannot submit to unknown tab: ${sessionId}`);
+      const inputs: FollowUpInput[] = prompts.map((text) => {
+        if (parseInput(text).kind !== "local-command") {
+          assertModelEnabled(tab.model);
+          return text;
+        }
+        const submit = options.submitQueuedInput;
+        if (!submit) throw new Error("Error: Batch queued commands require an input host");
+        return { text, execute: () => submit(sessionId, text) };
+      });
+      runtime.queueFollowUpNextPrompts(sessionId, inputs);
+      // Rendering and persistence acknowledge enqueue, not later model completion.
+      await persist();
     },
     resolveModel(query) {
       const model = findModelRef(state.availableModels, query);

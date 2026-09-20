@@ -9,7 +9,12 @@ import type {
   BatchTabRequest,
 } from "./batch-lua.js";
 import { resolveBatchModel } from "./batch-models.js";
-import { parseBatchContextLimit, renderTemplate, resolveBatchScriptDir } from "./batch-lua.js";
+import {
+  parseBatchContextLimit,
+  parseBatchPrompts,
+  renderTemplate,
+  resolveBatchScriptDir,
+} from "./batch-lua.js";
 
 /**
  * TypeScript mirror of the Lua `mixcode` global table. Fields are camelCase
@@ -24,6 +29,8 @@ export interface MixCodeBatchOpenTabOptions {
   name: string;
   /** Shares the prompt dispatch contract of BatchTabRequest.prompt. */
   prompt?: string;
+  /** Exclusive user follow-up rounds; mutually exclusive with prompt. Returns after enqueue. */
+  prompts?: string[];
   workdir?: string;
   model?: string;
   thinking?: ThinkingLevel;
@@ -127,6 +134,7 @@ async function withScriptPath<T>(scriptPath: string, action: () => Promise<T> | 
 const OPEN_TAB_FIELDS = [
   "name",
   "prompt",
+  "prompts",
   "workdir",
   "model",
   "thinking",
@@ -160,8 +168,10 @@ function toTabRequest(options: MixCodeBatchOpenTabOptions, scriptPath: string): 
     throw new Error(`mixcode.openTab: 'name' must be a non-empty string (${scriptPath})`);
   }
   const contextLimit = parseBatchContextLimit(options.contextLimit, name);
+  const prompts = parseBatchPrompts(options.prompts, options.prompt, name);
   return {
     name,
+    ...(prompts !== undefined ? { prompts } : {}),
     ...(contextLimit !== undefined ? { contextLimit } : {}),
     prompt: optionalString(options.prompt, "prompt", name, scriptPath),
     workdir: optionalString(options.workdir, "workdir", name, scriptPath),

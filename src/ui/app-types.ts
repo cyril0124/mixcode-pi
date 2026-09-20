@@ -30,8 +30,8 @@ export interface LocalCommandContext {
   args: string;
   /** Argument text with quotes and internal whitespace preserved. */
   rawArgs: string;
-  /** Execute deferred input through the original host, pinned to its owning tab. */
-  submitQueuedInput?: (text: string) => Promise<void>;
+  /** Execute deferred input through this host, pinned to the supplied tab or original owner. */
+  submitQueuedInput?: (text: string, target?: MixCodeTabInfo) => Promise<void>;
   /** Deferred commands wait for confirmation and its asynchronous action. */
   queuedCommand?: boolean;
   tui: OverlayTui;
@@ -69,6 +69,8 @@ export interface TreeSelectorDisplayHost {
 
 export type OverlayTui = Pick<TuiType, "requestRender" | "showOverlay"> &
   Partial<Pick<TuiType, "hideOverlay" | "hasOverlay" | "setFocus" | "start" | "stop">> & {
+    /** Full TUI hosts dispatch deferred commands with tab-scoped editor and dialog services. */
+    submitQueuedInput?: (sessionId: string, text: string) => Promise<void>;
     treeSelectorDisplay?: TreeSelectorDisplayHost;
     /**
      * Renderer-only terminal handoff for external processes (e.g. $EDITOR).

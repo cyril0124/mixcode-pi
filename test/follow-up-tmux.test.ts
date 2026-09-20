@@ -251,6 +251,84 @@ test("tmux TUI edits dual queues and resumes paused follow-up rounds in order", 
   }
 });
 
+test("tmux /batch displays exclusive rounds and resumes them after Esc", {
+  skip:
+    process.env.MIXCODE_RUN_TMUX_FOLLOWUP !== "1"
+      ? "set MIXCODE_RUN_TMUX_FOLLOWUP=1 to run real tmux batch queue smoke"
+      : false,
+}, async () => {
+  const tmux = await resolveTmux();
+  const repo = path.resolve(".");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-batch-tmux-"));
+  const label = `mixcode-batch-${process.pid}-${Date.now()}`;
+  const session = "batch";
+  const marker = path.join(dir, "ready.json");
+  try {
+    const harness = path.resolve(repo, "test/follow-up-tui-harness.ts");
+    const command = [
+      "MIXCODE_FOLLOWUP_BATCH=1",
+      `MIXCODE_FOLLOWUP_HARNESS_DIR=${shellQuote(dir)}`,
+      `MIXCODE_FOLLOWUP_MARKER=${shellQuote(marker)}`,
+      `bun ${shellQuote(harness)}`,
+    ].join(" ");
+    await tmuxRun(tmux, label, [
+      "new-session",
+      "-d",
+      "-s",
+      session,
+      "-x",
+      "140",
+      "-y",
+      "40",
+      "-c",
+      repo,
+      command,
+    ]);
+    await waitForPane(tmux, label, session, (plain) => /do work/.test(plain), 25_000);
+    const script = path.join(dir, "sequence.ts");
+    await Bun.write(
+      script,
+      'export default api => api.openTab({name:"Agent-01", prompts:["batch second", "batch last"]});',
+    );
+    await submitText(tmux, label, session, `/batch ${script}`);
+    const queued = await waitForPane(tmux, label, session, (plain) =>
+      /Follow-up \(2\)/.test(plain),
+    );
+    assert.match(queued.plain, /Round 1 · next · batch second/);
+    assert.match(queued.plain, /Round 2 · next · batch last/);
+    assert.doesNotMatch(queued.plain, /Steer \(/);
+    await tmuxRun(tmux, label, ["send-keys", "-t", session, "Escape"]);
+    await waitForPane(tmux, label, session, (plain) => /Esc again: stop/.test(plain));
+    await tmuxRun(tmux, label, ["send-keys", "-t", session, "Escape"]);
+    await waitForPane(tmux, label, session, (plain) =>
+      /Paused · \/follow-up-next to resume/.test(plain),
+    );
+    await Bun.write(path.join(dir, "release"), "1");
+    const paused = await waitForSnapshot(dir, (snapshot) => snapshot.isIdle);
+    assert.equal(paused.followUpsPaused, true);
+    assert.deepEqual(paused.pendingFollowUps, ["batch second", "batch last"]);
+    assert.deepEqual(paused.modelUserMessages, ["do work"]);
+    await submitText(tmux, label, session, "/follow-up-next");
+    const drained = await waitForSnapshot(
+      dir,
+      (snapshot) =>
+        snapshot.isIdle && !snapshot.followUpsPaused && snapshot.pendingFollowUps.length === 0,
+    );
+    assert.deepEqual(drained.modelUserMessages, ["do work", "batch second", "batch last"]);
+    await waitForPane(
+      tmux,
+      label,
+      session,
+      (plain) => /Echo: batch last/.test(plain) && !/Follow-up \(\d+\)/.test(plain),
+    );
+  } finally {
+    await tmuxRun(tmux, label, ["kill-session", "-t", session]).catch(() => undefined);
+    // This socket is private to the test; cleanup cannot affect other tmux sessions.
+    await tmuxRun(tmux, label, ["kill-server"]).catch(() => undefined);
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
 interface HarnessSnapshot {
   color?: string;
   isIdle: boolean;

@@ -501,7 +501,12 @@ export async function runInteractiveApp(args: MainArgs, selfRoot: string): Promi
     });
   // Execute batch script after TUI is ready
   if (args.batch && batchPlan) {
-    const batchHost = createBatchExecutorHost({ state, runtime, tui });
+    const batchHost = createBatchExecutorHost({
+      state,
+      runtime,
+      tui,
+      submitQueuedInput: (sessionId, text) => tui.submitQueuedInput(sessionId, text),
+    });
     void tabsReady
       .then(() => applyBatchRequests(batchPlan.requests, batchHost))
       .catch((error: unknown) => {

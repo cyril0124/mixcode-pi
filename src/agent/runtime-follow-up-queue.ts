@@ -2,6 +2,9 @@ import type { RuntimeTab } from "./runtime-types.js";
 
 type FollowUpEntry = RuntimeTab["tab"]["followUpQueue"][number];
 
+/** Text enters Pi's prompt pipeline; command callbacks execute through their owning UI host. */
+export type FollowUpInput = string | { text: string; execute: () => Promise<void> };
+
 // Execution belongs to the live host, never to serialized tab state. Weak keys
 // release command closures when entries are consumed, popped, or discarded.
 const commandExecutors = new WeakMap<FollowUpEntry, () => Promise<void>>();

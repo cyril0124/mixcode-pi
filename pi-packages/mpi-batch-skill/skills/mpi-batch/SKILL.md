@@ -12,8 +12,8 @@ With no task or script attached, ask what tabs and prompts the user wants. Defau
 
 1. Identify the script path, execution entry point, invocation directory, tab names, workdirs, and prompts. Read existing scripts before editing and preserve their language. Use Lua for new scripts when the user does not specify a language. Read the matching API reference below before writing requests. Use absolute paths when directories differ; files stored beside the script are reached through `scriptDir()` / `script_dir()`, not the invocation directory.
 2. Use distinct tab names for independent work. For existing tabs, default to `append`; obtain authorization before clearing or deleting sessions. Leave model, thinking, and context limit unset unless requested. Choose explicit models from `mpi --list-models --json` or the script API's model snapshot.
-3. Write the tab requests using the API reference. Use `mode="clear"` to start a new conversation in the same named tab while retaining its session and tree history. To change `system_prompt` / `systemPrompt`, use a new tab or `mode="delete"`; combining it with `clear` fails before any tab changes, even without a matching tab. Keep script evaluation limited to collecting requests and reading necessary inputs. Before running an existing script, inspect its imports and side effects; dry-run executes them too.
-4. Run CLI dry-run from the intended invocation directory. Require exit code zero and check that the printed requests match the intended titles, prompts, workdirs, models, thinking levels, context limits, and modes. Check normalized `context_limit=32000` or `context_limit=reset` when supplied. Correct failures before execution. Dry-run uses startup settings, not the current TUI snapshot. If `mpi` is unavailable, report that validation could not run.
+3. Write the tab requests using the API reference. Use `prompts` for sequential exclusive rounds in one tab; read [prompt sequences](#prompt-sequences) before using it. Use `mode="clear"` to start a new conversation in the same named tab while retaining its session and tree history. To change `system_prompt` / `systemPrompt`, use a new tab or `mode="delete"`; combining it with `clear` fails before any tab changes, even without a matching tab. Keep script evaluation limited to collecting requests and reading necessary inputs. Before running an existing script, inspect its imports and side effects; dry-run executes them too.
+4. Run CLI dry-run from the intended invocation directory. Require exit code zero and check that the printed requests match the intended titles, prompts, workdirs, models, thinking levels, context limits, and modes. Check normalized `context_limit=32000` or `context_limit=reset` when supplied. For `prompts`, check `prompts: N exclusive round(s)` and every numbered entry. Correct failures before execution. Dry-run uses startup settings, not the current TUI snapshot. If `mpi` is unavailable, report that validation could not run.
 5. Return the script's absolute path, dry-run result, and execution command. When execution is requested in the current TUI, use `/batch` there. For a new instance, launch in an isolated tmux session, capture its screen, and provide the attach command. Report tab dispatch separately from completed agent work.
 
 ## API references
@@ -36,6 +36,42 @@ local model = mixcode.resolve_model("claude-sonnet-4-5")
 ```
 
 Pass the result as the tab's `model`. Check the selected provider in dry-run output. Use a full `provider/modelId` when the provider must be fixed; see the API reference for selection rules and errors.
+
+## Prompt sequences
+
+Use `prompts` to queue ordered prompts and local commands in one tab:
+
+```ts
+mixcode.openTab({
+  name: "review-sequence",
+  prompts: [
+    "/color red",
+    "Review the current branch for correctness issues. Do not edit.",
+    "Summarize the findings from the previous round.",
+  ],
+});
+```
+
+```lua
+mixcode.open_tab({
+  name = "review-sequence",
+  prompts = {
+    "/color red",
+    "Review the current branch for correctness issues. Do not edit.",
+    "Summarize the findings from the previous round.",
+  },
+})
+```
+
+`prompt` and `prompts` are mutually exclusive when defined. TS/JS `null` or `undefined` and Lua `nil` mean omitted. `prompts` must be a nonempty array without gaps, and each string must contain non-whitespace text. Dry-run shows the original text; execution trims leading and trailing whitespace. Validation rejects `!` / `!!` shell input before changing any tabs. Sequences support MixCode local commands, skills, named templates, extension commands, unknown slash input, and absolute paths.
+
+Local commands execute separately on the owning tab and are not sent to the model. Commands that require confirmation still prompt for it. If a confirmation is cancelled or a command throws, the queue pauses; resuming skips that command. Closing or resetting the conversation discards pending tasks. Some selector commands return as soon as the selector opens. Later steps can then run before a selection is made.
+
+The script API collects requests. When MixCode applies a request, it appends the entire sequence after pending user follow-ups. Each prompt waits for the previous agent run to finish, including its tool calls. Commands use the completion rules above. Submission returns after enqueueing. Report the tasks as queued; their execution continues in the background. Later queue failures appear in the target tab without setting the startup exit code to 1.
+
+Adding a sequence leaves a paused queue paused. Final agent failure or aborting with `Esc` pauses remaining rounds; `/follow-up-next` without text resumes them. An accepted failed round is not retried automatically. Pending tasks are lost on restart.
+
+Model, thinking, and context limit apply before enqueueing. Later rounds use the session's current configuration; entries have no individual overrides. Distinct tabs run in parallel, and requests for the same title apply in order. A subsequent `prompt` can steer an active round; later configuration changes can affect pending rounds.
 
 ## Context limits
 
@@ -90,7 +126,7 @@ tmux -L <unique-socket> capture-pane -p -t batch
 tmux -L <unique-socket> attach-session -t batch
 ```
 
-A successful dry-run prints `Batch dry-run: N request(s)` followed by each request's options and prompt. An omitted prompt is shown as `prompt: (none)`. Dry-run executes script code but does not apply the plan or write batch sessions. It is not a sandbox and does not prove authentication or prompt dispatch will succeed.
+A successful dry-run prints `Batch dry-run: N request(s)` followed by each request's options and prompt. When both `prompt` and `prompts` are omitted, the output shows `prompt: (none)`. Sequences print `prompts: N exclusive round(s)` followed by numbered lines such as `     1. TEXT`. Dry-run executes script code but does not apply the plan or write batch sessions. It is not a sandbox and does not prove authentication or prompt dispatch will succeed.
 
 ## Script examples
 
@@ -134,11 +170,11 @@ This resets without sending a prompt; add `prompt` to submit the next task. Batc
 
 Batch collects requests, validates them, then applies the plan. It cannot wait for agent results or branch on responses. Introspection reads the invocation snapshot. Tab creation and resets run serially. Prompt dispatch runs in parallel across distinct titles and serially within each title. There is no dependency graph or configurable concurrency limit.
 
-Batch `clear` resets to the session root and keeps focus unchanged; it rejects streaming or running bash. `append` prompts during streaming use steering. New tabs, including `delete` replacements, take focus. In the current TUI, a target marked `Not Ready` fails before any requests are applied with `Error: Batch tab is still loading: <name>`.
+Batch `clear` resets to the session root and keeps focus unchanged; it rejects streaming or running bash. `append` with a single `prompt` during streaming uses steering. New tabs, including `delete` replacements, take focus. In the current TUI, a target marked `Not Ready` fails before any requests are applied with `Error: Batch tab is still loading: <name>`.
 
 For repeated requests with the same title, the first request controls creation, clearing, or deletion. Later requests configure model/thinking, apply context limits, and submit optional prompts in that order; they are not additional reset steps. Put creation options on the first request.
 
-Prompts support plain text, skills, prompt templates, extension commands, and `!shell` / `!!shell`. Batch rejects registered MixCode local commands, including `/batch`, during prompt dispatch. Other slash input and paths pass unchanged to Pi; unmatched input, including absolute paths and `/unknown`, becomes message text.
+A single `prompt` supports plain text, skills, prompt templates, extension commands, and `!shell` / `!!shell`. Registered MixCode local commands, including `/batch`, are rejected in `prompt`; use `prompts` to queue them. Other slash input and paths pass unchanged to Pi; unmatched input, including absolute paths and `/unknown`, becomes message text.
 
 Script syntax and runtime errors identify the script path. Invalid tab options fail validation. JS scripts also reject missing or non-function default exports and unknown option names, including the Lua spelling `system_prompt`.
 

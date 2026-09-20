@@ -86,6 +86,8 @@ export interface MixCodeTuiOptions {
 }
 export type MixCodeTui = TuiType & {
   injectInput(data: string): void;
+  /** Execute a deferred command on its owning tab with editor/dialog services and confirmation. */
+  submitQueuedInput(sessionId: string, text: string): Promise<void>;
   /** Renderer-only terminal handoff (see OverlayTui.pause/resume). */
   pause(): void;
   resume(): void;
@@ -194,6 +196,30 @@ export function createMixCodeTui(
   );
   const editor = new EditorSlot(tui, defaultEditor, state);
   editorSlot = editor;
+  tui.submitQueuedInput = async (sessionId, text) => {
+    const target = state.tabs.find((tab) => tab.sessionId === sessionId);
+    if (!target) throw new Error(`Error: Queued command tab is closed: ${sessionId}`);
+    await handleSubmittedInput(
+      state,
+      runtime,
+      text,
+      tui,
+      options.onStateChanged,
+      {
+        setInputComponent: (component, owner) => editor.setInputComponent(component, owner),
+        clearInputComponent: (owner) => editor.clearInputComponent(owner),
+        requestRender: () => tui.requestRender(),
+      },
+      options.workspaceFile,
+      target,
+      options.settingsDeps,
+      {
+        getText: () => editor.getText(sessionId),
+        setText: (value) => editor.setText(value, sessionId),
+      },
+      true,
+    );
+  };
   attachTreeSelectorDisplayHost(
     tui,
     state,

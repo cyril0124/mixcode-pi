@@ -8,7 +8,8 @@ mixcode = {}
 
 ---@class mixcode.OpenTabOptions
 ---@field name string Tab title (used for matching existing tabs)
----@field prompt? string Prompt to submit; omit to create/reuse/clear/delete without submitting. Supports skills, templates, extension commands, and !shell / !!shell. Registered MixCode local commands, including /batch, fail at dispatch. Other slash input and paths pass unchanged to Pi; unmatched input becomes message text.
+---@field prompt? string One input to submit; mutually exclusive with prompts when defined; nil means omitted. Omit both fields to operate without input. Supports skills, templates, extension commands, and !shell / !!shell. Registered MixCode local commands, including /batch, fail at dispatch. Other slash input and paths pass unchanged to Pi; unmatched input becomes message text.
+---@field prompts? string[] Nonempty dense array of non-whitespace prompts or local commands; mutually exclusive with prompt; nil means omitted. Apply queues exclusive follow-up rounds and returns without waiting for model completion. See open_tab for validation and ../SKILL.md#prompt-sequences for lifecycle.
 ---@field workdir? string New-tab directory; defaults and relative paths use current_workdir(). Reuse/clear keeps the existing directory
 ---@field model? string Model identifier from list_models().id; omitted means keep existing or use the instance default for a new tab
 ---@field thinking? "off"|"minimal"|"low"|"medium"|"high"|"xhigh"|"max" Supported thinking level; omitted means keep existing or use the instance default for a new tab
@@ -34,14 +35,21 @@ mixcode = {}
 
 ---Collect a tab request. MixCode applies it after the script finishes.
 ---If a tab with the same `name` already exists:
----  - mode="append" (default): continue the session; streaming prompts use steering
+---  - mode="append" (default): continue the session; a streaming `prompt` uses steering
 ---  - mode="clear": reset the branch to session root, then send prompt; keep title, session id/file, workdir, system prompt, and focus. History stays in /tree, outside the new context. No extension reload or service rebuild; rejected while streaming or bash is running.
 ---  - mode="delete": tab and its session file are deleted, then a brand-new tab is created
 ---If no matching tab exists, a new tab is created. New tabs and delete replacements take focus.
 ---Setup failures stop before prompt dispatch. During parallel dispatch, other
 ---groups continue after one fails. Applied changes remain in both cases.
 ---See ../SKILL.md#execution-and-errors for command errors and persistence.
----If `prompt` is omitted, the tab is created/reused/cleared/deleted without submitting input.
+---If both `prompt` and `prompts` are omitted, the tab is created/reused/cleared/deleted without submitting input.
+---Dry-run shows the original prompts text; execution trims leading and trailing whitespace.
+---Shell input (! / !!) in `prompts` fails preflight before tab mutations.
+---MixCode local commands run separately on the owning tab with their normal confirmations
+---and completion rules. If a confirmation is cancelled or a command throws, remaining tasks pause.
+---Skills, named templates, extension commands, unknown slash input, and paths work.
+---Apply appends the whole array synchronously behind existing follow-ups as exclusive rounds,
+---then returns without waiting for model completion. Enqueueing does not resume a paused queue.
 ---`system_prompt` replaces only the base identity line; tools/guidelines, APPEND_SYSTEM,
 ---project context (AGENTS.md), and skills remain. It is rejected when reusing an existing
 ---session with mode="append", or with mode="clear" even without a matching tab.
@@ -57,8 +65,10 @@ mixcode = {}
 ---Above-capacity values warn without expanding provider capacity.
 ---Invalid context_limit values fail before any tab changes with Error: and the tab name; the script loader adds the script path.
 ---
----Throws on a missing name, invalid option types or context_limit. Model, thinking,
----mode, and system_prompt validation happens after collection, before tab changes.
+---Throws on a missing name, invalid option types or context_limit, conflicting prompt/prompts,
+---or an invalid prompts array. Sequence input is validated during collection and again
+---before tab changes. Model, thinking, mode, and system_prompt validation happens
+---after collection, before tab changes.
 ---@param opts mixcode.OpenTabOptions
 function mixcode.open_tab(opts) end
 

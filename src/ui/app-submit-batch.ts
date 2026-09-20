@@ -16,6 +16,7 @@ const handleBatch: LocalCommandHandler = async ({
   rawArgs,
   tui,
   onStateChanged,
+  submitQueuedInput,
 }): Promise<typeof SKIP_FINALIZE> => {
   const persist = () => {
     const write = async () => {
@@ -44,7 +45,21 @@ const handleBatch: LocalCommandHandler = async ({
         throw new Error(`Error: Batch tab is still loading: ${request.name}`);
       }
     }
-    const host = createBatchExecutorHost({ state, runtime, tui, onStateChanged: persist });
+    const host = createBatchExecutorHost({
+      state,
+      runtime,
+      tui,
+      onStateChanged: persist,
+      submitQueuedInput: async (sessionId, text) => {
+        // The TUI scopes editor/dialog operations to the target even after focus changes.
+        if (tui.submitQueuedInput) return tui.submitQueuedInput(sessionId, text);
+        const target = state.tabs.find((tab) => tab.sessionId === sessionId);
+        if (!target) throw new Error(`Error: Batch command tab is closed: ${sessionId}`);
+        if (!submitQueuedInput)
+          throw new Error("Error: Batch queued commands require an input host");
+        await submitQueuedInput(text, target);
+      },
+    });
     await runBatchActionWithSave(
       () => applyBatchRequests(requests, host),
       async () => {

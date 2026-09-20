@@ -337,6 +337,9 @@ function createMockHost(
     async submitInput(sessionId, input) {
       inputs.push({ sessionId, input });
     },
+    async queuePrompts(sessionId, prompts) {
+      for (const input of prompts) inputs.push({ sessionId, input });
+    },
     resolveModel(query) {
       if (query === "unknown-model") throw new Error(`Unknown model: ${query}`);
       return {

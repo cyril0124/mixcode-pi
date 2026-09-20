@@ -1,6 +1,7 @@
 import * as path from "node:path";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { resolveBatchModel } from "./batch-models.js";
+import { parseInput } from "./commands.js";
 import { parseContextLimitValue } from "./context-limit.js";
 import { modelRefId } from "./models.js";
 import { isThinkingLevelAvailable, validThinkingLevelsMessage } from "./thinking-levels.js";
@@ -45,8 +46,10 @@ export interface BatchLuaContext {
 
 export interface BatchTabRequest {
   name: string;
-  /** Optional input for BatchExecutorHost.submitInput; omit to create/reuse/clear/delete only. */
+  /** Optional input for submitInput; omit both prompt fields to configure the tab only. */
   prompt?: string;
+  /** Exclusive user follow-up rounds; mutually exclusive with prompt. Returns after enqueue. */
+  prompts?: string[];
   workdir?: string;
   model?: string;
   thinking?: string;
@@ -90,6 +93,8 @@ export interface BatchExecutorHost {
    * prompt pipeline, where unmatched slash input (including paths) becomes message text.
    */
   submitInput(sessionId: string, input: string): Promise<void>;
+  /** Append validated prompts and local commands as exclusive steps without awaiting execution. */
+  queuePrompts(sessionId: string, prompts: readonly string[]): Promise<void>;
   resolveModel(query: string): MixCodeModelRef;
 }
 
@@ -192,8 +197,11 @@ export async function runLuaScript(
     lua.lua_pop(L, 1);
 
     let contextLimit: BatchTabRequest["contextLimit"];
+    let prompts: string[] | undefined;
     try {
       contextLimit = parseBatchContextLimit(rawLimit, name);
+      const rawPrompts = getPromptsField(L, name, lua, to_luastring, to_jsstring);
+      prompts = parseBatchPrompts(rawPrompts, prompt, name);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return lauxlib.luaL_error(L, to_luastring("%s"), to_luastring(message));
@@ -202,6 +210,7 @@ export async function runLuaScript(
     requests.push({
       name,
       prompt,
+      ...(prompts !== undefined ? { prompts } : {}),
       workdir,
       model,
       thinking,
@@ -315,6 +324,40 @@ export async function runLuaScript(
 }
 
 /**
+ * Snapshot and validate a script's prompt sequence before any tab mutation.
+ * Nullish values mean omitted. Requires a nonempty array without gaps, containing
+ * non-whitespace strings. Rejects shell input and simultaneous prompt/prompts fields.
+ */
+export function parseBatchPrompts(
+  input: unknown,
+  prompt: unknown,
+  tabName: string,
+): string[] | undefined {
+  if (input === undefined || input === null) return undefined;
+  const invalid = (detail: string) =>
+    new Error(`Error: Invalid prompts for tab '${tabName}': ${detail}`);
+  if (prompt !== undefined && prompt !== null) {
+    throw invalid("prompt and prompts are mutually exclusive");
+  }
+  if (!Array.isArray(input) || input.length === 0) {
+    throw invalid("expected a non-empty array of strings");
+  }
+  const prompts: string[] = [];
+  for (let index = 0; index < input.length; index++) {
+    const text: unknown = input[index];
+    if (typeof text !== "string" || !text.trim()) {
+      throw invalid(`entry ${index + 1} must be a non-empty string`);
+    }
+    const parsed = parseInput(text);
+    if (parsed.kind === "shell") {
+      throw invalid(`entry ${index + 1} cannot execute !shell or !!shell`);
+    }
+    prompts.push(text);
+  }
+  return prompts;
+}
+
+/**
  * Normalize an external Lua/JS context limit. Nullish values mean omitted;
  * strings use /context-limit syntax, while numbers must be positive safe integers.
  * Throws with the tab name on unsupported types or out-of-range token counts.
@@ -333,12 +376,7 @@ export function parseBatchContextLimit(
   );
 }
 
-/**
- * Apply collected batch requests to the host.
- * For each request: reuse existing tab (by exact title match) or create new.
- * Different tabs run in parallel; requests for the same tab run sequentially.
- * Throws on first failure (tab not found, model unknown, etc.).
- */
+/** Validate all tab options and prompt sequences before the host mutates any sessions. */
 export function validateBatchRequests(
   requests: BatchTabRequest[],
   resolveModel: (query: string) => MixCodeModelRef,
@@ -348,6 +386,7 @@ export function validateBatchRequests(
   const effectiveModels = new Map<string, MixCodeModelRef>();
   for (const request of requests) {
     // Also guard plans supplied directly by callers before any session mutation.
+    parseBatchPrompts(request.prompts, request.prompt, request.name);
     parseBatchContextLimit(request.contextLimit, request.name);
     if (request.mode === "clear" && request.systemPrompt !== undefined) {
       throw new Error(
@@ -406,6 +445,12 @@ export function validateSystemPromptRequests(
   }
 }
 
+/**
+ * Create/reuse tabs by exact title, then apply each tab's requests in order.
+ * Distinct tab groups run concurrently. Sequence submission waits only for enqueue;
+ * ordinary input keeps the host's dispatch completion semantics. Setup failures stop
+ * dispatch; a failed group leaves the other groups running and applied changes intact.
+ */
 export async function applyBatchRequests(
   requests: BatchTabRequest[],
   host: BatchExecutorHost,
@@ -474,6 +519,7 @@ export async function applyBatchRequests(
         if (model || thinking || contextLimit !== undefined) {
           await host.configureTab(sessionId, { model, thinking, contextLimit });
         }
+        if (request.prompts !== undefined) await host.queuePrompts(sessionId, request.prompts);
         if (request.prompt !== undefined) await host.submitInput(sessionId, request.prompt);
       }
     }),
@@ -492,7 +538,12 @@ export function formatBatchPlan(plan: BatchPlan): string {
     if (req.workdir) parts.push(`workdir=${req.workdir}`);
     if (req.systemPrompt) parts.push("system_prompt=yes");
     lines.push(parts.join(" "));
-    lines.push(req.prompt === undefined ? "   prompt: (none)" : `   prompt: ${req.prompt}`);
+    if (req.prompts !== undefined) {
+      lines.push(`   prompts: ${req.prompts.length} exclusive round(s)`);
+      req.prompts.forEach((prompt, index) => lines.push(`     ${index + 1}. ${prompt}`));
+    } else {
+      lines.push(req.prompt === undefined ? "   prompt: (none)" : `   prompt: ${req.prompt}`);
+    }
   });
   return lines.join("\n");
 }
@@ -557,6 +608,48 @@ export function contextFromState(state: MixCodeState): BatchLuaContext {
       reasoning: Boolean(model.reasoning),
     })),
   };
+}
+
+/** Read only a dense, 1-indexed Lua array; never coerce numbers into prompt text. */
+function getPromptsField(
+  L: any,
+  tabName: string,
+  lua: any,
+  to_luastring: (s: string) => Uint8Array,
+  to_jsstring: (s: Uint8Array) => string,
+): unknown {
+  lua.lua_getfield(L, 1, to_luastring("prompts"));
+  try {
+    if (lua.lua_isnil(L, -1)) return undefined;
+    if (!lua.lua_istable(L, -1)) return false;
+    const tableIndex = lua.lua_gettop(L);
+    const length = lua.lua_rawlen(L, tableIndex);
+    let count = 0;
+    lua.lua_pushnil(L);
+    while (lua.lua_next(L, tableIndex) !== 0) {
+      const index = lua.lua_tointeger(L, -2);
+      if (!lua.lua_isinteger(L, -2) || index < 1 || index > length) {
+        throw new Error(`Error: Invalid prompts for tab '${tabName}': expected a dense array`);
+      }
+      count++;
+      lua.lua_pop(L, 1);
+    }
+    if (count !== length) {
+      throw new Error(`Error: Invalid prompts for tab '${tabName}': expected a dense array`);
+    }
+    const prompts: unknown[] = [];
+    for (let index = 1; index <= length; index++) {
+      lua.lua_rawgeti(L, tableIndex, index);
+      prompts.push(
+        lua.lua_type(L, -1) === lua.LUA_TSTRING ? to_jsstring(lua.lua_tostring(L, -1)) : undefined,
+      );
+      lua.lua_pop(L, 1);
+    }
+    return prompts;
+  } finally {
+    // Restore the open_tab argument stack even when validation rejects a key.
+    lua.lua_settop(L, 1);
+  }
 }
 
 // Helper to read a string field from a Lua table at the given stack index

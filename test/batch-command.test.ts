@@ -13,6 +13,7 @@ import { modelToRef } from "../src/core/models.js";
 import { configureOpenTabsPath, readOpenTabs } from "../src/core/open-tabs-store.js";
 import { loadStateFile, saveStateFile } from "../src/core/state-store.js";
 import { HOME_TAB_ID, type MixCodeState } from "../src/core/types.js";
+import { dispatchOwnedOverlayKey } from "../src/ui/app-key-handlers.js";
 import { handleSubmittedInput } from "../src/ui/app-submit.js";
 import { bindRuntimeRendering } from "../src/ui/app-runtime.js";
 import { testTui } from "./helpers/tui.js";
@@ -303,6 +304,207 @@ test("/batch preserves unknown slash text and shell input while refusing nested 
       /Error:.*Batch prompt cannot execute.*\/batch/,
     );
     assert.deepEqual(userTexts(runtime, id), ["/unknown first\n  second", "/tmp/a path"]);
+  });
+});
+
+test("/batch queues complete sequences across tabs without waiting for their execution", async () => {
+  const started = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  const entered: string[] = [];
+  await withRuntime(
+    async ({ root, state, runtime, submit, stateFile }) => {
+      const finished = Promise.withResolvers<void>();
+      const off = runtime.onChange((event) => {
+        if (event.type !== "agent_settled") return;
+        if (
+          ["one", "two"].every((name) => {
+            const tab = state.tabs.find((tab) => tab.title === name);
+            return tab && userTexts(runtime, tab.sessionId).at(-1) === `${name} done`;
+          })
+        )
+          finished.resolve();
+      });
+      try {
+        await Bun.write(
+          path.join(root, "sequence.ts"),
+          `export default api => {
+          for (const name of ["one", "two"]) {
+            api.openTab({name, prompts: ["/hold-sequence " + name, name + " done"]});
+          }
+        };`,
+        );
+        await submit("/batch sequence.ts");
+        await started.promise;
+        assert.deepEqual(entered.toSorted(), ["one", "two"]);
+        for (const tab of state.tabs) {
+          assert.deepEqual(tab.pendingFollowUps, [`${tab.title} done`]);
+          assert.deepEqual(tab.pendingMessages, []);
+          assert.deepEqual(userTexts(runtime, tab.sessionId), []);
+        }
+        assert.deepEqual(
+          (await loadStateFile(stateFile, root)).tabs.map((tab) => tab.title),
+          ["one", "two"],
+        );
+        release.resolve();
+        await finished.promise;
+        for (const tab of state.tabs) {
+          assert.deepEqual(userTexts(runtime, tab.sessionId), [`${tab.title} done`]);
+        }
+      } finally {
+        release.resolve();
+        off();
+      }
+    },
+    [
+      (pi) =>
+        pi.registerCommand("hold-sequence", {
+          handler: async (args) => {
+            entered.push(args);
+            if (entered.length === 2) started.resolve();
+            await release.promise;
+          },
+        }),
+    ],
+  );
+});
+
+for (const extension of ["ts", "lua"]) {
+  test(`/batch ${extension} rejects a later invalid sequence before any tab mutation`, async () => {
+    await withRuntime(async ({ root, state, runtime, submit }) => {
+      await Bun.write(
+        path.join(root, "create.ts"),
+        'export default api => api.openTab({name:"keep", prompt:"history"});',
+      );
+      await submit("/batch create.ts");
+      const sessionId = state.tabs[0]!.sessionId;
+      const source =
+        extension === "ts"
+          ? 'export default api => { api.openTab({name:"new"}); api.openTab({name:"keep", mode:"delete", prompts:["valid", "!echo invalid"]}); };'
+          : 'mixcode.open_tab({name="new"}); mixcode.open_tab({name="keep", mode="delete", prompts={"valid", "!echo invalid"}})';
+      await Bun.write(path.join(root, `invalid.${extension}`), source);
+      await assert.rejects(submit(`/batch invalid.${extension}`), /Error:.*prompts.*keep/);
+      assert.deepEqual(
+        state.tabs.map((tab) => tab.sessionId),
+        [sessionId],
+      );
+      assert.deepEqual(userTexts(runtime, sessionId), ["history"]);
+    });
+  });
+}
+
+test("/batch sequences execute local commands on their owning tab between prompt rounds", async () => {
+  const colors: Array<string | undefined> = [];
+  await withRuntime(async ({ root, state, runtime, submit }) => {
+    await Bun.write(
+      path.join(root, "setup.ts"),
+      'export default api => { api.openTab({name:"owner"}); api.openTab({name:"other"}); };',
+    );
+    await submit("/batch setup.ts");
+    const owner = state.tabs.find((tab) => tab.title === "owner")!;
+    const other = state.tabs.find((tab) => tab.title === "other")!;
+    owner.followUpsPaused = true;
+    await Bun.write(
+      path.join(root, "commands.ts"),
+      `export default api => api.openTab({
+      name:"owner", prompts:["/color red", "first", "/color blue", "second"]
+    });`,
+    );
+    const off = runtime.onChange((event) => {
+      if (event.type === "agent_start") colors.push(owner.color);
+    });
+    try {
+      await submit("/batch commands.ts");
+      assert.deepEqual(owner.pendingFollowUps, ["/color red", "first", "/color blue", "second"]);
+      assert.equal(owner.color, undefined);
+      assert.equal(state.activeTabId, other.sessionId);
+      await runtime.resumeFollowUps(owner.sessionId);
+      assert.deepEqual(colors, ["red", "blue"]);
+      assert.deepEqual(userTexts(runtime, owner.sessionId), ["first", "second"]);
+      assert.equal(owner.color, "blue");
+      assert.equal(other.color, undefined);
+      assert.equal(state.activeTabId, other.sessionId);
+    } finally {
+      off();
+    }
+  });
+});
+
+test("/batch queued command cancellation pauses remaining work and resume consumes it once", async () => {
+  await withRuntime(async ({ root, state, runtime, submit }) => {
+    await Bun.write(
+      path.join(root, "setup.ts"),
+      'export default api => api.openTab({name:"owner"});',
+    );
+    await submit("/batch setup.ts");
+    const tab = state.tabs[0]!;
+    tab.followUpsPaused = true;
+    await Bun.write(
+      path.join(root, "confirm.lua"),
+      'mixcode.open_tab({name="owner", prompts={"/close-session", "/color blue", "after"}})',
+    );
+    await submit("/batch confirm.lua");
+    const resumed = assert.rejects(
+      runtime.resumeFollowUps(tab.sessionId),
+      /Error: Queued command cancelled/,
+    );
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.deepEqual(state.sessionActionConfirm, { action: "close", sessionId: tab.sessionId });
+    assert.equal(tab.color, undefined);
+    assert.deepEqual(tab.pendingFollowUps, ["/color blue", "after"]);
+    dispatchOwnedOverlayKey(state, tab, "n", testTui(), runtime);
+    await resumed;
+    assert.equal(tab.followUpsPaused, true);
+    assert.equal(state.tabs.includes(tab), true);
+    await runtime.resumeFollowUps(tab.sessionId);
+    assert.equal(tab.color, "blue");
+    assert.deepEqual(userTexts(runtime, tab.sessionId), ["after"]);
+  });
+});
+
+test("/batch command failures pause the sequence before the following prompt", async () => {
+  await withRuntime(async ({ root, state, runtime, submit }) => {
+    await Bun.write(
+      path.join(root, "setup.ts"),
+      'export default api => api.openTab({name:"owner"});',
+    );
+    await submit("/batch setup.ts");
+    const tab = state.tabs[0]!;
+    tab.followUpsPaused = true;
+    await Bun.write(
+      path.join(root, "failure.ts"),
+      'export default api => api.openTab({name:"owner", prompts:["/models missing-model-for-batch", "after"]});',
+    );
+    await submit("/batch failure.ts");
+    await assert.rejects(runtime.resumeFollowUps(tab.sessionId), /Error:.*Unknown model/);
+    assert.equal(tab.followUpsPaused, true);
+    assert.deepEqual(tab.pendingFollowUps, ["after"]);
+    assert.deepEqual(userTexts(runtime, tab.sessionId), []);
+    await runtime.resumeFollowUps(tab.sessionId);
+    assert.deepEqual(userTexts(runtime, tab.sessionId), ["after"]);
+  });
+});
+
+test("/batch appends arrays to paused tabs without resuming or steering", async () => {
+  await withRuntime(async ({ root, state, runtime, submit }) => {
+    await Bun.write(
+      path.join(root, "paused.ts"),
+      'export default api => api.openTab({name:"paused"});',
+    );
+    await submit("/batch paused.ts");
+    const tab = state.tabs[0]!;
+    tab.followUpsPaused = true;
+    await runtime.prompt(tab.sessionId, "earlier", { streamingBehavior: "followUp" });
+    await Bun.write(
+      path.join(root, "queue.lua"),
+      'mixcode.open_tab({name="paused", prompts={"first", "second"}})',
+    );
+    await submit("/batch queue.lua");
+    assert.deepEqual(tab.pendingFollowUps, ["earlier", "first", "second"]);
+    assert.deepEqual(tab.pendingMessages, []);
+    assert.deepEqual(userTexts(runtime, tab.sessionId), []);
+    assert.equal(tab.followUpsPaused, true);
+    await submit("/follow-up-next");
+    assert.deepEqual(userTexts(runtime, tab.sessionId), ["earlier", "first", "second"]);
   });
 });
 

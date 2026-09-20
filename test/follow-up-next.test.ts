@@ -112,6 +112,88 @@ async function fixture(options: { failInitial?: boolean } = {}) {
   };
 }
 
+test("a prompt sequence is fully queued before an idle first round finishes", async () => {
+  const f = await fixture();
+  try {
+    const snapshots: string[][] = [];
+    const off = f.runtime.onChange(() => snapshots.push([...f.tab.pendingFollowUps]));
+    try {
+      f.runtime.queueFollowUpNextPrompts("s1", ["hold", "second", "last"]);
+      assert.ok(snapshots.some((texts) => texts.join("|") === "hold|second|last"));
+      await f.started.promise;
+      assert.deepEqual(f.tab.pendingFollowUps, ["second", "last"]);
+      assert.deepEqual(f.calls, ["hold"]);
+      f.blocked.resolve();
+      await f.finished.promise;
+      assert.deepEqual(f.calls, ["hold", "second", "last"]);
+    } finally {
+      off();
+    }
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test("a prompt sequence appends behind existing work and retains pause and edit semantics", async () => {
+  const f = await fixture();
+  try {
+    f.tab.followUpsPaused = true;
+    await f.runtime.prompt("s1", "earlier", { streamingBehavior: "followUp" });
+    f.runtime.queueFollowUpNextPrompts("s1", ["second", "editable", "last"]);
+    assert.deepEqual(f.calls, []);
+    assert.deepEqual(f.tab.pendingFollowUps, ["earlier", "second", "editable", "last"]);
+    assert.equal(f.runtime.popPendingMessage("s1", "followUp"), "/follow-up-next last");
+    assert.equal(f.tab.followUpsPaused, true);
+    f.runtime.queueFollowUpNextPrompts("s1", ["last"]);
+    await f.runtime.resumeFollowUps("s1");
+    await f.finished.promise;
+    assert.deepEqual(f.calls, ["earlier", "second", "editable", "last"]);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test("sequence errors pause remaining rounds without replaying the failed round", async () => {
+  const f = await fixture();
+  const paused = Promise.withResolvers<void>();
+  const off = f.runtime.onChange(() => {
+    if (f.tab.followUpsPaused) paused.resolve();
+  });
+  try {
+    f.runtime.queueFollowUpNextPrompts("s1", ["fail", "last"]);
+    await paused.promise;
+    assert.deepEqual(f.calls, ["fail"]);
+    assert.deepEqual(f.tab.pendingFollowUps, ["last"]);
+    await f.runtime.resumeFollowUps("s1");
+    await f.finished.promise;
+    assert.deepEqual(f.calls, ["fail", "last"]);
+  } finally {
+    off();
+    await f.cleanup();
+  }
+});
+
+test("aborting a busy run pauses an appended sequence until explicit resume", async () => {
+  const f = await fixture();
+  try {
+    const running = f.track(f.runtime.prompt("s1", "hold"));
+    await f.started.promise;
+    f.runtime.queueFollowUpNextPrompts("s1", ["second", "last"]);
+    assert.deepEqual(f.tab.pendingMessages, []);
+    f.runtime.abortTab("s1");
+    f.blocked.resolve();
+    await running;
+    assert.equal(f.tab.followUpsPaused, true);
+    assert.deepEqual(f.calls, ["hold"]);
+    assert.deepEqual(f.tab.pendingFollowUps, ["second", "last"]);
+    await f.runtime.resumeFollowUps("s1");
+    await f.finished.promise;
+    assert.deepEqual(f.calls, ["hold", "second", "last"]);
+  } finally {
+    await f.cleanup();
+  }
+});
+
 test("next boundaries preserve FIFO and batch only adjacent ordinary follow-ups", async () => {
   const f = await fixture();
   try {

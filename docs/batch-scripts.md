@@ -49,15 +49,15 @@ Execution model:
 script completes (.lua via fengari | .ts/.js via dynamic import)
    │  collect open_tab / openTab calls
    v
-validate (model / thinking / context limit / mode)
+validate (model / thinking / context limit / mode / prompts)
    │
    ├─ --batch-dry-run → print plan → exit
    │
    v
 apply
   phase 1: create / clear / delete serially per tab
-  phase 2: dispatch prompts in parallel across distinct tabs;
-           strictly serial within identical tab names
+  phase 2: apply requests in parallel across distinct tabs;
+           apply requests in order within identical tab names
 ```
 
 Scripts collect a plan once, before dispatch. They cannot read agent replies or branch on results.
@@ -83,7 +83,8 @@ Lua rereads and executes the file on each invocation. Standard libraries such as
 | Field | Required | Description |
 |-------|----------|-------------|
 | `name` | Yes | Tab title; exact match when reusing |
-| `prompt` | No | If omitted, creates/reuses/clears/deletes tab without submitting a prompt |
+| `prompt` | No | One input to dispatch; mutually exclusive with `prompts`. Omit both to operate on the tab without submitting input |
+| `prompts` | No | Nonempty dense `string[]` of prompts or local commands, queued as exclusive steps; see [prompt sequences](#prompt-sequences) |
 | `workdir` | No | New-tab directory; defaults and relative paths use the invocation directory. Reuse/clear preserves the existing directory |
 | `model` | No | e.g. `anthropic/claude-sonnet-4-20250514` |
 | `thinking` | No | Based on model capability: `off` / `minimal` / `low` / … / `max` |
@@ -93,7 +94,7 @@ Lua rereads and executes the file on each invocation. Standard libraries such as
 
 `mode`:
 
-- `append`: Continue on the existing session; prompts sent while streaming use steering
+- `append`: Continue on the existing session; a single `prompt` sent while streaming uses steering
 - `clear`: Reset the current branch to session root before sending the prompt, like interactive `/reset`. Keeps the title, session ID/file, workdir, and system prompt; earlier history remains in `/tree` but is excluded from the new conversation context. Does not change focus, reload extensions, or rebuild services. Refused while the agent is streaming or bash is running
 - `delete`: Delete tab + session files before recreating
 
@@ -101,13 +102,29 @@ New tabs, including `delete` replacements, take focus.
 
 With no matching tab, a new tab is created. `clear` + `system_prompt` is always rejected during validation before any tab changes, including when `system_prompt` is an empty string. For repeated names, only the first request controls creation/reset/deletion. Interactive `/clear` still replaces the session and resets its title.
 
-Prompts use the [shared input dispatch](architecture.md#runtime-mapping), including
+A single `prompt` uses the [shared input dispatch](architecture.md#runtime-mapping), including
 plain text, paths, skills, prompt templates, extension commands, and `!shell` / `!!shell`.
-Registered MixCode local slash commands, including `/batch`, are rejected during prompt dispatch;
-use the interactive TUI to execute them. Other slash input and paths pass unchanged to Pi;
+Registered MixCode local slash commands, including `/batch`, are rejected in `prompt`;
+use `prompts` to queue them or enter them in the TUI. Other slash input and paths pass unchanged to Pi;
 unmatched input such as `/unknown` becomes message text.
 
 Tabs with a custom `system_prompt` display a `[sys]` badge beside the editor title.
+
+### Prompt sequences
+
+Use `prompts` in either language to run tasks in order within one tab. Each prompt waits for the previous agent run to finish, including its tool calls. Commands use their own completion rules, described below. Supply either `prompt` or `prompts`; TS/JS `null` or `undefined` and Lua `nil` count as omitted. `prompts` must be a nonempty array without gaps, and each string must contain non-whitespace text. Dry-run shows the original text; execution trims leading and trailing whitespace.
+
+Validation rejects `!` / `!!` shell input before changing any tabs. Sequences support MixCode local commands, skills, named prompt templates, extension commands, unknown slash input, and absolute paths.
+
+Local commands execute separately on the sequence's tab and are not sent to the model. Commands that require confirmation still prompt for it. If a confirmation is cancelled or a command throws, the queue pauses; resuming skips that command. Closing or resetting the conversation discards pending tasks. Some selector commands return as soon as the selector opens. Later steps can then run before a selection is made.
+
+`openTab` / `open_tab` collects requests while the script runs. When MixCode applies a request, it appends the entire sequence after any pending user follow-ups. Each entry occupies a separate round. Batch submission returns after enqueueing; the agent continues running in the background.
+
+Adding a sequence leaves a paused queue paused. Final agent failures or aborting with `Esc` pause remaining rounds; `/follow-up-next` without text resumes them. A failed round already accepted is not retried automatically. Pending tasks are lost on restart. See [queue and follow-up semantics](queue-and-follow-up.md) for dispatch, editing, and pause behavior.
+
+Each request applies model, thinking, and context limit before enqueueing. Later rounds use the session's current configuration; entries have no individual overrides. Distinct tabs run in parallel, and requests for the same title apply in order. A later `prompt` can steer an active round, and later configuration changes can affect pending rounds.
+
+Runnable prompt-sequence examples: [TypeScript](../examples/batch/prompt-sequence.ts) and [Lua](../examples/batch/prompt-sequence.lua).
 
 ### Context limits
 
@@ -222,18 +239,22 @@ Dry-run uses the same selection rules and displays the resolved reference in `mo
 ## Dry-run output
 
 ```text
-Batch dry-run: 2 request(s)
+Batch dry-run: 3 request(s)
 1. name=lint-packages/core thinking=low workdir=packages/core
    prompt: Run lint and typecheck in packages/core. Fix errors only.
 2. name=scratch
    prompt: (none)
+3. name=review-sequence
+   prompts: 2 exclusive round(s)
+     1. Review the current branch for correctness issues. Do not edit.
+     2. Summarize the findings from the previous round.
 ```
 
-Performs model, thinking, and context-limit validation; invalid configurations fail and exit. Supplied limits print as `context_limit=32000` for `"32k"`, or `context_limit=reset`.
+Performs model, thinking, context-limit, and prompt-sequence validation; invalid configurations fail and exit. Supplied limits print as `context_limit=32000` for `"32k"`, or `context_limit=reset`.
 
 ## Execution and errors
 
-Different tab groups run in parallel without a configurable concurrency limit. Requests within one group run in order.
+Different tab groups run in parallel without a configurable concurrency limit. Requests within one group run in order. For `prompts`, a settled submission means the array was queued, not that its rounds completed. Later asynchronous queue failures appear in the target tab; they are not converted into startup apply failures or `exitCode=1`.
 
 For `/batch`, a target marked `Not Ready` fails before any requests are applied: `Error: Batch tab is still loading: <name>`. State saves run serially after tab operations, settled submissions, and completion or failure of the apply step.
 

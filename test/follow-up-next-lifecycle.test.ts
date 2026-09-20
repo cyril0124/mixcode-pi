@@ -162,84 +162,97 @@ function testModel(provider: string): MixCodeModel {
   return { ...MIXCODE_FAUX_MODEL, provider, api: `${provider}-api`, id: `${provider}-model` };
 }
 
-test("follow-up next waits for a failed tool turn to recover through multiple model steps", async () => {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mixcode-follow-next-tool-"));
-  const model = testModel("follow-tool");
-  const calls: string[] = [];
-  const toolReleased = Promise.withResolvers<void>();
-  const toolStarted = Promise.withResolvers<void>();
-  const runtime = new MixCodeRuntime({
-    sessionsRoot: dir,
-    streamFn: (_model, context, options) => {
-      calls.push(userText(context));
-      const hasToolFailure = context.messages.some(
-        (message) => message.role === "toolResult" && message.isError,
-      );
-      if (userText(context) === "tool failure" && !hasToolFailure) {
-        toolStarted.resolve();
-        const stream = createAssistantMessageEventStream();
-        void (async () => {
-          const toolCall: AssistantMessage = {
-            ...assistantMessage(model, "", "toolUse"),
-            content: [{ type: "toolCall", id: "broken-call", name: "broken_tool", arguments: {} }],
-          };
-          stream.push({ type: "start", partial: { ...toolCall, content: [] } });
-          await toolReleased.promise;
-          stream.push({ type: "done", reason: "toolUse", message: toolCall });
-          stream.end(toolCall);
-        })();
-        return stream;
-      }
-      return streamMessage(
-        assistantMessage(
-          model,
-          hasToolFailure ? "model recovered after tool failure" : "next finished",
-        ),
-        options,
-      );
-    },
-    extensionFactories: [
-      (pi) => {
-        pi.registerTool({
-          name: "broken_tool",
-          label: "Broken tool",
-          description: "Fails once so the model must recover.",
-          parameters: Type.Object({}),
-          execute: async () => {
-            throw new Error("tool failed");
-          },
-        });
+for (const delivery of ["single", "sequence"] as const) {
+  test(`follow-up ${delivery} waits for a failed tool turn to recover through multiple model steps`, async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mixcode-follow-next-tool-"));
+    const model = testModel("follow-tool");
+    const calls: string[] = [];
+    const toolReleased = Promise.withResolvers<void>();
+    const toolStarted = Promise.withResolvers<void>();
+    const runtime = new MixCodeRuntime({
+      sessionsRoot: dir,
+      streamFn: (_model, context, options) => {
+        calls.push(userText(context));
+        const hasToolFailure = context.messages.some(
+          (message) => message.role === "toolResult" && message.isError,
+        );
+        if (userText(context) === "tool failure" && !hasToolFailure) {
+          toolStarted.resolve();
+          const stream = createAssistantMessageEventStream();
+          void (async () => {
+            const toolCall: AssistantMessage = {
+              ...assistantMessage(model, "", "toolUse"),
+              content: [
+                { type: "toolCall", id: "broken-call", name: "broken_tool", arguments: {} },
+              ],
+            };
+            stream.push({ type: "start", partial: { ...toolCall, content: [] } });
+            await toolReleased.promise;
+            stream.push({ type: "done", reason: "toolUse", message: toolCall });
+            stream.end(toolCall);
+          })();
+          return stream;
+        }
+        return streamMessage(
+          assistantMessage(
+            model,
+            hasToolFailure ? "model recovered after tool failure" : "next finished",
+          ),
+          options,
+        );
       },
-    ],
-  });
-  const cleanup = new FollowUpCleanup(runtime, dir, [toolReleased.resolve]);
-  try {
-    const tab = createTab(1, "s1", dir);
-    await runtime.createTab(tab, {
-      systemPrompt: "system",
-      thinkingLevel: "off",
-      workdir: dir,
-      model,
+      extensionFactories: [
+        (pi) => {
+          pi.registerTool({
+            name: "broken_tool",
+            label: "Broken tool",
+            description: "Fails once so the model must recover.",
+            parameters: Type.Object({}),
+            execute: async () => {
+              throw new Error("tool failed");
+            },
+          });
+        },
+      ],
     });
-    cleanup.track(runtime.prompt("s1", "tool failure"));
-    await toolStarted.promise;
-    await runtime.prompt("s1", "after tool", { streamingBehavior: "followUp", followUpNext: true });
-    assert.deepEqual(tab.pendingFollowUps, ["after tool"]);
-    assert.deepEqual(calls, ["tool failure"]);
-    toolReleased.resolve();
-    await waitUntil(
-      () => calls.length === 3 && tab.pendingFollowUps.length === 0 && tab.status === "idle",
-    );
-    assert.deepEqual(calls, ["tool failure", "tool failure", "after tool"]);
-    assert.ok(
-      runtime
-        .getTab("s1")!
-        .chat.some((line) => line.role === "assistant" && /recovered/.test(line.text)),
-    );
-  } finally {
-    await cleanup.cleanup();
-  }
-});
+    const cleanup = new FollowUpCleanup(runtime, dir, [toolReleased.resolve]);
+    try {
+      const tab = createTab(1, "s1", dir);
+      await runtime.createTab(tab, {
+        systemPrompt: "system",
+        thinkingLevel: "off",
+        workdir: dir,
+        model,
+      });
+      if (delivery === "sequence") {
+        runtime.queueFollowUpNextPrompts("s1", ["tool failure", "after tool"]);
+      } else {
+        cleanup.track(runtime.prompt("s1", "tool failure"));
+      }
+      await toolStarted.promise;
+      if (delivery === "single") {
+        await runtime.prompt("s1", "after tool", {
+          streamingBehavior: "followUp",
+          followUpNext: true,
+        });
+      }
+      assert.deepEqual(tab.pendingFollowUps, ["after tool"]);
+      assert.deepEqual(calls, ["tool failure"]);
+      toolReleased.resolve();
+      await waitUntil(
+        () => calls.length === 3 && tab.pendingFollowUps.length === 0 && tab.status === "idle",
+      );
+      assert.deepEqual(calls, ["tool failure", "tool failure", "after tool"]);
+      assert.ok(
+        runtime
+          .getTab("s1")!
+          .chat.some((line) => line.role === "assistant" && /recovered/.test(line.text)),
+      );
+    } finally {
+      await cleanup.cleanup();
+    }
+  });
+}
 
 test("retryable API failure keeps follow-ups flowing until the retry succeeds", async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mixcode-follow-next-retry-"));

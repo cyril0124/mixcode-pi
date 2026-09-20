@@ -49,15 +49,15 @@ mpi --batch script.ts --batch-dry-run -- packages/core
 脚本跑完（.lua 走 fengari | .ts/.js 走动态导入）
    │  收集 open_tab / openTab
    v
-validate (model / thinking / context limit / mode)
+validate (model / thinking / context limit / mode / prompts)
    │
    ├─ --batch-dry-run → 打印 plan → 退出
    │
    v
 apply
   phase 1: 按 tab 串行 create / clear / delete
-  phase 2: 不同 tab 并行发 prompt
-           同名 tab 内请求严格串行
+  phase 2: 不同 tab 并行应用请求
+           同名 tab 内按顺序应用请求
 ```
 
 脚本在派发前收集一次计划，无法读取 agent 回复或根据结果分支。
@@ -83,7 +83,8 @@ Lua 每次调用都会重新读取并执行文件，提供 `os.getenv`、`io` �
 | 字段 | 必填 | 说明 |
 |------|------|------|
 | `name` | 是 | tab 标题；复用时精确匹配 |
-| `prompt` | 否 | 省略则只建/复用/清/删 tab，不 submit |
+| `prompt` | 否 | 单条派发输入，与 `prompts` 互斥；两者都省略时只操作 tab，不提交输入 |
+| `prompts` | 否 | 非空、无空洞的 `string[]`，将 prompt 或本地命令排为独立步骤，见 [prompt 序列](#prompt-序列) |
 | `workdir` | 否 | 新 tab 工作目录；默认值和相对路径以调用目录为基准。复用/clear 保留已有目录 |
 | `model` | 否 | 如 `anthropic/claude-sonnet-4-20250514` |
 | `thinking` | 否 | 依模型能力：`off` / `minimal` / `low` / … / `max` |
@@ -93,7 +94,7 @@ Lua 每次调用都会重新读取并执行文件，提供 `os.getenv`、`io` �
 
 `mode`：
 
-- `append`：在已有会话上继续；流式输出期间发送的 prompt 使用 steering
+- `append`：在已有会话上继续；流式输出期间发送的单条 `prompt` 使用 steering
 - `clear`：与交互式 `/reset` 一样，先将当前分支重置到会话根部，再发送 prompt。保留标题、session ID/文件、工作目录和系统提示词；旧历史仍在 `/tree`，但不进入新对话上下文。不改变焦点、不重载扩展或重建服务。agent 正在流式输出或 bash 正在运行时拒绝重置
 - `delete`：删 tab + session 文件后新建
 
@@ -101,12 +102,28 @@ Lua 每次调用都会重新读取并执行文件，提供 `os.getenv`、`io` �
 
 没有同名 tab 时新建 tab。`clear` + `system_prompt` 在任何 tab 操作前的校验阶段始终被拒绝，包括系统提示词为空字符串的情况。同名重复请求仅由第一条决定新建/重置/删除行为。交互式 `/clear` 仍会替换会话并重置标题。
 
-prompt 使用[共用输入分发](architecture.zh.md#运行时映射)，支持普通文本、文件路径、
+单条 `prompt` 使用[共用输入分发](architecture.zh.md#运行时映射)，支持普通文本、文件路径、
 skills、prompt templates、extension commands 和 `!shell` / `!!shell`。
-已注册的 MixCode 本地 slash command，包括 `/batch`，会在 prompt 分发阶段被拒绝，须在交互式 TUI 中执行。
+`prompt` 不接受已注册的 MixCode 本地 slash command，包括 `/batch`；可通过 `prompts` 排队或在 TUI 中输入执行。
 其他 slash 输入和路径原样交给 Pi；未匹配的输入，例如 `/unknown`，成为消息文本。
 
 设置了 `system_prompt` 的 tab，编辑器标题旁显示 `[sys]` 角标。
+
+### prompt 序列
+
+两种语言均可用 `prompts` 在同一个 tab 中按顺序执行任务。每条 prompt 等待上一轮 agent 运行结束，包括其中的工具调用。命令的完成时机见下文。`prompt` 与 `prompts` 只能提供一个；TS/JS 的 `null`、`undefined` 和 Lua 的 `nil` 视为省略。`prompts` 必须是非空、无空洞的数组，每个字符串都须包含非空白文本。dry-run 显示原始文本，执行时去除首尾空白。
+
+校验会在修改任何 tab 前拒绝 `!` / `!!` shell 输入。序列支持 MixCode 本地命令、skill、具名 prompt template、扩展命令、未知 slash 输入及绝对路径。
+
+本地命令在序列所属 tab 上单独执行，不发送给模型。需要确认的命令仍会弹出确认提示。取消确认或命令抛错会暂停队列，恢复时跳过该命令。关闭或重置对话会丢弃待执行任务。部分选择器命令在窗口打开时就返回，后续步骤可能在用户作出选择前执行。
+
+`openTab` / `open_tab` 在脚本运行时收集请求。MixCode 应用请求时，将整个序列追加到已有用户 follow-up 之后，每项占一个独立轮次。batch 提交在入队后返回，agent 在后台继续执行。
+
+添加序列不会解除队列的暂停状态。agent 最终失败或用 `Esc` 中止后会暂停剩余轮次；不带文本的 `/follow-up-next` 恢复执行。已接受但失败的轮次不会自动重试。待执行任务在重启后丢失。派发、编辑和暂停行为详见[队列与 follow-up 语义](queue-and-follow-up.zh.md)。
+
+每条请求先应用 model、thinking 和 context limit，再入队。后续轮次使用会话当时的配置，数组各项不支持单独覆盖。不同 tab 并行执行，同名请求按顺序应用。后续 `prompt` 可 steering 当前轮次，后续配置变更也可能影响待执行轮次。
+
+可运行的 prompt 序列示例：[TypeScript](../examples/batch/prompt-sequence.ts) 和 [Lua](../examples/batch/prompt-sequence.lua)。
 
 ### 上下文限制
 
@@ -221,18 +238,22 @@ dry-run 使用相同的选择规则，并在 `model=...` 中显示解析后的�
 ## dry-run 输出
 
 ```text
-Batch dry-run: 2 request(s)
+Batch dry-run: 3 request(s)
 1. name=lint-packages/core thinking=low workdir=packages/core
    prompt: Run lint and typecheck in packages/core. Fix errors only.
 2. name=scratch
    prompt: (none)
+3. name=review-sequence
+   prompts: 2 exclusive round(s)
+     1. Review the current branch for correctness issues. Do not edit.
+     2. Summarize the findings from the previous round.
 ```
 
-仍会做 model / thinking / context limit 校验；非法配置会失败退出。指定的限制以归一化形式输出，如 `"32k"` 输出 `context_limit=32000`，重置输出 `context_limit=reset`。
+仍会做 model / thinking / context limit 和 prompt 序列校验；非法配置会失败退出。指定的限制以归一化形式输出，如 `"32k"` 输出 `context_limit=32000`，重置输出 `context_limit=reset`。
 
 ## 执行与错误
 
-不同 tab 组并行执行，没有可配置的并发上限。同一组内的请求按顺序执行。
+不同 tab 组并行执行，没有可配置的并发上限。同一组内的请求按顺序执行。对于 `prompts`，提交结束表示数组已入队，不表示轮次已完成。后续异步队列错误显示在目标 tab 中，不转化为启动 apply 失败，也不因此设置 `exitCode=1`。
 
 对 `/batch`，目标为 `Not Ready` 时，在应用任何请求前报错：`Error: Batch tab is still loading: <name>`。tab 操作、提交结束，以及 apply 完成或失败后，串行保存状态。
 

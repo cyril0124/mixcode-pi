@@ -23,12 +23,27 @@ interface MixCodeBatchOpenTabOptions {
   /** Tab title; exact match when reusing an existing tab. */
   name: string;
   /**
-   * Prompt to submit; omit to create/reuse/clear/delete without submitting.
+   * One input to submit; mutually exclusive with prompts when defined.
+   * Runtime null/undefined mean omitted; omit both fields to operate without input.
    * Supports skills, templates, extension commands, and !shell / !!shell.
    * Registered MixCode local commands, including /batch, fail at dispatch.
    * Other slash input and paths pass unchanged to Pi; unmatched input becomes message text.
    */
   prompt?: string;
+  /**
+   * Nonempty dense array of non-whitespace prompts or local commands; mutually exclusive
+   * with prompt. Runtime null/undefined mean omitted. Dry-run shows the original
+   * text; execution trims leading and trailing whitespace. Shell input (! / !!)
+   * fails preflight before tab mutations. MixCode local commands run as separate
+   * steps on the owning tab, with their normal confirmations and completion rules.
+   * If a confirmation is cancelled or a command throws, the remaining queue pauses.
+   * Skills, named templates, extension commands, unknown slash input, and paths work.
+   * Apply appends the whole array synchronously as exclusive follow-up rounds
+   * behind existing entries and returns after enqueueing, not model completion.
+   * Does not resume a paused queue. See ../SKILL.md#prompt-sequences for lifecycle,
+   * shared configuration, and asynchronous failure behavior.
+   */
+  prompts?: string[];
   /** New-tab directory; defaults and relative paths use currentWorkdir(). Reuse/clear keeps the existing directory. */
   workdir?: string;
   /** Model identifier from listModels().id; omitted means keep existing or use the instance default for a new tab. */
@@ -87,7 +102,7 @@ interface MixCodeBatchApi {
    * Collect a tab request. MixCode applies it after the script finishes.
    *
    * When a tab with the same `name` already exists:
-   * - `mode: "append"` (default): continue the session; streaming prompts use steering
+   * - `mode: "append"` (default): continue the session; a streaming `prompt` uses steering
    * - `mode: "clear"`: reset the branch to session root, then send the prompt.
    *   Keeps title, session ID/file, workdir, system prompt, and focus. History stays in
    *   /tree, outside the new context. No extension reload or service rebuild;
@@ -95,7 +110,7 @@ interface MixCodeBatchApi {
    * - `mode: "delete"`: the tab and its session file are deleted, then a
    *   brand-new tab is created
    *
-   * With no matching tab, a new one is created. With `prompt` omitted, the tab
+   * With no matching tab, a new one is created. With both `prompt` and `prompts` omitted, the tab
    * is created/reused/cleared/deleted without submitting input. New tabs and
    * delete replacements take focus. Setup failures stop before prompt dispatch;
    * during parallel dispatch, other groups continue after one fails. Applied
@@ -110,9 +125,11 @@ interface MixCodeBatchApi {
    * For repeated names, only the first request controls creation/reset/deletion.
    * Interactive /clear still replaces the session and resets its title.
    *
-   * Throws on a missing/empty name, invalid option types or contextLimit, or an
-   * unknown field name. Model, thinking, mode, and systemPrompt validation
-   * happens after collection, before tab changes.
+   * Throws on a missing/empty name, invalid option types or contextLimit,
+   * conflicting prompt/prompts, an invalid prompts array, or an unknown field name.
+   * Prompt-sequence validation runs during collection and again before tab changes.
+   * Model, thinking, mode, and systemPrompt validation happens after collection,
+   * before tab changes.
    */
   openTab(options: MixCodeBatchOpenTabOptions): void;
   /**
