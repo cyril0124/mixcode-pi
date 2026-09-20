@@ -19,7 +19,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         id: bun
         with:
-          bun-version: 1.4.1
+          bun-version: 1.4.2
 
       # Key covers patches/** so a patch change busts the install cache.
       # No restore-keys: a partial hit would restore a mismatched lock/patch pair.
