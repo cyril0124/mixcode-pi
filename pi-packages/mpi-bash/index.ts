@@ -19,7 +19,7 @@ import {
   createDetachingBashOperations,
   formatCompletionNotice,
   formatRunningJobs,
-  killTree,
+  stopBashJob,
   pruneOldLogs,
   resolveForegroundSeconds,
   xmlElement,
@@ -200,8 +200,8 @@ const bashExtension: ExtensionFactory = (pi) => {
                 ctx.ui.notify(`Job #${run.id} has already finished.`, "info");
                 return;
               }
-              killTree(run.id);
-              ctx.ui.notify(`Killed job #${run.id} and its children.`, "info");
+              stopBashJob(run.id);
+              ctx.ui.notify(`Stopping job #${run.id} and its children.`, "info");
             },
           }),
         {
