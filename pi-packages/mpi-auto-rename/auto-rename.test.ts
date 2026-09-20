@@ -3,7 +3,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
-import type { AssistantMessage } from "@earendil-works/pi-ai";
+import type { AssistantMessage, Model } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import {
   loadAutoRenameConfig,
@@ -20,13 +20,41 @@ import autoRename, {
   buildTitlePrompt,
   cancelAutoRename,
   parseCandidateTitle,
-  runAutoRename,
+  runAutoRename as runAutoRenameRequest,
   runAutoRenameConfig,
   shouldAutoRenameOnFirstMessage,
   titleValidationError,
   tryAutoRenameOnFirstMessage,
   type AutoRenameAbortSlot,
 } from "./index.js";
+
+import {
+  createAuxModelRegistry,
+  type TestCompletion,
+} from "../../test/helpers/aux-model-registry.js";
+
+// Run command scenarios through ModelRegistry with a scripted provider transport.
+async function runAutoRename(
+  options: Parameters<typeof runAutoRenameRequest>[0] & {
+    complete: TestCompletion;
+    models?: ReadonlyArray<Pick<Model<string>, "provider" | "id">>;
+  },
+) {
+  const { complete, models = [], ...request } = options;
+  const { registry } = await createAuxModelRegistry({
+    complete,
+    models: [...(request.ctx.model ? [request.ctx.model] : []), ...models],
+  });
+  const active = request.ctx.model;
+  return runAutoRenameRequest({
+    ...request,
+    ctx: {
+      ...request.ctx,
+      model: active ? registry.find(active.provider, active.id) : undefined,
+      modelRegistry: registry,
+    },
+  });
+}
 
 const ABSENT_AGENT_DIR = path.join(os.tmpdir(), "mpi-auto-rename-absent");
 
@@ -142,9 +170,6 @@ test("runAutoRename retries format failures up to five total calls then keeps ol
     },
     ctx: {
       model: { provider: "test", id: "model", api: "openai-completions" },
-      modelRegistry: {
-        getApiKeyAndHeaders: async () => ({ ok: true, apiKey: "k" }),
-      },
       sessionManager: {
         buildContextEntries: () => [messageEntry("user", "please rename this session about auth")],
         getSessionName: () => undefined,
@@ -197,9 +222,6 @@ function namedRenameCtx(options: {
         }) as never),
     ctx: {
       model: { provider: "test", id: "model", api: "openai-completions" },
-      modelRegistry: {
-        getApiKeyAndHeaders: async () => ({ ok: true, apiKey: "k" }),
-      },
       sessionManager: {
         buildContextEntries: () => [messageEntry("user", "fix auth middleware race")],
         getSessionName: () => "old-title",
@@ -357,9 +379,6 @@ test("runAutoRename surfaces request errors without retrying", async () => {
     },
     ctx: {
       model: { provider: "test", id: "model", api: "openai-completions" },
-      modelRegistry: {
-        getApiKeyAndHeaders: async () => ({ ok: true, apiKey: "k" }),
-      },
       sessionManager: {
         buildContextEntries: () => [messageEntry("user", "hello")],
         getSessionName: () => undefined,
@@ -463,9 +482,6 @@ test("runAutoRename shows a one-line aboveEditor widget and clears it", async ()
       }) as never,
     ctx: {
       model: { provider: "test", id: "model", api: "openai-completions" },
-      modelRegistry: {
-        getApiKeyAndHeaders: async () => ({ ok: true, apiKey: "k" }),
-      },
       sessionManager: {
         buildContextEntries: () => [messageEntry("user", "please rename this session about auth")],
         getSessionName: () => undefined,
@@ -543,9 +559,6 @@ test("cancelAutoRename aborts a hung generate and does not rename", async () => 
     },
     ctx: {
       model: { provider: "test", id: "model", api: "openai-completions" },
-      modelRegistry: {
-        getApiKeyAndHeaders: async () => ({ ok: true, apiKey: "k" }),
-      },
       sessionManager: {
         buildContextEntries: () => [messageEntry("user", "hello")],
         getSessionName: () => undefined,
@@ -585,9 +598,6 @@ test("starting a new auto-rename aborts the previous run on the same slot", asyn
 
   const ctx = {
     model: { provider: "test", id: "model", api: "openai-completions" },
-    modelRegistry: {
-      getApiKeyAndHeaders: async () => ({ ok: true, apiKey: "k" }),
-    },
     sessionManager: {
       buildContextEntries: () => [messageEntry("user", "hello")],
       getSessionName: () => undefined,
@@ -667,6 +677,7 @@ test("runAutoRename uses configured model override", async () => {
     const used: Array<{ provider: string; id: string }> = [];
 
     const result = await runAutoRename({
+      models: [{ provider: "acme", id: "cheap" }],
       setSessionName: () => undefined,
       getThinkingLevel: () => "off",
       agentDir: dir,
@@ -683,16 +694,6 @@ test("runAutoRename uses configured model override", async () => {
       },
       ctx: {
         model: { provider: "test", id: "model", api: "openai-completions" },
-        modelRegistry: {
-          find: (provider: string, id: string) =>
-            provider === "acme" && id === "cheap"
-              ? { provider, id, api: "openai-completions" }
-              : undefined,
-          getApiKeyAndHeaders: async (model: { provider: string }) => {
-            assert.equal(model.provider, "acme");
-            return { ok: true, apiKey: "k" };
-          },
-        },
         sessionManager: {
           buildContextEntries: () => [messageEntry("user", "override model please")],
           getSessionName: () => undefined,
@@ -734,9 +735,6 @@ test("runAutoRename uses configured thinking override", async () => {
       },
       ctx: {
         model: { provider: "test", id: "model", api: "openai-completions" },
-        modelRegistry: {
-          getApiKeyAndHeaders: async () => ({ ok: true, apiKey: "k" }),
-        },
         sessionManager: {
           buildContextEntries: () => [messageEntry("user", "override thinking please")],
           getSessionName: () => undefined,
@@ -776,10 +774,6 @@ test("runAutoRename rejects an unknown configured model", async () => {
       },
       ctx: {
         model: { provider: "test", id: "model", api: "openai-completions" },
-        modelRegistry: {
-          find: () => undefined,
-          getApiKeyAndHeaders: async () => ({ ok: true, apiKey: "k" }),
-        },
         sessionManager: {
           buildContextEntries: () => [messageEntry("user", "hello")],
           getSessionName: () => undefined,
@@ -820,9 +814,6 @@ test("runAutoRename reports invalid config JSON without calling the model", asyn
       },
       ctx: {
         model: { provider: "test", id: "model", api: "openai-completions" },
-        modelRegistry: {
-          getApiKeyAndHeaders: async () => ({ ok: true, apiKey: "k" }),
-        },
         sessionManager: {
           buildContextEntries: () => [messageEntry("user", "hello")],
           getSessionName: () => undefined,
@@ -1043,9 +1034,6 @@ test("runAutoRename uses seedPrompt when the session has no context", async () =
     },
     ctx: {
       model: { provider: "test", id: "model", api: "openai-completions" },
-      modelRegistry: {
-        getApiKeyAndHeaders: async () => ({ ok: true, apiKey: "k" }),
-      },
       sessionManager: {
         buildContextEntries: () => [],
         getSessionName: () => undefined,
@@ -1082,9 +1070,6 @@ test("runAutoRename tails conversation context to configured maxContextChars", a
       },
       ctx: {
         model: { provider: "test", id: "model", api: "openai-completions" },
-        modelRegistry: {
-          getApiKeyAndHeaders: async () => ({ ok: true, apiKey: "k" }),
-        },
         sessionManager: {
           buildContextEntries: () => [messageEntry("user", `HEAD-${"x".repeat(200)}-TAIL-MARKER`)],
           getSessionName: () => undefined,
@@ -1111,9 +1096,6 @@ function firstMessageCtx(entries: unknown[], sessionName?: string) {
     notices,
     ctx: {
       model: { provider: "test", id: "model", api: "openai-completions" },
-      modelRegistry: {
-        getApiKeyAndHeaders: async () => ({ ok: true, apiKey: "k" }),
-      },
       sessionManager: {
         buildContextEntries: () => entries,
         getSessionName: () => sessionName,
@@ -1133,18 +1115,23 @@ test("tryAutoRenameOnFirstMessage starts only for an enabled unnamed first promp
     writeAutoRenameConfig(dir, { onFirstMessage: true });
     const names: string[] = [];
     const { ctx, notices } = firstMessageCtx([]);
-    const started = tryAutoRenameOnFirstMessage({
-      prompt: "fix the login button race",
-      ctx,
-      setSessionName: (name) => names.push(name),
-      getThinkingLevel: () => "off",
-      agentDir: dir,
+    const { registry } = await createAuxModelRegistry({
+      models: [ctx.model!],
       complete: async () =>
         ({
           role: "assistant",
           content: [{ type: "text", text: "fix-login-button" }],
           stopReason: "stop",
         }) as never,
+    });
+    ctx.modelRegistry = registry;
+    ctx.model = registry.find("test", "model");
+    const started = tryAutoRenameOnFirstMessage({
+      prompt: "fix the login button race",
+      ctx,
+      setSessionName: (name) => names.push(name),
+      getThinkingLevel: () => "off",
+      agentDir: dir,
     });
     assert.ok(started);
     const result = await started;
@@ -1164,6 +1151,10 @@ test("tryAutoRenameOnFirstMessage skips off, history, named, and empty prompts",
       completeCalls += 1;
       return { role: "assistant", content: [], stopReason: "stop" } as never;
     };
+    const { registry } = await createAuxModelRegistry({
+      complete,
+      models: [{ provider: "test", id: "model" }],
+    });
     const run = (opts: {
       config?: { onFirstMessage?: boolean };
       entries?: unknown[];
@@ -1172,6 +1163,8 @@ test("tryAutoRenameOnFirstMessage skips off, history, named, and empty prompts",
     }) => {
       writeAutoRenameConfig(dir, opts.config ?? {});
       const { ctx, notices } = firstMessageCtx(opts.entries ?? [], opts.sessionName);
+      ctx.modelRegistry = registry;
+      ctx.model = registry.find("test", "model");
       const started = tryAutoRenameOnFirstMessage({
         prompt: opts.prompt,
         ctx,
@@ -1180,7 +1173,6 @@ test("tryAutoRenameOnFirstMessage skips off, history, named, and empty prompts",
         },
         getThinkingLevel: () => "off",
         agentDir: dir,
-        complete,
       });
       return { started, notices };
     };

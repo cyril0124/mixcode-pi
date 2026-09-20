@@ -17,9 +17,13 @@
 
 `Ctrl+Shift+C` 也可中止进行中的优化。
 
+Pi 模型注册表通过所选模型的已配置 provider 发送请求。每次请求都会重新解析认证，处理 OAuth 刷新，并应用认证返回的 base URL、请求头和环境设置。本地 provider 可以不使用 API Key。
+
+Provider 或认证失败时显示 `Optimize failed: ...`，编辑器草稿和撤销记录保持不变。取消会立即清除进度提示。迟到的响应不会替换草稿，也不会清除其他请求的进度提示。
+
 ## 配置（`<agentDir>/mpi-optimize-prompt.json`）
 
-包内随带 `mpi-optimize-prompt.schema.json`（安装于 `<agentDir>/extensions/mpi-optimize-prompt/`），可在配置中用 `$schema` 键引用以获得编辑器补全；该键被接受并在写回时保留。
+包会将 `mpi-optimize-prompt.schema.json` 安装到 `<agentDir>/extensions/mpi-optimize-prompt/`。配置中用 `$schema` 引用该文件即可获得编辑器补全，写回配置时会保留此字段。
 
 ```json
 {

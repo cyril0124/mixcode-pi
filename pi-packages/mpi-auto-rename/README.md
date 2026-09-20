@@ -15,6 +15,10 @@ Generate a short kebab-case session title from the current conversation.
 
 If the session already has a title, `/auto-rename` asks: **Yes** to overwrite, **No** to keep it, or **Regenerate** for another title. `/auto-rename-force` skips the question and overwrites directly.
 
+Pi's model registry sends each request through the selected model's configured provider. It resolves authentication on every attempt, including title-format retries, and applies OAuth refresh, base URLs, headers, and environment settings. Local providers can run without API keys.
+
+Request or authentication errors appear as `Auto-rename failed: ...` and leave the title unchanged. Cancelling clears progress immediately. A late response cannot rename the session or clear another request's progress widget.
+
 ## Config (`<agentDir>/mpi-auto-rename.json`)
 
 The package ships `mpi-auto-rename.schema.json` (installed to `<agentDir>/extensions/mpi-auto-rename/`); reference it via a `$schema` key for editor completion. The key is accepted and preserved on writes.

@@ -15,6 +15,10 @@
 
 会话已有标题时，`/auto-rename` 会询问：选 **Yes** 覆盖、**No** 保留，或 **Regenerate** 重新生成。`/auto-rename-force` 跳过询问，直接覆盖。
 
+Pi 模型注册表通过所选模型的已配置 provider 发送请求。每次尝试，包括标题格式重试，都会重新解析认证，处理 OAuth 刷新，并应用认证返回的 base URL、请求头和环境设置。本地 provider 可以不使用 API Key。
+
+请求或认证失败时显示 `Auto-rename failed: ...`，已有标题保持不变。取消会立即清除进度提示。迟到的响应不会改名，也不会清除其他请求的进度提示。
+
 ## 配置（`<agentDir>/mpi-auto-rename.json`）
 
 包内随带 `mpi-auto-rename.schema.json`（安装于 `<agentDir>/extensions/mpi-auto-rename/`），可在配置中用 `$schema` 键引用以获得编辑器补全；该键被接受并在写回时保留。

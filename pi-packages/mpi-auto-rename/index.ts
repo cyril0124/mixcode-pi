@@ -10,11 +10,11 @@
  */
 
 import {
-  completeSimple,
   getSupportedThinkingLevels,
   type AssistantMessage,
   type Model,
-} from "@earendil-works/pi-ai/compat";
+  type SimpleStreamOptions,
+} from "@earendil-works/pi-ai";
 import {
   getAgentDir,
   type ExtensionCommandContext,
@@ -51,8 +51,6 @@ Rules:
 - max ${MAX_TITLE_LENGTH} characters
 - no quotes, markdown, punctuation, or explanation
 Examples: fix-login-button, implement-auto-rename, fix-gpt-5-auth`;
-
-type CompleteFn = typeof completeSimple;
 
 export type TitleFailure = {
   raw: string;
@@ -201,29 +199,6 @@ function assistantText(response: AssistantMessage): string {
     .map((part) => part.text)
     .join("\n")
     .trim();
-}
-
-function compactHeaders(
-  headers: Record<string, string | null> | undefined,
-): Record<string, string> | undefined {
-  if (!headers) return undefined;
-  const out: Record<string, string> = {};
-  for (const [key, value] of Object.entries(headers)) {
-    if (value !== null) out[key] = value;
-  }
-  return Object.keys(out).length > 0 ? out : undefined;
-}
-
-function hasRequestAuth(auth: {
-  apiKey?: string;
-  headers?: Record<string, string>;
-  env?: Record<string, string>;
-}): boolean {
-  return Boolean(
-    auth.apiKey ||
-      (auth.headers && Object.keys(auth.headers).length > 0) ||
-      (auth.env && Object.keys(auth.env).length > 0),
-  );
 }
 
 function formatError(error: unknown): string {
@@ -385,12 +360,10 @@ export async function generateValidTitle(options: {
   model: Model<string>;
   conversationContext: string;
   thinkingLevel: string;
-  auth: { apiKey?: string; headers?: Record<string, string>; env?: Record<string, string> };
+  modelRegistry: ExtensionContext["modelRegistry"];
   signal?: AbortSignal;
-  complete?: CompleteFn;
   previous?: TitleFailure;
 }): Promise<AutoRenameResult> {
-  const runComplete = options.complete ?? completeSimple;
   let previous: TitleFailure | undefined = options.previous;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -398,45 +371,32 @@ export async function generateValidTitle(options: {
 
     let response: AssistantMessage;
     try {
-      const streamOptions: {
-        apiKey?: string;
-        headers?: Record<string, string>;
-        env?: Record<string, string>;
-        signal?: AbortSignal;
-        reasoning?: "minimal" | "low" | "medium" | "high" | "xhigh";
-      } = {
-        apiKey: options.auth.apiKey,
-        headers: options.auth.headers,
-        env: options.auth.env,
-        signal: options.signal,
-      };
+      const streamOptions: SimpleStreamOptions = { signal: options.signal };
       if (options.thinkingLevel !== "off") {
-        streamOptions.reasoning = options.thinkingLevel as
-          | "minimal"
-          | "low"
-          | "medium"
-          | "high"
-          | "xhigh";
+        streamOptions.reasoning = options.thinkingLevel as SimpleStreamOptions["reasoning"];
       }
 
-      response = await runComplete(
-        options.model,
-        {
-          systemPrompt: SYSTEM_PROMPT,
-          messages: [
-            {
-              role: "user",
-              content: [
-                { type: "text", text: buildTitlePrompt(options.conversationContext, previous) },
-              ],
-              timestamp: Date.now(),
-            },
-          ],
-        },
-        streamOptions,
-      );
+      // Resolve provider authentication for every attempt, including format retries.
+      response = await options.modelRegistry
+        .streamSimple(
+          options.model,
+          {
+            systemPrompt: SYSTEM_PROMPT,
+            messages: [
+              {
+                role: "user",
+                content: [
+                  { type: "text", text: buildTitlePrompt(options.conversationContext, previous) },
+                ],
+                timestamp: Date.now(),
+              },
+            ],
+          },
+          streamOptions,
+        )
+        .result();
     } catch (error: unknown) {
-      return { ok: false, reason: formatError(error) };
+      return { ok: false, reason: options.signal?.aborted ? "cancelled" : formatError(error) };
     }
 
     if (response.stopReason === "aborted" || options.signal?.aborted) {
@@ -515,7 +475,6 @@ export async function runAutoRename(options: {
   ctx: ExtensionContext;
   setSessionName: (name: string) => void;
   getThinkingLevel: () => string;
-  complete?: CompleteFn;
   agentDir?: string;
   abortSlot?: AutoRenameAbortSlot;
   seedPrompt?: string;
@@ -572,13 +531,9 @@ export async function runAutoRename(options: {
       },
       config,
     );
-    const registry = ctx.modelRegistry as {
-      find?: (provider: string, id: string) => unknown;
-      getApiKeyAndHeaders: ExtensionCommandContext["modelRegistry"]["getApiKeyAndHeaders"];
-    };
     const model =
       config.model && config.model !== AUTO_RENAME_INHERIT
-        ? (registry.find?.(target.provider, target.modelId) as typeof activeModel)
+        ? ctx.modelRegistry.find(target.provider, target.modelId)
         : activeModel;
     if (!model) {
       notify(`Unknown model: ${target.provider}/${target.modelId}`, "error");
@@ -588,38 +543,6 @@ export async function runAutoRename(options: {
     if (abort.signal.aborted) {
       notify("Cancelled", "info");
       return { ok: false, reason: "cancelled" };
-    }
-
-    let auth: { apiKey?: string; headers?: Record<string, string>; env?: Record<string, string> };
-    try {
-      const resolved = await ctx.modelRegistry.getApiKeyAndHeaders(model);
-      if (abort.signal.aborted) {
-        notify("Cancelled", "info");
-        return { ok: false, reason: "cancelled" };
-      }
-      if (
-        !resolved.ok ||
-        !hasRequestAuth({
-          apiKey: resolved.ok ? resolved.apiKey : undefined,
-          headers: resolved.ok ? compactHeaders(resolved.headers) : undefined,
-          env: resolved.ok ? resolved.env : undefined,
-        })
-      ) {
-        notify(resolved.ok ? `No credentials for ${model.provider}` : resolved.error, "error");
-        return { ok: false, reason: "no_auth" };
-      }
-      auth = {
-        apiKey: resolved.apiKey,
-        headers: compactHeaders(resolved.headers),
-        env: resolved.env,
-      };
-    } catch (error: unknown) {
-      if (abort.signal.aborted) {
-        notify("Cancelled", "info");
-        return { ok: false, reason: "cancelled" };
-      }
-      notify(formatError(error), "error");
-      return { ok: false, reason: "no_auth" };
     }
 
     const thinkingLevel = target.thinkingLevel;
@@ -634,12 +557,11 @@ export async function runAutoRename(options: {
       abortSlot.stopProgress = stopProgress;
       try {
         return await generateValidTitle({
-          model: model as Model<string>,
+          model,
+          modelRegistry: ctx.modelRegistry,
           conversationContext,
           thinkingLevel,
-          auth,
           signal: abort.signal,
-          complete: options.complete,
           previous,
         });
       } catch (error: unknown) {
@@ -647,8 +569,11 @@ export async function runAutoRename(options: {
           ? { ok: false, reason: "cancelled" }
           : { ok: false, reason: formatError(error) };
       } finally {
-        if (abortSlot.stopProgress === stopProgress) abortSlot.stopProgress = undefined;
-        stopProgress();
+        // Only the request that owns the shared widget may clear it.
+        if (abortSlot.stopProgress === stopProgress) {
+          abortSlot.stopProgress = undefined;
+          stopProgress();
+        }
       }
     };
 
@@ -698,7 +623,6 @@ export function tryAutoRenameOnFirstMessage(options: {
   getThinkingLevel: () => string;
   abortSlot?: AutoRenameAbortSlot;
   agentDir?: string;
-  complete?: CompleteFn;
 }): Promise<AutoRenameResult> | undefined {
   const agentDir = options.agentDir ?? getAgentDir();
   const loaded = loadAutoRenameConfig(agentDir);
@@ -719,7 +643,6 @@ export function tryAutoRenameOnFirstMessage(options: {
     getThinkingLevel: options.getThinkingLevel,
     abortSlot: options.abortSlot,
     agentDir,
-    complete: options.complete,
     seedPrompt: options.prompt,
   });
 }
