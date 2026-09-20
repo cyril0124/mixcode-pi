@@ -268,6 +268,10 @@ function runGit(cwd: string, args: string[]): void {
   const result = childProcess.spawnSync("git", args, {
     cwd,
     encoding: "utf8",
+    // A stalled git (e.g. one blocked on inherited stdin) must fail fast with
+    // a diagnosable message, not hang silently until the 60s test timeout.
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: 10_000,
     env: {
       ...process.env,
       GIT_AUTHOR_NAME: "t",
@@ -276,7 +280,12 @@ function runGit(cwd: string, args: string[]): void {
       GIT_COMMITTER_EMAIL: "t@t.t",
     },
   });
-  if (result.status !== 0) throw new Error(result.stderr || result.stdout);
+  const detail =
+    result.stderr ||
+    result.stdout ||
+    result.error?.message ||
+    `killed by ${result.signal ?? "unknown signal"}`;
+  if (result.status !== 0) throw new Error(`git ${args.join(" ")}: ${detail}`);
 }
 
 test("buildGitDiff reads staged and unstaged changes without configured diff programs", () => {

@@ -559,9 +559,20 @@ export function buildGitDiff(cwd: string, ref: string): SessionDiff {
   const result = childProcess.spawnSync(
     "git",
     ["-C", cwd, "diff", "--no-ext-diff", "--no-textconv", "--no-color", ref, "--"],
-    { encoding: "utf8", maxBuffer: Infinity },
+    {
+      encoding: "utf8",
+      maxBuffer: Infinity,
+      // /diff runs this synchronously; a stalled git must surface a one-line
+      // error instead of freezing the command forever.
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: 30_000,
+    },
   );
-  if (result.error) throw result.error;
+  if (result.error) {
+    // ETIMEDOUT's spawnSync message is opaque; keep the one-line fatal style.
+    const timedOut = (result.error as NodeJS.ErrnoException).code === "ETIMEDOUT";
+    throw new Error(timedOut ? `git diff ${ref} timed out` : result.error.message);
+  }
   if (result.status !== 0) {
     throw new Error(gitDiffErrorMessage(result, ref));
   }
