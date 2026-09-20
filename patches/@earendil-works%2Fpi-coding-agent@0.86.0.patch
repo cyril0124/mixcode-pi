@@ -510,6 +510,200 @@ index ed9d8d264da6f3315874bc909edeea0daef28b5a..256308eaa20f4b410c050872a63e82d6
      }
      getProviderRetrySettings() {
          return {
+diff --git a/dist/core/tools/edit-diff.d.ts b/dist/core/tools/edit-diff.d.ts
+index 1778521de17b61e6c5ec9b9280e13ae59e3d61cc..ae22fc4875177225f5a34504f2cc3b6b066a0923 100644
+--- a/dist/core/tools/edit-diff.d.ts
++++ b/dist/core/tools/edit-diff.d.ts
+@@ -33,16 +33,13 @@ export declare function applyReplacementsPreservingUnchangedLines(originalConten
+ export interface FuzzyMatchResult {
+     /** Whether a match was found */
+     found: boolean;
+-    /** The index where the match starts (in the content that should be used for replacement) */
++    /** The index where the match starts in the original content */
+     index: number;
+-    /** Length of the matched text */
++    /** Length of the matched span in the original content */
+     matchLength: number;
+     /** Whether fuzzy matching was used (false = exact match) */
+     usedFuzzyMatch: boolean;
+-    /**
+-     * The content to use for replacement operations.
+-     * When exact match: original content. When fuzzy match: normalized content.
+-     */
++    /** Original content for both exact and fuzzy replacements. */
+     contentForReplacement: string;
+ }
+ export interface Edit {
+@@ -55,19 +52,16 @@ export interface AppliedEditsResult {
+ }
+ /**
+  * Find oldText in content, trying exact match first, then fuzzy match.
+- * When fuzzy matching is used, the returned contentForReplacement is the
+- * fuzzy-normalized version of the content (trailing whitespace stripped,
+- * Unicode quotes/dashes normalized to ASCII).
++ * Both match coordinates and contentForReplacement refer to the original
++ * content. Normalization locates matches; it is never written to the file.
+  */
+ export declare function fuzzyFindText(content: string, oldText: string): FuzzyMatchResult;
+ /**
+  * Apply one or more exact-text replacements to LF-normalized content.
+  *
+- * All edits are matched against the same original content. Replacements are
+- * then applied in reverse order so offsets remain stable. If any edit needs
+- * fuzzy matching, the operation runs in fuzzy-normalized content space and then
+- * overlays those line-level changes onto the original content so unchanged line
+- * blocks keep their original bytes.
++ * All edits are matched against the same original content and applied in
++ * reverse order so offsets remain stable. Fuzzy matching only locates original
++ * spans; characters outside those spans are preserved, including on edited lines.
+  */
+ export declare function applyEditsToNormalizedContent(normalizedContent: string, edits: Edit[], path: string): AppliedEditsResult;
+ /** Generate a standard unified patch. */
+diff --git a/dist/core/tools/edit-diff.js b/dist/core/tools/edit-diff.js
+index d1218b8c39248710d0c7acbbfcb686e4ff17f6bc..bad4b96deb7932a1063231659e28c724c3211f3c 100644
+--- a/dist/core/tools/edit-diff.js
++++ b/dist/core/tools/edit-diff.js
+@@ -132,11 +132,52 @@ export function applyReplacementsPreservingUnchangedLines(originalContent, baseC
+     result += originalLines.slice(originalLineIndex).join("");
+     return result;
+ }
++const fuzzySegmenter = new Intl.Segmenter("und", { granularity: "grapheme" });
++/**
++ * Map a normalized column only at a complete grapheme boundary. Normalizing
++ * whole graphemes keeps combining sequences together and never splits a
++ * surrogate pair or an expanding compatibility character such as a ligature.
++ * A column inside an expansion has no safe original boundary.
++ */
++function mapFuzzyColumn(line, column) {
++    let normalizedColumn = 0;
++    for (const { segment, index } of fuzzySegmenter.segment(line)) {
++        if (normalizedColumn === column)
++            return index;
++        normalizedColumn += segment.normalize("NFKC").length;
++        if (normalizedColumn > column)
++            return undefined;
++    }
++    return normalizedColumn === column ? line.length : undefined;
++}
++/**
++ * Line breaks survive fuzzy normalization. At a trimmed line end, an end
++ * boundary excludes trailing whitespace; a start on the newline includes
++ * only the newline, leaving the preceding whitespace outside the edit.
++ */
++function mapFuzzyPosition(content, position, kind) {
++    let originalOffset = 0;
++    let normalizedOffset = 0;
++    const lines = content.split("\n");
++    for (let index = 0; index < lines.length; index++) {
++        const line = lines[index];
++        const normalizedEnd = normalizedOffset + normalizeForFuzzyMatch(line).length;
++        if (position < normalizedEnd ||
++            (position === normalizedEnd && (kind === "end" || index === lines.length - 1))) {
++            const column = mapFuzzyColumn(line, position - normalizedOffset);
++            return column === undefined ? undefined : originalOffset + column;
++        }
++        if (position === normalizedEnd)
++            return originalOffset + line.length;
++        originalOffset += line.length + 1;
++        normalizedOffset = normalizedEnd + 1;
++    }
++    return undefined;
++}
+ /**
+  * Find oldText in content, trying exact match first, then fuzzy match.
+- * When fuzzy matching is used, the returned contentForReplacement is the
+- * fuzzy-normalized version of the content (trailing whitespace stripped,
+- * Unicode quotes/dashes normalized to ASCII).
++ * Both match coordinates and contentForReplacement refer to the original
++ * content. Normalization locates matches; it is never written to the file.
+  */
+ export function fuzzyFindText(content, oldText) {
+     // Try exact match first
+@@ -150,11 +191,16 @@ export function fuzzyFindText(content, oldText) {
+             contentForReplacement: content,
+         };
+     }
+-    // Try fuzzy match - work entirely in normalized space
++    // Locate in normalized space, then require safe original boundaries.
+     const fuzzyContent = normalizeForFuzzyMatch(content);
+     const fuzzyOldText = normalizeForFuzzyMatch(oldText);
+-    const fuzzyIndex = fuzzyContent.indexOf(fuzzyOldText);
+-    if (fuzzyIndex === -1) {
++    const fuzzyIndex = fuzzyOldText.length === 0 ? -1 : fuzzyContent.indexOf(fuzzyOldText);
++    const start = fuzzyIndex < 0 ? undefined : mapFuzzyPosition(content, fuzzyIndex, "start");
++    const end = fuzzyIndex < 0 ? undefined : mapFuzzyPosition(content, fuzzyIndex + fuzzyOldText.length, "end");
++    // Recheck the original span so a normalization boundary cannot widen the
++    // edit to characters the caller never named. Failed matches never write.
++    if (start === undefined || end === undefined ||
++        normalizeForFuzzyMatch(content.slice(start, end)) !== fuzzyOldText) {
+         return {
+             found: false,
+             index: -1,
+@@ -163,15 +209,12 @@ export function fuzzyFindText(content, oldText) {
+             contentForReplacement: content,
+         };
+     }
+-    // When fuzzy matching, return offsets in normalized space. Callers can use
+-    // the normalized content to compute replacements, then decide how much of
+-    // that normalized output should be written back.
+     return {
+         found: true,
+-        index: fuzzyIndex,
+-        matchLength: fuzzyOldText.length,
++        index: start,
++        matchLength: end - start,
+         usedFuzzyMatch: true,
+-        contentForReplacement: fuzzyContent,
++        contentForReplacement: content,
+     };
+ }
+ function countOccurrences(content, oldText) {
+@@ -206,11 +249,9 @@ function getNoChangeError(path, totalEdits) {
+ /**
+  * Apply one or more exact-text replacements to LF-normalized content.
+  *
+- * All edits are matched against the same original content. Replacements are
+- * then applied in reverse order so offsets remain stable. If any edit needs
+- * fuzzy matching, the operation runs in fuzzy-normalized content space and then
+- * overlays those line-level changes onto the original content so unchanged line
+- * blocks keep their original bytes.
++ * All edits are matched against the same original content and applied in
++ * reverse order so offsets remain stable. Fuzzy matching only locates original
++ * spans; characters outside those spans are preserved, including on edited lines.
+  */
+ export function applyEditsToNormalizedContent(normalizedContent, edits, path) {
+     const normalizedEdits = edits.map((edit) => ({
+@@ -222,17 +263,14 @@ export function applyEditsToNormalizedContent(normalizedContent, edits, path) {
+             throw getEmptyOldTextError(path, i, normalizedEdits.length);
+         }
+     }
+-    const initialMatches = normalizedEdits.map((edit) => fuzzyFindText(normalizedContent, edit.oldText));
+-    const usedFuzzyMatch = initialMatches.some((match) => match.usedFuzzyMatch);
+-    const replacementBaseContent = usedFuzzyMatch ? normalizeForFuzzyMatch(normalizedContent) : normalizedContent;
+     const matchedEdits = [];
+     for (let i = 0; i < normalizedEdits.length; i++) {
+         const edit = normalizedEdits[i];
+-        const matchResult = fuzzyFindText(replacementBaseContent, edit.oldText);
++        const matchResult = fuzzyFindText(normalizedContent, edit.oldText);
+         if (!matchResult.found) {
+             throw getNotFoundError(path, i, normalizedEdits.length);
+         }
+-        const occurrences = countOccurrences(replacementBaseContent, edit.oldText);
++        const occurrences = countOccurrences(normalizedContent, edit.oldText);
+         if (occurrences > 1) {
+             throw getDuplicateError(path, i, normalizedEdits.length, occurrences);
+         }
+@@ -252,9 +290,7 @@ export function applyEditsToNormalizedContent(normalizedContent, edits, path) {
+         }
+     }
+     const baseContent = normalizedContent;
+-    const newContent = usedFuzzyMatch
+-        ? applyReplacementsPreservingUnchangedLines(normalizedContent, replacementBaseContent, matchedEdits)
+-        : applyReplacements(replacementBaseContent, matchedEdits);
++    const newContent = applyReplacements(normalizedContent, matchedEdits);
+     if (baseContent === newContent) {
+         throw getNoChangeError(path, normalizedEdits.length);
+     }
 diff --git a/dist/index.d.ts b/dist/index.d.ts
 index 205144dbf79e7fc8b15ffc5d9db9922aef3d87de..db1c7eda9325bfad409598b68ca0b3359e30a0be 100644
 --- a/dist/index.d.ts

@@ -205,3 +205,19 @@ Extension tool overrides follow Pi's activation rules. Extensions can dynamicall
 register tools and change the active set. Selections are session-local and are not
 written to settings. Reapply the policy in `session_start` whenever the session or
 extension runtime is recreated.
+
+### Built-in edit fidelity
+
+The built-in `edit` tool preserves characters outside each matched span,
+including smart quotes, full-width spaces, and trailing whitespace on edited
+lines. Fuzzy matches must start and end at Unicode grapheme boundaries. The
+matched original span must normalize to the requested text. A partial match
+such as `ix` in `ﬁx` returns a not-found error without writing. Exact matches
+use the original text even when other edits in the batch need fuzzy matching.
+
+All `edits[]` entries match against the same original content. Duplicate matches
+after normalization or overlapping original spans reject the entire batch before
+writing. Diff previews and execution share the matcher. Pi preserves the BOM and
+restores the detected line-ending style after editing LF-normalized text; mixed
+line endings are not preserved. Extensions that override `edit` define their own
+matching behavior.
