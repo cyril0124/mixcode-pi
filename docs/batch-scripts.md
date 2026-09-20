@@ -112,7 +112,7 @@ Tabs with a custom `system_prompt` display a `[sys]` badge beside the editor tit
 
 ### Prompt sequences
 
-Use `prompts` in either language to run tasks in order within one tab. Each prompt waits for the previous agent run to finish, including its tool calls. Commands use their own completion rules, described below. Supply either `prompt` or `prompts`; TS/JS `null` or `undefined` and Lua `nil` count as omitted. `prompts` must be a nonempty array without gaps, and each string must contain non-whitespace text. Dry-run shows the original text; execution trims leading and trailing whitespace.
+Use `prompts` in either language to run tasks in order within one tab. Each prompt waits for the previous agent run to finish, including its tool calls. Commands use their own completion rules, described below. Supply either `prompt` or `prompts`; TS/JS `null` or `undefined` and Lua `nil` count as omitted. `prompts` must be an array of strings without gaps and contain at least one non-whitespace entry. Empty strings and whitespace-only entries are skipped, so `["", "Review changes", ""]` runs one round. Dry-run lists only retained entries with their original text; execution trims leading and trailing whitespace.
 
 Validation rejects `!` / `!!` shell input before changing any tabs. Sequences support MixCode local commands, skills, named prompt templates, extension commands, unknown slash input, and absolute paths.
 

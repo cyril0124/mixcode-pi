@@ -63,7 +63,7 @@ mixcode.open_tab({
 })
 ```
 
-`prompt` and `prompts` are mutually exclusive when defined. TS/JS `null` or `undefined` and Lua `nil` mean omitted. `prompts` must be a nonempty array without gaps, and each string must contain non-whitespace text. Dry-run shows the original text; execution trims leading and trailing whitespace. Validation rejects `!` / `!!` shell input before changing any tabs. Sequences support MixCode local commands, skills, named templates, extension commands, unknown slash input, and absolute paths.
+`prompt` and `prompts` are mutually exclusive when defined. TS/JS `null` or `undefined` and Lua `nil` mean omitted. `prompts` must be an array of strings without gaps and contain at least one non-whitespace entry. Empty strings and whitespace-only entries are skipped; an empty or all-blank array fails validation. Dry-run lists only retained entries with their original text; execution trims leading and trailing whitespace. Validation rejects `!` / `!!` shell input before changing any tabs. Sequences support MixCode local commands, skills, named templates, extension commands, unknown slash input, and absolute paths.
 
 Local commands execute separately on the owning tab and are not sent to the model. Commands that require confirmation still prompt for it. If a confirmation is cancelled or a command throws, the queue pauses; resuming skips that command. Closing or resetting the conversation discards pending tasks. Some selector commands return as soon as the selector opens. Later steps can then run before a selection is made.
 

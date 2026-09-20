@@ -9,7 +9,7 @@ mixcode = {}
 ---@class mixcode.OpenTabOptions
 ---@field name string Tab title (used for matching existing tabs)
 ---@field prompt? string One input to submit; mutually exclusive with prompts when defined; nil means omitted. Omit both fields to operate without input. Supports skills, templates, extension commands, and !shell / !!shell. Registered MixCode local commands, including /batch, fail at dispatch. Other slash input and paths pass unchanged to Pi; unmatched input becomes message text.
----@field prompts? string[] Nonempty dense array of non-whitespace prompts or local commands; mutually exclusive with prompt; nil means omitted. Apply queues exclusive follow-up rounds and returns without waiting for model completion. See open_tab for validation and ../SKILL.md#prompt-sequences for lifecycle.
+---@field prompts? string[] Dense array of prompts or local commands; empty and whitespace-only strings are skipped, and at least one nonblank entry is required. Mutually exclusive with prompt; nil means omitted. Apply queues exclusive follow-up rounds and returns without waiting for model completion. See open_tab for validation and ../SKILL.md#prompt-sequences for lifecycle.
 ---@field workdir? string New-tab directory; defaults and relative paths use current_workdir(). Reuse/clear keeps the existing directory
 ---@field model? string Model identifier from list_models().id; omitted means keep existing or use the instance default for a new tab
 ---@field thinking? "off"|"minimal"|"low"|"medium"|"high"|"xhigh"|"max" Supported thinking level; omitted means keep existing or use the instance default for a new tab
@@ -43,7 +43,7 @@ mixcode = {}
 ---groups continue after one fails. Applied changes remain in both cases.
 ---See ../SKILL.md#execution-and-errors for command errors and persistence.
 ---If both `prompt` and `prompts` are omitted, the tab is created/reused/cleared/deleted without submitting input.
----Dry-run shows the original prompts text; execution trims leading and trailing whitespace.
+---Dry-run lists retained entries with their original text; execution trims leading and trailing whitespace.
 ---Shell input (! / !!) in `prompts` fails preflight before tab mutations.
 ---MixCode local commands run separately on the owning tab with their normal confirmations
 ---and completion rules. If a confirmation is cancelled or a command throws, remaining tasks pause.

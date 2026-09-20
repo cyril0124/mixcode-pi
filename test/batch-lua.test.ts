@@ -381,6 +381,35 @@ test("batch context-limit preflight rejects invalid later requests before any ta
   }
 });
 
+test("applyBatchRequests skips blanks in directly supplied prompt sequences", async () => {
+  const host = createMockHost();
+  await applyBatchRequests(
+    [{ name: "sequence", prompts: ["", "first", "  ", "/color red", ""] }],
+    host,
+  );
+  assert.deepEqual(host.inputs, [
+    { sessionId: "new-sequence", input: "first" },
+    { sessionId: "new-sequence", input: "/color red" },
+  ]);
+});
+
+test("applyBatchRequests rejects all-blank sequences before any tab changes", async () => {
+  const host = createMockHost([{ title: "existing", sessionId: "keep" }]);
+  await assert.rejects(
+    applyBatchRequests(
+      [
+        { name: "new", prompts: ["valid"] },
+        { name: "existing", mode: "delete", prompts: ["", " "] },
+      ],
+      host,
+    ),
+    /Error: Invalid prompts.*existing/,
+  );
+  assert.deepEqual(host.created, []);
+  assert.deepEqual(host.deleted, []);
+  assert.deepEqual(host.inputs, []);
+});
+
 test("applyBatchRequests creates new tabs and sends prompts", async () => {
   const host = createMockHost();
   const requests: BatchTabRequest[] = [
@@ -682,6 +711,16 @@ test("applyBatchRequests skips submit when prompt is omitted", async () => {
   await applyBatchRequests([{ name: "empty-tab" }], host);
   assert.equal(host.created.length, 1);
   assert.equal(host.inputs.length, 0);
+});
+
+test("formatBatchPlan omits blank slots from directly supplied sequences", () => {
+  const text = formatBatchPlan({
+    requests: [{ name: "sequence", prompts: ["", "first", " ", "/color red", ""] }],
+  });
+  assert.equal(
+    text,
+    "Batch dry-run: 1 request(s)\n1. name=sequence\n   prompts: 2 exclusive round(s)\n     1. first\n     2. /color red",
+  );
 });
 
 test("formatBatchPlan prints missing prompts", () => {

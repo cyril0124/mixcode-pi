@@ -31,9 +31,10 @@ interface MixCodeBatchOpenTabOptions {
    */
   prompt?: string;
   /**
-   * Nonempty dense array of non-whitespace prompts or local commands; mutually exclusive
-   * with prompt. Runtime null/undefined mean omitted. Dry-run shows the original
-   * text; execution trims leading and trailing whitespace. Shell input (! / !!)
+   * Dense array of prompts or local commands; mutually exclusive with prompt.
+   * Empty and whitespace-only strings are skipped; at least one nonblank entry
+   * is required. Runtime null/undefined mean omitted. Dry-run lists retained
+   * entries with their original text; execution trims leading and trailing whitespace. Shell input (! / !!)
    * fails preflight before tab mutations. MixCode local commands run as separate
    * steps on the owning tab, with their normal confirmations and completion rules.
    * If a confirmation is cancelled or a command throws, the remaining queue pauses.

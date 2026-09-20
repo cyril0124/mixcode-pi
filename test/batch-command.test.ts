@@ -392,6 +392,27 @@ for (const extension of ["ts", "lua"]) {
   });
 }
 
+test("/batch skips empty strings without adding user or command rounds", async () => {
+  await withRuntime(async ({ root, state, runtime, submit }) => {
+    await Bun.write(
+      path.join(root, "create.ts"),
+      'export default api => api.openTab({name:"sequence"});',
+    );
+    await submit("/batch create.ts");
+    const tab = state.tabs[0]!;
+    tab.followUpsPaused = true;
+    await Bun.write(
+      path.join(root, "blanks.ts"),
+      'export default api => api.openTab({name:"sequence", prompts:["", "first", "  ", "/color blue", "", "second", ""]});',
+    );
+    await submit("/batch blanks.ts");
+    assert.deepEqual(tab.pendingFollowUps, ["first", "/color blue", "second"]);
+    await runtime.resumeFollowUps(tab.sessionId);
+    assert.deepEqual(userTexts(runtime, tab.sessionId), ["first", "second"]);
+    assert.equal(tab.color, "blue");
+  });
+});
+
 test("/batch sequences execute local commands on their owning tab between prompt rounds", async () => {
   const colors: Array<string | undefined> = [];
   await withRuntime(async ({ root, state, runtime, submit }) => {

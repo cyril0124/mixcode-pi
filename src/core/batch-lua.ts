@@ -325,8 +325,9 @@ export async function runLuaScript(
 
 /**
  * Snapshot and validate a script's prompt sequence before any tab mutation.
- * Nullish values mean omitted. Requires a nonempty array without gaps, containing
- * non-whitespace strings. Rejects shell input and simultaneous prompt/prompts fields.
+ * Nullish values mean omitted. Requires an array of strings without gaps and at
+ * least one nonblank entry. Omits blank entries without trimming retained text.
+ * Rejects shell input and simultaneous prompt/prompts fields.
  */
 export function parseBatchPrompts(
   input: unknown,
@@ -345,14 +346,18 @@ export function parseBatchPrompts(
   const prompts: string[] = [];
   for (let index = 0; index < input.length; index++) {
     const text: unknown = input[index];
-    if (typeof text !== "string" || !text.trim()) {
-      throw invalid(`entry ${index + 1} must be a non-empty string`);
+    if (typeof text !== "string") {
+      throw invalid(`entry ${index + 1} must be a string`);
     }
+    if (!text.trim()) continue;
     const parsed = parseInput(text);
     if (parsed.kind === "shell") {
       throw invalid(`entry ${index + 1} cannot execute !shell or !!shell`);
     }
     prompts.push(text);
+  }
+  if (prompts.length === 0) {
+    throw invalid("expected at least one non-blank prompt or command");
   }
   return prompts;
 }
@@ -519,7 +524,13 @@ export async function applyBatchRequests(
         if (model || thinking || contextLimit !== undefined) {
           await host.configureTab(sessionId, { model, thinking, contextLimit });
         }
-        if (request.prompts !== undefined) await host.queuePrompts(sessionId, request.prompts);
+        if (request.prompts !== undefined) {
+          // Direct callers may supply unnormalized plans; blank slots never become rounds.
+          await host.queuePrompts(
+            sessionId,
+            request.prompts.filter((text) => text.trim()),
+          );
+        }
         if (request.prompt !== undefined) await host.submitInput(sessionId, request.prompt);
       }
     }),
@@ -539,8 +550,9 @@ export function formatBatchPlan(plan: BatchPlan): string {
     if (req.systemPrompt) parts.push("system_prompt=yes");
     lines.push(parts.join(" "));
     if (req.prompts !== undefined) {
-      lines.push(`   prompts: ${req.prompts.length} exclusive round(s)`);
-      req.prompts.forEach((prompt, index) => lines.push(`     ${index + 1}. ${prompt}`));
+      const prompts = req.prompts.filter((text) => text.trim());
+      lines.push(`   prompts: ${prompts.length} exclusive round(s)`);
+      prompts.forEach((prompt, index) => lines.push(`     ${index + 1}. ${prompt}`));
     } else {
       lines.push(req.prompt === undefined ? "   prompt: (none)" : `   prompt: ${req.prompt}`);
     }

@@ -111,7 +111,7 @@ skills、prompt templates、extension commands 和 `!shell` / `!!shell`。
 
 ### prompt 序列
 
-两种语言均可用 `prompts` 在同一个 tab 中按顺序执行任务。每条 prompt 等待上一轮 agent 运行结束，包括其中的工具调用。命令的完成时机见下文。`prompt` 与 `prompts` 只能提供一个；TS/JS 的 `null`、`undefined` 和 Lua 的 `nil` 视为省略。`prompts` 必须是非空、无空洞的数组，每个字符串都须包含非空白文本。dry-run 显示原始文本，执行时去除首尾空白。
+两种语言均可用 `prompts` 在同一个 tab 中按顺序执行任务。每条 prompt 等待上一轮 agent 运行结束，包括其中的工具调用。命令的完成时机见下文。`prompt` 与 `prompts` 只能提供一个；TS/JS 的 `null`、`undefined` 和 Lua 的 `nil` 视为省略。`prompts` 必须是无空洞的字符串数组，且至少一项包含非空白文本。空字符串和纯空白项会被跳过，例如 `["", "审查改动", ""]` 只执行一轮。dry-run 只列出保留项的原始文本，执行时去除首尾空白。
 
 校验会在修改任何 tab 前拒绝 `!` / `!!` shell 输入。序列支持 MixCode 本地命令、skill、具名 prompt template、扩展命令、未知 slash 输入及绝对路径。
 

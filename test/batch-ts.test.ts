@@ -225,6 +225,17 @@ test("Lua and TS collect exclusive prompt sequences and preview every round", as
 });
 
 for (const extension of ["ts", "lua"]) {
+  test(`${extension} omits blank sequence entries from execution plans and dry-run`, async () => {
+    const source =
+      extension === "ts"
+        ? 'export default api => api.openTab({name:"sequence", prompts:["", "  first  ", " \\t\\n", "/color red", ""]});'
+        : 'mixcode.open_tab({name="sequence", prompts={"", "  first  ", " \\t\\n", "/color red", ""}})';
+    const plan = await withScript(`blanks.${extension}`, source, (file) => loadBatchRequests(file));
+    assert.deepEqual(plan.requests[0]!.prompts, ["  first  ", "/color red"]);
+    assert.match(formatBatchPlan(plan), /prompts: 2 exclusive round\(s\)/);
+    assert.ok(formatBatchPlan(plan).includes("     1.   first  \n     2. /color red"));
+  });
+
   test(`${extension} rejects malformed prompt sequences before collecting a plan`, async () => {
     const invalid =
       extension === "ts"
@@ -232,7 +243,8 @@ for (const extension of ["ts", "lua"]) {
             'prompts: "text"',
             "prompts: []",
             'prompts: ["valid", 42]',
-            'prompts: ["valid", "  "]',
+            'prompts: ["", ""]',
+            'prompts: ["", " \\t\\n"]',
             'prompts: ["valid", , "last"]',
             'prompt: "first", prompts: ["second"]',
             'prompts: ["valid", null]',
@@ -243,7 +255,8 @@ for (const extension of ["ts", "lua"]) {
             'prompts="text"',
             "prompts={}",
             'prompts={"valid", 42}',
-            'prompts={"valid", "  "}',
+            'prompts={"", ""}',
+            'prompts={"", " \\t\\n"}',
             'prompts={[1]="first", [3]="last"}',
             'prompts={[1]="first", extra="last"}',
             'prompts={[0]="first"}',
