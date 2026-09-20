@@ -89,8 +89,8 @@ export interface BatchExecutorHost {
   deleteTab(sessionId: string): Promise<void>;
   /**
    * Submit input through the shared dispatch: !shell / !!shell execute bash;
-   * registered MixCode local commands are rejected. Other input enters Pi's native
-   * prompt pipeline, where unmatched slash input (including paths) becomes message text.
+   * MixCode local commands execute on the target tab and await required confirmation.
+   * Other input enters Pi's prompt pipeline; unmatched slash input becomes message text.
    */
   submitInput(sessionId: string, input: string): Promise<void>;
   /** Append validated prompts and local commands as exclusive steps without awaiting execution. */

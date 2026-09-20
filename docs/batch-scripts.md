@@ -103,10 +103,14 @@ New tabs, including `delete` replacements, take focus.
 With no matching tab, a new tab is created. `clear` + `system_prompt` is always rejected during validation before any tab changes, including when `system_prompt` is an empty string. For repeated names, only the first request controls creation/reset/deletion. Interactive `/clear` still replaces the session and resets its title.
 
 A single `prompt` uses the [shared input dispatch](architecture.md#runtime-mapping), including
-plain text, paths, skills, prompt templates, extension commands, and `!shell` / `!!shell`.
-Registered MixCode local slash commands, including `/batch`, are rejected in `prompt`;
-use `prompts` to queue them or enter them in the TUI. Other slash input and paths pass unchanged to Pi;
-unmatched input such as `/unknown` becomes message text.
+plain text, paths, skills, prompt templates, extension commands, MixCode local commands,
+and `!shell` / `!!shell`. A local command such as `prompt: "/color red"` executes on the
+target tab when its batch request is applied, even while the agent is busy. It does not
+enter the follow-up queue. Commands that require confirmation wait for the decision
+and confirmed operation before the next same-tab request; cancellation or a thrown
+error stops that tab's remaining batch requests. Nested `/batch` paths resolve from
+the target tab's workdir, including when Home has focus. Other slash input and paths
+pass unchanged to Pi; unmatched input such as `/unknown` becomes message text.
 
 Tabs with a custom `system_prompt` display a `[sys]` badge beside the editor title.
 

@@ -8,7 +8,7 @@ mixcode = {}
 
 ---@class mixcode.OpenTabOptions
 ---@field name string Tab title (used for matching existing tabs)
----@field prompt? string One input to submit; mutually exclusive with prompts when defined; nil means omitted. Omit both fields to operate without input. Supports skills, templates, extension commands, and !shell / !!shell. Registered MixCode local commands, including /batch, fail at dispatch. Other slash input and paths pass unchanged to Pi; unmatched input becomes message text.
+---@field prompt? string One input to submit; mutually exclusive with prompts when defined; nil means omitted. Omit both fields to operate without input. Supports skills, templates, extension commands, local commands, and !shell / !!shell. Local commands run on the target tab at dispatch, even while busy, and wait for required confirmations and their actions. Cancellation or a thrown error stops remaining same-tab requests. Nested /batch uses the target workdir. Other slash input and paths pass unchanged to Pi; unmatched input becomes message text.
 ---@field prompts? string[] Dense array of prompts or local commands; empty and whitespace-only strings are skipped, and at least one nonblank entry is required. Mutually exclusive with prompt; nil means omitted. Apply queues exclusive follow-up rounds and returns without waiting for model completion. See open_tab for validation and ../SKILL.md#prompt-sequences for lifecycle.
 ---@field workdir? string New-tab directory; defaults and relative paths use current_workdir(). Reuse/clear keeps the existing directory
 ---@field model? string Model identifier from list_models().id; omitted means keep existing or use the instance default for a new tab

@@ -26,7 +26,7 @@ export function createBatchExecutorHost(options: {
   runtime: MixCodeRuntime;
   tui: Pick<OverlayTui, "requestRender">;
   onStateChanged?: (state: MixCodeState) => void | Promise<void>;
-  /** Dispatch a queued local command on its owner, including confirmation and persistence. */
+  /** Run a local command on its owner, awaiting confirmation and persistence. */
   submitQueuedInput?: (sessionId: string, text: string) => Promise<void>;
 }): BatchExecutorHost {
   const { state, runtime, tui, onStateChanged } = options;
@@ -105,9 +105,10 @@ export function createBatchExecutorHost(options: {
       await runBatchActionWithSave(
         async () => {
           if (parsed.kind === "local-command") {
-            throw new Error(
-              `Batch prompt cannot execute MixCode local command: /${parsed.command}`,
-            );
+            const submit = options.submitQueuedInput;
+            if (!submit) throw new Error("Error: Batch local commands require an input host");
+            await submit(sessionId, input);
+            return;
           }
           await submitAgentInput(tab, runtime, input, parsed);
         },

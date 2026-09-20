@@ -103,8 +103,10 @@ Lua 每次调用都会重新读取并执行文件，提供 `os.getenv`、`io` �
 没有同名 tab 时新建 tab。`clear` + `system_prompt` 在任何 tab 操作前的校验阶段始终被拒绝，包括系统提示词为空字符串的情况。同名重复请求仅由第一条决定新建/重置/删除行为。交互式 `/clear` 仍会替换会话并重置标题。
 
 单条 `prompt` 使用[共用输入分发](architecture.zh.md#运行时映射)，支持普通文本、文件路径、
-skills、prompt templates、extension commands 和 `!shell` / `!!shell`。
-`prompt` 不接受已注册的 MixCode 本地 slash command，包括 `/batch`；可通过 `prompts` 排队或在 TUI 中输入执行。
+skill、prompt template、扩展命令、MixCode 本地命令和 `!shell` / `!!shell`。
+例如 `prompt: "/color red"` 会在应用该 batch 请求时直接对目标 tab 执行，即使 agent 正忙也不进入 follow-up 队列。
+需要确认的命令会等待用户决定及确认后的操作完成，再处理同一 tab 的下一条请求；取消确认或命令抛错会停止该 tab 剩余的 batch 请求。
+嵌套 `/batch` 的路径按目标 tab 的工作目录解析，即使焦点在 Home 也是如此。
 其他 slash 输入和路径原样交给 Pi；未匹配的输入，例如 `/unknown`，成为消息文本。
 
 设置了 `system_prompt` 的 tab，编辑器标题旁显示 `[sys]` 角标。

@@ -277,7 +277,58 @@ test("/batch captures fresh tab/model snapshots on each invocation while retaini
   });
 });
 
-test("/batch preserves unknown slash text and shell input while refusing nested local commands", async () => {
+for (const extension of ["ts", "lua"]) {
+  test(`/batch ${extension} single prompts execute local commands on their owning tab`, async () => {
+    await withRuntime(async ({ root, state, runtime, submit }) => {
+      await Bun.write(
+        path.join(root, "setup.ts"),
+        'export default api => { api.openTab({name:"owner"}); api.openTab({name:"other"}); };',
+      );
+      await submit("/batch setup.ts");
+      const owner = state.tabs.find((tab) => tab.title === "owner")!;
+      const other = state.tabs.find((tab) => tab.title === "other")!;
+      const source =
+        extension === "ts"
+          ? 'export default api => { api.openTab({name:"owner", prompt:"/color red"}); api.openTab({name:"owner", prompt:"after color"}); };'
+          : 'mixcode.open_tab({name="owner", prompt="/color red"}); mixcode.open_tab({name="owner", prompt="after color"})';
+      await Bun.write(path.join(root, `local.${extension}`), source);
+      await submit(`/batch local.${extension}`);
+      assert.equal(owner.color, "red");
+      assert.equal(other.color, undefined);
+      assert.equal(state.activeTabId, other.sessionId);
+      assert.deepEqual(userTexts(runtime, owner.sessionId), ["after color"]);
+      assert.deepEqual(userTexts(runtime, other.sessionId), []);
+    });
+  });
+}
+
+test("/batch single local command waits for confirmation and cancellation stops its group", async () => {
+  await withRuntime(async ({ root, state, runtime, submit }) => {
+    await Bun.write(
+      path.join(root, "setup.ts"),
+      'export default api => api.openTab({name:"owner"});',
+    );
+    await submit("/batch setup.ts");
+    const owner = state.tabs[0]!;
+    await Bun.write(
+      path.join(root, "confirm.ts"),
+      'export default api => { api.openTab({name:"owner", prompt:"/close-session"}); api.openTab({name:"owner", prompt:"must not run"}); };',
+    );
+    const running = submit("/batch confirm.ts");
+    const rejected = assert.rejects(running, /Error: Queued command cancelled/);
+    // File loading and persistence precede the dialog; observe the actual confirmation state.
+    for (let attempt = 0; attempt < 100 && !state.sessionActionConfirm; attempt++)
+      await Bun.sleep(10);
+    assert.deepEqual(state.sessionActionConfirm, { action: "close", sessionId: owner.sessionId });
+    assert.deepEqual(userTexts(runtime, owner.sessionId), []);
+    dispatchOwnedOverlayKey(state, owner, "n", testTui(), runtime);
+    await rejected;
+    assert.equal(state.tabs.includes(owner), true);
+    assert.deepEqual(userTexts(runtime, owner.sessionId), []);
+  });
+});
+
+test("/batch preserves unknown slash text and shell input through nested batch commands", async () => {
   await withRuntime(async ({ root, state, runtime, submit }) => {
     await Bun.write(
       path.join(root, "route.ts"),
@@ -299,11 +350,39 @@ test("/batch preserves unknown slash text and shell input while refusing nested 
       path.join(root, "nested.ts"),
       'export default api => api.openTab({name:"routes", prompt:"/batch route.ts"});',
     );
-    await assert.rejects(
-      submit("/batch nested.ts"),
-      /Error:.*Batch prompt cannot execute.*\/batch/,
+    await submit("/batch nested.ts");
+    assert.deepEqual(userTexts(runtime, id), [
+      "/unknown first\n  second",
+      "/tmp/a path",
+      "/unknown first\n  second",
+      "/tmp/a path",
+    ]);
+  });
+});
+
+test("nested /batch uses its target workdir while focus stays on Home", async () => {
+  await withRuntime(async ({ root, state, runtime, submit }) => {
+    const nestedWorkdir = path.join(root, "nested-workdir");
+    await fs.mkdir(nestedWorkdir);
+    await Bun.write(
+      path.join(root, "setup.ts"),
+      'export default api => api.openTab({name:"owner", workdir:"nested-workdir"});',
     );
-    assert.deepEqual(userTexts(runtime, id), ["/unknown first\n  second", "/tmp/a path"]);
+    await submit("/batch setup.ts");
+    const owner = state.tabs[0]!;
+    await Bun.write(
+      path.join(nestedWorkdir, "inner.lua"),
+      'mixcode.open_tab({name="owner", prompt="/color red"})',
+    );
+    await Bun.write(
+      path.join(root, "outer.ts"),
+      'export default api => api.openTab({name:"owner", prompt:"/batch inner.lua"});',
+    );
+    state.activeTabId = HOME_TAB_ID;
+    await submit("/batch outer.ts");
+    assert.equal(owner.color, "red");
+    assert.equal(state.activeTabId, HOME_TAB_ID);
+    assert.deepEqual(userTexts(runtime, owner.sessionId), []);
   });
 });
 
@@ -540,12 +619,12 @@ test("/batch persists mutations before dispatch and after one parallel group fai
         path.join(root, "partial.ts"),
         `export default api => {
       api.openTab({name:"saved", prompt:"/inspect-saved"});
-      api.openTab({name:"failure", prompt:"/settings"});
+      api.openTab({name:"failure", prompt:"/models missing-batch-model"});
     };`,
       );
       await assert.rejects(
         submit("/batch partial.ts"),
-        /Error:.*Batch prompt cannot execute.*\/settings/,
+        /Error:.*Unknown model: missing-batch-model/,
       );
       await observed.promise;
       assert.deepEqual(savedTitles, ["saved", "failure"]);
@@ -647,13 +726,13 @@ for (const scenario of ["dispatch", "configure", "validation"] as const) {
       if (scenario === "configure") state.availableModels.push(unregistered);
       const options =
         scenario === "dispatch"
-          ? { name: "target", prompt: "/batch nested.ts" }
+          ? { name: "target", prompt: "/models missing-batch-model" }
           : { name: "target", model: "absent/absent" };
       const file = path.join(root, `${scenario}.ts`);
       await Bun.write(file, `export default api => api.openTab(${JSON.stringify(options)});`);
       const expected =
         scenario === "dispatch"
-          ? "Batch prompt cannot execute MixCode local command: /batch"
+          ? "Unknown model: missing-batch-model"
           : scenario === "configure"
             ? "Model is not registered in runtime: absent/absent"
             : "Unknown model";

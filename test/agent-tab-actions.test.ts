@@ -12,7 +12,7 @@ import { applyBatchRequests, contextFromState, loadBatchRequests } from "../src/
 import { createInitialState, createTab } from "../src/core/defaults.js";
 import { modelToRef, registerModels } from "../src/core/models.js";
 
-test("batch input rejects MixCode local commands instead of prompting the agent", async () => {
+test("batch local commands require an input host instead of prompting the agent", async () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"));
   const prompts: string[] = [];
@@ -31,7 +31,7 @@ test("batch input rejects MixCode local commands instead of prompting the agent"
 
   await assert.rejects(
     () => host.submitInput("s1", "/settings"),
-    /Batch prompt cannot execute MixCode local command: \/settings/,
+    /Error: Batch local commands require an input host/,
   );
   assert.deepEqual(prompts, []);
 });

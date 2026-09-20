@@ -25,8 +25,10 @@ interface MixCodeBatchOpenTabOptions {
   /**
    * One input to submit; mutually exclusive with prompts when defined.
    * Runtime null/undefined mean omitted; omit both fields to operate without input.
-   * Supports skills, templates, extension commands, and !shell / !!shell.
-   * Registered MixCode local commands, including /batch, fail at dispatch.
+   * Supports skills, templates, extension commands, local commands, and !shell / !!shell.
+   * Local commands execute on the target tab at dispatch, including while busy.
+   * They wait for required confirmations and their actions; cancellation or a thrown
+   * error stops remaining same-tab requests. Nested /batch uses the target workdir.
    * Other slash input and paths pass unchanged to Pi; unmatched input becomes message text.
    */
   prompt?: string;

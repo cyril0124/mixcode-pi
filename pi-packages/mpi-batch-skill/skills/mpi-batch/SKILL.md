@@ -174,7 +174,7 @@ Batch `clear` resets to the session root and keeps focus unchanged; it rejects s
 
 For repeated requests with the same title, the first request controls creation, clearing, or deletion. Later requests configure model/thinking, apply context limits, and submit optional prompts in that order; they are not additional reset steps. Put creation options on the first request.
 
-A single `prompt` supports plain text, skills, prompt templates, extension commands, and `!shell` / `!!shell`. Registered MixCode local commands, including `/batch`, are rejected in `prompt`; use `prompts` to queue them. Other slash input and paths pass unchanged to Pi; unmatched input, including absolute paths and `/unknown`, becomes message text.
+A single `prompt` supports plain text, skills, prompt templates, extension commands, MixCode local commands, and `!shell` / `!!shell`. Local commands run on the target tab when the request is applied, including while the agent is busy, without entering the follow-up queue. For example, use `prompt: "/color red"` to color the tab immediately. Required confirmations wait for the decision and confirmed operation before the next same-tab request. Cancellation or a thrown error stops that tab's remaining batch requests. Nested `/batch` paths resolve from the target tab's workdir, even with Home focused. Other slash input and paths pass unchanged to Pi; unmatched input, including absolute paths and `/unknown`, becomes message text.
 
 Script syntax and runtime errors identify the script path. Invalid tab options fail validation. JS scripts also reject missing or non-function default exports and unknown option names, including the Lua spelling `system_prompt`.
 

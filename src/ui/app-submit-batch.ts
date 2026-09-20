@@ -17,6 +17,7 @@ const handleBatch: LocalCommandHandler = async ({
   tui,
   onStateChanged,
   submitQueuedInput,
+  queuedCommand,
 }): Promise<typeof SKIP_FINALIZE> => {
   const persist = () => {
     const write = async () => {
@@ -29,7 +30,9 @@ const handleBatch: LocalCommandHandler = async ({
   };
   try {
     const { file, args } = parseBatchArguments(rawArgs);
-    const workdir = state.activeTabId === HOME_TAB_ID ? state.workdir : active!.workdir;
+    // A deferred /batch belongs to its target tab even when Home has focus.
+    const fromHome = state.activeTabId === HOME_TAB_ID && !queuedCommand;
+    const workdir = fromHome ? state.workdir : active!.workdir;
     // Capture before evaluation yields; subsequent UI changes leave this snapshot intact.
     const plan = await loadBatchRequests(path.resolve(workdir, file), {
       ...contextFromState(state),
