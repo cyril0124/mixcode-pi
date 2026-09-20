@@ -51,8 +51,8 @@ export function applyMixCodeSystemPrompt(
 ): void {
   agentSession.setSystemPromptAssembler((collected) => {
     const options = { ...collected, searchTools };
-    const { prompt, sections } = buildMixCodeSystemPromptSections(options);
+    const { transcriptSections, sections } = buildMixCodeSystemPromptSections(options);
     systemPromptSectionsBySession.set(agentSession, sections);
-    return { prompt, options };
+    return { sections: transcriptSections, options };
   });
 }

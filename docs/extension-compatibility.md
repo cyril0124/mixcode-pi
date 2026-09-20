@@ -150,7 +150,24 @@ Supported:
 
 System prompts, AGENTS, and project context flow directly through the Pi resource loader pipeline.
 
-MixCode assembles the host prompt from the collected options and stores it as a system-message section in the Pi transcript. Prompt and tool changes are recorded on the next request; opening an existing session does not rewrite its history. `before_agent_start` sees the host prompt, including the date and tool guidelines. Its `systemPrompt` return value overrides the provider's leading prompt for that run without replacing persisted instructions.
+MixCode stores the host prompt in eight ordered transcript sections:
+
+| Section | Content |
+| --- | --- |
+| `preamble` | Host identity |
+| `tools` | Tool descriptions and guidelines |
+| `docs` | Documentation references |
+| `addendum` | `appendSystemPrompt` |
+| `project_context` | Project instructions |
+| `skills` | Available skills and reading instructions |
+| `extensions` | Sections contributed by extensions |
+| `environment` | Date and working directory |
+
+Pi's `diffSystemPromptSections` records changed groups before each model request, including requests between tool calls. Empty groups retain their keys with `""`; this clears the text and preserves the group's position when content returns. Pi joins nonempty groups with a blank line. `/system-prompt` counts the same text and separators, with a separate display row for each project file. Extension section names are contained within `extensions` and cannot replace host groups.
+
+Opening a session preserves its recorded history. For a session whose full prompt occupies one `preamble` section, the next request replaces that section with the host identity and adds the remaining groups. Branch navigation and compaction replay the recorded sections and tool declarations.
+
+`before_agent_start` receives the assembled host prompt. Returning `systemPrompt` replaces the provider's leading prompt for that run; persisted instructions remain unchanged.
 
 Provider `stream` / `streamSimple` implementations and `MixCodeStreamFn` receive a normalized `TranscriptContext`. Read instructions and tool declarations with `getCurrentSystemPrompt(context.messages)` and `getCurrentTools(context.messages)`; the context has no separate `systemPrompt` or `tools` fields. Wrappers must preserve system messages and the normalized context. Use `normalizeContext()` when constructing a provider input from a raw `Context`.
 

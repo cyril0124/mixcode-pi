@@ -1,5 +1,6 @@
 import { existsSync, realpathSync } from "node:fs";
 import * as path from "node:path";
+import { getSystemMessageText } from "@earendil-works/pi-ai";
 import {
   type BuildSystemPromptOptions,
   formatSkillsForPrompt,
@@ -39,12 +40,14 @@ export interface SystemPromptSection {
 /**
  * Assemble the host prompt and its exact display fragments from Pi's collected
  * options. MixCode owns the text format, date, documentation, and search rules;
- * Pi owns skill formatting and persists the result as a transcript system section.
- * Tool guidelines, project context, and extension sections retain their order.
+ * Pi owns skill formatting and replays the named transcript sections. Empty
+ * groups retain their insertion order so later additions cannot move past cwd.
+ * Display fragments include the same separators Pi inserts between groups.
  */
 export function buildMixCodeSystemPromptSections(options: MixCodeSystemPromptPartsOptions): {
   prompt: string;
   sections: SystemPromptSection[];
+  transcriptSections: Record<string, string>;
 } {
   const {
     customPrompt,
@@ -77,50 +80,88 @@ export function buildMixCodeSystemPromptSections(options: MixCodeSystemPromptPar
   const date = currentDate();
   const promptCwd = cwd.replace(/\\/g, "/");
 
-  const sections: SystemPromptSection[] = [
-    { name: "Identity", text: identity },
-    { name: "Tools & Guidelines", text: toolsSection },
-  ];
-  if (docsSection) sections.push({ name: "Documentation", text: docsSection });
-  if (appendSystemPrompt) {
-    sections.push({ name: "Append (appendSystemPrompt)", text: `\n\n${appendSystemPrompt}` });
-  }
+  const sections: SystemPromptSection[] = [];
+  const transcriptSections: Record<string, string> = {};
+  let hasContent = false;
+  const appendGroup = (key: string, fragments: SystemPromptSection[]) => {
+    const text = fragments.map((fragment) => fragment.text).join("");
+    // Keep fixed empty slots. Pi's Map-based replay keeps first-insertion order;
+    // deleting a slot would move it to the end when its content returns.
+    transcriptSections[key] = text;
+    let needsSeparator = hasContent && text.length > 0;
+    for (const fragment of fragments) {
+      const prefix = needsSeparator && fragment.text.length > 0 ? "\n\n" : "";
+      sections.push({ name: fragment.name, text: prefix + fragment.text });
+      if (fragment.text.length > 0) needsSeparator = false;
+    }
+    hasContent ||= text.length > 0;
+  };
 
-  // Build the text once so display accounting cannot drift from the provider prompt.
+  appendGroup("preamble", [{ name: "Identity", text: identity }]);
+  appendGroup("tools", [{ name: "Tools & Guidelines", text: toolsSection.slice(2) }]);
+  appendGroup("docs", docsSection ? [{ name: "Documentation", text: docsSection.slice(2) }] : []);
+  appendGroup(
+    "addendum",
+    appendSystemPrompt ? [{ name: "Append (appendSystemPrompt)", text: appendSystemPrompt }] : [],
+  );
+
+  const project: SystemPromptSection[] = [];
   const files = contextFiles ?? [];
   if (files.length > 0) {
-    sections.push({
+    project.push({
       name: "Project context (frame)",
-      text: "\n\n<project_context>\n\nProject-specific instructions and guidelines:\n\n",
+      text: "<project_context>\n\nProject-specific instructions and guidelines:\n\n",
     });
     for (const { path: filePath, content } of files) {
-      sections.push({
+      project.push({
         name: `Project context: ${filePath}`,
         text: `<project_instructions path="${filePath}">\n${content}\n</project_instructions>\n\n`,
       });
     }
-    sections.push({ name: "Project context (frame)", text: "</project_context>\n" });
+    project.push({ name: "Project context (frame)", text: "</project_context>\n" });
   }
-  // Mirror upstream's assembler (#8552): the skills section needs a tool that
-  // can read skill files — `read` first, falling back to `bash`, and the
-  // instruction line names whichever tool won.
+  appendGroup("project_context", project);
+
+  // Pi formats skill instructions for whichever active tool can read the files.
   const skillFileReadTool: "read" | "bash" | undefined = !selectedTools
     ? "read"
     : (["read", "bash"] as const).find((tool) => selectedTools.includes(tool));
-  if (skillFileReadTool && skills && skills.length > 0) {
-    sections.push({ name: "Skills", text: formatSkillsForPrompt(skills, skillFileReadTool) });
-  }
-  for (const [name, content] of Object.entries(options.sections ?? {})) {
-    if (content) {
-      sections.push({ name: `Extension: ${name}`, text: `\n\n<${name}>\n${content}\n</${name}>` });
-    }
-  }
-  sections.push({
-    name: "Environment (date & cwd)",
-    text: `\nCurrent date: ${date}\nCurrent working directory: ${promptCwd}\n`,
-  });
+  appendGroup(
+    "skills",
+    skillFileReadTool && skills && skills.length > 0
+      ? [
+          {
+            name: "Skills",
+            text: formatSkillsForPrompt(skills, skillFileReadTool).replace(/^\n+/, ""),
+          },
+        ]
+      : [],
+  );
 
-  return { prompt: sections.map((section) => section.text).join(""), sections };
+  // Extension names stay inside their own group, so they cannot overwrite host
+  // slots or change the position of later groups when added or removed.
+  const extensionSections = Object.entries(options.sections ?? {}).filter(([, text]) => text);
+  appendGroup(
+    "extensions",
+    extensionSections.map(([name, content], index) => ({
+      name: `Extension: ${name}`,
+      text: `${index > 0 ? "\n\n" : ""}<${name}>\n${content}\n</${name}>`,
+    })),
+  );
+  appendGroup("environment", [
+    {
+      name: "Environment (date & cwd)",
+      text: `Current date: ${date}\nCurrent working directory: ${promptCwd}\n`,
+    },
+  ]);
+
+  const prompt = getSystemMessageText({
+    role: "system",
+    content: "",
+    sections: transcriptSections,
+    timestamp: 0,
+  });
+  return { prompt, sections, transcriptSections };
 }
 
 /**

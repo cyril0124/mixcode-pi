@@ -1,6 +1,11 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import {
+  getCurrentSystemPrompt,
+  getSystemMessageText,
+  type SystemMessage,
+} from "@earendil-works/pi-ai";
 import type { Skill } from "@earendil-works/pi-coding-agent";
 import { buildMixCodeSystemPromptSections } from "../src/core/system-prompt.js";
 import { renderSystemPromptSectionStats } from "../src/ui/components/system-prompt-stats.js";
@@ -93,6 +98,85 @@ test("all-disabled skills keep join equality with an empty Skills section", () =
   assert.ok(skillsSection);
   assert.equal(skillsSection.text, "");
   assert.equal(sections.map((s) => s.text).join(""), prompt);
+});
+
+test("transcript sections replay exactly the prompt shown by the section statistics", () => {
+  const { prompt, sections, transcriptSections } = buildMixCodeSystemPromptSections(richOptions);
+  assert.deepEqual(Object.keys(transcriptSections), [
+    "preamble",
+    "tools",
+    "docs",
+    "addendum",
+    "project_context",
+    "skills",
+    "extensions",
+    "environment",
+  ]);
+  assert.equal(
+    getSystemMessageText({
+      role: "system",
+      content: "",
+      sections: transcriptSections,
+      timestamp: 0,
+    }),
+    prompt,
+  );
+  assert.equal(sections.map((section) => section.text).join(""), prompt);
+  assert.doesNotMatch(
+    transcriptSections.preamble!,
+    /Available tools|Project-specific instructions|Current date/,
+  );
+  assert.match(
+    transcriptSections.project_context!,
+    /<project_instructions path="\/proj\/AGENTS.md">/,
+  );
+});
+
+test("project edits do not change unrelated transcript sections", () => {
+  const before = buildMixCodeSystemPromptSections(richOptions).transcriptSections;
+  const after = buildMixCodeSystemPromptSections({
+    ...richOptions,
+    contextFiles: [{ path: "/proj/AGENTS.md", content: "REPLACED PROJECT RULES" }],
+  }).transcriptSections;
+  const changed = Object.keys(after).filter((key) => before[key] !== after[key]);
+  assert.deepEqual(changed, ["project_context"]);
+  assert.match(after.project_context!, /REPLACED PROJECT RULES/);
+  assert.doesNotMatch(after.project_context!, /全局规则/);
+});
+
+test("empty groups reserve their positions without adding text to the prompt", () => {
+  const empty = buildMixCodeSystemPromptSections({
+    ...richOptions,
+    skills: [],
+    contextFiles: [],
+    appendSystemPrompt: "",
+  });
+  const populated = buildMixCodeSystemPromptSections(richOptions);
+  assert.equal(empty.transcriptSections.project_context, "");
+  assert.equal(empty.transcriptSections.skills, "");
+  assert.equal(empty.transcriptSections.addendum, "");
+  // Apply only newly populated values, just as Pi updates its Map during replay.
+  const updates = Object.fromEntries(
+    Object.entries(populated.transcriptSections).filter(
+      ([key, value]) => value !== empty.transcriptSections[key],
+    ),
+  );
+  const messages: SystemMessage[] = [
+    { role: "system", content: "", sections: empty.transcriptSections, timestamp: 0 },
+    { role: "system", content: "", sections: updates, timestamp: 1 },
+  ];
+  assert.equal(getCurrentSystemPrompt(messages), populated.prompt);
+});
+
+test("extension section names cannot replace host transcript groups", () => {
+  const { transcriptSections, prompt, sections } = buildMixCodeSystemPromptSections({
+    ...richOptions,
+    sections: { preamble: "EXTRA-PREAMBLE", environment: "EXTRA-ENVIRONMENT" },
+  });
+  assert.equal(transcriptSections.preamble, richOptions.customPrompt);
+  assert.match(transcriptSections.extensions!, /<preamble>\nEXTRA-PREAMBLE\n<\/preamble>/);
+  assert.match(transcriptSections.environment!, /Current working directory:/);
+  assert.equal(sections.map((section) => section.text).join(""), prompt);
 });
 
 test("renderer totals 100% and skips empty sections", () => {

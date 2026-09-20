@@ -1,8 +1,8 @@
 diff --git a/dist/core/agent-session.d.ts b/dist/core/agent-session.d.ts
-index b66ebcb0b8aa2907543560cd274429b65f9747d4..2bffcabff08a90636daf2532046e5ec204a4a358 100644
+index b66ebcb0b8aa2907543560cd274429b65f9747d4..008e9e5bddedf003175f0f9bb43d6fb925b5ec73 100644
 --- a/dist/core/agent-session.d.ts
 +++ b/dist/core/agent-session.d.ts
-@@ -477,6 +477,30 @@ export declare class AgentSession {
+@@ -477,6 +477,33 @@ export declare class AgentSession {
      /** Get pending steering messages (read-only) */
      getSteeringMessages(): readonly string[];
      /** Get pending follow-up messages (read-only) */
@@ -22,22 +22,34 @@ index b66ebcb0b8aa2907543560cd274429b65f9747d4..2bffcabff08a90636daf2532046e5ec2
 +    }>): void;
 +    /**
 +     * MIXCODE_SYSTEM_PROMPT_HOOK: install a host assembler that receives the
-+     * collected BuildSystemPromptOptions and returns the final prompt plus the
-+     * options to publish to extensions. The effective session prompt updates
-+     * immediately; transcripts receive prompt changes on the next request.
++     * collected BuildSystemPromptOptions and returns ordered transcript sections
++     * plus the options to publish to extensions. Keep section keys and their order
++     * stable across calls; use empty strings for temporarily empty slots. Section
++     * text excludes separators, which Pi renders between nonempty sections.
++     * The effective session prompt updates immediately; transcripts receive only
++     * changed sections on the next request. Forced extension prompts still win.
 +     */
 +    setSystemPromptAssembler(assembler: (options: import("./system-prompt.ts").BuildSystemPromptOptions) => {
-+        prompt: string;
++        sections: Record<string, string>;
 +        options: import("./system-prompt.ts").BuildSystemPromptOptions;
 +    }): void;
      getFollowUpMessages(): readonly string[];
      get resourceLoader(): ResourceLoader;
      /**
 diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js
-index 638646dacdbcb9c00bbc0de14f28abb700c8dc3f..e9119032bd47a15c66f183f38bb0871191489758 100644
+index 638646dacdbcb9c00bbc0de14f28abb700c8dc3f..083e8724880384322c98b72c771938daed2c79bc 100644
 --- a/dist/core/agent-session.js
 +++ b/dist/core/agent-session.js
-@@ -659,7 +659,22 @@ export class AgentSession {
+@@ -14,7 +14,7 @@
+  */
+ import { readFileSync } from "node:fs";
+ import { basename, dirname } from "node:path";
+-import { contentText, getCurrentSystemMessage, retryDelayMs } from "@earendil-works/pi-ai";
++import { contentText, getCurrentSystemMessage, getSystemMessageText, retryDelayMs } from "@earendil-works/pi-ai";
+ import { clampThinkingLevel, cleanupSessionResources, getSupportedThinkingLevels, isContextOverflow, isRecoverableLength, isRetryableAssistantError, modelsAreEqual, resetApiProviders, streamSimple, } from "@earendil-works/pi-ai/compat";
+ import { getThemeByName, theme } from "../modes/interactive/theme/theme.js";
+ import { stripFrontmatter } from "../utils/frontmatter.js";
+@@ -659,7 +659,25 @@ export class AgentSession {
      }
      /** Current effective system prompt, including changes not yet sent to the model. */
      get systemPrompt() {
@@ -51,9 +63,12 @@ index 638646dacdbcb9c00bbc0de14f28abb700c8dc3f..e9119032bd47a15c66f183f38bb08711
 +            return options.forceSystemPrompt;
 +        if (!this._systemPromptAssembler)
 +            return buildSystemPrompt(options);
++        return getSystemMessageText({ role: "system", content: "", sections: this._assembleSystemPromptSections(options), timestamp: 0 });
++    }
++    _assembleSystemPromptSections(options) {
 +        const assembled = this._systemPromptAssembler(options);
 +        Object.assign(options, normalizeBuildSystemPromptOptions(assembled.options));
-+        return assembled.prompt;
++        return assembled.sections;
 +    }
 +    setSystemPromptAssembler(assembler) {
 +        this._systemPromptAssembler = assembler;
@@ -61,19 +76,19 @@ index 638646dacdbcb9c00bbc0de14f28abb700c8dc3f..e9119032bd47a15c66f183f38bb08711
      }
      /** Current retry attempt (0 if not retrying) */
      get retryAttempt() {
-@@ -810,7 +825,10 @@ export class AgentSession {
+@@ -810,7 +828,10 @@ export class AgentSession {
              const tool = this._toolRegistry.get(name);
              return tool ? [tool] : [];
          });
 -        const sections = diffSystemPromptSections(getCurrentSystemMessage(messages)?.sections ?? {}, buildSystemPromptSections(options));
 +        const promptSections = this._systemPromptAssembler
-+            ? { preamble: this._renderSystemPrompt({ ...options, forceSystemPrompt: undefined }) }
++            ? this._assembleSystemPromptSections({ ...options, forceSystemPrompt: undefined })
 +            : buildSystemPromptSections(options);
 +        const sections = diffSystemPromptSections(getCurrentSystemMessage(messages)?.sections ?? {}, promptSections);
          return sections ? { role: "system", content: "", sections, timestamp: Date.now() } : undefined;
      }
      /**
-@@ -1022,7 +1040,7 @@ export class AgentSession {
+@@ -1022,7 +1043,7 @@ export class AgentSession {
              this._pendingNextTurnMessages = [];
              // Emit before_agent_start extension event
              const selectedToolsBefore = this._baseSystemPromptOptions.selectedTools;
@@ -82,7 +97,7 @@ index 638646dacdbcb9c00bbc0de14f28abb700c8dc3f..e9119032bd47a15c66f183f38bb08711
              // Handlers may edit event.systemPromptOptions.selectedTools or call setActiveTools(),
              // which updates the live loadout instead. An explicit edit wins; otherwise the live
              // loadout is authoritative, so a setActiveTools() call is not undone here.
-@@ -1313,6 +1331,43 @@ export class AgentSession {
+@@ -1313,6 +1334,43 @@ export class AgentSession {
          this._emitQueueUpdate();
          return { steering, followUp };
      }
@@ -126,7 +141,7 @@ index 638646dacdbcb9c00bbc0de14f28abb700c8dc3f..e9119032bd47a15c66f183f38bb08711
      /** Number of pending messages (includes both steering and follow-up) */
      get pendingMessageCount() {
          return this._steeringMessages.length + this._followUpMessages.length;
-@@ -2211,13 +2266,29 @@ export class AgentSession {
+@@ -2211,13 +2269,29 @@ export class AgentSession {
          const excludedToolNames = this._excludedToolNames;
          const isAllowedTool = (name) => (!allowedToolNames || allowedToolNames.has(name)) && !excludedToolNames?.has(name);
          const registeredTools = this._extensionRunner.getAllRegisteredTools();
@@ -157,7 +172,7 @@ index 638646dacdbcb9c00bbc0de14f28abb700c8dc3f..e9119032bd47a15c66f183f38bb08711
          const definitionRegistry = new Map(Array.from(this._baseToolDefinitions.entries())
              .filter(([name]) => isAllowedTool(name))
              .map(([name, definition]) => [
-@@ -2227,7 +2298,7 @@ export class AgentSession {
+@@ -2227,7 +2301,7 @@ export class AgentSession {
                  sourceInfo: createSyntheticSourceInfo(`<builtin:${name}>`, { source: "builtin" }),
              },
          ]));
@@ -166,7 +181,7 @@ index 638646dacdbcb9c00bbc0de14f28abb700c8dc3f..e9119032bd47a15c66f183f38bb08711
              definitionRegistry.set(tool.definition.name, {
                  definition: tool.definition,
                  sourceInfo: tool.sourceInfo,
-@@ -2247,7 +2318,7 @@ export class AgentSession {
+@@ -2247,7 +2321,7 @@ export class AgentSession {
          })
              .filter((entry) => entry !== undefined));
          const runner = this._extensionRunner;
@@ -175,7 +190,7 @@ index 638646dacdbcb9c00bbc0de14f28abb700c8dc3f..e9119032bd47a15c66f183f38bb08711
          const wrappedBuiltInTools = wrapRegisteredTools(Array.from(this._baseToolDefinitions.values())
              .filter((definition) => isAllowedTool(definition.name))
              .map((definition) => ({
-@@ -2966,4 +3037,53 @@ export class AgentSession {
+@@ -2966,4 +3040,53 @@ export class AgentSession {
          return this._extensionRunner;
      }
  }

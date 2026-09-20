@@ -147,7 +147,24 @@ MixCodeRuntime
 
 AGENTS、project context 和 system prompt 的配置由 Pi resource loader 收集。
 
-MixCode 根据收集到的选项组装宿主提示词，并将其作为 system 消息的一个 section 保存在 Pi transcript 中。提示词和工具的变更在下一次请求时记录；打开已有会话不会改写历史。`before_agent_start` 看到包含日期和工具规则的宿主提示词；其返回的 `systemPrompt` 仅覆盖本轮 provider 请求的首部提示词，不替换持久化指令。
+MixCode 将宿主提示词保存为八个有序 transcript 分组：
+
+| 分组 | 内容 |
+| --- | --- |
+| `preamble` | 宿主身份说明 |
+| `tools` | 工具描述与规则 |
+| `docs` | 文档引用 |
+| `addendum` | `appendSystemPrompt` |
+| `project_context` | 项目指令 |
+| `skills` | 可用技能及读取说明 |
+| `extensions` | 扩展提供的 section |
+| `environment` | 日期与工作目录 |
+
+Pi 的 `diffSystemPromptSections` 在每次模型请求前记录改变的分组，也包括工具调用之间的请求。清空分组时保留值为 `""` 的键，清除文本并保留位置，内容重新出现时仍在原处。Pi 用空行连接非空分组。`/system-prompt` 统计相同的文本与分隔符，并分别显示每个项目文件的统计行。扩展 section 的名称位于 `extensions` 内，不会覆盖宿主分组。
+
+打开会话时保留已记录的历史。若会话把完整提示词放在一个 `preamble` 中，下一次请求会将该段替换为宿主身份说明，并添加其余分组。分支导航和压缩回放已记录的分段与工具声明。
+
+`before_agent_start` 接收组装后的宿主提示词。返回 `systemPrompt` 会替换本轮 provider 请求的首部提示词，持久化指令保持不变。
 
 Provider 的 `stream` / `streamSimple` 实现以及 `MixCodeStreamFn` 接收规范化的 `TranscriptContext`。通过 `getCurrentSystemPrompt(context.messages)` 和 `getCurrentTools(context.messages)` 读取指令及工具声明，context 不再含独立的 `systemPrompt` 或 `tools` 字段。包装层必须保留 system 消息和规范化 context；从原始 `Context` 构造 provider 输入时使用 `normalizeContext()`。
 
