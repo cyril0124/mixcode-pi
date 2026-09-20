@@ -23,6 +23,8 @@ export interface RawMixCodeSettings {
     inlineWidgets?: boolean;
     /** When hidden thinking renders as a 3-row tail with a left rail instead of a placeholder. */
     boxedHiddenThinking?: boolean;
+    /** Show response-reported model name differences below assistant messages. */
+    showResponseModelNotices?: boolean;
   };
   /** Provider ids disabled for selection/use (global). */
   disabledProviders?: string[];
@@ -43,10 +45,12 @@ export interface MixCodeUiSettings {
   icons: { mode: IconMode };
   inlineWidgets: boolean;
   boxedHiddenThinking: boolean;
+  showResponseModelNotices: boolean;
 }
 
 export const DEFAULT_INLINE_WIDGETS = false;
 export const DEFAULT_BOXED_HIDDEN_THINKING = true;
+export const DEFAULT_SHOW_RESPONSE_MODEL_NOTICES = true;
 export const DEFAULT_HIDE_THINKING_BLOCK = true;
 
 /** Resolve Pi project/global visibility without persisting MixCode's default. */
@@ -93,6 +97,7 @@ function defaultMixCodeSettings(): MixCodeSettings {
       icons: { mode: DEFAULT_ICON_MODE },
       inlineWidgets: DEFAULT_INLINE_WIDGETS,
       boxedHiddenThinking: DEFAULT_BOXED_HIDDEN_THINKING,
+      showResponseModelNotices: DEFAULT_SHOW_RESPONSE_MODEL_NOTICES,
     },
     disabledProviders: [],
     disabledModels: [],
@@ -139,13 +144,18 @@ export async function loadRawMixCodeSettings(settingsFile: string): Promise<RawM
   const rawInlineWidgets = typeof ui.inlineWidgets === "boolean" ? ui.inlineWidgets : undefined;
   const rawBoxedHiddenThinking =
     typeof ui.boxedHiddenThinking === "boolean" ? ui.boxedHiddenThinking : undefined;
+  const rawResponseModelNotices =
+    ui.showResponseModelNotices === undefined
+      ? undefined
+      : parseShowResponseModelNotices(ui.showResponseModelNotices, settingsFile);
   const hasOversized =
     rawEnabled !== undefined || rawMaxLines !== undefined || rawOversizedBytes !== undefined;
   if (
     hasOversized ||
     rawIconMode !== undefined ||
     rawInlineWidgets !== undefined ||
-    rawBoxedHiddenThinking !== undefined
+    rawBoxedHiddenThinking !== undefined ||
+    rawResponseModelNotices !== undefined
   ) {
     result.ui = {
       ...(hasOversized
@@ -161,6 +171,9 @@ export async function loadRawMixCodeSettings(settingsFile: string): Promise<RawM
       ...(rawInlineWidgets !== undefined ? { inlineWidgets: rawInlineWidgets } : {}),
       ...(rawBoxedHiddenThinking !== undefined
         ? { boxedHiddenThinking: rawBoxedHiddenThinking }
+        : {}),
+      ...(rawResponseModelNotices !== undefined
+        ? { showResponseModelNotices: rawResponseModelNotices }
         : {}),
     };
   }
@@ -213,6 +226,10 @@ function parseUiSettings(value: unknown, settingsFile: string): MixCodeUiSetting
     icons: { mode: parseIconMode(objectRecord(ui.icons).mode, settingsFile) },
     inlineWidgets: parseInlineWidgets(ui.inlineWidgets, settingsFile),
     boxedHiddenThinking: parseBoxedHiddenThinking(ui.boxedHiddenThinking, settingsFile),
+    showResponseModelNotices: parseShowResponseModelNotices(
+      ui.showResponseModelNotices,
+      settingsFile,
+    ),
   };
 }
 
@@ -226,6 +243,12 @@ function parseBoxedHiddenThinking(value: unknown, settingsFile: string): boolean
   if (value === undefined) return DEFAULT_BOXED_HIDDEN_THINKING;
   if (typeof value === "boolean") return value;
   throw new Error(`${settingsFile}: ui.boxedHiddenThinking must be a boolean`);
+}
+
+function parseShowResponseModelNotices(value: unknown, settingsFile: string): boolean {
+  if (value === undefined) return DEFAULT_SHOW_RESPONSE_MODEL_NOTICES;
+  if (typeof value === "boolean") return value;
+  throw new Error(`${settingsFile}: ui.showResponseModelNotices must be a boolean`);
 }
 
 function rawIconModeValue(value: unknown): IconMode | undefined {

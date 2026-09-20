@@ -171,6 +171,8 @@ Trailing spaces are stripped in both modes, `--ansi` included.
 
 `--tab` / `--session` dumps that tab's chat plus its extension overlay, any picker/confirm/resume selector that tab owns, and the current MixCode app overlay (Y/N confirms, notices), not the live workspace chrome. Implied / `--focus-*` dumps the live frame, then those overlays. `--width <n>` sets the frame and the overlay together.
 
+Both dump modes honor MixCode's `ui.showResponseModelNotices` setting; when disabled, response-model notices are hidden even though session metadata is retained.
+
 This is for overlays/drafts/streaming, not history. **Start from the tail** (last ~30 lines); if truncated, open the `/tmp` file and seek the end.
 
 ### `send-keys`

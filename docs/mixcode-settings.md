@@ -19,6 +19,7 @@ The file uses JSONC syntax: regular JSON plus comments and trailing commas. If t
     "icons": { "mode": "nerd" },
     "inlineWidgets": false,
     "boxedHiddenThinking": true,
+    "showResponseModelNotices": true,
     "oversizedAssistantMessage": {
       "enabled": true,
       "maxLines": 5000,
@@ -37,6 +38,7 @@ The file uses JSONC syntax: regular JSON plus comments and trailing commas. If t
 | `ui.icons.mode` | `auto` \| `nerd` \| `ascii` | `nerd` | Glyph set for input-meta icons, context meter, zen status dots, and extension-manager status. `auto` picks nerd glyphs on known Nerd Font terminals, otherwise ascii. Editable via `/settings` as "Icon mode". |
 | `ui.inlineWidgets` | boolean | `false` | Default for new tabs and process start: render `setWidget` above/below chrome in the chat tail. Changing it via `/settings` also applies to all open tabs immediately. Per-tab `/toggle-inline-widgets` is still session-only and is not written to `mixcode_state.json`. Editable via `/settings` as "Inline widgets". |
 | `ui.boxedHiddenThinking` | boolean | `true` | With Pi `hideThinkingBlock` on: render each hidden thinking block as a 3-row tail that follows the stream instead of the `Thinking...` placeholder. Set this to `false` to use the placeholder. The tail is plain text, retaining Markdown markers; ANSI styling and paragraph-leading `Thinking:` presentation labels are removed from the preview only. The preview is indented by two columns, with only a left rail in `borderMuted`; there are no top, bottom, or right borders. The title uses `text`, the non-italic body uses `thinkingText`, and the right-aligned timer uses `dim`. A one-column space separates the rail from the body, with one column reserved at the right edge. The title carries a live timer while the block streams and freezes it once thinking stops (a tool call or answer text follows, or the message ends). Durations below 1s use integer milliseconds (`320ms`); from 1s to under 60s, live and frozen values both truncate to tenths (`1.4s`). At 60s and above, durations use whole-second minute/hour labels (`1m 05s`). A `setHiddenThinkingLabel` override still replaces the whole block. Editable via `/settings` as "Thinking tail preview". |
+| `ui.showResponseModelNotices` | boolean | `true` | Show response-reported model names when they differ from the request. Editable in the MixCode section of `/settings` as "Response model notices"; toggles all open tabs immediately, including restored messages. Hiding notices preserves message metadata. See [capture and display rules](model-management.md#response-reported-model-names). |
 | `ui.oversizedAssistantMessage.enabled` | boolean | `true` | Fold oversized assistant/thinking provider output in the TUI while keeping full content in the session; use `/transcript` to inspect the full content. |
 | `ui.oversizedAssistantMessage.maxLines` | positive integer | `5000` | Fold assistant/thinking output above this line count. |
 | `ui.oversizedAssistantMessage.maxBytes` | positive integer | `131072` | Fold assistant/thinking output above this UTF-8 byte size. |
@@ -87,6 +89,7 @@ Pi retains ownership of scheduling, profitability checks, model support, and saf
 - `ui.icons.mode`: must be one of `auto`, `nerd`, `ascii`; invalid values are reported as settings errors.
 - `ui.inlineWidgets`: must be a boolean; invalid values are reported as settings errors.
 - `ui.boxedHiddenThinking`: must be a boolean; invalid values are reported as settings errors.
+- `ui.showResponseModelNotices`: must be a boolean; invalid values are rejected by both the startup and raw settings loaders.
 - `ui.oversizedAssistantMessage.enabled`: must be a boolean.
 - `ui.oversizedAssistantMessage.maxLines` and `.maxBytes`: must be positive integers.
 - Invalid `ui.oversizedAssistantMessage` values are reported as settings errors.

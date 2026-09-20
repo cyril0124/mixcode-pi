@@ -688,7 +688,16 @@ export async function handleCtlRequest(
                 options.state.tabs.find((candidate) => candidate.sessionId === sessionId) ??
                 (sessionId === options.state.activeTabId ? getActiveTab(options.state) : undefined);
               if (!tab) throw new Error(`Unknown session: ${sessionId}`);
-              return renderAgentSurface(tab, options.runtime.getTab(sessionId), dumpWidth);
+              return renderAgentSurface(
+                tab,
+                options.runtime.getTab(sessionId),
+                dumpWidth,
+                undefined,
+                undefined,
+                {
+                  showResponseModelNotices: options.state.ui?.showResponseModelNotices !== false,
+                },
+              );
             })();
       const ownedOverlay = renderOwnedAppOverlayDump(options.state, sessionId, overlayWidth);
       const includeLiveOverlay =

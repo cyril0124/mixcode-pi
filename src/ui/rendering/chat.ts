@@ -48,6 +48,8 @@ export interface RenderChatBlockOptions {
   hideThinking?: boolean;
   /** With hideThinking: render a 3-row tail with a left rail instead of the placeholder. */
   boxedHiddenThinking?: boolean;
+  /** When false, omit response-model notices. Default true. */
+  showResponseModelNotices?: boolean;
   /** Pi `markdown.mermaid` mode. Default `streaming`. */
   mermaidRenderingMode?: MermaidRenderingMode;
   /** When false, user-message image blocks are hidden. Default true (Pi showImages). */
@@ -229,6 +231,8 @@ function renderMessageBlock(
   tab?: MixCodeTabInfo,
   options: RenderChatBlockOptions = {},
 ): string[] {
+  // Filter before consulting the block cache so toggles never return a stale notice.
+  if (line.variant === "system-model" && options.showResponseModelNotices === false) return [];
   const rawKey = chatLineRenderCacheKey(line, width, tab, options);
   const cacheKey = rawKey && `${chatLineRenderGeneration}${KEY_SEP}${rawKey}`;
   if (cacheKey) {
@@ -648,7 +652,7 @@ function renderSystemBlock(
 ): string[] {
   const body = text.trim() ? text.trim() : " ";
   const isError = variant === "system-error" || text.startsWith("Error:");
-  const isWarning = variant === "system-warning";
+  const isWarning = variant === "system-warning" || variant === "system-model";
   const isPlain = variant === "system-plain";
   // Pi notify/status/warning/error/session dump use plain Text with one leading
   // space of padding and no trailing blank line. Outer chat composition already

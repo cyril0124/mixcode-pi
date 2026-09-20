@@ -10,12 +10,17 @@ import type {
   MessageRenderer,
   SessionEntry,
 } from "@earendil-works/pi-coding-agent";
-import { type Component, TuiMainScreen as PiTui } from "@earendil-works/pi-tui";
+import {
+  type Component,
+  stripTerminalSequences,
+  TuiMainScreen as PiTui,
+} from "@earendil-works/pi-tui";
 import { modelToRef } from "../core/models.js";
 import { clearQueueEditToast } from "../core/toast.js";
 import type { MixCodeModel, MixCodeTabInfo } from "../core/types.js";
 import { clearPendingEscape } from "../core/escape.js";
 import { formatSessionTokens } from "../ui/components/session-info.js";
+import { sanitizeTerminalText } from "../ui/rendering/primitives.js";
 import { syncWaitingForInput } from "./runtime-extension-custom.js";
 import { currentExtensionTheme, getActiveExtensionThemeId } from "./runtime-extension-theme.js";
 import { applyMixCodeKeybindings } from "./runtime-pi-tui-bridge.js";
@@ -71,6 +76,38 @@ export function appendSystemMessage(
     variant,
     systemStatus: kind === "status" ? true : undefined,
   });
+}
+
+/** Derive display-only metadata without changing the request model or persisted content. */
+function responseModelNotice(message: AssistantMessage): ChatLine | undefined {
+  const reported = message.responseModel;
+  if (
+    message.stopReason === "pending" ||
+    typeof reported !== "string" ||
+    !reported.trim() ||
+    reported === message.model
+  ) {
+    return undefined;
+  }
+
+  // Compare raw names, then remove terminal controls only from their presentation.
+  // A different snapshot or gateway alias is reported literally, not classified as a substitution.
+  const displayName = (name: string) =>
+    stripTerminalSequences(sanitizeTerminalText(name)).replace(/\s+/g, " ").trim();
+  const reportedName = displayName(reported);
+  if (!reportedName) return undefined;
+  return {
+    role: "system",
+    text: `[Model mismatch] requested ${displayName(message.model)} → returned ${reportedName} · via ${displayName(message.provider)}`,
+    variant: "system-model",
+    excludeFromRunOutput: true,
+  };
+}
+
+/** Append once at message_end; history derives the same notice from each assistant entry. */
+export function appendResponseModelNotice(runtimeTab: RuntimeTab, message: AssistantMessage): void {
+  const notice = responseModelNotice(message);
+  if (notice) runtimeTab.chat.push(notice);
 }
 
 function cacheMissNoticeText(miss: CacheMiss): string | undefined {
@@ -557,6 +594,10 @@ export function entriesToChatLines(
         toolCallIndices.set(line.toolCallId, chat.length);
       }
       chat.push(line);
+    }
+    if (entry.type === "message" && entry.message.role === "assistant") {
+      const notice = responseModelNotice(entry.message);
+      if (notice) chat.push(notice);
     }
     if (
       entry.type === "message" &&

@@ -9,6 +9,8 @@ export interface AgentSurfaceRenderOptions {
   hideThinking?: boolean;
   /** With hideThinking: render a 3-row tail with a left rail instead of the placeholder. */
   boxedHiddenThinking?: boolean;
+  /** When false, hide response-model metadata without removing it from the chat. */
+  showResponseModelNotices?: boolean;
   /** Pi `markdown.mermaid` mode. Default `streaming`. */
   mermaidRenderingMode?: MermaidRenderingMode;
   /** When false, hide user/tool image strips. Default true. */
@@ -24,6 +26,7 @@ export function chatBlockRenderOptions(
 ): RenderChatBlockOptions | undefined {
   const result: RenderChatBlockOptions = {};
   const policy = options.oversizedAssistantMessage;
+  if (options.showResponseModelNotices === false) result.showResponseModelNotices = false;
   if (policy) result.oversizedAssistantMessage = policy;
   if (options.hideThinking) {
     result.hideThinking = true;
@@ -59,6 +62,7 @@ export function chatBlockRenderOptions(
   return result.oversizedAssistantMessage ||
     result.isStreaming ||
     result.hideThinking ||
+    result.showResponseModelNotices === false ||
     result.mermaidRenderingMode ||
     result.showImages === false ||
     result.imageWidthCells !== undefined ||
