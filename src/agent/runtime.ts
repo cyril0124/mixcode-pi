@@ -1,3 +1,10 @@
+import {
+  attachPendingPromptContext,
+  attachPromptContext,
+  deliverPromptContext,
+  promptContext,
+  type PromptContextMessage,
+} from "./runtime-prompt-context.js";
 import * as os from "node:os";
 import * as path from "node:path";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
@@ -934,17 +941,32 @@ export class MixCodeRuntime {
     return true;
   }
 
+  /**
+   * Submit user text through Pi with optional, separate custom context messages.
+   * Idle delivery appends context without starting an extra turn. During streaming,
+   * context uses a separate Pi steering entry. Host follow-up and compaction queues
+   * retain context until dispatch. Pi manages custom messages after delivery.
+   */
   async prompt(
     sessionId: string,
     text: string,
-    options?: { streamingBehavior?: "steer" | "followUp"; followUpNext?: boolean },
+    options?: {
+      streamingBehavior?: "steer" | "followUp";
+      followUpNext?: boolean;
+      contextMessages?: readonly PromptContextMessage[];
+    },
   ): Promise<void> {
     const runtimeTab = this.requireTab(sessionId);
     const trimmed = text.trim();
     if (!trimmed) return;
     const streamingBehavior = options?.streamingBehavior ?? "steer";
     if (streamingBehavior === "followUp") {
-      this.appendFollowUpPrompts(runtimeTab, [trimmed], options?.followUpNext ? "next" : "batch");
+      this.appendFollowUpPrompts(
+        runtimeTab,
+        [trimmed],
+        options?.followUpNext ? "next" : "batch",
+        options?.contextMessages,
+      );
       await this.startFollowUpDrain(runtimeTab, true);
       return;
     }
@@ -964,6 +986,7 @@ export class MixCodeRuntime {
       (runtimeTab.compactionInFlight || runtimeTab.agentSession.isCompacting)
     ) {
       runtimeTab.tab.pendingMessages.push(trimmed);
+      attachPendingPromptContext(runtimeTab.tab.pendingMessages, options?.contextMessages ?? []);
       runtimeTab.queuedPromptCount += 1;
       this.emitChange({ type: "extension_ui_update" }, runtimeTab);
       return;
@@ -978,6 +1001,9 @@ export class MixCodeRuntime {
     await dispatchTurn(runtimeTab, async (signalRegistered) => {
       if (runtimeTab.agentSession.isStreaming) {
         // Already streaming: this instance owns the turn and its lock.
+        if (options?.contextMessages?.length) {
+          await deliverPromptContext(runtimeTab.agentSession, options.contextMessages);
+        }
         // User follow-ups were retained above; ordinary prompts steer this run.
         await runtimeTab.agentSession.prompt(trimmed, {
           streamingBehavior,
@@ -985,7 +1011,7 @@ export class MixCodeRuntime {
         });
         return;
       }
-      await this.sendIdlePrompt(runtimeTab, text, signalRegistered);
+      await this.sendIdlePrompt(runtimeTab, text, signalRegistered, options?.contextMessages);
     });
   }
 
@@ -1006,6 +1032,7 @@ export class MixCodeRuntime {
     runtimeTab: RuntimeTab,
     prompts: readonly FollowUpInput[],
     kind: "batch" | "next",
+    contextMessages: readonly PromptContextMessage[] = [],
   ): void {
     // Classify all entries before publishing them. Resolve SDK names at most once
     // for the sequence, and refresh the full queue preview only after the append.
@@ -1029,7 +1056,10 @@ export class MixCodeRuntime {
       return { text, kind, ...(command ? { command: true } : {}) };
     });
     // Avoid a spread argument limit for large script-generated sequences.
-    for (const entry of entries) runtimeTab.tab.followUpQueue.push(entry);
+    for (const entry of entries) {
+      attachPromptContext(entry, contextMessages);
+      runtimeTab.tab.followUpQueue.push(entry);
+    }
     syncFollowUpPreview(runtimeTab);
     this.emitChange({ type: "extension_ui_update" }, runtimeTab);
   }
@@ -1052,6 +1082,7 @@ export class MixCodeRuntime {
     runtimeTab: RuntimeTab,
     text: string,
     preflightResult: (accepted: boolean) => void,
+    contextMessages: readonly PromptContextMessage[] = [],
   ): Promise<void> {
     runtimeTab.postRunWorkingStartedAt = undefined;
     runtimeTab.sdkRunContinuation = false;
@@ -1062,6 +1093,9 @@ export class MixCodeRuntime {
     const lock = this.sync.acquire(sessionId);
     try {
       if (lock) reloadRuntimeSessionFromDisk(runtimeTab);
+      if (contextMessages.length) {
+        await deliverPromptContext(runtimeTab.agentSession, contextMessages);
+      }
       await runtimeTab.agentSession.prompt(text, { preflightResult });
     } catch (error) {
       pauseFollowUps(runtimeTab);
@@ -1158,6 +1192,7 @@ export class MixCodeRuntime {
                   accepted = value;
                   signalRegistered();
                 },
+                batch.flatMap((entry) => [...promptContext(entry)]),
               );
               await session.waitForIdle();
               if (runtimeTab.followUpRunFailed) pauseFollowUps(runtimeTab);

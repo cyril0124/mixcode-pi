@@ -1,3 +1,8 @@
+import {
+  deliverPromptContext,
+  restorePendingPromptContext,
+  takePendingPromptContext,
+} from "./runtime-prompt-context.js";
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import { runWithConsoleTab } from "../core/console-scope.js";
 import type { QueueKind } from "../core/types.js";
@@ -59,6 +64,11 @@ export async function flushRuntimePendingMessage(
   // zeroes pendingMessages), so the flush finds nothing and the agent just stops.
   syncPendingMessagesFromSteering(runtimeTab);
   const queued = drainPendingMessages(runtimeTab.tab.pendingMessages, count);
+  const contexts = takePendingPromptContext(
+    runtimeTab.tab.pendingMessages,
+    queued.start,
+    queued.items.length,
+  );
   runtimeTab.queuedPromptCount = Math.max(0, runtimeTab.queuedPromptCount - queued.items.length);
   // Remove before awaiting idle so the aborting run cannot consume these messages.
   // Keep dequeue inside try: if internals throw, re-queue UI pending instead of dropping text.
@@ -71,10 +81,13 @@ export async function flushRuntimePendingMessage(
     const text = queued.items.filter((item) => item.trim()).join("\n\n");
     if (!text) return;
     await dispatchTurn(runtimeTab, async (signalRegistered) => {
+      const messages = contexts.flat();
+      if (messages.length) await deliverPromptContext(runtimeTab.agentSession, messages);
       await runtimeTab.agentSession.prompt(text, { preflightResult: signalRegistered });
     });
   } catch (error) {
     runtimeTab.tab.pendingMessages.splice(queued.start, 0, ...queued.items);
+    restorePendingPromptContext(runtimeTab.tab.pendingMessages, queued.start, contexts);
     runtimeTab.queuedPromptCount += queued.items.length;
     restoreSteeringMessages(runtimeTab, removedSteering);
     throw error;
@@ -170,6 +183,9 @@ export function popRuntimePendingMessage(
   const wasRuntimeQueued =
     kind === "followUp" ? runtimeTab.queuedFollowUpCount > 0 : runtimeTab.queuedPromptCount > 0;
   const message = messages.pop();
+  if (message !== undefined && kind === "steering") {
+    takePendingPromptContext(messages, messages.length, 1);
+  }
   if (message === undefined || !wasRuntimeQueued) return message;
 
   if (kind === "followUp") {

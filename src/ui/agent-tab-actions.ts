@@ -1,4 +1,5 @@
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
+import type { PromptContextMessage } from "../agent/runtime-prompt-context.js";
 import type { MixCodeRuntime } from "../agent/runtime.js";
 import type { ParsedInput } from "../core/commands.js";
 import { parseInput } from "../core/commands.js";
@@ -343,6 +344,7 @@ export async function submitAgentInput(
   runtime: MixCodeSubmitRuntime,
   text: string,
   parsed: ParsedInput = parseInput(text),
+  contextMessages?: readonly PromptContextMessage[],
 ): Promise<boolean> {
   if (parsed.kind === "prompt") {
     assertModelEnabled(tab.model);
@@ -350,7 +352,7 @@ export async function submitAgentInput(
     // pipeline order: extension commands -> input event -> skill/template
     // expansion. Pre-expanding here would hide the original text from
     // extension input handlers and skip Pi's template syntax (e.g. ${N:-default}).
-    await runtime.prompt(tab.sessionId, parsed.args);
+    await runtime.prompt(tab.sessionId, parsed.args, { contextMessages });
     return true;
   }
   if (parsed.kind === "shell") {

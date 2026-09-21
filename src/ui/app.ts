@@ -244,7 +244,12 @@ export function createMixCodeTui(
       options.workspaceFile,
       undefined,
       options.settingsDeps,
-      { getText: () => editor.getText(), setText: (value) => editor.setText(value) },
+      {
+        getText: () => editor.getText(activeSessionId),
+        setText: (value) => editor.setText(value, activeSessionId),
+      },
+      false,
+      "editor",
     ).catch((error: unknown) => {
       // Avoid secondary Unknown tab session when the active tab has no runtime yet
       // (e.g. create failed and rolled back to a Not Ready tab, or peer closed it).

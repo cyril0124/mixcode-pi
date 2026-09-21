@@ -62,6 +62,23 @@ Tab 外观来自当前主题；只有显式指定过 `/color` 的 Tab 例外（�
 
 提示词编辑器中，`@` 会在文件结果之上模糊匹配本实例已打开的 Tab 标题（不含提示词目标 Tab 自身）；选中后插入纯文本 mention：无需引号时为 `@Title`，否则使用 JSON 引号形式（如 `@"My Title"`），标题内的引号会被转义。
 
+### 编辑器提交中的 Tab 引用
+
+提交编辑器文本时，MixCode 按本实例当前的 Tab 标题解析 `@Title` 和 `@"My Title"`。匹配精确且区分大小写，排除接收消息的 Tab。在 Home 上，接收方是当前所选的 Tab。手动输入和补全引用的行为相同。行内代码、围栏代码块、邮箱地址，以及以 `/` 或 `!` 开头的输入不解析为 Tab 引用。无匹配的文本保持原样。Tab 改名后，需要重新选择当前标题。
+
+用户消息保留原文。独立的 `tab-references` 自定义消息设置 `display: false`，其 `<mpi-tab-references>` JSON 块包含每个匹配 session 的标题、宿主 PID 和 session ID。它还提供已安装的 `mpi-ctl` skill 路径，指引模型在操作 Tab 前阅读。Pi 将该消息保存在会话中并加入模型上下文，普通聊天界面、编辑器历史和队列预览不显示它。引用本身不会向同伴发送提示词。
+
+已入队的引用保留解析时的目标 ID。宿主 follow-up 和压缩期间的队列保留上下文，实际发送时才注入，撤回时丢弃。运行中，Pi 将上下文和用户文本分别入队。编辑提示词并重新提交时，会再次解析引用。
+
+有歧义的引用会阻止提交并恢复草稿：
+
+- 多个同伴 Tab 同名。MixCode 报 `Error: Ambiguous tab reference ...`，需要重命名后重新选择。
+- 标题同时对应接收方 workdir 下的文件系统条目。MixCode 报 `Error: File or directory conflicts with tab reference ...`，可使用明确的文件路径或重命名 Tab。
+
+提交时，每个不同的匹配标题只检查一次文件。补全过程不增加 I/O。准备过程按接收方保持提交顺序。
+
+以上规则适用于 Enter、Home Enter、运行中 steering 和 Alt+Enter follow-up。程序化 batch、`mpi ctl send-prompt` 和扩展提交不解析 Tab 引用。Tab 操作见 [mpi-ctl skill](../pi-packages/mpi-ctl-skill/skills/mpi-ctl/SKILL.md)。
+
 ## Agent Tab 协作 (Agent Tab Collaboration)
 
 Tab 用 `mpi status` / `mpi ctl` 向同伴发 Prompt（同一 TUI，或通过 `--pid` / `--workdir` 指向另一实例）。这不是下方的 `open_tabs.json` peer-sync——后者只对账跨进程的打开 Tab 集合。

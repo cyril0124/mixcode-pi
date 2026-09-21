@@ -1,6 +1,8 @@
+import type { PromptContextMessage } from "../agent/runtime-prompt-context.js";
 import { isBashAlreadyRunningError } from "../agent/runtime.js";
 import type { LocalCommand } from "../core/commands.js";
 import { parseInput } from "../core/commands.js";
+import { prepareTabReferencePrompt } from "../core/tab-references.js";
 import { getActiveTab } from "../core/tabs.js";
 import { pushToast } from "../core/toast.js";
 import type { MixCodeState, MixCodeTabInfo } from "../core/types.js";
@@ -38,6 +40,8 @@ export async function handleSubmittedInput(
     Partial<Pick<MixCodeEditorActions, "getText">>,
   /** Internal queue submissions wait for deferred confirmation actions. */
   queuedCommand = false,
+  /** Only editor submissions resolve @tab references; programmatic callers retain their text. */
+  source: "editor" | "programmatic" = "programmatic",
 ): Promise<void> {
   const parsed = parseInput(text);
   const active = activeTabOverride ?? getActiveTab(state);
@@ -49,8 +53,18 @@ export async function handleSubmittedInput(
   if (active?.status === "Not Ready" && requiresActive) {
     throw new Error("Tab is still loading extensions. Please wait a moment.");
   }
+  let contextMessages: PromptContextMessage[] = [];
+  if (source === "editor" && active && parsed.kind === "prompt") {
+    try {
+      ({ contextMessages } = await prepareTabReferencePrompt(text, state.tabs, active));
+    } catch (error) {
+      // Pi clears the composer before onSubmit. Keep a failed reference editable.
+      editorActions?.setText(text);
+      throw error;
+    }
+  }
   try {
-    if (active && (await submitAgentInput(active, runtime, text, parsed))) {
+    if (active && (await submitAgentInput(active, runtime, text, parsed, contextMessages))) {
       await onStateChanged?.(state);
       tui.requestRender();
       return;

@@ -1,3 +1,5 @@
+import { restorePendingPromptContext } from "../agent/runtime-prompt-context.js";
+import { prepareTabReferencePrompt } from "../core/tab-references.js";
 import { parseSgrMouseInput } from "../core/mouse.js";
 import { pointerHoverFor } from "./pointer-hover.js";
 import { homeActionsFor } from "./home-actions.js";
@@ -121,7 +123,10 @@ function popQueuedMessageIntoEditor(
 
   // Preserve an in-progress draft ahead of runtime-mirrored steering messages.
   const draft = editorActions.getText();
-  if (draft.trim() && draft !== text) active.pendingMessages.unshift(draft);
+  if (draft.trim() && draft !== text) {
+    active.pendingMessages.unshift(draft);
+    restorePendingPromptContext(active.pendingMessages, 0, [[]]);
+  }
   editorActions.setText(text);
   return true;
 }
@@ -531,6 +536,8 @@ function handleHomeAgentViewKey(
           getText: () => editorActions.getText(),
           setText: (value) => editorActions.setText(value),
         },
+        false,
+        "editor",
       ).catch((error: unknown) => {
         editorActions.setText(text);
         showErrorOverlay(tui, error);
@@ -814,8 +821,14 @@ function handleEditorControlKeys(
       if (!runtime) throw new Error("Queueing follow-up requires runtime prompt support");
       editorActions.addToHistory?.(text, active.sessionId);
       editorActions.setText("");
-      void runtime
-        .prompt(active.sessionId, text, { streamingBehavior: "followUp" })
+      const sessionId = active.sessionId;
+      void prepareTabReferencePrompt(text, state.tabs, active)
+        .then((prepared) =>
+          runtime.prompt(sessionId, prepared.text, {
+            streamingBehavior: "followUp",
+            contextMessages: prepared.contextMessages,
+          }),
+        )
         .then(() => {
           tui.requestRender();
         })

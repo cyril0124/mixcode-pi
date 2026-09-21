@@ -62,6 +62,23 @@ Colors are stored per session id under `tab_colors` in the current workdir's `mi
 
 In the prompt editor, `@` fuzzy-matches the open tab titles of this instance (excluding the prompt-target tab itself) above file results. Selecting one inserts a plain-text mention: `@Title` when quoting is unnecessary, or a JSON-quoted value such as `@"My Title"`; embedded quotes are escaped.
 
+### Tab references in editor submissions
+
+MixCode resolves `@Title` and `@"My Title"` against the current instance's tab titles when you submit editor text. Matching is exact and case-sensitive. The recipient is excluded, including the selected recipient on Home. Typed and completed references behave alike. Inline code, fenced code blocks, email addresses, and inputs starting with `/` or `!` do not resolve as tab references. Unmatched text stays unchanged. After a tab is renamed, select its current title again.
+
+The user message keeps the original text. A separate `tab-references` custom message has `display: false` and contains a `<mpi-tab-references>` JSON block with each matched session's title, host PID, and session ID. It also supplies the installed `mpi-ctl` skill path and an instruction to read it before operating on a tab. Pi stores this message in the session and includes it in model context. Normal chat, editor history, and queue previews hide it. A reference alone does not send a peer prompt.
+
+Queued references keep their resolved IDs. Host follow-up and compaction queues hold the context until delivery and discard it on withdrawal. During streaming, Pi queues context separately from user text. Editing and resubmitting a prompt resolves its references again.
+
+Ambiguous references stop submission and restore the draft:
+
+- Several peer tabs share the title. MixCode reports `Error: Ambiguous tab reference ...`. Rename the tabs and select again.
+- The title also names a filesystem entry relative to the recipient's workdir. MixCode reports `Error: File or directory conflicts with tab reference ...`. Use an explicit file path or rename the tab.
+
+File checks run once per distinct matched title during submission. Completion performs no additional I/O. Preparation preserves submission order per recipient.
+
+This applies to Enter, Home Enter, streaming steering, and Alt+Enter follow-ups. Programmatic batch, `mpi ctl send-prompt`, and extension submissions do not resolve tab references. See the [mpi-ctl skill](../pi-packages/mpi-ctl-skill/skills/mpi-ctl/SKILL.md) for tab operations.
+
 ## Agent Tab Collaboration
 
 Tabs prompt peer tabs with `mpi status` / `mpi ctl` (same TUI, or another instance via `--pid` / `--workdir`). This is not the `open_tabs.json` peer-sync below. That only reconciles the open-tab set across processes.

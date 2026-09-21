@@ -20,13 +20,13 @@ import {
   formatCtlTime,
   handleCtlRequest,
   IMPLIED_FOCUS_REASON,
-  mpiCtlSkillPath,
   resolveCtlDumpWidths,
   startInstanceCtlServer,
   wrapCtlSubmitText,
 } from "../src/core/instance-ctl-server.js";
 import { instanceRegistryDir, writeInstanceSnapshot } from "../src/core/instance-registry.js";
 import { createInitialState, createTab } from "../src/core/defaults.js";
+import { mpiCtlSkillPath } from "../src/core/paths.js";
 import { createPicker } from "../src/core/pickers.js";
 import { dispatchOwnedOverlayKey } from "../src/ui/app-key-handlers.js";
 import { openSettingsPanel } from "../src/ui/components/settings-panel.js";

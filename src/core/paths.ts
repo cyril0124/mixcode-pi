@@ -31,6 +31,18 @@ export function resolveMixcodeAgentDir(env: NodeJS.ProcessEnv = process.env): st
   return path.join(homeDir(env), ".pi", "agent");
 }
 
+/** Installed built-in collaboration cookbook, shared by ctl replies and editor references. */
+export function mpiCtlSkillPath(env: NodeJS.ProcessEnv = process.env): string {
+  return path.join(
+    resolveMixcodeAgentDir(env),
+    "extensions",
+    "mpi-ctl-skill",
+    "skills",
+    "mpi-ctl",
+    "SKILL.md",
+  );
+}
+
 /** Default root state dir: <agentDir>/mixcode-pi. */
 export function resolveMixcodeStateDir(env: NodeJS.ProcessEnv = process.env): string {
   return path.join(resolveMixcodeAgentDir(env), "mixcode-pi");

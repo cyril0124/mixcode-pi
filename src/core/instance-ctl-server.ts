@@ -1,8 +1,7 @@
 import * as fs from "node:fs";
 import * as net from "node:net";
-import * as path from "node:path";
 import type { MixCodeRuntime } from "../agent/runtime.js";
-import { resolveMixcodeAgentDir } from "./paths.js";
+import { mpiCtlSkillPath } from "./paths.js";
 import type { CtlRequest, CtlResponse } from "../cli/ctl.js";
 import { renderSessionActionConfirm } from "../ui/app-overlays.js";
 import { renderAgentSurface } from "../ui/rendering/agent-surface.js";
@@ -178,17 +177,6 @@ function renderOwnedAppOverlayDump(
     if (panel) lines.push(...panel.render(width));
   }
   return lines;
-}
-
-export function mpiCtlSkillPath(env: NodeJS.ProcessEnv = process.env): string {
-  return path.join(
-    resolveMixcodeAgentDir(env),
-    "extensions",
-    "mpi-ctl-skill",
-    "skills",
-    "mpi-ctl",
-    "SKILL.md",
-  );
 }
 
 function shellSingleQuote(value: string): string {
