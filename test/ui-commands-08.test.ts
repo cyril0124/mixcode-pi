@@ -1109,7 +1109,7 @@ test("Alt+Enter queues follow-up while the agent is streaming", async () => {
   );
   await Promise.resolve();
   assert.deepEqual(prompted, [
-    { text: "do this next", options: { streamingBehavior: "followUp" } },
+    { text: "do this next", options: { streamingBehavior: "followUp", contextMessages: [] } },
   ]);
   assert.equal(text, "");
   assert.deepEqual(history, ["do this next"]);
