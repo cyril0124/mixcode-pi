@@ -1,3 +1,5 @@
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
+import { getCurrentSystemMessage } from "@earendil-works/pi-ai";
 import type { AgentSession, ToolInfo } from "@earendil-works/pi-coding-agent";
 
 export const PI_BUILTIN_TOOL_NAMES = [
@@ -15,15 +17,51 @@ export const PI_BUILTIN_TOOL_NAMES = [
 const PI_DEFAULT_ACTIVE_TOOL_NAMES = ["read", "bash", "edit", "write"];
 
 /**
- * Initialize host-owned tools from defaultTools before binding extensions.
- * Call before session_start; later calls overwrite extension selections,
- * including empty sets. Updates active tools and rebuilds the system prompt
- * in memory using Pi's registered tool implementations and ownership rules.
+ * Restore recorded active tools through the current registry. A system checkpoint
+ * with no tools is an explicit empty selection; histories without system messages
+ * have no tool state to restore. Unknown or excluded tools stay unavailable.
+ *
+ * When syncing an existing session, pass its previous messages. Unchanged recorded
+ * tool names leave local, not-yet-sent choices intact. Returns whether the current
+ * history has a checkpoint, even when no update was needed. Does not write history.
+ */
+export function restoreTranscriptTools(
+  agentSession: AgentSession,
+  previousMessages?: readonly AgentMessage[],
+): boolean {
+  const current = getCurrentSystemMessage(agentSession.messages);
+  if (!current) return false;
+
+  const toolNames = (current.toolsAdded ?? []).map((tool) => tool.name);
+  if (previousMessages) {
+    const previous = getCurrentSystemMessage(previousMessages);
+    const previousNames = new Set(previous?.toolsAdded?.map((tool) => tool.name));
+    if (
+      previous &&
+      previousNames.size === toolNames.length &&
+      toolNames.every((name) => previousNames.has(name))
+    ) {
+      return true;
+    }
+  }
+
+  // The public setter resolves names against registered, allowed implementations
+  // and rebuilds prompt contributions; declarations never supply executable code.
+  agentSession.setActiveToolsByName(toolNames);
+  return true;
+}
+
+/**
+ * Initialize tools before session_start: restore a recorded selection, or seed
+ * host-owned tools from defaultTools when the history has no system checkpoint.
+ * Extensions may then apply current policy, including an empty selection.
  *
  * An unset defaultTools uses Pi's default built-in set. A configured list,
- * including [], restricts host-owned built-ins without disabling extension overrides.
+ * including [], seeds host-owned built-ins without disabling extension overrides.
+ * Defaults do not replace explicit selections recorded by an existing session.
  */
 export function activateMixCodeTools(agentSession: AgentSession): void {
+  if (restoreTranscriptTools(agentSession)) return;
   const allTools = agentSession.getAllTools();
   const configuredToolNames = new Set(allTools.map((tool) => tool.name));
   const configuredDefaults = agentSession.settingsManager.getDefaultTools();

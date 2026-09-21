@@ -196,15 +196,25 @@ to new sessions, not fork or resume.
 
 ### Active tools
 
-MixCode initializes host-owned tools from `defaultTools` or Pi's defaults before
-`session_start`. Extensions can then select active tools with `pi.setActiveTools()`,
-including `[]`. The host preserves that selection after startup, clear, session
-replacement, reload, and workdir changes.
+Before `session_start`, MixCode restores the active tool names replayed from the
+current branch's system messages, including compaction checkpoints. A checkpoint
+with no tools means an explicit empty selection. New sessions and older histories
+without a system message use `defaultTools` or Pi's defaults instead. Defaults seed
+those sessions; they do not replace a recorded explicit selection.
 
-Extension tool overrides follow Pi's activation rules. Extensions can dynamically
-register tools and change the active set. Selections are session-local and are not
-written to settings. Reapply the policy in `session_start` whenever the session or
-extension runtime is recreated.
+Restoration uses the current registered implementations. Unavailable or excluded
+tools cannot be restored from declarations. Extensions can then apply current
+policy with `pi.setActiveTools()`, including `[]`; startup, clear, session
+replacement, reload, and workdir changes preserve that post-start selection.
+
+When syncing another instance's session writes, MixCode updates executable tools
+if the branch's recorded tool names changed. Metadata or conversation updates with
+unchanged tool names preserve local selections awaiting their next request.
+
+Extensions can dynamically register tools and change the active set. Tool changes
+are recorded in the session transcript before the next model request, not in
+settings. Reapply extension policy in `session_start` when the runtime is recreated;
+in-place disk synchronization does not emit that event.
 
 ### Built-in edit fidelity
 

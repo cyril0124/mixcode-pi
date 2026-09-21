@@ -9,6 +9,7 @@
 import * as fs from "node:fs";
 import { disposeChatRenderers, entriesToChatLines, syncContextUsage } from "./runtime-chat.js";
 import type { ChatLine, RuntimeTab } from "./runtime-types.js";
+import { restoreTranscriptTools } from "./tools.js";
 
 export interface ReloadSessionResult {
   reloaded: boolean;
@@ -99,8 +100,12 @@ export function reloadRuntimeSessionFromDisk(runtimeTab: RuntimeTab): ReloadSess
     runtimeTab.chatWindowStartIndex = 0;
     // The agent's LLM context must reflect the reloaded branch, or the next turn
     // would send a stale message list even though the UI looks up to date.
+    const previousMessages = runtimeTab.agentSession.messages;
     runtimeTab.agentSession.agent.state.messages =
       runtimeTab.session.buildSessionContext().messages;
+    // Only a changed recorded loadout supersedes local tool choices. A peer's
+    // rename or ordinary turn must not undo a selection awaiting its first request.
+    restoreTranscriptTools(runtimeTab.agentSession, previousMessages);
 
     const nextChat: ChatLine[] = entriesToChatLines(runtimeTab.session.getBranch(), runtimeTab);
     disposeChatRenderers(runtimeTab.chat);
