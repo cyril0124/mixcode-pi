@@ -113,6 +113,6 @@ export function mixCodeThemeFromPi(theme: Theme): MixCodeTheme {
     userMessageBg: persistentBg("userMessageBg"),
     thinkingText: fg("thinkingText"),
     toolTitle: fg("toolTitle"),
-    bold: (text) => theme.bold(text),
+    bold: (text) => `\x1b[1m${text}\x1b[22m`,
   });
 }
