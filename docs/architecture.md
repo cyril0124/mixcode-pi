@@ -56,6 +56,9 @@ src/
 
 ## Runtime Mapping
 
+Provider failure observation and console diagnostics are described in
+[Provider error diagnostics](provider-errors.md).
+
 `src/core/commands.ts` recognizes local commands registered in `LOCAL_COMMANDS`.
 They take priority over extension commands and prompt templates. Pi's
 `AgentSession.prompt()` handles other slash input in this order: extension command,

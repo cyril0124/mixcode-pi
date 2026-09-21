@@ -56,6 +56,8 @@ src/
 
 ## 运行时映射
 
+原始 provider 异常观测与 console 诊断见[模型请求错误诊断](provider-errors.zh.md)。
+
 `src/core/commands.ts` 识别 `LOCAL_COMMANDS` 中注册的本地命令，
 本地命令优先于同名扩展命令和 prompt 模板。Pi 的 `AgentSession.prompt()`
 依次处理其余 slash 输入：扩展命令、`input` 事件、skill/模板展开、用户消息。

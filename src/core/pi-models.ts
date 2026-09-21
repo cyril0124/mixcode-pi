@@ -8,6 +8,7 @@ import type {
 } from "@earendil-works/pi-ai";
 import { getAgentDir, ModelRegistry, ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { isModelDisabled } from "./mixcode-settings.js";
+import { configureProviderErrorDiagnostics } from "./provider-error-diagnostics.js";
 import type { MixCodeModel } from "./types.js";
 
 export interface PiModelSource {
@@ -158,6 +159,7 @@ export async function createPiModelRegistryBundle(
     modelsPath,
     allowModelNetwork: options.allowModelNetwork ?? false,
   });
+  configureProviderErrorDiagnostics(modelRuntime);
   const registry = new ModelRegistry(modelRuntime);
   const sources = modelRuntime.getModels().map((model) => ({
     provider: model.provider,
