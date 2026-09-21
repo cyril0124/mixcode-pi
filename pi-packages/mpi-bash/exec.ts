@@ -83,12 +83,7 @@ export function stripCommandPrelude(command: string, commandPrefix?: string): st
 /** Idle window after `exit` before stdio is considered drained (pi's grace). */
 const EXIT_STDIO_GRACE_MS = 100;
 
-const SYSTEM_PROMPT_NOTE = `Bash execution policy: the bash tool applies a default timeout of ${BASH_DEFAULT_TIMEOUT_SECONDS} seconds when the timeout argument is omitted. The timeout covers foreground and background execution; on Unix it starts termination with SIGTERM, followed by SIGKILL after up to ${PROCESS_TREE_TERM_GRACE_MS / 1000} seconds for cleanup. A command still running after a shorter foreground window is moved to the background instead of being killed: the tool result then reports its pid and a log file. Follow it with \`tail\`, stop it with \`kill\`, and never poll in a loop waiting for it - its exit code is delivered to you automatically once it finishes.`;
-
-export function appendBashTimeoutNote(systemPrompt: string): string {
-  if (systemPrompt.includes(SYSTEM_PROMPT_NOTE)) return systemPrompt;
-  return `${systemPrompt}\n\n${SYSTEM_PROMPT_NOTE}`;
-}
+export const BASH_EXECUTION_POLICY = `Bash execution policy: the bash tool applies a default timeout of ${BASH_DEFAULT_TIMEOUT_SECONDS} seconds when the timeout argument is omitted. The timeout covers foreground and background execution; on Unix it starts termination with SIGTERM, followed by SIGKILL after up to ${PROCESS_TREE_TERM_GRACE_MS / 1000} seconds for cleanup. A command still running after a shorter foreground window is moved to the background instead of being killed: the tool result then reports its pid and a log file. Follow it with \`tail\`, stop it with \`kill\`, and never poll in a loop waiting for it - its exit code is delivered to you automatically once it finishes.`;
 
 /**
  * Foreground window in seconds. `0` disables detaching, which restores pi's

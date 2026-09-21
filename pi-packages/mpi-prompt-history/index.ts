@@ -155,8 +155,8 @@ export default function (pi: ExtensionAPI) {
   pi.on("before_agent_start", (event, ctx) => {
     if (!isMixCodeTabSession(ctx)) return;
     const paths = promptHistoryPaths(resolveAgentDir());
-    const block = buildPromptHistoryPrompt(paths);
-    return { systemPrompt: `${event.systemPrompt}\n\n${block}` };
+    // Keep this contribution composable and recorded alongside other instructions.
+    event.systemPromptOptions.sections["mpi-prompt-history"] = buildPromptHistoryPrompt(paths);
   });
 }
 

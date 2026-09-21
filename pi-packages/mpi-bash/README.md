@@ -30,6 +30,8 @@ A command that starts termination before the foreground window expires stays in 
 
 The injected default `timeout` is `300` seconds and applies only when the model omits `timeout`.
 
+At `before_agent_start`, the execution policy is assigned to `systemPromptOptions.sections["mpi-bash-policy"]`. Pi records it in the session transcript and composes it with other structured instructions without forcing a whole-prompt replacement. The note remains present when bash is inactive. Unchanged policy text does not produce repeated prompt updates.
+
 ## Visibility
 
 While at least one command runs in the background, a widget above the editor lists them as a tree, oldest first:

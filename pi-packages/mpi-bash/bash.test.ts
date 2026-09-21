@@ -5,7 +5,7 @@ import * as path from "node:path";
 import { test } from "node:test";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import bashExtension, {
-  appendBashTimeoutNote,
+  BASH_EXECUTION_POLICY,
   createDetachingBashOperations,
   formatCompletionNotice,
   type DetachedRun,
@@ -276,12 +276,10 @@ async function waitFor<T>(read: () => T | undefined): Promise<T> {
   throw new Error("timed out waiting for the detached completion notice");
 }
 
-test("bash timeout note states the detach contract and is idempotent", () => {
-  const patched = appendBashTimeoutNote("system");
-  assert.match(patched, /default timeout of 300 seconds/);
-  assert.match(patched, /moved to the background instead of being killed/);
-  assert.match(patched, /exit code is delivered to you automatically/);
-  assert.equal(appendBashTimeoutNote(patched), patched);
+test("bash policy states the timeout and detach contract", () => {
+  assert.match(BASH_EXECUTION_POLICY, /default timeout of 300 seconds/);
+  assert.match(BASH_EXECUTION_POLICY, /moved to the background instead of being killed/);
+  assert.match(BASH_EXECUTION_POLICY, /exit code is delivered to you automatically/);
 });
 
 test("bash tool calls get the default timeout only when it is missing", async () => {

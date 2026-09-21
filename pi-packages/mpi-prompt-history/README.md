@@ -20,11 +20,11 @@ Files are written atomically (temp + rename) with mode `0600`; the data dir is `
 | --- | --- |
 | `input` (`source: "interactive"`) | append the raw submitted text to `history.jsonl`, then trim to the byte budget |
 | `session_start` | once per sessions root per process: backfill the last 30 days from session JSONL (deduplicated on `session_id`+`ts`+`text`) and rebuild the index when stale |
-| `before_agent_start` | append a five-line pointer block naming both file paths to the system prompt |
+| `before_agent_start` | set `systemPromptOptions.sections["mpi-prompt-history"]` to a five-line pointer block naming both file paths |
 
 A rebuild processes one session file at a time and retains only user-prompt candidates and index metadata between files. Retained strings are copied out of the file's backing storage. Parsing yields to the event loop between JSONL rows after roughly 10 ms of work; parsing an individual row remains synchronous. The 30-day cutoff is evaluated once after the scan. Both recording and backfill trim history with a linear UTF-8 byte count, preserving complete newest rows within the configured budget. Backfill serializes only the rows that survive trimming.
 
-The pointer block contains paths only, never history content.
+The pointer block contains paths only, never history content. Pi persists it with the structured prompt, so later extension contributions remain effective and unchanged pointers do not produce repeated prompt updates.
 
 ## Commands
 

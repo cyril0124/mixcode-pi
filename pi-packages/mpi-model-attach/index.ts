@@ -4,7 +4,7 @@
 // |                                                                           |
 // |  Config: <agentDir>/mpi-model-attach.json (skills + extensions sections). |
 // |  Reload: session_start (startup / reload / new / resume / fork).          |
-// |  Skills: before_agent_start — match rules, rewrite <available_skills>.    |
+// |  Skills: before_agent_start — update structured skill options.           |
 // |  Exts:   session_start + model_select (add-only).                         |
 // |  UI:     /model-attach — markdown panel (customMessageBg / light purple). |
 // +---------------------------------------------------------------------------+
@@ -19,7 +19,6 @@ import {
   modelAttachConfigPath,
   modelKey,
   planModelExtensionLoads,
-  replaceSkillsInSystemPrompt,
   ruleMatches,
   setSectionEnabled,
   type ApplyWarning,
@@ -217,7 +216,7 @@ export default function modelAttachExtension(pi: ExtensionAPI) {
     const model = currentModel(ctx);
     if (!model) return;
 
-    const baseSkills = (event.systemPromptOptions.skills ?? []) as Skill[];
+    const baseSkills = event.systemPromptOptions.skills;
     const effective = applyModelSkillRules(
       section.rules,
       model,
@@ -228,9 +227,8 @@ export default function modelAttachExtension(pi: ExtensionAPI) {
     notifyWarnings(ctx, effective.warnings);
     if (effective.matchedRuleIndexes.length === 0) return;
 
-    const nextPrompt = replaceSkillsInSystemPrompt(event.systemPrompt, effective.skills);
-    if (nextPrompt === event.systemPrompt) return;
-    return { systemPrompt: nextPrompt };
+    // Keep skills in the structured prompt so later hooks and transcript updates see them.
+    event.systemPromptOptions.skills = effective.skills;
   });
 
   pi.on("model_select", async (event, ctx) => {

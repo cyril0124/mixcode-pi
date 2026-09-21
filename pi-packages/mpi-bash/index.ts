@@ -14,7 +14,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { BashLogs } from "./bash-logs.js";
 import {
-  appendBashTimeoutNote,
+  BASH_EXECUTION_POLICY,
   BASH_DEFAULT_TIMEOUT_SECONDS,
   createDetachingBashOperations,
   formatCompletionNotice,
@@ -163,9 +163,10 @@ const bashExtension: ExtensionFactory = (pi) => {
     event.input.timeout ??= BASH_DEFAULT_TIMEOUT_SECONDS;
   });
 
-  pi.on("before_agent_start", (event) => ({
-    systemPrompt: appendBashTimeoutNote(event.systemPrompt),
-  }));
+  pi.on("before_agent_start", (event) => {
+    // A named section composes with later hooks and persists in the transcript.
+    event.systemPromptOptions.sections["mpi-bash-policy"] = BASH_EXECUTION_POLICY;
+  });
 
   pi.registerCommand("bash-logs", {
     description: "Inspect background bash jobs and their logs",

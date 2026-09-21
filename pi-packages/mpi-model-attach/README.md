@@ -1,6 +1,6 @@
 # mpi-model-attach
 
-Adds or removes skills for the current model by rewriting the system prompt `<available_skills>` block. Loads extra Pi extensions by calling their factories with the host `ExtensionAPI`.
+Adds or removes skills for the current model through structured system prompt options. Loads extra Pi extensions by calling their factories with the host `ExtensionAPI`.
 
 [中文文档](README.zh.md)
 
@@ -56,6 +56,8 @@ Relative paths are rejected. A later add with the same skill name replaces the e
 
 Skill names only. A missing name warns and is otherwise a no-op.
 
+On `before_agent_start`, matching rules update `event.systemPromptOptions.skills`. Pi renders the resulting list and records its changes in the transcript. An empty list removes the skills section. Other structured prompt sections remain available to later hooks; this package does not force a full prompt replacement. The rules affect prompt skills only, not Pi's resource discovery list.
+
 ### `extensions.add`
 
 | Form | Meaning |
@@ -89,4 +91,4 @@ If an extension should exist only for some models, keep it out of Pi's always-di
 - This package calls factories. It does not filter Pi's discovery list.
 - Switching to a model that no longer matches does not unload anything. Use `/reload` or a new session.
 - `model_select` only adds newly matched paths. It does not replay a child factory's missed `session_start` hooks.
-- `mpi-skill-refs` (`$SkillName`) still resolves against Pi's original loaded skill list, not the rewritten prompt.
+- `mpi-skill-refs` (`$SkillName`) reads `systemPromptOptions.skills` when its `before_agent_start` hook runs. It sees model-attach's changes only if it runs afterward. Its filesystem fallback can still resolve a removed skill, so removing a skill from the prompt does not disable explicit references.

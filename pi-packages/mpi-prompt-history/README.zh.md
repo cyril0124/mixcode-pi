@@ -20,11 +20,11 @@ MixCode prompt 召回文件的唯一生产者,并提供 `/prompt-history` 浏览
 | --- | --- |
 | `input`(`source: "interactive"`) | 将原始提交文本追加到 `history.jsonl`,随后按字节预算裁剪 |
 | `session_start` | 每进程每 sessions root 一次:从 session JSONL 回填最近 30 天(按 `session_id`+`ts`+`text` 去重),索引过期时重建 |
-| `before_agent_start` | 向系统提示追加 5 行指针块,给出两个文件路径 |
+| `before_agent_start` | 将给出两个文件路径的 5 行指针块写入 `systemPromptOptions.sections["mpi-prompt-history"]` |
 
 重建时逐个处理 session 文件，跨文件只保留用户 prompt 候选和索引元数据。保留的字符串独立复制，避免继续占用整个文件的底层存储。解析累计约 10 毫秒后，在 JSONL 行之间让出事件循环；单行解析仍同步执行。30 天回填截止时间在扫描结束后统一计算。录入和回填均使用线性的 UTF-8 字节计数裁剪历史，在配置预算内保留最新的完整记录行。回填仅序列化裁剪后需要保留的记录。
 
-指针块只含路径,绝不含历史内容。
+指针块只含路径,绝不含历史内容。Pi 将它作为结构化提示词持久化，后续扩展的指令仍可生效，路径未变化时不会重复生成提示词更新。
 
 ## 命令
 

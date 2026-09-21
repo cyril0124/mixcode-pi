@@ -1,6 +1,6 @@
 # mpi-model-attach
 
-按当前模型增删技能：重写系统提示词里的 `<available_skills>` 段。按当前模型加载额外 Pi 扩展：用宿主 `ExtensionAPI` 调用扩展工厂。
+通过结构化系统提示词选项，按当前模型增删技能。按当前模型加载额外 Pi 扩展：用宿主 `ExtensionAPI` 调用扩展工厂。
 
 [English](README.md)
 
@@ -56,6 +56,8 @@
 
 只接受技能名。名称不存在时警告，其余当作没发生。
 
+在 `before_agent_start` 中，命中规则更新 `event.systemPromptOptions.skills`。Pi 渲染最终列表，并将其变化记录到会话历史。空列表会移除技能段。其他结构化提示词段仍可由后续钩子修改；本包不强制替换整段提示词。规则只影响提示词里的技能，不改变 Pi 的资源发现列表。
+
 ### `extensions.add`
 
 | 形式 | 含义 |
@@ -89,4 +91,4 @@
 - 本包只调用工厂，不过滤 Pi 的发现列表。
 - 切到不再匹配的模型不会卸载任何东西。用 `/reload` 或开新 session。
 - `model_select` 只新增新命中的路径，不补放子工厂错过的 `session_start` 钩子。
-- `mpi-skill-refs`（`$SkillName`）仍按 Pi 原始加载的技能列表解析，不是重写后的系统提示词。
+- `mpi-skill-refs`（`$SkillName`）在自己的 `before_agent_start` 钩子执行时读取 `systemPromptOptions.skills`，只有在 model-attach 之后执行，才能看到本轮调整。它的文件系统回退查找仍可能解析已移除的技能，因此从提示词移除技能不等于禁用显式引用。

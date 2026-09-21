@@ -5,11 +5,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import {
-  formatSkillsForPrompt,
-  loadSkillsFromDir,
-  type Skill,
-} from "@earendil-works/pi-coding-agent";
+import { loadSkillsFromDir, type Skill } from "@earendil-works/pi-coding-agent";
 
 export type ModelLike = {
   id: string;
@@ -75,11 +71,6 @@ export type LoadPlan = {
   matchedRuleIndexes: number[];
 };
 
-const SKILLS_SECTION_RE =
-  /\n\nThe following skills provide specialized instructions for specific tasks\.[\s\S]*?<\/available_skills>/;
-const SKILLS_TAG_RE = /\n?<available_skills>[\s\S]*?<\/available_skills>/;
-const CWD_MARKER = "\nCurrent working directory: ";
-
 /** Config lives at `<agentDir>/mpi-model-attach.json`. */
 export function modelAttachConfigPath(agentDir: string): string {
   return path.join(agentDir, "mpi-model-attach.json");
@@ -90,7 +81,7 @@ export function formatModelAttachHelp(configPath: string): string {
   return [
     "# /model-attach",
     "",
-    "Adds or removes skills for the current model by rewriting the system prompt skills section.",
+    "Adds or removes skills for the current model through structured system prompt options.",
     "Loads extra extensions by calling their factories.",
     "",
     "## Usage",
@@ -206,7 +197,8 @@ export function formatModelAttachHelp(configPath: string): string {
     "- Keep model-only extensions out of always-discovered dirs or they load twice.",
     "- Switching to a model that no longer matches does not unload. Use `/reload` or a new session.",
     "- `model_select` only adds newly matched paths. Missed `session_start` is not replayed.",
-    "- `$Skill` refs (`mpi-skill-refs`) still use Pi's original skill list, not the rewritten prompt.",
+    "- `$Skill` refs (`mpi-skill-refs`) read structured skills at their own `before_agent_start` hook; they see model-attach changes only when that hook runs afterward.",
+    "- Skill rules do not change resource discovery. Explicit references may still resolve removed skills through filesystem fallback.",
   ].join("\n");
 }
 
@@ -642,31 +634,6 @@ export function applyModelSkillRules(
     warnings,
     matchedRuleIndexes,
   };
-}
-
-/**
- * Replace or remove the skills section in a system prompt.
- * When the section is absent and `skills` is non-empty, insert before the cwd line.
- */
-export function replaceSkillsInSystemPrompt(
-  systemPrompt: string,
-  skills: readonly Skill[],
-): string {
-  const block = formatSkillsForPrompt(skills as Skill[]);
-
-  if (SKILLS_SECTION_RE.test(systemPrompt)) {
-    return systemPrompt.replace(SKILLS_SECTION_RE, () => block);
-  }
-  if (SKILLS_TAG_RE.test(systemPrompt)) {
-    return systemPrompt.replace(SKILLS_TAG_RE, () => block);
-  }
-  if (!block) return systemPrompt;
-
-  const idx = systemPrompt.lastIndexOf(CWD_MARKER);
-  if (idx >= 0) {
-    return systemPrompt.slice(0, idx) + block + systemPrompt.slice(idx);
-  }
-  return systemPrompt + block;
 }
 
 const ENTRY_CANDIDATES = ["index.ts", "index.js", "index.mjs", "index.cjs"] as const;

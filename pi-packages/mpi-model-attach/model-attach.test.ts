@@ -4,9 +4,14 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { getModel } from "@earendil-works/pi-ai/compat";
 import {
+  buildSystemPrompt,
+  createAgentSession,
   createSyntheticSourceInfo,
-  formatSkillsForPrompt,
+  DefaultResourceLoader,
+  SessionManager,
+  SettingsManager,
   type Skill,
 } from "@earendil-works/pi-coding-agent";
 import {
@@ -22,7 +27,6 @@ import {
   modelKey,
   parseModelAttachConfig,
   planModelExtensionLoads,
-  replaceSkillsInSystemPrompt,
   resolveExtensionEntry,
   resolveExtensionName,
   resolveExtensionRef,
@@ -31,6 +35,7 @@ import {
   stripJsonComments,
   type ModelLike,
 } from "./model-attach-core.js";
+import modelAttachExtension from "./index.js";
 import { createDynamicExtensionLoader } from "./model-attach-loader.js";
 
 function syntheticSkill(name: string, description = `${name} skill`, filePath?: string): Skill {
@@ -435,41 +440,99 @@ describe("formatModelAttachHelp", () => {
   });
 });
 
-describe("replaceSkillsInSystemPrompt", () => {
-  test("replaces existing skills section", () => {
-    const a = syntheticSkill("a", "Skill A");
-    const b = syntheticSkill("b", "Skill B");
-    const originalBlock = formatSkillsForPrompt([a]);
-    const prompt = `You are pi.${originalBlock}\nCurrent working directory: /tmp`;
-    const next = replaceSkillsInSystemPrompt(prompt, [b]);
-    assert.ok(next.includes("<name>b</name>"));
-    assert.ok(!next.includes("<name>a</name>"));
-    assert.ok(next.includes("Current working directory: /tmp"));
+describe("before_agent_start skill updates", () => {
+  async function applySkillHook(baseSkills: Skill[] | undefined, add: string[], remove: string[]) {
+    const dir = tmpDir();
+    fs.writeFileSync(
+      path.join(dir, "mpi-model-attach.json"),
+      JSON.stringify({ skills: { rules: [{ match: {}, add, remove }] } }),
+    );
+    const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+    process.env.PI_CODING_AGENT_DIR = dir;
+    try {
+      const settingsManager = SettingsManager.inMemory({ packages: [] });
+      const resourceLoader = new DefaultResourceLoader({
+        cwd: dir,
+        agentDir: dir,
+        settingsManager,
+        noExtensions: true,
+        noSkills: true,
+        noPromptTemplates: true,
+        noThemes: true,
+        noContextFiles: true,
+        extensionFactories: [modelAttachExtension],
+      });
+      await resourceLoader.reload();
+      const { session } = await createAgentSession({
+        cwd: dir,
+        agentDir: dir,
+        model: getModel("anthropic", "claude-sonnet-4-5"),
+        resourceLoader,
+        settingsManager,
+        sessionManager: SessionManager.inMemory(dir),
+      });
+      try {
+        await session.bindExtensions({});
+        const result = await session.extensionRunner.emitBeforeAgentStart("test", undefined, {
+          cwd: dir,
+          customPrompt: "KEEP-IDENTITY",
+          sections: { project_rule: "KEEP-PROJECT-RULE" },
+          skills: baseSkills,
+        });
+        const options = result.systemPromptOptions;
+        const prompt = buildSystemPrompt(options);
+        // A forced prompt would hide subsequent structured changes from other extensions.
+        assert.equal(options.forceSystemPrompt, undefined);
+        assert.ok(prompt.includes("KEEP-IDENTITY"));
+        assert.ok(prompt.includes("KEEP-PROJECT-RULE"));
+        assert.ok(prompt.includes(dir));
+        return { options, prompt };
+      } finally {
+        session.dispose();
+      }
+    } finally {
+      if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+      else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
+    }
+  }
+
+  test("replaces existing skills in both options and the rendered prompt", async () => {
+    const skillDir = writeSkill(tmpDir(), "replacement", "Replacement skill");
+    const { options, prompt } = await applySkillHook([syntheticSkill("old")], [skillDir], ["old"]);
+    assert.deepEqual(
+      options.skills.map((skill) => skill.name),
+      ["replacement"],
+    );
+    assert.ok(prompt.includes("<name>replacement</name>"));
+    assert.ok(!prompt.includes("<name>old</name>"));
   });
 
-  test("removes section when skills empty", () => {
-    const a = syntheticSkill("a", "Skill A");
-    const prompt = `Head.${formatSkillsForPrompt([a])}\nCurrent working directory: /tmp`;
-    const next = replaceSkillsInSystemPrompt(prompt, []);
-    assert.ok(!next.includes("available_skills"));
-    assert.ok(next.includes("Current working directory: /tmp"));
+  test("removes the skills section when the effective list is empty", async () => {
+    const { options, prompt } = await applySkillHook([syntheticSkill("old")], [], ["old"]);
+    assert.deepEqual(options.skills, []);
+    assert.ok(!prompt.includes("available_skills"));
   });
 
-  test("inserts before cwd when section missing", () => {
-    const a = syntheticSkill("a", "Skill A");
-    const prompt = "Head.\nCurrent working directory: /tmp";
-    const next = replaceSkillsInSystemPrompt(prompt, [a]);
-    assert.ok(next.includes("<name>a</name>"));
-    assert.ok(next.indexOf("available_skills") < next.indexOf("Current working directory"));
+  test("adds skills when the original options have no skills", async () => {
+    const skillDir = writeSkill(tmpDir(), "added", "Added skill");
+    const { options, prompt } = await applySkillHook(undefined, [skillDir], []);
+    assert.deepEqual(
+      options.skills.map((skill) => skill.name),
+      ["added"],
+    );
+    assert.ok(prompt.includes("<name>added</name>"));
+    assert.ok(prompt.indexOf("available_skills") < prompt.indexOf("<cwd>"));
   });
 
-  test("dollar signs in skill text are not replace patterns", () => {
-    const a = syntheticSkill("old", "gone");
-    const b = syntheticSkill("new", "regex $& and pid $$");
-    const prompt = `You are pi.${formatSkillsForPrompt([a])}\nCurrent working directory: /tmp`;
-    const next = replaceSkillsInSystemPrompt(prompt, [b]);
-    assert.ok(!next.includes("<name>old</name>"));
-    assert.ok(next.includes("pid $$"));
+  test("preserves literal dollar signs in skill text", async () => {
+    const skillDir = writeSkill(tmpDir(), "replacement", "regex $& and pid $$");
+    const { options, prompt } = await applySkillHook([syntheticSkill("old")], [skillDir], ["old"]);
+    assert.deepEqual(
+      options.skills.map((skill) => skill.description),
+      ["regex $& and pid $$"],
+    );
+    assert.ok(!prompt.includes("<name>old</name>"));
+    assert.ok(prompt.includes("regex $&amp; and pid $$"));
   });
 });
 
