@@ -10,7 +10,8 @@ import {
   setRegisteredThemes,
   Theme,
 } from "./pi-theme-api.js";
-import { mixCodeThemeFromPi, type MixCodeTheme, withTabStyles } from "./theme-from-pi.js";
+import type { MixCodeTheme } from "./theme-from-pi.js";
+import { mixCodeThemeFromPi, withTabStyles } from "./theme-from-pi.js";
 
 export type { MixCodeTheme } from "./theme-from-pi.js";
 
@@ -854,6 +855,81 @@ export const MIXCODE_EXTENSION_ROSE_PINE_THEME = new Theme(
   { name: "rose-pine" },
 );
 
+// Keep chrome, Markdown, and extension renderers on one palette. Only chrome-only
+// surfaces below need separate colors because Pi has no tokens for them.
+const AURORA_PI_THEME = new Theme(
+  {
+    accent: "#78dfc5",
+    border: "#6e9eb0",
+    borderAccent: "#78dfc5",
+    borderMuted: "#3a5263",
+    success: "#9ed6a3",
+    error: "#ef96a6",
+    warning: "#e9a76a",
+    muted: "#a8b9c5",
+    dim: "#91a5b2",
+    text: "#e1e9ee",
+    thinkingText: "#91a5b2",
+    scrollbarTrack: "#3a5263",
+    scrollbarThumb: "#78dfc5",
+    searchMatchText: "#f3e0b5",
+    userMessageText: "#e1e9ee",
+    customMessageText: "#e1e9ee",
+    customMessageLabel: "#c4aff5",
+    toolTitle: "#e6c58a",
+    toolOutput: "#a8b9c5",
+    mdHeading: "#e6c58a",
+    mdLink: "#8ed4e0",
+    mdLinkUrl: "#91a5b2",
+    mdCode: "#b3c9d9",
+    mdCodeBlock: "#e1e9ee",
+    mdCodeBlockBorder: "#6e9eb0",
+    mdQuote: "#a8b9c5",
+    mdQuoteBorder: "#6e9eb0",
+    mdHr: "#3a5263",
+    mdListBullet: "#a8b9c5",
+    toolDiffAdded: "#9ed6a3",
+    toolDiffRemoved: "#ef96a6",
+    toolDiffContext: "#a8b9c5",
+    syntaxComment: "#91a5b2",
+    syntaxKeyword: "#c4aff5",
+    syntaxFunction: "#91bded",
+    syntaxVariable: "#e1e9ee",
+    syntaxString: "#9ed6a3",
+    syntaxNumber: "#edb98f",
+    syntaxType: "#78dfc5",
+    syntaxOperator: "#8ed4e0",
+    syntaxPunctuation: "#a8b9c5",
+    ...thinkingThemeColors([
+      "#3a5263",
+      "#91a5b2",
+      "#6e9eb0",
+      "#78dfc5",
+      "#91bded",
+      "#c4aff5",
+      "#ef96a6",
+    ]),
+    bashMode: "#e6c58a",
+  },
+  {
+    selectedBg: "#243b47",
+    searchMatchBg: "#51432c",
+    userMessageBg: "#1d303d",
+    customMessageBg: "#26283e",
+    toolPendingBg: "#182631",
+    toolSuccessBg: "#19332d",
+    toolErrorBg: "#3b252e",
+  },
+  "truecolor",
+  { name: "aurora" },
+);
+
+const AURORA_THEME: MixCodeTheme = {
+  ...mixCodeThemeFromPi(AURORA_PI_THEME),
+  surface: persistentBgRgb("#101c26"),
+  systemBackground: bgPair("#101c26"),
+};
+
 /** Built-in MixCode themes with stable ids (chrome may be hand-tuned). */
 export const THEMES: ThemeInfo[] = [
   { id: "mixcode-dark" },
@@ -863,6 +939,7 @@ export const THEMES: ThemeInfo[] = [
   { id: "catppuccin" },
   { id: "kanagawa" },
   { id: "rose-pine" },
+  { id: "aurora" },
 ];
 
 /** Internal Pi Theme.name; not a user-facing MixCode theme id. */
@@ -876,6 +953,7 @@ const BUILTIN_MIXCODE: Record<string, MixCodeTheme> = {
   catppuccin: CATPPUCCIN_THEME,
   kanagawa: KANAGAWA_THEME,
   "rose-pine": ROSE_PINE_THEME,
+  aurora: AURORA_THEME,
 };
 
 const BUILTIN_PI_THEMES: Theme[] = [
@@ -885,6 +963,7 @@ const BUILTIN_PI_THEMES: Theme[] = [
   MIXCODE_EXTENSION_CATPPUCCIN_THEME,
   MIXCODE_EXTENSION_KANAGAWA_THEME,
   MIXCODE_EXTENSION_ROSE_PINE_THEME,
+  AURORA_PI_THEME,
 ];
 
 /** MixCode resolution map: id → Theme (includes loader themes). */

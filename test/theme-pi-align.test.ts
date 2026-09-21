@@ -1,17 +1,18 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { Theme } from "@earendil-works/pi-coding-agent";
+import { getMarkdownTheme, Theme } from "@earendil-works/pi-coding-agent";
+import { createInitialState, createTab } from "../src/core/defaults.js";
+import { renderTabBar } from "../src/ui/rendering/chrome.js";
+import { mixCodeThemeFromPi } from "../src/ui/theme-from-pi.js";
 import {
   listThemeInfos,
   normalizeThemeId,
   registerAdditionalTheme,
   registerMixCodeThemes,
   resolvePiTheme,
+  setTheme,
   themeForId,
 } from "../src/ui/themes.js";
-import { createInitialState, createTab } from "../src/core/defaults.js";
-import { renderTabBar } from "../src/ui/rendering/chrome.js";
-import { mixCodeThemeFromPi } from "../src/ui/theme-from-pi.js";
 
 function sampleTheme(
   name: string,
@@ -79,6 +80,25 @@ function sampleTheme(
     { name },
   );
 }
+
+test("aurora is selectable and shares its palette with Pi Markdown and extension UI", () => {
+  registerMixCodeThemes();
+  const state = createInitialState("/repo");
+  try {
+    assert.ok(listThemeInfos().some((theme) => theme.id === "aurora"));
+    setTheme(state, "aurora");
+    assert.equal(state.theme, "aurora");
+    const pi = resolvePiTheme(state.theme);
+    assert.ok(pi);
+    const chrome = themeForId(state.theme);
+    assert.equal(chrome.name, "aurora");
+    assert.equal(chrome.accent("selected"), pi.fg("accent", "selected"));
+    assert.equal(chrome.userMessageBg("prompt"), pi.bg("userMessageBg", "prompt"));
+    assert.equal(getMarkdownTheme().heading("Heading"), pi.fg("mdHeading", "Heading"));
+  } finally {
+    setTheme(state, "mixcode-dark");
+  }
+});
 
 test("registerAdditionalTheme makes third-party theme listable and adaptable", () => {
   registerMixCodeThemes();

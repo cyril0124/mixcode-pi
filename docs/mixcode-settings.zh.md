@@ -34,7 +34,7 @@ MixCode Pi 从其根状态目录读取 `mixcode_settings.json`。默认路径为
 
 | 配置项 | 可选值 | 默认值 | 说明 |
 | --- | --- | --- | --- |
-| `theme` | 主题 ID 字符串 | 未设置 → 运行时默认 | 显式 UI 主题 ID。内置主题（`mixcode-dark`、`claude-warm`、`tokyo-night`、`terminal`、`catppuccin`、`kanagawa`、`rose-pine`）、Pi 主题（`dark`/`light`）以及 Pi 发现的任何主题（`~/.pi/agent/themes`、packages）。ID 需精确匹配，MixCode 无额外别名。可通过 `/settings` 编辑。 |
+| `theme` | 主题 ID 字符串 | 未设置 → 运行时默认 | 显式 UI 主题 ID。内置主题（`mixcode-dark`、`claude-warm`、`tokyo-night`、`terminal`、`catppuccin`、`kanagawa`、`rose-pine`、`aurora`）、Pi 主题（`dark`/`light`）以及 Pi 发现的任何主题（`~/.pi/agent/themes`、packages）。ID 需精确匹配，MixCode 无额外别名。可通过 `/settings` 编辑。 |
 | `ui.icons.mode` | `auto` \| `nerd` \| `ascii` | `nerd` | 输入框 meta 图标、上下文占用指示器、Zen 状态圆点及扩展管理器状态的字符集。`auto` 会在已知的 Nerd Font 终端上选用 Nerd 图标，否则使用 ASCII。在 `/settings` 中作为 “Icon mode” 可编辑。 |
 | `ui.inlineWidgets` | 布尔值 | `false` | 新 Tab 及进程启动时的默认行为：将 `setWidget` 渲染在 chat 尾部的 chrome 上方/下方。在 `/settings` 中修改时会立即同步应用到所有已打开的 Tab。每个 Tab 的 `/toggle-inline-widgets` 仍仅限当前会话且不写入 `mixcode_state.json`。在 `/settings` 中作为 “Inline widgets” 可编辑。 |
 | `ui.boxedHiddenThinking` | 布尔值 | `true` | 在 Pi `hideThinkingBlock` 打开时：每个隐藏的 thinking 块渲染为跟随流式输出的 3 行尾窗，替代 `Thinking...` 占位符。设为 `false` 则显示占位符。尾窗按纯文本显示，保留 Markdown 标记；仅在预览中移除 ANSI 样式和段落开头的 `Thinking:` 展示标签。预览整体缩进两格，仅保留使用 `borderMuted` 的左侧竖线，没有上下横线和右边框。标题使用 `text`，非斜体正文使用 `thinkingText`，右对齐计时使用 `dim`。竖线与正文间隔一格，右端预留一格。标题在流式期间实时计时，思考一结束（后续 tool call / 文本出现或消息结束）即冻结。不足 1 秒显示整数毫秒（`320ms`）；1 秒至不足 60 秒，实时值与冻结值均截断到一位小数（`1.4s`）；达到 60 秒后使用整秒的分/时格式（`1m 05s`）。`setHiddenThinkingLabel` 覆盖仍整块替换。在 `/settings` 中作为 “Thinking tail preview” 可编辑。 |
@@ -44,6 +44,8 @@ MixCode Pi 从其根状态目录读取 `mixcode_settings.json`。默认路径为
 | `ui.oversizedAssistantMessage.maxBytes` | 正整数 | `131072` | 超过此 UTF-8 字节大小时折叠 assistant/thinking 输出。 |
 | `disabledProviders` | provider id 字符串数组 | `[]` | 在 MixCode 会话以及扩展/子代理模型发现和执行中全局禁用对应 provider。模型仍会在 `/models` 中列出但呈置灰禁用状态且无法选择或使用。在 `/reload` 或重启后生效。可通过 `/settings` 编辑。 |
 | `disabledModels` | `provider/modelId` 字符串数组 | `[]` | 在相同路径下全局禁用单个模型。Provider 级别的禁用涵盖该 provider 下的所有模型。在 `/reload` 或重启后生效。可通过 `/settings` 编辑。 |
+
+内置主题 `aurora` 使用深墨蓝面板、薄荷青强调色、暖金标题和淡紫色语法关键字。打开 `/settings`，搜索 `theme`，按 Enter 后选择 `aurora` 即可启用。配色覆盖 MixCode 界面、Markdown、工具结果和 Pi 扩展 UI。
 
 图片显示、Mermaid 渲染、代码块缩进、缓存保温、cache miss 提示与会话启动工具集**不**在此文件中配置。它们位于 Pi 全局 `settings.json`（与 `hideThinkingBlock` 相同存储）：
 
