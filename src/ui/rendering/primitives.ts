@@ -212,7 +212,9 @@ export function overlayPanel(
     lines,
     width,
     theme,
-    border: border ?? ((text: string) => theme.border(text)),
+    // `border` stays undefined when the caller has no preference, so drawBox's own
+    // default is the single definition of "default border = theme.border".
+    border,
     inner: (text: string) => theme.surface(text),
   });
 }

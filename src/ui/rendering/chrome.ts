@@ -1,6 +1,7 @@
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { isPendingEscapeActive } from "../../core/escape.js";
 import { gitBranchForWorkdir } from "../../core/git-branch.js";
+import { collapseHome } from "../../core/paths.js";
 import { recentAgentTabRank } from "../../core/tabs.js";
 import { DEFAULT_ICON_MODE, type IconMode } from "../../core/mixcode-settings.js";
 import type { MouseHitRegion } from "../../core/mouse.js";
@@ -925,7 +926,7 @@ function layoutInputMetaLeft(
     return { text: "", regions: [], fits: false, workdirIntact: false };
   }
   const workdirBudget = Math.max(0, remaining - gapWidth);
-  const workdirNatural = shortWorkdir(workdirPath);
+  const workdirNatural = collapseHome(workdirPath);
   // Strict modes keep the full short path; only the non-strict fallback may
   // compact segments or ellipsize. Otherwise provider stays while workdir gets "...".
   if (strict) {
@@ -1751,12 +1752,6 @@ export function tabStatusGlyph(tab: MixCodeTabInfo): string {
   if (tab.status === "running" || tab.status === "thinking") return "●";
   if (tab.status === "done" || tab.unreadDone) return "✓";
   return "-";
-}
-
-function shortWorkdir(workdir: string): string {
-  const home = process.env.HOME;
-  if (home && workdir.startsWith(home)) return `~${workdir.slice(home.length)}`;
-  return workdir;
 }
 
 // "provider/module-name" → "module-name", keeping everything after the last

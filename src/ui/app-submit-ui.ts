@@ -1,6 +1,5 @@
 import { getConsoleHistory } from "../cli/console-tui-bridge.js";
 import { getSystemPromptSections } from "../agent/pi-session-internals.js";
-import type { RuntimeTab } from "../agent/runtime.js";
 import { MIXCODE_EXTENSION_KEYBINDINGS } from "../agent/runtime-extension-theme.js";
 import type { LocalCommand } from "../core/commands.js";
 import { openCommandPalette, openTabJump } from "../core/overlays.js";
@@ -217,7 +216,7 @@ const handleSystemTools: LocalCommandHandler = async ({ active, args, runtime, t
   const runtimeTab = runtime.getTab(active!.sessionId);
   if (!runtimeTab) throw new Error(`Unknown tab session: ${active!.sessionId}`);
   const request = parseEditorFlag(args);
-  const text = renderSystemToolsText(getRuntimeTools(runtime, active!.sessionId, runtimeTab));
+  const text = renderSystemToolsText(getRuntimeTools(runtime, active!.sessionId));
   if (request.editorDisabled) {
     showTextOverlay(tui, text);
   } else {
@@ -273,12 +272,8 @@ export const UI_COMMAND_HANDLERS = {
   exit: handleQuit,
 } satisfies Partial<Record<LocalCommand, LocalCommandHandler>>;
 
-function getRuntimeTools(
-  runtime: MixCodeSubmitRuntime,
-  sessionId: string,
-  runtimeTab: RuntimeTab,
-): RuntimeToolInfo[] {
-  return runtime.getExtensionTools(sessionId) ?? runtimeTab.agentSession.getAllTools();
+function getRuntimeTools(runtime: MixCodeSubmitRuntime, sessionId: string): RuntimeToolInfo[] {
+  return runtime.getExtensionTools(sessionId);
 }
 
 function getExtensionShortcuts(

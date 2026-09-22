@@ -31,11 +31,7 @@ import {
 } from "./diff-presentation.js";
 import { pluralize, sanitizeAnsiForThemedOutput, stripAllEscapes } from "./render-utils.js";
 import { splitWriteContentLines } from "./write-display-utils.js";
-import {
-  DEFAULT_TOOL_DISPLAY_CONFIG,
-  type DiffIndicatorMode,
-  type ToolDisplayConfig,
-} from "./types.js";
+import type { DiffIndicatorMode, ToolDisplayConfig } from "./types.js";
 
 interface DiffTheme {
   fg(color: string, text: string): string;
@@ -2192,13 +2188,7 @@ function applyLineLimit(
   totalHunks: number,
   theme: DiffTheme,
 ): string[] {
-  const expandedLimit = Number.isFinite(maxExpandedLines)
-    ? maxExpandedLines
-    : DEFAULT_TOOL_DISPLAY_CONFIG.expandedPreviewMaxLines;
-  const collapsedLimit = Number.isFinite(maxCollapsedLines)
-    ? maxCollapsedLines
-    : DEFAULT_TOOL_DISPLAY_CONFIG.diffCollapsedLines;
-  const limit = expanded ? Math.max(0, expandedLimit) : Math.max(1, collapsedLimit);
+  const limit = expanded ? Math.max(0, maxExpandedLines) : Math.max(1, maxCollapsedLines);
   if (limit === 0 || rows.length <= limit) {
     return rows.map((row) => clampDiffLineToWidth(row.text, width));
   }

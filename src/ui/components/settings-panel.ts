@@ -10,7 +10,7 @@ import {
   type CacheWarmingMode,
   SettingsManager,
 } from "@earendil-works/pi-coding-agent";
-import { homeDir } from "../../core/paths.js";
+import { collapseHome } from "../../core/paths.js";
 import {
   DEFAULT_BOXED_HIDDEN_THINKING,
   DEFAULT_HIDE_THINKING_BLOCK,
@@ -998,11 +998,7 @@ function settingsNumberEditPrefill(value: number | undefined, allowByteUnits = f
 /** Collapse $HOME to ~, then middle-truncate if longer than maxWidth. */
 function formatSettingsPath(filePath: string, maxWidth: number): string {
   if (!filePath) return "";
-  const home = homeDir();
-  const display =
-    home && (filePath === home || filePath.startsWith(`${home}/`))
-      ? `~${filePath.slice(home.length)}`
-      : filePath;
+  const display = collapseHome(filePath);
   if (visibleWidth(display) <= maxWidth) return display;
   if (maxWidth <= 1) return "…";
   // Keep head + tail around a single ellipsis.

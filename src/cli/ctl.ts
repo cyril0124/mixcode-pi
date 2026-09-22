@@ -437,26 +437,35 @@ export function normalizeCtlStdout(text: string, ansi = false): string {
   return body.replace(/[ \t]+$/gm, "");
 }
 
+/** UTF-8 length of one code point; lone surrogates count 3, matching TextEncoder's U+FFFD. */
+function utf8ByteLength(codePoint: number): number {
+  if (codePoint <= 0x7f) return 1;
+  if (codePoint <= 0x7ff) return 2;
+  return codePoint <= 0xffff ? 3 : 4;
+}
+
+/** Byte-accurate tail of `text`, never splitting a code point. Scans backwards once. */
 function sliceUtf8Suffix(text: string, maxBytes: number): string {
-  const encoder = new TextEncoder();
-  const units = Array.from(text);
-  let out = "";
+  let start = text.length;
   let used = 0;
-  for (let i = units.length - 1; i >= 0; i--) {
-    const unit = units[i]!;
-    const size = encoder.encode(unit).byteLength;
+  while (start > 0) {
+    const trail = text.charCodeAt(start - 1);
+    const lead = start >= 2 ? text.charCodeAt(start - 2) : -1;
+    const isSurrogatePair = lead >= 0xd800 && lead <= 0xdbff && trail >= 0xdc00 && trail <= 0xdfff;
+    const codePoint = isSurrogatePair ? text.codePointAt(start - 2)! : trail;
+    const size = utf8ByteLength(codePoint);
     if (used + size > maxBytes) break;
-    out = unit + out;
     used += size;
+    start -= isSurrogatePair ? 2 : 1;
   }
-  return out;
+  return text.slice(start);
 }
 
 export async function truncateCtlStdout(
   text: string,
   options: { op: CtlOp; pid: number; tmpDir?: string; now?: number },
 ): Promise<{ text: string; overflowPath?: string }> {
-  const bytes = new TextEncoder().encode(text).byteLength;
+  const bytes = Buffer.byteLength(text, "utf8");
   if (bytes <= CTL_STDOUT_LIMIT_BYTES) return { text };
   const overflowPath = path.join(
     options.tmpDir ?? os.tmpdir(),

@@ -51,8 +51,13 @@ test("submitted input shows system tools when editor is disabled", async () => {
         ],
       },
     }),
-    // No extension tools → fall back to the agent session's built-in tools.
-    getExtensionTools: () => undefined,
+    getExtensionTools: () => [
+      {
+        name: "read",
+        description: "Read file contents",
+        parameters: { type: "object" },
+      },
+    ],
     getPromptHistory: () => [],
     setExtensionUiHost: () => undefined,
     getExtensionCommands: () => [],

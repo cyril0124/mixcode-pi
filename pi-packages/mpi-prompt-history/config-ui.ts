@@ -57,9 +57,15 @@ export async function writeMaxBytes(
   let current: Record<string, unknown> = {};
   try {
     current = JSON.parse(await fs.readFile(configFile, "utf8")) as Record<string, unknown>;
-  } catch {
-    // A missing file is the normal first-write case; a malformed one is rewritten
-    // from scratch rather than blocking the edit the user just confirmed.
+  } catch (error) {
+    // Probe-style swallow, limited to the two expected cases: a missing file is the
+    // normal first-write path, and a malformed one is rewritten from scratch rather
+    // than blocking the edit the user just confirmed. Any other read failure
+    // (permissions, fd exhaustion) must surface: `next` below is rebuilt from empty,
+    // so swallowing it would silently drop every other key in the user's config.
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT" && !(error instanceof SyntaxError)) {
+      throw error;
+    }
   }
   const next: Record<string, unknown> = {};
   if (typeof current.$schema === "string") next.$schema = current.$schema;

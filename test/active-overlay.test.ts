@@ -13,6 +13,7 @@ import { createInitialState, createTab } from "../src/core/defaults.js";
 import {
   activeOverlay,
   closeActiveOverlay,
+  type FlagOverlayKind,
   isOverlayActive,
   openOverlay,
   pickerIsLive,
@@ -23,7 +24,7 @@ function state() {
   return createInitialState("/tmp");
 }
 
-const FLAG_KINDS: Parameters<typeof openOverlay>[1][] = [
+const FLAG_KINDS: FlagOverlayKind[] = [
   "quit-confirm",
   "delete-all-sessions-confirm",
   "close-all-sessions-confirm",

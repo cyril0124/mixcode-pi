@@ -22,6 +22,20 @@ export function expandTilde(filepath: string): string {
 }
 
 /**
+ * Display form of a path under the home directory: the home dir itself and any
+ * path below it collapse to `~/...`; a sibling that merely shares the prefix
+ * (`/home/user-backup`) keeps its absolute form. Single owner of the collapse
+ * rule so every `~` display surface renders the same string.
+ */
+export function collapseHome(filepath: string, env: NodeJS.ProcessEnv = process.env): string {
+  const home = homeDir(env);
+  if (!home) return filepath;
+  if (filepath === home) return "~";
+  if (filepath.startsWith(`${home}/`)) return `~${filepath.slice(home.length)}`;
+  return filepath;
+}
+
+/**
  * Effective agent dir without importing @earendil-works/pi-coding-agent.
  * Matches Pi getAgentDir(): PI_CODING_AGENT_DIR ?? ~/.pi/agent.
  */

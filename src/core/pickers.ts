@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { contextLimitPickerItems } from "./context-limit.js";
-import { expandTilde, homeDir } from "./paths.js";
+import { collapseHome, expandTilde } from "./paths.js";
 import { fuzzyMatch } from "./fuzzy.js";
 import { modelRefId } from "./models.js";
 import { availableThinkingLevelsForModel } from "./thinking-levels.js";
@@ -134,17 +134,8 @@ export function togglePickerHidden(picker: PickerState): boolean {
 export function workdirBreadcrumb(picker: PickerState): string[] {
   if (picker.kind !== "workdir" || !picker.browsingDir) return [];
   const dir = picker.browsingDir;
-  const home = homeDir();
-  if (dir === home) return ["~"];
-  if (dir.startsWith(home + "/")) {
-    return [
-      "~",
-      ...dir
-        .slice(home.length + 1)
-        .split("/")
-        .filter(Boolean),
-    ];
-  }
+  const collapsed = collapseHome(dir);
+  if (collapsed.startsWith("~")) return collapsed.split("/");
   // Absolute path: first segment is "/tmp", not "/" + "tmp", so join(" / ")
   // cannot render "/ / tmp".
   const parts = dir.split("/").filter(Boolean);

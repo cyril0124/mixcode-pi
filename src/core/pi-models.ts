@@ -27,7 +27,7 @@ interface PiModelRuntimeAuth {
   ) => AssistantMessageEventStream | Promise<AssistantMessageEventStream>;
 }
 
-interface PiModelRegistryBundle {
+export interface PiModelRegistryBundle {
   modelRuntime: ModelRuntime;
   /** Extension-facing synchronous facade over modelRuntime. */
   registry: ModelRegistry;

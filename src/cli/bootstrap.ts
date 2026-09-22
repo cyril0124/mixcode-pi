@@ -92,7 +92,6 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
   runtime: MixCodeRuntime;
   stateFile: string;
   workspaceFile: string;
-  rootStateDir: string;
   completionSources: MixCodeCompletionSources;
   packageUpdateCheck: () => Promise<string[]>;
   /** Resolves when all runtime tabs are fully initialized (extensions loaded). */
@@ -294,7 +293,6 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
     runtime,
     stateFile,
     workspaceFile,
-    rootStateDir,
     completionSources,
     packageUpdateCheck: () => checkPiPackageUpdates({ workdir: state.workdir, agentDir }),
     tabsReady,

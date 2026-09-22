@@ -303,7 +303,7 @@ export function closeActiveOverlay(state: MixCodeState): void {
   state.closeAllSessionsConfirmOpen = false;
 }
 
-type FlagOverlayKind =
+export type FlagOverlayKind =
   | "quit-confirm"
   | "delete-all-sessions-confirm"
   | "close-all-sessions-confirm";
