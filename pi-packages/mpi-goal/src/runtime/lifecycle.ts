@@ -1,4 +1,5 @@
 import type {
+  AgentBeforeSettleEvent,
   ContextEvent,
   ExtensionAPI,
   ExtensionContext,
@@ -52,6 +53,7 @@ import {
 } from "../domain/budget.js";
 import {
   beginGoalCompaction,
+  boundaryCompactionContinuation,
   cancelGoalContinuation,
   failGoalCompaction,
   finishGoalCompaction,
@@ -108,7 +110,7 @@ import type {
 
 type AgentEndContinueArm =
   | { kind: "idle" }
-  | { kind: "await-settle"; goalId: string; timer?: ReturnType<typeof setTimeout> }
+  | { kind: "await-settle"; goalId: string }
   | { kind: "dispatched" };
 
 type LifecycleSessionState = {
@@ -135,8 +137,6 @@ function lifecycleState(): LifecycleSessionState {
   }
   return state;
 }
-
-const AGENT_SETTLED_CONTINUE_FALLBACK_MS = 500;
 
 /** Persist whole active seconds if any; O(1). Returns seconds written. */
 export function flushGoalActiveTime(pi: ExtensionAPI, reason: PiGoalEventReason = "turn"): number {
@@ -229,6 +229,12 @@ export function registerGoalLifecycle(
   pi.on("agent_settled", async (_event, ctx) => {
     await withGoalSessionFromCtx(ctx, async () => handleAgentSettled(pi, ctx));
   });
+  // Post-compaction continuation that could not be prequeued is delivered
+  // through the settle boundary. A returned draft with `continue: true`
+  // guarantees the next provider request without idle polling.
+  pi.on("agent_before_settle", (event: AgentBeforeSettleEvent, ctx) =>
+    withGoalSessionFromCtx(ctx, () => boundaryCompactionContinuation(pi, event)),
+  );
   // Drop already-queued goal continuations after pause/clear: they still message_start
   // even when status is no longer active (Pi followUp queue is not cleared by extensions).
   pi.on("message_start", (event, ctx) => {
@@ -307,43 +313,23 @@ async function handleAgentEnd(
     }, AGENT_END_HANDOFF_DELAY_MS);
     return;
   }
-  // Error agent_end can fire before Pi auto-retries. Do not arm the 500ms
-  // fallback here — that would pause mid-retry. Wait for agent_settled only.
+  // Error agent_end can fire before Pi auto-retries. Do not dispatch here
+  // — that would pause mid-retry. Wait for agent_settled only.
   if (lifecycleState().lastAgentEndStopReason === "error") {
     setAgentEndContinue(
       goal?.status === "active" ? { kind: "await-settle", goalId: goal.goalId } : { kind: "idle" },
     );
     return;
   }
-  // Prefer agent_settled; keep a short fallback if settled is dropped by the host.
-  armPendingAgentEndContinue(pi, ctx, goal);
+  // Pi 0.87 guarantees agent_settled fires from the run's finally block on every
+  // exit path (completed, aborted, error), so settle is the single dispatch point.
+  setAgentEndContinue(
+    goal?.status === "active" ? { kind: "await-settle", goalId: goal.goalId } : { kind: "idle" },
+  );
 }
 
 async function handleAgentSettled(pi: ExtensionAPI, ctx: ExtensionContext): Promise<void> {
-  clearAgentEndContinueTimer();
   dispatchAgentEndContinue(pi, ctx);
-}
-
-function armPendingAgentEndContinue(
-  pi: ExtensionAPI,
-  ctx: ExtensionContext,
-  goal: GoalState | null,
-): void {
-  if (goal?.status !== "active") {
-    setAgentEndContinue({ kind: "idle" });
-    return;
-  }
-  const goalId = goal.goalId;
-  const sessionKey = currentGoalSessionKey();
-  const timer = setTimeout(() => {
-    runInGoalSession(sessionKey, () => {
-      const arm = lifecycleState().agentEndContinue;
-      if (arm.kind !== "await-settle" || arm.goalId !== goalId) return;
-      lifecycleState().agentEndContinue = { kind: "await-settle", goalId };
-      dispatchAgentEndContinue(pi, ctx);
-    });
-  }, AGENT_SETTLED_CONTINUE_FALLBACK_MS);
-  setAgentEndContinue({ kind: "await-settle", goalId, timer });
 }
 
 function dispatchAgentEndContinue(pi: ExtensionAPI, ctx: ExtensionContext): void {
@@ -380,16 +366,7 @@ function lastAssistantStopReason(messages: unknown[] | undefined): string | unde
   return undefined;
 }
 
-function clearAgentEndContinueTimer(): void {
-  const arm = lifecycleState().agentEndContinue;
-  if (arm.kind !== "await-settle" || !arm.timer) return;
-  clearTimeout(arm.timer);
-  lifecycleState().agentEndContinue = { kind: "await-settle", goalId: arm.goalId };
-}
-
 function setAgentEndContinue(next: AgentEndContinueArm): void {
-  const arm = lifecycleState().agentEndContinue;
-  if (arm.kind === "await-settle" && arm.timer) clearTimeout(arm.timer);
   lifecycleState().agentEndContinue = next;
 }
 

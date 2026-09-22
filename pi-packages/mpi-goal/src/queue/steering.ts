@@ -35,29 +35,43 @@ export function sendQueueHandoff(
   return sent;
 }
 
+/** Payload shared by the queue-handoff steering message and boundary drafts. */
+export type QueueHandoffDraft = { content: string; details: Record<string, unknown> };
+
+/** Build the queue-handoff payload for the current queue head, or null if empty. */
+export function buildQueueHandoffDraft(reason: GoalQueueSteeringReason): QueueHandoffDraft | null {
+  const next = getQueue()[0];
+  if (!next) {
+    return null;
+  }
+  return {
+    content: queueSteeringContent(next),
+    details: {
+      kind: "queueNext",
+      promptId: QUEUE_PROMPT_ID,
+      queueId: next.queueId,
+      queueRevision: getQueueRevision(),
+      reason,
+      createdAt: Date.now(),
+    },
+  };
+}
+
 export function sendQueueSteering(
   pi: ExtensionAPI,
   reason: GoalQueueSteeringReason,
   opts: { triggerTurn?: boolean; deliverAs?: "steer" | "followUp" } = {},
 ): boolean {
-  const next = getQueue()[0];
-  if (!next) {
+  const draft = buildQueueHandoffDraft(reason);
+  if (!draft) {
     return false;
   }
-  const queueRevision = getQueueRevision();
   pi.sendMessage(
     {
       customType: QUEUE_MESSAGE_TYPE,
-      content: queueSteeringContent(next),
+      content: draft.content,
       display: false,
-      details: {
-        kind: "queueNext",
-        promptId: QUEUE_PROMPT_ID,
-        queueId: next.queueId,
-        queueRevision,
-        reason,
-        createdAt: Date.now(),
-      },
+      details: draft.details,
     },
     { deliverAs: opts.deliverAs ?? "steer", triggerTurn: opts.triggerTurn },
   );

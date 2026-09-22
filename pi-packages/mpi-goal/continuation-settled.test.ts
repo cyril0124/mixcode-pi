@@ -82,10 +82,12 @@ function ensureLifecycle(): void {
   registered = true;
 }
 
-async function emit(name: string, event: unknown = {}): Promise<void> {
+async function emit(name: string, event: unknown = {}): Promise<unknown> {
+  let result: unknown;
   for (const handler of handlers.get(name) ?? []) {
-    await handler(event, ctx);
+    result = await handler(event, ctx);
   }
+  return result;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -172,14 +174,95 @@ test("agent_settled rehydrates active goal from branch when memory is empty", as
   assert.equal(continuationMessages().length, 1, "must continue after rehydrate from branch");
 });
 
-test("agent_end fallback continues if agent_settled never fires", async () => {
+test("no continuation without agent_settled: settle is the single dispatch point", async () => {
   seedActiveGoal();
   idle = true;
-  // Only agent_end — no settled (host bug / early exit).
+  // Only agent_end, no settled (host bug or early exit). Pi 0.87 emits
+  // settled from the run's finally block, so settle alone dispatches.
   await emit("agent_end", { type: "agent_end", messages: [] });
-  assert.equal(continuationMessages().length, 0, "must wait for settle/fallback window");
   await sleep(600);
-  assert.equal(continuationMessages().length, 1, "fallback must kick auto-continue");
+  assert.equal(continuationMessages().length, 0, "no fallback: settle is required");
+
+  idle = true;
+  await emit("agent_settled", { type: "agent_settled" });
+  await sleep(40);
+  assert.equal(continuationMessages().length, 1, "settle dispatches the continuation");
+});
+
+type BoundaryEvent = {
+  type: "agent_before_settle";
+  outcome: "completed" | "aborted" | "error";
+  entries: unknown[];
+};
+
+function boundaryEvent(outcome: BoundaryEvent["outcome"]): BoundaryEvent {
+  return { type: "agent_before_settle", outcome, entries: [] };
+}
+
+/** Arm the boundary path: idle compact start, wake run, compact finishes mid-run. */
+async function armBoundaryCompaction(): Promise<void> {
+  seedActiveGoal();
+  idle = true;
+  await emit("session_before_compact", { type: "session_before_compact" });
+  assert.equal(continuationMessages().length, 0, "idle compact start must not prequeue");
+  // A wake run starts (subagent/process), and the compact finishes while it runs.
+  idle = false;
+  await emit("agent_end", { type: "agent_end", messages: [] });
+  await emit("agent_settled", { type: "agent_settled" });
+  await sleep(20);
+  assert.equal(continuationMessages().length, 0, "compacting: settle continue defers");
+  await emit("session_compact", { type: "session_compact" });
+}
+
+test("compaction boundary returns one continuation draft and continue flag", async () => {
+  await armBoundaryCompaction();
+
+  const result = (await emit("agent_before_settle", boundaryEvent("completed"))) as
+    | {
+        entries?: Array<{ type: string; customType?: string }>;
+        continue?: boolean;
+      }
+    | undefined;
+  assert.ok(result, "boundary must return a result when compaction work is armed");
+  assert.equal(result.continue, true);
+  const draft = result.entries?.[0];
+  assert.equal(draft?.type, "custom_message");
+  assert.equal(draft?.customType, CONTINUATION_MESSAGE_TYPE);
+
+  // One-shot: a second boundary with no newly armed work must not continue.
+  const again = await emit("agent_before_settle", boundaryEvent("completed"));
+  assert.equal(again, undefined, "boundary work is one-shot");
+});
+
+test("compaction boundary keeps work armed on aborted outcome", async () => {
+  await armBoundaryCompaction();
+
+  const aborted = await emit("agent_before_settle", boundaryEvent("aborted"));
+  assert.equal(aborted, undefined, "aborted run must not auto-continue");
+
+  const result = (await emit("agent_before_settle", boundaryEvent("completed"))) as
+    | {
+        entries?: Array<{ customType?: string }>;
+        continue?: boolean;
+      }
+    | undefined;
+  assert.ok(result, "armed work survives the aborted boundary");
+  assert.equal(result.continue, true);
+  assert.equal(result.entries?.[0]?.customType, CONTINUATION_MESSAGE_TYPE);
+});
+
+test("idle compaction with active goal sends continuation directly", async () => {
+  seedActiveGoal();
+  idle = true;
+  await emit("session_before_compact", { type: "session_before_compact" });
+  await emit("session_compact", { type: "session_compact" });
+
+  const cont = continuationMessages();
+  assert.equal(cont.length, 1, "idle compact must continue immediately");
+  assert.equal((cont[0]?.options as { triggerTurn?: boolean } | undefined)?.triggerTurn, true);
+
+  const again = await emit("agent_before_settle", boundaryEvent("completed"));
+  assert.equal(again, undefined, "nothing armed after the direct send");
 });
 
 test("failed compaction releases goal continuation without duplicating the prequeue", async () => {

@@ -1,4 +1,10 @@
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type {
+  AgentBeforeSettleEvent,
+  BoundaryResult,
+  CustomMessageEntryDraft,
+  ExtensionAPI,
+  ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 import { isBudgetExhausted } from "../domain/budget.js";
 import {
   BUDGET_LIMIT_MESSAGE_TYPE,
@@ -6,6 +12,7 @@ import {
   MAX_CONSECUTIVE_AUTO_TURNS,
   MAX_NO_PROGRESS_AUTO_TURNS,
   PAUSE_MESSAGE_TYPE,
+  QUEUE_MESSAGE_TYPE,
 } from "../domain/constants.js";
 import { evaluateCompletionFloor } from "../domain/floor.js";
 import { currentGoalSessionKey, runInGoalSession } from "../domain/session-scope.js";
@@ -19,6 +26,7 @@ import {
   setNextTurnOrigin,
 } from "../domain/telemetry.js";
 import type { ContinuationReason, ContinuationSkipReason, GoalState } from "../domain/types.js";
+import { buildQueueHandoffDraft } from "../queue/steering.js";
 import { getGoal, getTelemetry, persistTelemetry } from "../persistence/goal-store.js";
 import { getQueue } from "../persistence/queue-store.js";
 import { notifyWarning } from "../surface/ui/notify.js";
@@ -43,16 +51,13 @@ type ContinuationAttemptResult =
   | { kind: "transientSkip" }
   | { kind: "terminalSkip" };
 
-const DEFAULT_RETRY_DELAYS_MS = [100, 250, 500, 1_000, 2_000];
-
 type ContinuationSessionState = {
   budgetWrapUps: Map<string, PendingBudgetWrapUp>;
   compactionActive: boolean;
   compactionWork?: CompactionContinuationWork;
   prequeuedCompactionKey?: string;
-  fallbackTimer?: ReturnType<typeof setTimeout>;
-  fallbackAttempts: number;
-  fallbackRetryDelaysMs: number[];
+  /** Compaction work owed to the next agent_before_settle boundary (non-prequeue path). */
+  boundaryCompactionWork?: CompactionContinuationWork;
 };
 
 const continuationBySession = new Map<string, ContinuationSessionState>();
@@ -64,8 +69,6 @@ function contState(): ContinuationSessionState {
     state = {
       budgetWrapUps: new Map(),
       compactionActive: false,
-      fallbackAttempts: 0,
-      fallbackRetryDelaysMs: [...DEFAULT_RETRY_DELAYS_MS],
     };
     continuationBySession.set(key, state);
   }
@@ -81,8 +84,7 @@ function scheduleInSession(delayMs: number, fn: () => void): ReturnType<typeof s
 
 export function beginGoalCompaction(pi: ExtensionAPI, ctx: ExtensionContext): void {
   contState().compactionActive = true;
-  cancelFallbackTimer();
-  contState().fallbackAttempts = 0;
+  contState().boundaryCompactionWork = undefined;
   contState().prequeuedCompactionKey = undefined;
   const work = currentCompactionWork();
   contState().compactionWork = work;
@@ -111,7 +113,23 @@ export function finishGoalCompaction(pi: ExtensionAPI, ctx: ExtensionContext): v
     clearCompactionRuntime({ keepPrequeueKey: true });
     return;
   }
-  scheduleCompactionFallbackRetry(pi, ctx, work);
+  if (ctx.isIdle()) {
+    // Idle-session compaction (for example /compact with no run in flight) has
+    // no pending run whose settle boundary could fire. Send directly. The idle
+    // triggerTurn starts the continuation run.
+    if (work.kind === "activeGoal") {
+      attemptContinueGoal(pi, ctx, "compacted", work.goalId);
+    } else {
+      idleQueueHandoff(pi, work);
+    }
+    finishCompactionTelemetry(pi);
+    clearCompactionRuntime();
+    return;
+  }
+  // Mid-run compaction that could not prequeue hands the work to the
+  // agent_before_settle boundary. `continue: true` guarantees the next
+  // provider request without idle polling.
+  contState().boundaryCompactionWork = work;
 }
 
 export function failGoalCompaction(): void {
@@ -203,13 +221,11 @@ export function interruptActiveGoalTurn(
 
 export function resetContinuationRuntime(): void {
   cancelGoalContinuation();
-  cancelFallbackTimer();
   const state = contState();
   state.compactionActive = false;
   state.compactionWork = undefined;
   state.prequeuedCompactionKey = undefined;
-  state.fallbackAttempts = 0;
-  state.fallbackRetryDelaysMs = [...DEFAULT_RETRY_DELAYS_MS];
+  state.boundaryCompactionWork = undefined;
 }
 
 function attemptContinueGoal(
@@ -320,58 +336,86 @@ function prequeueCompactionWork(pi: ExtensionAPI, work: CompactionContinuationWo
   return sent;
 }
 
-function scheduleCompactionFallbackRetry(
+/**
+ * agent_before_settle boundary: fulfill compaction work that could not be
+ * prequeued by appending a draft entry and guaranteeing one next request.
+ * Returns undefined (no boundary result) unless a continuation is owed.
+ */
+export function boundaryCompactionContinuation(
   pi: ExtensionAPI,
-  ctx: ExtensionContext,
-  work: CompactionContinuationWork,
-): void {
-  cancelFallbackTimer();
-  const delay =
-    contState().fallbackRetryDelaysMs[
-      Math.min(contState().fallbackAttempts, contState().fallbackRetryDelaysMs.length - 1)
-    ];
-  contState().fallbackTimer = scheduleInSession(delay ?? 0, () => {
-    contState().fallbackTimer = undefined;
-    void safelyRun(async () => runCompactionFallbackAttempt(pi, ctx, work));
-  });
-}
-
-async function runCompactionFallbackAttempt(
-  pi: ExtensionAPI,
-  ctx: ExtensionContext,
-  work: CompactionContinuationWork,
-): Promise<void> {
-  if (!compactionWorkStillApplies(work)) return finishAndClear(pi);
-  contState().fallbackAttempts++;
-  finishCompactionTelemetry(pi);
-  const result =
-    work.kind === "activeGoal"
-      ? attemptContinueGoal(pi, ctx, "compacted", work.goalId)
-      : attemptQueueHandoff(pi, ctx, work);
-  if (result.kind === "sent") return finishAndClear(pi);
-  if (
-    result.kind === "transientSkip" &&
-    contState().fallbackAttempts < contState().fallbackRetryDelaysMs.length
-  ) {
-    scheduleCompactionFallbackRetry(pi, ctx, work);
-    return;
+  event: AgentBeforeSettleEvent,
+): BoundaryResult | undefined {
+  const work = contState().boundaryCompactionWork;
+  if (!work) return undefined;
+  // Aborted and error runs are hard exits. Keep the work armed for the next
+  // boundary rather than continue a cancelled or failed run.
+  if (event.outcome !== "completed") return undefined;
+  if (!compactionWorkStillApplies(work)) {
+    finishAndClear(pi);
+    return undefined;
   }
-  finishAndClear(pi);
+  const draft =
+    work.kind === "activeGoal" ? activeGoalBoundaryDraft(pi) : queueHandoffBoundaryDraft(work);
+  if (!draft) {
+    finishAndClear(pi);
+    return undefined;
+  }
+  finishCompactionTelemetry(pi);
+  contState().boundaryCompactionWork = undefined;
+  return { entries: [...event.entries, draft], continue: true };
 }
 
-function attemptQueueHandoff(
-  pi: ExtensionAPI,
-  ctx: ExtensionContext,
+function activeGoalBoundaryDraft(pi: ExtensionAPI): CustomMessageEntryDraft | undefined {
+  const goal = getGoal();
+  if (goal?.status !== "active") return undefined;
+  const telemetry = getTelemetry();
+  if (telemetry && telemetry.consecutiveAutoTurns >= MAX_CONSECUTIVE_AUTO_TURNS) {
+    skip(pi, "safetyCap");
+    return undefined;
+  }
+  if (telemetry && telemetry.consecutiveNoProgressTurns >= MAX_NO_PROGRESS_AUTO_TURNS) {
+    skip(pi, "safetyCap");
+    return undefined;
+  }
+  const prompt = buildContinuationPrompt(goal, telemetry);
+  setNextTurnOrigin("auto");
+  const scheduled = noteContinuationScheduled(telemetry);
+  if (scheduled) persistTelemetry(pi, scheduled, "continuation");
+  return {
+    type: "custom_message",
+    customType: CONTINUATION_MESSAGE_TYPE,
+    content: prompt.content,
+    display: false,
+    details: { ...prompt.details, reason: "compacted" },
+  };
+}
+
+function queueHandoffBoundaryDraft(
   work: Extract<CompactionContinuationWork, { kind: "queueHandoff" }>,
-): ContinuationAttemptResult {
-  if (!ctx.isIdle()) return { kind: "transientSkip" };
-  if (ctx.hasPendingMessages()) return { kind: "transientSkip" };
+): CustomMessageEntryDraft | undefined {
   const ticket = decideCompactionQueueHandoffTicket(work, { force: true });
-  if (ticket.kind !== "queueHandoff") return { kind: "terminalSkip" };
+  if (ticket.kind !== "queueHandoff") return undefined;
   const validation = revalidateContinuationTicket(ticket, getGoal(), getQueue());
-  if (!validation.ok) return { kind: "terminalSkip" };
-  const sent = dispatchContinuationTicket(pi, ticket);
-  return sent ? { kind: "sent" } : { kind: "terminalSkip" };
+  if (!validation.ok) return undefined;
+  const draft = buildQueueHandoffDraft(ticket.reason);
+  if (!draft) return undefined;
+  return {
+    type: "custom_message",
+    customType: QUEUE_MESSAGE_TYPE,
+    content: draft.content,
+    display: false,
+    details: draft.details,
+  };
+}
+
+function idleQueueHandoff(
+  pi: ExtensionAPI,
+  work: Extract<CompactionContinuationWork, { kind: "queueHandoff" }>,
+): boolean {
+  const ticket = decideCompactionQueueHandoffTicket(work, { force: true });
+  if (ticket.kind !== "queueHandoff") return false;
+  if (!revalidateContinuationTicket(ticket, getGoal(), getQueue()).ok) return false;
+  return dispatchContinuationTicket(pi, ticket);
 }
 
 function compactionWorkStillApplies(work: CompactionContinuationWork): boolean {
@@ -437,16 +481,9 @@ function finishCompactionTelemetry(pi: ExtensionAPI): void {
 }
 
 function clearCompactionRuntime(opts: { keepPrequeueKey?: boolean } = {}): void {
-  cancelFallbackTimer();
   contState().compactionWork = undefined;
+  contState().boundaryCompactionWork = undefined;
   if (!opts.keepPrequeueKey) contState().prequeuedCompactionKey = undefined;
-  contState().fallbackAttempts = 0;
-}
-
-function cancelFallbackTimer(): void {
-  if (!contState().fallbackTimer) return;
-  clearTimeout(contState().fallbackTimer);
-  contState().fallbackTimer = undefined;
 }
 
 function shouldSuppressAgentEndContinuation(reason: ContinuationReason): boolean {
