@@ -7,7 +7,7 @@ import {
 export type SessionTreeNode = ReturnType<SessionManager["getTree"]>[number];
 export type TreeFilterMode = "default" | "no-tools" | "user-only" | "labeled-only" | "all";
 
-export interface SummarizePromptState {
+interface SummarizePromptState {
   targetEntryId: string;
   selectedIndex: number;
   customMode: boolean;

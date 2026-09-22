@@ -17,7 +17,7 @@ const BADGE_UNIT = (text: string) => 1 /* space */ + visibleWidth(text);
 const MIN_TITLE_LEAD_DASHES = 3;
 const MIN_BADGE_LEAD_DASHES = 1;
 
-export interface LabeledTopBorderOptions {
+interface LabeledTopBorderOptions {
   width: number;
   title: string;
   vimMode: boolean;

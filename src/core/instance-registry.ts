@@ -274,7 +274,7 @@ export function formatInstanceStatusTable(report: InstanceStatusReport): string 
     const homeFocus = instance.activeTabId === HOME_TAB_ID ? "  focus: home" : "";
     const lines = [
       `PID ${instance.pid}  workdir: ${formatDisplayWorkdir(instance.workdir)}  started: ${formatLocalDateTime(instance.createdAt)}${homeFocus}`,
-      `  A  STATE        STATUS     ${pad("TAB_TITLE", maxTitleLen)}  SESSION`,
+      `  A  STATE        STATUS     ${"TAB_TITLE".padEnd(maxTitleLen)}  SESSION`,
       ...instance.tabs.map((tab) => formatStatusTabRow(tab, maxTitleLen)),
     ];
     groups.push(lines.join("\n"));
@@ -290,9 +290,9 @@ function formatStatusTabRow(tab: InstanceStatusTab, titleWidth = 14): string {
   const active = tab.active ? "*" : " ";
   return [
     `  ${active}`,
-    pad(tab.state, 12),
-    pad(tab.status, 10),
-    pad(tab.title, titleWidth),
+    tab.state.padEnd(12),
+    tab.status.padEnd(10),
+    tab.title.padEnd(titleWidth),
     tab.sessionId,
   ].join(" ");
 }
@@ -303,10 +303,6 @@ function formatLocalDateTime(iso: string): string {
   if (Number.isNaN(d.getTime())) return "?";
   const two = (n: number) => `${n}`.padStart(2, "0");
   return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}`;
-}
-
-function pad(value: string, width: number): string {
-  return value.length >= width ? value : `${value}${" ".repeat(width - value.length)}`;
 }
 
 function resolveStatusInstance(snapshot: InstanceRegistrySnapshot): InstanceStatusInstance {

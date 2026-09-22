@@ -24,9 +24,9 @@ const pc = {
   black: (s: string) => styleText("black", s),
 };
 
-export type InstallExtensionsMode = "interactive" | "yes" | "postinstall";
+type InstallExtensionsMode = "interactive" | "yes" | "postinstall";
 
-export interface RecommendedExtension {
+interface RecommendedExtension {
   /** Exact source string written by `pi install` into settings.packages. */
   source: string;
   /** Short display name in the multiselect. */

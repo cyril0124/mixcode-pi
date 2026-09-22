@@ -6,7 +6,7 @@ import * as path from "node:path";
 import { after, test } from "node:test";
 import type { SimpleStreamOptions } from "@earendil-works/pi-ai";
 import { getConsoleHistory, installConsoleTuiBridge } from "../src/cli/console-tui-bridge.js";
-import { createPiModelRegistryBundle, type PiModelRegistryBundle } from "../src/core/pi-models.js";
+import { createPiModelRegistryBundle } from "../src/core/pi-models.js";
 
 const consoleMethods = {
   log: console.log,
@@ -18,7 +18,9 @@ const consoleMethods = {
 installConsoleTuiBridge();
 after(() => Object.assign(console, consoleMethods));
 
-async function withRuntime(run: (bundle: PiModelRegistryBundle) => Promise<void>) {
+async function withRuntime(
+  run: (bundle: Awaited<ReturnType<typeof createPiModelRegistryBundle>>) => Promise<void>,
+) {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-provider-diagnostics-"));
   try {
     const modelsPath = path.join(dir, "models.json");

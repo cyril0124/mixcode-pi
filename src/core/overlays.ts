@@ -190,7 +190,7 @@ export function updateTabJumpQuery(state: MixCodeState, query: string): void {
 // app-input.ts / app-key-handlers.ts and an ad-hoc close-list in openQuitConfirm.
 
 /** State-level overlays, in fixed priority order (mirrors app-input routing). */
-export type OverlayKind =
+type OverlayKind =
   | "workspace"
   | "tree-selector"
   | "picker"
@@ -226,7 +226,7 @@ export function sessionActionConfirmIsLive(state: MixCodeState): boolean {
   );
 }
 
-export function settingsPanelIsLive(state: MixCodeState): boolean {
+function settingsPanelIsLive(state: MixCodeState): boolean {
   return (
     state.settingsPanel.open && overlayOwnerIsActive(state, state.settingsPanel.ownerSessionId)
   );
@@ -303,7 +303,7 @@ export function closeActiveOverlay(state: MixCodeState): void {
   state.closeAllSessionsConfirmOpen = false;
 }
 
-export type FlagOverlayKind =
+type FlagOverlayKind =
   | "quit-confirm"
   | "delete-all-sessions-confirm"
   | "close-all-sessions-confirm";

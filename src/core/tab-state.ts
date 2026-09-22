@@ -102,21 +102,6 @@ function elapsedSeconds(startedAt: string | undefined, now: Date): number | unde
   return Math.max(0, Math.floor((now.getTime() - start) / 1000));
 }
 
-/** Set or clear the current context token count. */
-export function setTabContextTokens(tab: MixCodeTabInfo, tokens: number | undefined): void {
-  tab.currentContextTokens = tokens;
-}
-
-/** Replace the queued (pending) prompt list. */
-export function setPendingMessages(tab: MixCodeTabInfo, messages: string[]): void {
-  tab.pendingMessages = messages;
-}
-
-/** Replace the follow-up queue (delivered after the agent is fully idle). */
-export function setPendingFollowUps(tab: MixCodeTabInfo, messages: string[]): void {
-  tab.pendingFollowUps = messages;
-}
-
 /**
  * Format the auto-retry countdown status line, mirroring Pi's
  * `Retrying (2/3) in 4s... (esc to cancel)`. Returns undefined when no retry is

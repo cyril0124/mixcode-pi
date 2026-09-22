@@ -22,7 +22,6 @@ import {
   type MixCodeModelRef,
 } from "./helpers/mixcode.js";
 import { testRuntime } from "./helpers/runtime-stub.js";
-import { pickerItems } from "../src/core/pickers.js";
 import { applyModelSelection, reloadRuntimeModels } from "../src/ui/app-actions.js";
 import { submitAgentInput } from "../src/ui/agent-tab-actions.js";
 
@@ -328,7 +327,7 @@ test("reload applies disabled policy when models.json is invalid", async () => {
 test("models picker marks disabled items and keeps them listed", () => {
   const state = createInitialState("/repo");
   state.availableModels = applyDisabledModelFlags([openaiGpt, anthropicOpus], ["openai"], []);
-  const items = pickerItems("models", state);
+  const items = createPicker("models", state).items;
   assert.equal(items.length, 2);
   assert.equal(items[0]!.disabled, true);
   assert.match(items[0]!.description, /disabled/i);

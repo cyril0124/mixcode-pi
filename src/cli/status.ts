@@ -30,7 +30,7 @@ export function takeWorkdirFlag(
   return undefined;
 }
 
-export interface StatusCliOptions {
+interface StatusCliOptions {
   json?: boolean;
   workdir?: string;
 }

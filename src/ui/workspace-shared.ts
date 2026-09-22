@@ -95,7 +95,7 @@ export function clampWorkspaceSelection(overlay: WorkspaceOverlayView): void {
   );
 }
 
-export function dateValue(value: string): number {
+function dateValue(value: string): number {
   const time = Date.parse(value);
   return Number.isNaN(time) ? 0 : time;
 }

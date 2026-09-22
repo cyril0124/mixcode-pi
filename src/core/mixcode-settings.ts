@@ -32,7 +32,7 @@ export interface RawMixCodeSettings {
   disabledModels?: string[];
 }
 
-export interface MixCodeSettings {
+interface MixCodeSettings {
   /** Explicit theme id, or undefined when the file omits theme (caller applies default). */
   theme?: string;
   ui: MixCodeUiSettings;

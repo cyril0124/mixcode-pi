@@ -37,7 +37,7 @@ export function textResult(text: string): Text {
   return new Text(text, 0, 0);
 }
 
-export function partialResultText(theme: RenderThemeLike, label: string): Text {
+function partialResultText(theme: RenderThemeLike, label: string): Text {
   return textResult(theme.fg("warning", label));
 }
 
@@ -88,21 +88,18 @@ export function getEditLineCount(value: unknown): number {
   return getEditPayloadLineCount(record);
 }
 
-export function isToolError(result: unknown, context?: { isError?: boolean }): boolean {
+function isToolError(result: unknown, context?: { isError?: boolean }): boolean {
   return context?.isError === true || toRecord(result).isError === true;
 }
 
-export function prepareOutputLines(
-  rawText: string,
-  options: ToolRenderResultOptionsLike,
-): string[] {
+function prepareOutputLines(rawText: string, options: ToolRenderResultOptionsLike): string[] {
   return compactOutputLines(splitLines(rawText), {
     expanded: options.expanded,
     maxCollapsedConsecutiveEmptyLines: 1,
   });
 }
 
-export function formatExpandHint(theme: RenderThemeLike): string {
+function formatExpandHint(theme: RenderThemeLike): string {
   return theme.fg("muted", " • Ctrl+O to expand");
 }
 
@@ -354,11 +351,11 @@ export function renderReadDisplayResult(
 // edit / write summaries
 // ---------------------------------------------------------------------------
 
-export function formatLineCountSuffix(lineCount: number, theme: RenderThemeLike): string {
+function formatLineCountSuffix(lineCount: number, theme: RenderThemeLike): string {
   return theme.fg("muted", ` (${lineCount} ${pluralize(lineCount, "line")})`);
 }
 
-export function formatWriteCallSuffix(
+function formatWriteCallSuffix(
   lineCount: number,
   sizeBytes: number,
   theme: RenderThemeLike,
@@ -370,7 +367,7 @@ export function formatWriteCallSuffix(
   );
 }
 
-export function formatInProgressLineCount(
+function formatInProgressLineCount(
   action: string,
   lineCount: number,
   theme: RenderThemeLike,

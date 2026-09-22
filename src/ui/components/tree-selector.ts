@@ -33,7 +33,7 @@ function closeTreeSelectorDisplay(tui: OverlayTui, sessionId?: string): void {
   getTreeSelectorDisplayHost(tui)?.close(sessionId);
 }
 
-export class TreeSelectorEditorComponent implements EditorComponent {
+class TreeSelectorEditorComponent implements EditorComponent {
   onSubmit?: (text: string) => void;
   onChange?: (text: string) => void;
 

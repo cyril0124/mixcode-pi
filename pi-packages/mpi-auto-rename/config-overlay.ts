@@ -15,7 +15,6 @@ import {
 
 type ThemeLike = {
   fg(color: string, text: string): string;
-  bold?(text: string): string;
 };
 
 type Mode = "main" | "pick-model" | "pick-thinking" | "pick-max-context";

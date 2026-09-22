@@ -10,7 +10,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createTab } from "../src/core/defaults.js";
-import { retryStatusMessage, setTabContextTokens, setTabStatus } from "../src/core/tab-state.js";
+import { retryStatusMessage, setTabStatus } from "../src/core/tab-state.js";
 
 function tab() {
   return createTab(1, "s1", "/tmp");
@@ -115,16 +115,6 @@ test("setTabStatus: discardTimer drops the stamp without recording a duration", 
   assert.equal(t.status, "idle");
   assert.equal(t.workingStartedAt, undefined);
   assert.equal(t.lastWorkedDurationSeconds, undefined, "no duration recorded on discard");
-});
-
-test("setTabContextTokens distinguishes a real count from cleared (undefined)", () => {
-  // The renderer treats undefined as "unknown" vs a number as "known"; the
-  // clear path (usage.tokens === null upstream) must not collapse to 0.
-  const t = tab();
-  setTabContextTokens(t, 1234);
-  assert.equal(t.currentContextTokens, 1234);
-  setTabContextTokens(t, undefined);
-  assert.equal(t.currentContextTokens, undefined);
 });
 
 test("retryStatusMessage: absent when no retry is in progress", () => {

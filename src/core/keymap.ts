@@ -1,4 +1,4 @@
-export interface KeyAction {
+interface KeyAction {
   key: string;
   action: string;
   description: string;

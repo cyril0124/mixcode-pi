@@ -65,7 +65,6 @@ interface MixCodeTuiOptions {
   workspaceFile?: string;
   terminal?: Terminal;
   exitProcessOnQuit?: boolean;
-  rootStateDir?: string;
   /** Required to enable the /settings overlay panel. */
   settingsDeps?: {
     settingsManager: SettingsManager;
@@ -438,7 +437,6 @@ export function createMixCodeTui(
       },
       {
         workspaceFile: options.workspaceFile,
-        rootStateDir: options.rootStateDir,
         settingsDeps: options.settingsDeps,
       },
     );

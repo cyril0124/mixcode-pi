@@ -17,14 +17,13 @@ import {
   openOverlay,
   pickerIsLive,
   tabOwnsWaitingAppOverlay,
-  type FlagOverlayKind,
 } from "../src/core/overlays.js";
 
 function state() {
   return createInitialState("/tmp");
 }
 
-const FLAG_KINDS: FlagOverlayKind[] = [
+const FLAG_KINDS: Parameters<typeof openOverlay>[1][] = [
   "quit-confirm",
   "delete-all-sessions-confirm",
   "close-all-sessions-confirm",

@@ -2,12 +2,7 @@ import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage, Usage } from "@earendil-works/pi-ai";
 import { clearPendingEscape } from "../core/escape.js";
 import { clearChatScrollAnchor } from "../core/overlays.js";
-import {
-  setPendingFollowUps,
-  setPendingMessages,
-  setTabContextTokens,
-  setTabStatus,
-} from "../core/tab-state.js";
+import { setTabStatus } from "../core/tab-state.js";
 import {
   appendEmptyRunNotice,
   appendResponseModelNotice,
@@ -307,13 +302,13 @@ export function syncQueueState(
     0,
     Math.max(0, runtimeTab.tab.pendingMessages.length - runtimeTab.queuedPromptCount),
   );
-  setPendingMessages(runtimeTab.tab, [...preservedSteer, ...steering]);
+  runtimeTab.tab.pendingMessages = [...preservedSteer, ...steering];
   runtimeTab.queuedPromptCount = steering.length;
 
-  setPendingFollowUps(runtimeTab.tab, [
+  runtimeTab.tab.pendingFollowUps = [
     ...runtimeTab.tab.followUpQueue.map((entry) => entry.text),
     ...followUp,
-  ]);
+  ];
   runtimeTab.queuedFollowUpCount = followUp.length;
 }
 
@@ -590,10 +585,8 @@ function updateExistingToolExecution(
 }
 
 export function applyAssistantUsage(runtimeTab: RuntimeTab, usage: Partial<Usage>): void {
-  setTabContextTokens(
-    runtimeTab.tab,
-    contextTokensFromUsage(usage) ?? runtimeTab.tab.currentContextTokens,
-  );
+  runtimeTab.tab.currentContextTokens =
+    contextTokensFromUsage(usage) ?? runtimeTab.tab.currentContextTokens;
 }
 
 /** Pi parity: promote deferred user-bash blocks into normal chat after the agent turn. */

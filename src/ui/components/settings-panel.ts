@@ -455,7 +455,7 @@ function mergeOversized(
 
 // ─── Open / close ────────────────────────────────────────────────────────────
 
-export interface SettingsPanelDeps {
+interface SettingsPanelDeps {
   /** Read-only render source (theme, models) and live-effect target. */
   state: MixCodeState;
   tui: OverlayTui;
@@ -561,7 +561,7 @@ export async function openSettingsPanel(
   return panel;
 }
 
-export function closeSettingsPanel(state: MixCodeState, tui: OverlayTui): void {
+function closeSettingsPanel(state: MixCodeState, tui: OverlayTui): void {
   const panel = liveSettingsPanels.get(state);
   state.settingsPanel.open = false;
   state.settingsPanel.ownerSessionId = undefined;
@@ -996,7 +996,7 @@ function settingsNumberEditPrefill(value: number | undefined, allowByteUnits = f
 }
 
 /** Collapse $HOME to ~, then middle-truncate if longer than maxWidth. */
-export function formatSettingsPath(filePath: string, maxWidth: number): string {
+function formatSettingsPath(filePath: string, maxWidth: number): string {
   if (!filePath) return "";
   const home = homeDir();
   const display =

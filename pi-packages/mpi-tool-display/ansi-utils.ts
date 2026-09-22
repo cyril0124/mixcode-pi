@@ -19,7 +19,7 @@ export function stripAllEscapes(text: string): string {
 
 // Strips escapes but keeps complete SGR sequences; use on strings that may mix
 // theme/highlighter-generated styling (legit SGR) with untrusted input.
-export function stripNonSgrEscapes(text: string): string {
+function stripNonSgrEscapes(text: string): string {
   return text.replace(ESCAPE_OR_CONTROL_PATTERN, (sequence) =>
     COMPLETE_SGR_PATTERN.test(sequence) ? sequence : "",
   );
@@ -44,7 +44,7 @@ export function toSgrParams(rawParams: string): number[] {
   return parsed.length > 0 ? parsed : [];
 }
 
-export function isFiniteSgrParam(value: number | undefined): value is number {
+function isFiniteSgrParam(value: number | undefined): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
@@ -72,7 +72,7 @@ export function readSgrColorSequence(params: number[], index: number): number[] 
   return undefined;
 }
 
-export function stripBackgroundSgrParams(params: readonly number[]): number[] {
+function stripBackgroundSgrParams(params: readonly number[]): number[] {
   const sanitized: number[] = [];
 
   for (let index = 0; index < params.length; index++) {

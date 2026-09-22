@@ -8,12 +8,12 @@ import {
 } from "@earendil-works/pi-tui";
 import { LOCAL_COMMANDS } from "../../core/commands.js";
 
-export type MixCodeCompletionCommand = Pick<
+type MixCodeCompletionCommand = Pick<
   SlashCommand,
   "name" | "description" | "argumentHint" | "getArgumentCompletions"
 >;
 
-export interface MixCodeSkillSourceInfo {
+interface MixCodeSkillSourceInfo {
   scope?: "user" | "project" | "temporary";
   source?: string;
 }
@@ -25,14 +25,14 @@ export interface MixCodeSkillCompletionSource {
   sourceInfo?: MixCodeSkillSourceInfo;
 }
 
-export interface MixCodePromptTemplateCompletionSource {
+interface MixCodePromptTemplateCompletionSource {
   name: string;
   description?: string;
   argumentHint?: string;
   sourceInfo?: MixCodeSkillSourceInfo;
 }
 
-export interface MixCodeTabCompletionSource {
+interface MixCodeTabCompletionSource {
   title: string;
   status?: string;
 }

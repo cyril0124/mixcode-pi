@@ -57,10 +57,9 @@ export async function writeMaxBytes(
   let current: Record<string, unknown> = {};
   try {
     current = JSON.parse(await fs.readFile(configFile, "utf8")) as Record<string, unknown>;
-  } catch (error) {
+  } catch {
     // A missing file is the normal first-write case; a malformed one is rewritten
     // from scratch rather than blocking the edit the user just confirmed.
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") current = {};
   }
   const next: Record<string, unknown> = {};
   if (typeof current.$schema === "string") next.$schema = current.$schema;

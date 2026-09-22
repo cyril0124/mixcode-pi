@@ -1,21 +1,21 @@
 import type { MixCodeRuntime } from "../agent/runtime.js";
 import type { OverlayTui } from "./app-types.js";
 
-export const DEFAULT_QUIT_EXIT_TIMEOUT_MS = 1_500;
+const DEFAULT_QUIT_EXIT_TIMEOUT_MS = 1_500;
 
-export type QuitExitScheduler = (code: number) => void;
+type QuitExitScheduler = (code: number) => void;
 
-export interface QuitOptions {
+interface QuitOptions {
   exitProcess?: boolean;
   exitScheduler?: QuitExitScheduler;
   exitTimeoutMs?: number;
 }
 
-export type QuitConfiguredTui = OverlayTui & {
+type QuitConfiguredTui = OverlayTui & {
   mixCodeExitProcessOnQuit?: boolean;
 };
 
-export type RuntimeQuitTarget = Partial<
+type RuntimeQuitTarget = Partial<
   Pick<MixCodeRuntime, "abortAllTabs" | "beginShutdown" | "closeAllTabs">
 >;
 

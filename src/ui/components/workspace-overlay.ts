@@ -32,7 +32,7 @@ import {
   type WorkspaceSelectorMode,
 } from "../workspace-shared.js";
 
-export interface WorkspaceOverlayDeps {
+interface WorkspaceOverlayDeps {
   /** Read-only render source (tabs, theme, workdir) and toast target. */
   state: MixCodeState;
   tui: OverlayTui;

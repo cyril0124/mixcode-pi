@@ -10,14 +10,6 @@ export function captureContextResetCommandContext(ctx: ExtensionCommandContext):
 export function createContextResetActionRunner(): PostCompletionActionRunner {
   return {
     async run(input) {
-      if (input.action.type !== "context.reset")
-        return {
-          ok: false,
-          actionId: input.action.id,
-          status: "failed",
-          severity: "warning",
-          message: `Unsupported post-completion action ${input.action.type}`,
-        };
       if (input.action.mode === "clear") {
         const flag = process.env.PI_GOAL_CONTEXT_RESET_CLEAR?.trim().toLowerCase();
         if (flag !== "1" && flag !== "true" && flag !== "yes" && flag !== "on") {

@@ -46,7 +46,7 @@ function getRunnablePostCompletionActions(goal: GoalState): PostCompletionAction
 export function recordPostStartActionAnchors(ctx: ExtensionContext, goal: GoalState): GoalState {
   const leafId = ctx.sessionManager.getLeafId?.();
   const actions = (goal.postCompletionActions ?? []).map((action) =>
-    action.type === "context.reset" && !action.anchorEntryId
+    !action.anchorEntryId
       ? { ...action, anchorEntryId: leafId ?? undefined, updatedAt: Date.now() }
       : action,
   );

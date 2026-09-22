@@ -193,7 +193,7 @@ function withOpenTabsLock<T>(filePath: string, fn: () => T): T {
     parseRecord: parseOpenTabsLockRecord,
     isStale: (record) => !record || !currentProcessIdentity(record.pid).alive,
     onBusy: () => {
-      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);
+      Bun.sleepSync(20);
     },
   });
   try {

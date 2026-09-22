@@ -26,7 +26,7 @@ const CONSOLE_HISTORY_LIMIT = 1_000;
 type BridgedMethod = (typeof BRIDGED_METHODS)[number];
 
 /** Receives a fully formatted, prefixed line ready to display. */
-export type ConsoleSink = (text: string) => void;
+type ConsoleSink = (text: string) => void;
 
 let sink: ConsoleSink | undefined;
 // Backlog of lines produced before the TUI sink is wired (e.g. during extension

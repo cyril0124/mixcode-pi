@@ -167,7 +167,7 @@ function drawBox(opts: DrawBoxOptions): string[] {
     rounded = false,
   } = opts;
   const innerWidth = Math.max(0, width - 2);
-  const top = renderBoxTop(title, innerWidth, { ...theme, border }, rounded);
+  const top = renderBoxTop(title, innerWidth, border, rounded);
   const body = lines.map((line) => {
     const content = padLine(line, innerWidth);
     return `${border("│")}${inner ? inner(content) : content}${border("│")}`;
@@ -190,14 +190,14 @@ export function box(
 function renderBoxTop(
   title: string,
   innerWidth: number,
-  theme: MixCodeTheme,
+  border: (text: string) => string,
   rounded = false,
 ): string {
   const left = title ? ` ${title} ` : "";
   const fillWidth = Math.max(0, innerWidth - visibleWidth(left));
   const line = truncateToWidth(`${left}${"─".repeat(fillWidth)}`, innerWidth);
   const [tl, tr] = rounded ? ["╭", "╮"] : ["┌", "┐"];
-  return `${theme.border(tl)}${theme.border(padLine(line, innerWidth))}${theme.border(tr)}`;
+  return `${border(tl)}${border(padLine(line, innerWidth))}${border(tr)}`;
 }
 
 export function overlayPanel(

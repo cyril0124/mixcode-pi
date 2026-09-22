@@ -1,6 +1,6 @@
 import * as path from "node:path";
 
-export interface BinaryRuntimeAssets {
+interface BinaryRuntimeAssets {
   darkTheme: unknown;
   lightTheme: unknown;
   exportTemplateCss: string;

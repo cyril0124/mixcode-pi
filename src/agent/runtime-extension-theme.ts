@@ -191,14 +191,14 @@ export function applyExtensionTheme(
 // initTheme costs ~40us/call; cache so the per-frame markdown path skips re-init.
 let globalThemeReady = false;
 
-export function ensureExtensionThemeInitialized(mode: "light" | "dark" = "dark"): void {
+export function ensureExtensionThemeInitialized(): void {
   if (globalThemeReady) return;
   const active = getActiveExtensionThemeId();
   const resolved = active ? resolvePiTheme(active) : undefined;
   if (resolved) {
     applyPiThemeInstance(resolved);
   } else {
-    initTheme(mode);
+    initTheme("dark");
   }
   globalThemeReady = true;
 }

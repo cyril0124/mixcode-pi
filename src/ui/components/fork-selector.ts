@@ -21,12 +21,12 @@ import { overlayPanel } from "../rendering/primitives.js";
 import { activeRenderTheme, renderWithTheme } from "../rendering/context.js";
 import { themeForId, type MixCodeTheme } from "../themes.js";
 
-export interface ForkPoint {
+interface ForkPoint {
   entryId: string;
   text: string;
 }
 
-export interface ForkSelectorCallbacks {
+interface ForkSelectorCallbacks {
   onSelect: (entryId: string) => void;
   onCancel: () => void;
 }

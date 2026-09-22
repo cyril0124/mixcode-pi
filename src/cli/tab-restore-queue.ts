@@ -9,7 +9,7 @@ import type { MixCodeTabInfo } from "../core/types.js";
  */
 const RESTORE_INPUT_POLL_MS = 25;
 
-export interface TabRestoreQueueOptions {
+interface TabRestoreQueueOptions {
   /** Load one tab; resolves once the tab is published and usable. */
   restore: (tab: MixCodeTabInfo) => Promise<void>;
   /** Called when a restoring tab opened an extension dialog instead of finishing. */
@@ -38,31 +38,26 @@ export async function restoreTabsInOrder(
   for (const tab of tabs) await restoreTab(tab, options);
 }
 
-type TabRestoreOutcome = "restored" | "awaiting-input" | "failed";
-
-async function restoreTab(
-  tab: MixCodeTabInfo,
-  options: TabRestoreQueueOptions,
-): Promise<TabRestoreOutcome> {
-  let outcome: TabRestoreOutcome | undefined;
+async function restoreTab(tab: MixCodeTabInfo, options: TabRestoreQueueOptions): Promise<void> {
+  let settled = false;
   // Attach handlers up front: a parked restore can reject long after the queue
   // moved on, and an unattached rejection would be unhandled.
   void options.restore(tab).then(
     () => {
-      outcome = "restored";
+      settled = true;
     },
     (error: unknown) => {
-      outcome = "failed";
+      settled = true;
       options.onError?.(tab, error);
     },
   );
   for (;;) {
-    if (outcome !== undefined) return outcome;
+    if (settled) return;
     if (tab.extensionUi.waitingForInputs.length > 0) {
       options.onAwaitingInput?.(tab);
       // Deliberately not awaiting the restore promise: the parked tab waits on
       // a human, and the queue must not wait with it.
-      return "awaiting-input";
+      return;
     }
     await Bun.sleep(RESTORE_INPUT_POLL_MS);
   }

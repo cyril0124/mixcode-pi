@@ -18,8 +18,6 @@ import {
 /** Theme surface used by the loop management overlay. */
 type LoopTheme = Pick<Theme, "fg" | "bg">;
 
-export type { LoopConflictMode };
-
 export interface LoopViewEntry {
   id: string;
   name: string;

@@ -9,7 +9,7 @@ export interface ListOverlayPlan {
   entryBodyLines: Array<{ bodyLine: number; entryIndex: number }>;
 }
 
-export interface ListOverlayMouseHandlers {
+interface ListOverlayMouseHandlers {
   /** Fresh plan for hit-testing (call after each event if selection can change). */
   plan: () => ListOverlayPlan;
   onMove: (delta: number) => void;

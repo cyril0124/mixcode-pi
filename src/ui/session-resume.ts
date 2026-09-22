@@ -38,7 +38,7 @@ export function getSessionSelectorComponent(
   return liveSelectors.get(state);
 }
 
-export function findOpenSessionTab(
+function findOpenSessionTab(
   state: MixCodeState,
   runtime: MixCodeKeyRuntime | undefined,
   sessionPath: string,

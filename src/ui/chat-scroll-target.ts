@@ -2,7 +2,7 @@ import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 import type { ChatLine } from "../agent/runtime.js";
 import type { MixCodeTabInfo } from "../core/types.js";
 
-export interface ScrollTargetResult {
+interface ScrollTargetResult {
   found: boolean;
 }
 

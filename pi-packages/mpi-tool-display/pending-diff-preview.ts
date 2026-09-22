@@ -351,13 +351,12 @@ export function buildPendingEditPreviewData(
 
   const projected = buildProjectedEditContent(existing.content, getEditReplacements(input));
   if (!projected.ok) {
-    const failedProjection = projected as Extract<ProjectedEditResult, { ok: false }>;
     return {
       filePath,
       previousContent: existing.content,
       fileExistedBeforeWrite: true,
       headerLabel: "pending edit",
-      notice: failedProjection.reason,
+      notice: projected.reason,
     };
   }
 

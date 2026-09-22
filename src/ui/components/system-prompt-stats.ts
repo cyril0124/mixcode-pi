@@ -15,7 +15,7 @@ function estimateTokens(text: string): number {
 const NAME_WIDTH = 48;
 
 /** One named chunk of text in a token breakdown table. */
-export interface TokenBreakdownRow {
+interface TokenBreakdownRow {
   name: string;
   text: string;
 }

@@ -10,9 +10,9 @@ import { LOCAL_COMMANDS } from "../core/commands.js";
 import { ensurePackageExtensions } from "../core/ensure-package-extensions.js";
 import { takeWorkdirFlag } from "./status.js";
 
-export type CommandListSource = "local" | "extension" | "prompt";
+type CommandListSource = "local" | "extension" | "prompt";
 
-export interface CommandListEntry {
+interface CommandListEntry {
   name: string;
   usage: string;
   description: string;
@@ -21,7 +21,7 @@ export interface CommandListEntry {
   path?: string;
 }
 
-export interface CommandsCliArgs {
+interface CommandsCliArgs {
   json?: boolean;
   workdir?: string;
   help?: boolean;
@@ -53,7 +53,7 @@ export function parseCommandsArgs(args: string[], fallbackWorkdir: string): Comm
   return { json, workdir };
 }
 
-export function formatCommandUsage(name: string, argumentHint?: string): string {
+function formatCommandUsage(name: string, argumentHint?: string): string {
   const hint = argumentHint?.trim();
   return hint ? `/${name} ${hint}` : `/${name}`;
 }
@@ -138,7 +138,7 @@ export async function loadCommandCatalog(options: {
   });
 }
 
-export const COMMANDS_HELP = `Usage: mpi commands [--json] [--workdir <path>]
+const COMMANDS_HELP = `Usage: mpi commands [--json] [--workdir <path>]
 
 List slash commands available for this workdir (local, extension, prompt).
 `;

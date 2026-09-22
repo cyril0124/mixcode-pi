@@ -28,11 +28,7 @@ export function createPicker(
   };
 }
 
-export function pickerItems(
-  kind: PickerKind,
-  state: MixCodeState,
-  active?: MixCodeTabInfo,
-): PickerItem[] {
+function pickerItems(kind: PickerKind, state: MixCodeState, active?: MixCodeTabInfo): PickerItem[] {
   if (kind === "models") {
     return state.availableModels.map((model) => ({
       id: modelRefId(model),

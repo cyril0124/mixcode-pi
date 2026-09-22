@@ -278,8 +278,7 @@ function getRuntimeTools(
   sessionId: string,
   runtimeTab: RuntimeTab,
 ): RuntimeToolInfo[] {
-  const tools = runtime.getExtensionTools(sessionId) ?? runtimeTab.agentSession.getAllTools();
-  return Array.isArray(tools) ? tools : [];
+  return runtime.getExtensionTools(sessionId) ?? runtimeTab.agentSession.getAllTools();
 }
 
 function getExtensionShortcuts(

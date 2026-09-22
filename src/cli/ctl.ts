@@ -14,7 +14,7 @@ import { encodeSendKeys } from "./ctl-keys.js";
 import { resolveMixcodeStateDir } from "../core/paths.js";
 import { takeWorkdirFlag } from "./status.js";
 
-export const CTL_OPS = [
+const CTL_OPS = [
   "last-message",
   "last-assistant-message",
   "last-user-message",
@@ -24,7 +24,7 @@ export const CTL_OPS = [
   "send-keys",
   "send-prompt",
 ] as const;
-export type CtlOp = (typeof CTL_OPS)[number];
+type CtlOp = (typeof CTL_OPS)[number];
 
 export interface CtlRequest {
   op: CtlOp;
@@ -439,7 +439,6 @@ export function normalizeCtlStdout(text: string, ansi = false): string {
 
 function sliceUtf8Suffix(text: string, maxBytes: number): string {
   const encoder = new TextEncoder();
-  if (encoder.encode(text).byteLength <= maxBytes) return text;
   const units = Array.from(text);
   let out = "";
   let used = 0;
@@ -471,7 +470,7 @@ export async function truncateCtlStdout(
     await handle.close();
   }
   const preview = sliceUtf8Suffix(text, CTL_STDOUT_PREVIEW_BYTES);
-  const linesShown = preview.length === 0 ? 0 : preview.split("\n").length;
+  const linesShown = preview.split("\n").length;
   return {
     text: `[Full output: ${overflowPath}. Truncated: showing last ${linesShown} lines (${(CTL_STDOUT_PREVIEW_BYTES / 1024).toFixed(1)}KB tail limit)]\n\n${preview}`,
     overflowPath,

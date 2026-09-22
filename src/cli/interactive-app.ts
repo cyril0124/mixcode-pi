@@ -176,7 +176,6 @@ export async function runInteractiveApp(args: MainArgs, selfRoot: string): Promi
     runtime,
     stateFile,
     workspaceFile,
-    rootStateDir,
     completionSources,
     packageUpdateCheck,
     tabsReady,
@@ -280,7 +279,6 @@ export async function runInteractiveApp(args: MainArgs, selfRoot: string): Promi
   const tui = createMixCodeTui(state, runtime, {
     completionSources,
     workspaceFile,
-    rootStateDir,
     exitProcessOnQuit: true,
     settingsDeps,
     onStateChanged: async (nextState) => {

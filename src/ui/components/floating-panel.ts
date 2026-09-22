@@ -6,7 +6,7 @@ import { padLine } from "../rendering/primitives.js";
 const SCROLLBAR_SAFE_RIGHT_MARGIN = 2;
 const BOTTOM_GAP_ROWS = 1;
 
-export interface FloatingPanelOverlayOptions {
+interface FloatingPanelOverlayOptions {
   width: number;
   editorTopRow: number;
   theme: MixCodeTheme;

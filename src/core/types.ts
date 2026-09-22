@@ -21,7 +21,7 @@ export type QueueKind = "steering" | "followUp";
 
 /** Sentinel `activeTabId` / tab-bar id for MixCode Home. */
 export const HOME_TAB_ID = "home";
-export type CompactionReason = "manual" | "threshold" | "overflow";
+type CompactionReason = "manual" | "threshold" | "overflow";
 
 export type PickerKind = "models" | "thinking" | "workdir" | "context-limit";
 
@@ -67,13 +67,13 @@ export interface PickerState {
  * Routing state for the settings panel. Filter/edit/enum state lives in the
  * SettingsPanel component (src/ui/components/), not in app state.
  */
-export interface SettingsPanelState {
+interface SettingsPanelState {
   open: boolean;
   /** Tab that opened the panel. Absent = live on the focused tab. */
   ownerSessionId?: string;
 }
 
-export interface CommandPaletteState {
+interface CommandPaletteState {
   query: string;
   selectedIndex: number;
 }
@@ -91,7 +91,7 @@ export interface CommandPaletteEntry {
  * lives in the ExtensionManagerPanel component (src/ui/components/), not in
  * app state.
  */
-export interface ExtensionManagerPanelState {
+interface ExtensionManagerPanelState {
   open: boolean;
 }
 
@@ -286,7 +286,7 @@ export type FloatingPanelThemeRole =
   | "vimBorder"
   | "userMessageBg";
 
-export interface FloatingPanelStyle {
+interface FloatingPanelStyle {
   border?: FloatingPanelThemeRole;
   title?: FloatingPanelThemeRole;
   body?: FloatingPanelThemeRole;
@@ -302,11 +302,11 @@ export interface FloatingPanelState {
   style?: FloatingPanelStyle;
 }
 
-export type InputMetaAction = "workdir" | "models" | "thinking";
+type InputMetaAction = "workdir" | "models" | "thinking";
 
 export type ExtensionWidgetPlacement = "aboveEditor" | "belowEditor";
 
-export interface ExtensionStatusLine {
+interface ExtensionStatusLine {
   key: string;
   text: string;
 }
@@ -344,7 +344,7 @@ export interface WaitingForInput {
   kind: "custom" | "editor";
 }
 
-export interface ExtensionUiState {
+interface ExtensionUiState {
   statuses: ExtensionStatusLine[];
   widgets: ExtensionWidgetLine[];
   toolsExpanded: boolean;
@@ -360,14 +360,14 @@ export interface ExtensionUiState {
   footer?: ExtensionDynamicLines;
 }
 
-export interface InputMetaHitRegion {
+interface InputMetaHitRegion {
   action: InputMetaAction;
   row: number;
   startX: number;
   endX: number;
 }
 
-export type SessionActionConfirm = {
+type SessionActionConfirm = {
   action: "close" | "delete";
   sessionId: string;
 };
@@ -377,7 +377,7 @@ export type SessionActionConfirm = {
  * SessionSelectorComponent; the live instance stays module-scoped in
  * session-resume.ts (upstream mode-field parity), never in app state.
  */
-export interface SessionSelectorState {
+interface SessionSelectorState {
   open: boolean;
   /** Tab whose editor slot hosts the selector. Absent = live on the focused tab. */
   ownerSessionId?: string;
@@ -390,7 +390,7 @@ export interface SessionSelectorState {
  * data live in the WorkspaceOverlay component (src/ui/components/), not in
  * app state.
  */
-export interface WorkspaceOverlayState {
+interface WorkspaceOverlayState {
   open: boolean;
 }
 

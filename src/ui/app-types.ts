@@ -50,8 +50,6 @@ export type LocalCommandHandler = (
 export type RuntimeChangeSource = Pick<MixCodeRuntime, "onChange">;
 export interface WorkspaceKeyOptions {
   workspaceFile?: string;
-  /** Agent-dir state root; when set, Home sends also append conversation history. */
-  rootStateDir?: string;
   /** Settings dependencies required by config-scoped commands entered from Home. */
   settingsDeps?: SettingsPanelDependencies;
 }

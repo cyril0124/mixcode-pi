@@ -25,7 +25,7 @@ export interface ModelListEntry {
   thinking: ThinkingLevel[];
 }
 
-export interface ListModelsCliArgs {
+interface ListModelsCliArgs {
   json?: boolean;
   search?: string;
   help?: boolean;
@@ -93,7 +93,7 @@ export async function loadModelCatalog(
 }
 
 /** Same match rule as the `/models <arg>` completion source: id or display name substring. */
-export function filterModelEntries(entries: ModelListEntry[], search?: string): ModelListEntry[] {
+function filterModelEntries(entries: ModelListEntry[], search?: string): ModelListEntry[] {
   const needle = search?.trim().toLowerCase();
   if (!needle) return entries;
   return entries.filter(
@@ -132,7 +132,7 @@ export function formatModelCatalog(entries: ModelListEntry[]): string {
   return [line(header), ...rows.map(line)].join("\n");
 }
 
-export const LIST_MODELS_HELP = `Usage: mpi --list-models [search] [--json]
+const LIST_MODELS_HELP = `Usage: mpi --list-models [search] [--json]
 
 List models with configured auth, and the thinking levels each model supports.
 Reads models.json/auth.json from the agent dir and mixcode_settings disable

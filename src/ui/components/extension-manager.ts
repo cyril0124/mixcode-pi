@@ -28,7 +28,7 @@ import { overlayPanel, padLine } from "../rendering/primitives.js";
 import { windowStart } from "../rendering/scroll-window.js";
 import { themeForId } from "../themes.js";
 
-export interface ExtensionManagerDeps {
+interface ExtensionManagerDeps {
   /** Read-only render source (theme, icon mode) and active-tab lookup. */
   state: MixCodeState;
   tui: OverlayTui;

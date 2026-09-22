@@ -29,7 +29,7 @@ import { clearPendingEscape } from "../core/escape.js";
 import { modelToRef, replaceRegisteredModels } from "../core/models.js";
 import { mixcodeScopedModels } from "../core/pi-models.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
-import { setPendingFollowUps, setPendingMessages, setTabStatus } from "../core/tab-state.js";
+import { setTabStatus } from "../core/tab-state.js";
 import { onActiveTabChange } from "../core/tabs.js";
 import {
   type AgentRuntimeConfig,
@@ -1405,8 +1405,8 @@ export class MixCodeRuntime {
       runtimeTab.tab.followUpsPaused = false;
       runtimeTab.agentSession.clearQueue();
       runtimeTab.tab.retryInfo = undefined;
-      setPendingMessages(runtimeTab.tab, []);
-      setPendingFollowUps(runtimeTab.tab, []);
+      runtimeTab.tab.pendingMessages = [];
+      runtimeTab.tab.pendingFollowUps = [];
       runtimeTab.queuedPromptCount = 0;
       runtimeTab.queuedFollowUpCount = 0;
       clearPendingEscape(runtimeTab.tab);
@@ -1738,10 +1738,6 @@ export class MixCodeRuntime {
     }
     // Claim before any await so concurrent compactSession calls cannot interleave.
     runtimeTab.compactionInFlight = true;
-    if (runtimeTab.agentSession.isCompacting) {
-      runtimeTab.compactionInFlight = false;
-      throw new Error("Cannot compact while compaction is running");
-    }
     runtimeTab.tab.activeCompactionReason = "manual";
     setTabStatus(runtimeTab.tab, "running", { restart: true });
     clearPendingEscape(runtimeTab.tab);

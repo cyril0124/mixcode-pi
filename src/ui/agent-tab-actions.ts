@@ -17,7 +17,7 @@ import type { MixCodeModel, MixCodeModelRef, MixCodeState, MixCodeTabInfo } from
 import type { MixCodeSubmitRuntime } from "./app-types.js";
 import { clearConversationCache } from "./rendering/agent-surface.js";
 
-export interface CreateAgentTabOptions {
+interface CreateAgentTabOptions {
   title?: string;
   workdir?: string;
   model?: MixCodeModelRef;
@@ -109,7 +109,7 @@ export async function createAgentTab(
   }
 }
 
-export interface OpenExistingAgentTabOptions extends CreateAgentTabOptions {
+interface OpenExistingAgentTabOptions extends CreateAgentTabOptions {
   sessionId: string;
 }
 

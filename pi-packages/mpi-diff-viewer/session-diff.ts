@@ -14,7 +14,6 @@ interface SessionMessage {
   role: string;
   content: unknown;
   toolCallId?: string;
-  toolName?: string;
   isError?: boolean;
   details?: unknown;
 }

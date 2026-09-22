@@ -49,7 +49,7 @@ export function createExtensionDialog(
       // then repopulate the restored (possibly recreated) editor with it.
       const currentText =
         host.editor?.getExpandedText?.(sessionId) ?? host.editor?.getText(sessionId) ?? "";
-      removeDialogInteraction(runtimeTab, interactionId);
+      removeWaitingForInput(runtimeTab, interactionId);
       try {
         component?.dispose?.();
         // Restore previous editor
@@ -63,9 +63,11 @@ export function createExtensionDialog(
 
     const abort = () => finish(undefined);
 
-    // Track as waitingForInput so agent waits
+    // Track as waitingForInput so agent waits. Dialog focus is tracked via
+    // waitingForInputs; panelOpen deliberately stays untouched because the widget
+    // side panel is user-owned and key/mouse routing blocks it while pending.
     const interactionId = nextDialogInteractionId(runtimeTab);
-    addDialogInteraction(runtimeTab, interactionId);
+    addWaitingForInput(runtimeTab, interactionId, "custom");
     runtimeTab.extensionCustomOverlayClosers.add(abort);
 
     // Handle abort signal
@@ -157,14 +159,4 @@ function nextDialogInteractionId(runtimeTab: RuntimeTab): string {
     return Number.isInteger(index) ? Math.max(max, index) : max;
   }, 0);
   return `${prefix}${maxIndex + 1}`;
-}
-
-function addDialogInteraction(runtimeTab: RuntimeTab, id: string): void {
-  // Dialog focus is tracked via waitingForInputs. Do not change panelOpen:
-  // the widget side panel is user-owned; key/mouse routing blocks it while pending.
-  addWaitingForInput(runtimeTab, id, "custom");
-}
-
-function removeDialogInteraction(runtimeTab: RuntimeTab, id: string): void {
-  removeWaitingForInput(runtimeTab, id);
 }

@@ -1336,12 +1336,6 @@ function applyInlineSpanHighlight(
   return highlighted;
 }
 
-function resolveDiffIndicatorMode(
-  config: Partial<Pick<ToolDisplayConfig, "diffIndicatorMode">>,
-): DiffIndicatorMode {
-  return config.diffIndicatorMode ?? DEFAULT_TOOL_DISPLAY_CONFIG.diffIndicatorMode;
-}
-
 function resolveIndicatorGlyph(
   kind: DiffLineKind,
   indicatorMode: DiffIndicatorMode,
@@ -2398,7 +2392,7 @@ export function renderEditDiffResult(
   const language = resolveLanguageFromPath(options.filePath);
   const highlightLine = createCodeLineHighlighter(language);
   const wordWrap = config.diffWordWrap;
-  const indicatorMode = resolveDiffIndicatorMode(config);
+  const indicatorMode = config.diffIndicatorMode;
 
   const cache = createDiffRenderCache();
 
@@ -2770,7 +2764,7 @@ export function renderWriteDiffResult(
   const language = resolveLanguageFromPath(filePath);
   const highlightLine = createCodeLineHighlighter(language);
   const wordWrap = config.diffWordWrap;
-  const indicatorMode = resolveDiffIndicatorMode(config);
+  const indicatorMode = config.diffIndicatorMode;
 
   let detailedData: WriteDiffData | undefined;
   const cache = createDiffRenderCache();

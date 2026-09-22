@@ -14,18 +14,18 @@ export const PERMISSION_CONFIG_FILENAME = "mpi-permission.json";
 
 export type PermissionAction = "allow" | "ask" | "deny";
 
-export type PermissionEffect = {
+type PermissionEffect = {
   action: PermissionAction;
   /** Optional denial text; retained on allow/ask but only emitted on deny. */
   message?: string;
 };
 
-export type PermissionRule = PermissionEffect & {
+type PermissionRule = PermissionEffect & {
   pattern: string;
 };
 
 /** Ordered rules for one config key (tool name, "*", or "external_directory"). */
-export type ToolRuleSet = {
+type ToolRuleSet = {
   tool: string;
   rules: PermissionRule[];
 };
@@ -62,7 +62,7 @@ export type PermissionDecision = {
   source?: PermissionSource;
 };
 
-export type ToolCallSubject =
+type ToolCallSubject =
   | { kind: "commands"; segments: string[] }
   | { kind: "path"; path: string }
   | { kind: "pattern"; pattern: string }
@@ -335,7 +335,7 @@ export type PatternContext = {
 };
 
 /** An expanded pattern, or the names of the variables that could not be resolved. */
-export type PatternExpansion = { ok: true; pattern: string } | { ok: false; unresolved: string[] };
+type PatternExpansion = { ok: true; pattern: string } | { ok: false; unresolved: string[] };
 
 /**
  * One pass over a pattern: `\$` escape, a leading `~`, then `$NAME` / `${NAME}`
@@ -390,7 +390,7 @@ export function matchesPattern(pattern: string, subject: string): boolean {
  * Candidates a path subject is matched under: the absolute path plus its
  * cwd-relative form, so `packages/*` (relative) and `*.env` (bare) both work.
  */
-export function pathCandidates(absPath: string, cwd: string): string[] {
+function pathCandidates(absPath: string, cwd: string): string[] {
   const rel = path.relative(cwd, absPath);
   return [absPath, rel === "" ? "." : rel];
 }
@@ -471,7 +471,7 @@ function realpathExisting(absPath: string): string {
   }
 }
 
-export function resolvePermissionPath(raw: string, cwd: string, home: string): string {
+function resolvePermissionPath(raw: string, cwd: string, home: string): string {
   const expanded = raw
     .replace(/^~(?=$|[\\/])/, home)
     .replace(/^\$HOME(?=$|[\\/])/, home)

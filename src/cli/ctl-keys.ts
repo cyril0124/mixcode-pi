@@ -1,4 +1,4 @@
-export interface EncodeSendKeysOptions {
+interface EncodeSendKeysOptions {
   literal?: boolean;
 }
 

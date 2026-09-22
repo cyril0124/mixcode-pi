@@ -11,14 +11,14 @@ import { isModelDisabled } from "./mixcode-settings.js";
 import { configureProviderErrorDiagnostics } from "./provider-error-diagnostics.js";
 import type { MixCodeModel } from "./types.js";
 
-export interface PiModelSource {
+interface PiModelSource {
   provider: string;
   modelId: string;
   model: MixCodeModel;
   authStatus: ReturnType<ModelRuntime["getProviderAuthStatus"]>;
 }
 
-export interface PiModelRuntimeAuth {
+interface PiModelRuntimeAuth {
   getApiKey: (provider: string) => Promise<string | undefined>;
   stream: (
     model: MixCodeModel,
@@ -27,7 +27,7 @@ export interface PiModelRuntimeAuth {
   ) => AssistantMessageEventStream | Promise<AssistantMessageEventStream>;
 }
 
-export interface PiModelRegistryBundle {
+interface PiModelRegistryBundle {
   modelRuntime: ModelRuntime;
   /** Extension-facing synchronous facade over modelRuntime. */
   registry: ModelRegistry;

@@ -3,7 +3,7 @@ import type { SgrMouseInput } from "../core/mouse.js";
 import type { MixCodeState } from "../core/types.js";
 import type { MixCodeTheme } from "./themes.js";
 
-export type HomeAction = "new-session" | "resume";
+type HomeAction = "new-session" | "resume";
 
 interface ActionRegion {
   action: HomeAction;
@@ -24,7 +24,7 @@ export function homeActionsFor(state: MixCodeState): HomeActions {
   return value;
 }
 
-export class HomeActions {
+class HomeActions {
   pending = false;
   private regions: ActionRegion[] = [];
   private hovered?: HomeAction;

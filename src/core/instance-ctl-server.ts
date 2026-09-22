@@ -44,7 +44,7 @@ export interface StartInstanceCtlServerOptions {
   onError?: (error: Error) => void;
 }
 
-export function resolveCtlFocusSessionId(
+function resolveCtlFocusSessionId(
   state: MixCodeState,
   request: Pick<CtlRequest, "focusSessionId" | "focusTabTitle" | "sessionId" | "tabTitle">,
 ): string {
@@ -71,7 +71,7 @@ export function resolveCtlFocusSessionId(
 export const IMPLIED_FOCUS_REASON =
   "no --tab/--session/--focus-tab/--focus-session; using live UI focus";
 export const CTL_MESSAGE_DIVIDER = "----------";
-export const CTL_WAIT_DEFAULT_TIMEOUT_SEC = 60;
+const CTL_WAIT_DEFAULT_TIMEOUT_SEC = 60;
 const CTL_WAIT_POLL_MS = 50;
 const CTL_WAIT_BUSY = new Set(["running", "thinking"]);
 
@@ -122,7 +122,7 @@ function withPreamble(
   })}${body}`;
 }
 
-export const CTL_DUMP_OVERLAY_MIN_WIDTH = 100;
+const CTL_DUMP_OVERLAY_MIN_WIDTH = 100;
 
 export function resolveCtlDumpWidths(
   requestWidth: number | undefined,

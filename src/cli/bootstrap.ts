@@ -57,7 +57,7 @@ import { setTheme } from "../ui/themes.js";
 import { expandTilde, resolveMixcodeStateDir } from "../core/paths.js";
 import { restoreTabsInOrder } from "./tab-restore-queue.js";
 
-export interface BootstrapOptions {
+interface BootstrapOptions {
   workdir: string;
   stateDir?: string;
   homeDir?: string;
@@ -306,7 +306,7 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
   };
 }
 
-export interface PackageUpdateCheckOptions {
+interface PackageUpdateCheckOptions {
   workdir: string;
   agentDir?: string;
   env?: NodeJS.ProcessEnv;
