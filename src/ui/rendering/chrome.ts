@@ -18,7 +18,7 @@ import {
 import { pointerHoverFor } from "../pointer-hover.js";
 import { buildLabeledTopBorder } from "../components/editor-top-border.js";
 import type { MixCodeTheme } from "../themes.js";
-import { tabColorBackground, tabColorPaint } from "../themes.js";
+import { tabColorPaint } from "../themes.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
 import { resolveGlyphs, resolveIconMode, type IconGlyphs } from "./icons.js";
 import { padLine, sanitizeTerminalText } from "./primitives.js";
@@ -1543,12 +1543,51 @@ function sanitizeWidgetLine(text: string): string {
 }
 
 const TAB_FOCUS_MARK = "▌";
+/**
+ * Focus mark for a chip painted in a tab color. The glyph fills the inner half of
+ * its cell, so the chip keeps its own color on the outer edge against whatever
+ * surrounds the tab bar. The mark uses the color's contrast pair, which equals
+ * that surrounding background in the matching theme (black under a dark
+ * background, white under a light one), and on the outer half it would merge
+ * with the background instead of reading as a bar.
+ */
+const TAB_FOCUS_MARK_INNER = "▐";
 export const TAB_ACTIVE_SHIMMER_PERIOD_MS = 3000;
 export const TAB_ACTIVE_SHIMMER_SWEEP_MS = 2000;
 
 function withFocusMark(paint: (text: string) => string, body: string): string {
   return paintTabChip(paint, `${activeRenderTheme.vimBorder(TAB_FOCUS_MARK)}${body}`);
 }
+
+/**
+ * Brightness steps of the active-tab wave, from the lit peak outwards. The
+ * default steps use the theme's text and accent colors, which read over a theme
+ * chip background only.
+ */
+export interface TabShimmerStyles {
+  peak: (text: string) => string;
+  shoulder: (text: string) => string;
+  tail: (text: string) => string;
+}
+
+const THEME_SHIMMER_STYLES: TabShimmerStyles = {
+  peak: (text) => activeRenderTheme.bold(activeRenderTheme.text(text)),
+  shoulder: (text) => activeRenderTheme.bold(activeRenderTheme.accent(text)),
+  tail: (text) => activeRenderTheme.accent(text),
+};
+
+/**
+ * Wave steps for a chip painted in a tab color. Theme foregrounds have no
+ * contrast over a chip color, and the chip's contrast pair provides no second
+ * brightness level, so the wave inverts the lit cells with reverse video. That
+ * keeps both halves of the pair and reads on every chip color. Weight stays with
+ * the caller, so a done chip remains bold across the whole label.
+ */
+const COLORED_SHIMMER_STYLES: TabShimmerStyles = {
+  peak: (text) => `\x1b[7m${text}\x1b[27m`,
+  shoulder: (text) => `\x1b[7m${text}\x1b[27m`,
+  tail: (text) => text,
+};
 
 /**
  * Apply a bouncing highlight to the active tab label. A brightness wave travels
@@ -1564,6 +1603,7 @@ export function applyActiveTabShimmer(
   text: string,
   activatedAt: number | undefined,
   now = Date.now(),
+  styles: TabShimmerStyles = THEME_SHIMMER_STYLES,
 ): string {
   const baseTime = activatedAt ?? 0;
   const elapsed = (now - baseTime) % TAB_ACTIVE_SHIMMER_PERIOD_MS;
@@ -1587,15 +1627,9 @@ export function applyActiveTabShimmer(
     .map((char, index) => {
       const dist = Math.abs(index - waveCenter);
       // Brightness falls off with distance from the wave center: peak, shoulder, tail.
-      if (dist < 0.6) {
-        return activeRenderTheme.bold(activeRenderTheme.text(char));
-      }
-      if (dist < 1.6) {
-        return activeRenderTheme.bold(activeRenderTheme.accent(char));
-      }
-      if (dist < 2.8) {
-        return activeRenderTheme.accent(char);
-      }
+      if (dist < 0.6) return styles.peak(char);
+      if (dist < 1.6) return styles.shoulder(char);
+      if (dist < 2.8) return styles.tail(char);
       return char;
     })
     .join("");
@@ -1663,22 +1697,26 @@ function renderTabSegmentText(
     const rendered = active ? withFocusMark(chip, body) : paintTabChip(chip, body);
     return fg ? rendered.replace(glyph, `${fg(glyph)}${tabChipOpenSeq(chip)}`) : rendered;
   };
-  // A colored tab takes its chip background from the color. The foreground is
-  // the color's contrast pair, except for completion: a done chip keeps the
-  // theme's bold success color over the color background so the state stays
-  // recognizable. Other status colors stay shape-only on colored chips.
+  // A colored chip takes its background and foreground from the color's
+  // contrast pair, the only foreground with guaranteed contrast over that
+  // background. The theme's success color measures under 3:1 against every chip
+  // color, so a done chip keeps the pair and shows completion through the `✓`
+  // glyph and a bold title; uncolored chips below keep the success color. Other
+  // status colors (running, waiting, error) stay shape-only on colored chips.
   if (tab.color) {
-    if (glyph === "✓") {
-      return paintTabChip(
-        tabColorBackground(tab.color),
-        activeRenderTheme.bold(
-          activeRenderTheme.doneFg(active ? `${TAB_FOCUS_MARK}${raw.slice(1)}` : raw),
-        ),
-      );
-    }
+    const idle = glyph === "✓" ? activeRenderTheme.bold(raw) : raw;
+    // The wave inverts cells rather than recoloring them, and the enclosing bold
+    // carries the label's weight in every phase, including the rest phase that
+    // returns plain text.
+    const shimmer = applyActiveTabShimmer(
+      raw.slice(1),
+      tab.activatedAt,
+      Date.now(),
+      COLORED_SHIMMER_STYLES,
+    );
     return paintTabChip(
       tabColorPaint(tab.color),
-      active ? `${TAB_FOCUS_MARK}${activeRenderTheme.bold(raw.slice(1))}` : raw,
+      active ? `${TAB_FOCUS_MARK_INNER}${activeRenderTheme.bold(shimmer)}` : idle,
     );
   }
   if (glyph === "✓") {

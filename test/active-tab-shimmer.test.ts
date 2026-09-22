@@ -34,6 +34,36 @@ test("applyActiveTabShimmer applies highlight wave during sweep and returns plai
   assert.ok(resultNext.includes("\x1b["));
 });
 
+test("applyActiveTabShimmer applies the style steps given by the caller", () => {
+  // Distinct SGR codes mark each step, so a frame shows which step reached which
+  // character.
+  const steps = {
+    peak: (text: string) => `\x1b[7m${text}\x1b[27m`,
+    shoulder: (text: string) => `\x1b[4m${text}\x1b[24m`,
+    tail: (text: string) => `\x1b[2m${text}\x1b[22m`,
+  };
+  const frames = Array.from({ length: 40 }, (_, index) =>
+    applyActiveTabShimmer(
+      "Agent-01",
+      0,
+      Math.floor((TAB_ACTIVE_SHIMMER_SWEEP_MS * index) / 40),
+      steps,
+    ),
+  );
+  const joined = frames.join("|");
+  // Every step of the ramp reaches the label somewhere in the sweep, and the
+  // caller's steps never alter the underlying label.
+  assert.match(joined, /\x1b\[7m/);
+  assert.match(joined, /\x1b\[4m/);
+  assert.match(joined, /\x1b\[2m/);
+  for (const frame of frames) assert.equal(stripTerminalSequences(frame), "Agent-01");
+  // The rest phase returns the label untouched so the caller keeps its own weight.
+  assert.equal(
+    applyActiveTabShimmer("Agent-01", 0, TAB_ACTIVE_SHIMMER_SWEEP_MS + 100, steps),
+    "Agent-01",
+  );
+});
+
 test("applyActiveTabShimmer mirrors the return leg of the bounce", () => {
   const text = "Agent-01";
   const start = 0;

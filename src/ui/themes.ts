@@ -72,7 +72,6 @@ const TAB_COLOR_SGR: Record<TabColorName, { bg: number; fg: number }> = {
 };
 
 const tabColorPaints = new Map<TabColorName, (text: string) => string>();
-const tabColorBackgrounds = new Map<TabColorName, (text: string) => string>();
 
 /**
  * Chip painter for a tab color. The background and contrast foreground are
@@ -91,24 +90,6 @@ export function tabColorPaint(color: TabColorName): (text: string) => string {
       .replace(/\x1b\[39m/g, `\x1b[39m${start}`)
       .replace(/\x1b\[49m/g, `\x1b[49m${start}`)}\x1b[39m\x1b[49m`;
   tabColorPaints.set(color, paint);
-  return paint;
-}
-
-/**
- * Background-only painter for a tab color, for callers that supply their own
- * foreground (a completed tab keeps the theme's success color). The background
- * is re-opened after inner SGR resets, and the closing sequence ends it.
- */
-export function tabColorBackground(color: TabColorName): (text: string) => string {
-  const cached = tabColorBackgrounds.get(color);
-  if (cached) return cached;
-  const { bg } = TAB_COLOR_SGR[color];
-  const start = `\x1b[${bg}m`;
-  const paint = (text: string) =>
-    `${start}${text
-      .replace(/\x1b\[0m/g, `\x1b[0m${start}`)
-      .replace(/\x1b\[49m/g, `\x1b[49m${start}`)}\x1b[49m`;
-  tabColorBackgrounds.set(color, paint);
   return paint;
 }
 

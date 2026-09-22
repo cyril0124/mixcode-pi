@@ -28,6 +28,22 @@ import type { MixCodeRuntime } from "./helpers/mixcode.js";
 // eslint-disable-next-line no-control-regex
 const stripAnsi = (text: string): string => text.replace(/\x1b\[[0-9;]*m/g, "");
 
+/**
+ * Palette contract: the ANSI background of every color name plus the contrast
+ * foreground it pairs with, so assertions do not read the implementation's own
+ * table.
+ */
+const TAB_COLOR_PAIRS: Record<(typeof TAB_COLOR_NAMES)[number], { bg: number; fg: number }> = {
+  red: { bg: 41, fg: 97 },
+  green: { bg: 42, fg: 30 },
+  yellow: { bg: 43, fg: 30 },
+  blue: { bg: 44, fg: 97 },
+  magenta: { bg: 45, fg: 97 },
+  cyan: { bg: 46, fg: 30 },
+  white: { bg: 47, fg: 30 },
+  gray: { bg: 100, fg: 97 },
+};
+
 type StyledChar = { char: string; fg: string; bg: string; bold: boolean };
 
 /**
@@ -216,7 +232,7 @@ test("a colored tab renders the color as its chip background", () => {
   assert.match(stripAnsi(rendered), /Worker/);
 });
 
-test("a colored done tab keeps the theme's bold success color over its own background", () => {
+test("a colored done tab keeps the contrast pair and marks completion with its glyph", () => {
   for (const { id } of THEMES) {
     const theme = themeForId(id);
     const build = (color: "red" | undefined) => {
@@ -241,12 +257,21 @@ test("a colored done tab keeps the theme's bold success color over its own backg
 
     const start = coloredText.indexOf("Worker");
     assert.ok(start > 0, `${id}: title missing`);
+    // The theme's success color stays under 3:1 over the chip, so the chip keeps
+    // the color's contrast pair and completion rides on the glyph and the bold
+    // title.
     assert.notEqual(plain[start]!.fg, "default", `${id}: baseline has no success color`);
+    assert.notEqual(
+      colored[start]!.fg,
+      plain[start]!.fg,
+      `${id}: chip kept the theme success color`,
+    );
     for (let i = start; i < start + "Worker".length; i++) {
       assert.equal(colored[i]!.bg, "41", `${id}: background at ${i}`);
-      assert.equal(colored[i]!.fg, plain[i]!.fg, `${id}: success foreground at ${i}`);
+      assert.equal(colored[i]!.fg, "97", `${id}: contrast foreground at ${i}`);
       assert.equal(colored[i]!.bold, true, `${id}: bold at ${i}`);
     }
+    assert.match(coloredText, /✓/, `${id}: completion glyph missing`);
   }
 });
 
@@ -274,7 +299,7 @@ test("a colored active tab keeps the focus mark and never exceeds the bar width"
 
   const lines = renderTabBar(state, 40, themeForId("terminal"));
   const rendered = lines.join("\n");
-  assert.match(stripAnsi(rendered), /▌/);
+  assert.match(stripAnsi(rendered), /▐/);
   assert.ok(rendered.includes("\x1b[46m\x1b[30m"), rendered);
   for (const line of lines)
     assert.ok(visibleWidth(line) <= 40, `row too wide: ${visibleWidth(line)}`);
@@ -395,12 +420,80 @@ test("an active colored tab keeps the color background, contrast foreground, and
     assert.equal(chars[i]!.fg, "30", `fg at ${i}`);
     assert.equal(chars[i]!.bold, true, `bold at ${i}`);
   }
-  // The focus mark keeps the chip background and uses the chip foreground, not
-  // the theme focus color, so it stays readable on any color.
-  const mark = text.indexOf("▌");
+  // The focus mark keeps the chip background and the color's contrast
+  // foreground, filling the inner half of its cell so the chip's own color stays
+  // on the outer edge against the surrounding background.
+  const mark = text.indexOf("▐");
   assert.ok(mark >= 0);
-  assert.equal(chars[mark]!.bg, "46");
-  assert.equal(chars[mark]!.fg, "30");
+  assert.equal(chars[mark]!.bg, String(TAB_COLOR_PAIRS.cyan.bg));
+  assert.equal(chars[mark]!.fg, String(TAB_COLOR_PAIRS.cyan.fg));
+});
+
+test("a colored active chip shimmers with reverse video inside the chip pair", () => {
+  for (const color of ["green", "red"] as const) {
+    const state = createInitialState("/repo");
+    state.tabs.push(createTab(1, "s1", "/repo", { title: "Worker", color }));
+    state.activeTabId = "s1";
+    // Mid-sweep phase: the wave is over the label instead of the rest window.
+    state.tabs[0]!.activatedAt = Date.now() - 800;
+
+    const rendered = renderTabBar(state, 60, themeForId("mixcode-dark")).join("\n");
+    assert.match(rendered, /\x1b\[7m/, `${color}: no reverse-video wave`);
+
+    // The wave inverts cells, so every chip cell keeps the contrast pair and the
+    // label stays bold across the sweep; theme foregrounds never reach the chip.
+    const pair = TAB_COLOR_PAIRS[color];
+    const chars = styledChars(rendered);
+    const text = chars.map((entry) => entry.char).join("");
+    const start = text.indexOf("Worker");
+    assert.ok(start > 0, `${color}: title missing`);
+    for (let i = start; i < start + "Worker".length; i++) {
+      assert.equal(chars[i]!.bg, String(pair.bg), `${color}: background at ${i}`);
+      assert.equal(chars[i]!.fg, String(pair.fg), `${color}: foreground at ${i}`);
+      assert.equal(chars[i]!.bold, true, `${color}: bold at ${i}`);
+    }
+  }
+});
+
+test("a colored focus mark keeps the chip pair for every color and status", () => {
+  for (const { id } of THEMES) {
+    const theme = themeForId(id);
+    for (const color of TAB_COLOR_NAMES) {
+      const pair = TAB_COLOR_PAIRS[color];
+      for (const status of ["running", "done"] as const) {
+        const state = createInitialState("/repo");
+        state.tabs.push(
+          createTab(1, "s1", "/repo", {
+            title: "Worker",
+            status,
+            unreadDone: status === "done",
+            color,
+          }),
+        );
+        state.activeTabId = "s1";
+
+        const chars = styledChars(renderTabBar(state, 60, theme).join("\n"));
+        const text = chars.map((entry) => entry.char).join("");
+        const label = `${id}/${color}/${status}`;
+        const mark = text.indexOf("▐");
+        const title = text.indexOf("Worker");
+        assert.ok(mark >= 0, `${label}: focus mark missing`);
+        assert.ok(title > mark, `${label}: title missing`);
+        // The mark keeps the color's contrast foreground over the chip
+        // background, so it is never painted in a status color that could
+        // disappear into the chip the way a done chip's success color does.
+        assert.equal(chars[mark]!.fg, String(pair.fg), `${label}: mark foreground`);
+        assert.equal(chars[mark]!.bg, String(pair.bg), `${label}: mark background`);
+        assert.equal(chars[title]!.bg, String(pair.bg), `${label}: chip background`);
+        // The glyph is the right-half block, so the chip color keeps the outer
+        // half of the mark cell: a contrast color equal to the surrounding
+        // background cannot swallow the bar.
+        assert.equal(text[mark], "▐", `${label}: mark glyph`);
+        // The chip keeps its contrast pair in every state, including done.
+        assert.equal(chars[title]!.fg, String(pair.fg), `${label}: chip foreground`);
+      }
+    }
+  }
 });
 
 test("a colored Home card changes no other card styling, across every built-in theme", () => {
