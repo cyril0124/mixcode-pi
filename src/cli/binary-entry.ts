@@ -430,16 +430,6 @@ import optimizePromptPackageJson from "../../pi-packages/mpi-optimize-prompt/pac
 import optimizePromptSchemaJson from "../../pi-packages/mpi-optimize-prompt/mpi-optimize-prompt.schema.json" with {
   type: "text",
 };
-import lengthResumeIndex from "../../pi-packages/mpi-length-resume/index.ts" with { type: "text" };
-import lengthResumeReadme from "../../pi-packages/mpi-length-resume/README.md" with {
-  type: "text",
-};
-import lengthResumeReadmeZh from "../../pi-packages/mpi-length-resume/README.zh.md" with {
-  type: "text",
-};
-import lengthResumePackageJson from "../../pi-packages/mpi-length-resume/package.json" with {
-  type: "text",
-};
 import modelAttachIndex from "../../pi-packages/mpi-model-attach/index.ts" with { type: "text" };
 import modelAttachCore from "../../pi-packages/mpi-model-attach/model-attach-core.ts" with {
   type: "text",
@@ -814,12 +804,6 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
       "config-overlay.ts": optimizePromptConfigOverlay,
       "package.json": optimizePromptPackageJson,
       "mpi-optimize-prompt.schema.json": optimizePromptSchemaJson,
-    },
-    "mpi-length-resume": {
-      "index.ts": lengthResumeIndex,
-      "package.json": lengthResumePackageJson,
-      "README.md": lengthResumeReadme,
-      "README.zh.md": lengthResumeReadmeZh,
     },
     "mpi-model-attach": {
       "index.ts": modelAttachIndex,
