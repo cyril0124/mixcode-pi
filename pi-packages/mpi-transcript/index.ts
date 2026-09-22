@@ -33,6 +33,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type {
   BuildSystemPromptOptions,
   CacheMiss,
@@ -797,6 +798,10 @@ interface ChatlogOptions {
 function collectChatlog(entries: SessionEntry[], options: ChatlogOptions = {}): string[] {
   const { turnOffset = 0, contextWindowFor, cacheMisses, fullToolOutput } = options;
   const resultById = new Map<string, { status: string; text: string }>();
+  // Labels for context-edit targets: the edit section names what was changed,
+  // using the target's role and original content so the raw chatlog stays
+  // self-describing even when the target entry itself is outside the slice.
+  const editTargetLabelById = new Map<string, string>();
   for (const entry of entries) {
     const msg = messageOf(entry) as
       | {
@@ -812,6 +817,18 @@ function collectChatlog(entries: SessionEntry[], options: ChatlogOptions = {}): 
         status: msg.isError ? "error" : "success",
         text: blockText(msg.content),
       });
+    }
+    if (entry.type === "message" && msg) {
+      const snippet = blockText(msg.content).trim().replace(/\s+/g, " ").slice(0, 60);
+      editTargetLabelById.set(entry.id, snippet ? `${msg.role} · "${snippet}"` : msg.role);
+    } else if (entry.type === "custom_message") {
+      const snippet = blockText(entry.content).trim().replace(/\s+/g, " ").slice(0, 60);
+      editTargetLabelById.set(
+        entry.id,
+        snippet ? `custom:${entry.customType} · "${snippet}"` : `custom:${entry.customType}`,
+      );
+    } else if (entry.type !== "context_edit") {
+      editTargetLabelById.set(entry.id, entry.type);
     }
   }
 
@@ -846,6 +863,25 @@ function collectChatlog(entries: SessionEntry[], options: ChatlogOptions = {}): 
     }
     if (entry.type === "branch_summary") {
       sections.push(`---\n\n## 🌿 Branch Summary\n\n${entry.summary.trim()}`);
+      continue;
+    }
+    // Context edits change what the model sees without rewriting history.
+    // Like compaction and injected messages they are LLM-visible, so the
+    // chatlog must show them or replaced/omitted turns read as current.
+    if (entry.type === "context_edit") {
+      const label = editTargetLabelById.get(entry.targetId) ?? entry.targetId;
+      const replacement = entry.replacement ? blockText(entry.replacement.content).trim() : "";
+      const snippet = replacement.replace(/\s+/g, " ").slice(0, 60);
+      sections.push(
+        [
+          `---`,
+          ``,
+          `## ✏️ Context Edit · ${entry.replacement ? "replaced" : "omitted"} · ${label}`,
+          ``,
+          `_${formatTime(entry.timestamp)}_`,
+          ...(snippet ? [``, `> ${snippet}`] : []),
+        ].join("\n"),
+      );
       continue;
     }
     // Extension-injected context messages. They join LLM context as user
@@ -1129,6 +1165,44 @@ export function buildViewText(
     ]);
   }
   return formatViewText(meta.title, [stats, latestUserMessage(entries) ?? "No user message."]);
+}
+
+/**
+ * Effective-context entries as the model sees them after Pi 0.87 context edits.
+ * `buildContextEntries()` trims at compaction but ignores `context_edit`, so the
+ * context view would present replaced or omitted messages as still current.
+ * `buildSessionProjection()` pairs every contributing entry with its post-edit
+ * messages: message/custom_message entries carry the replacement (empty means
+ * omitted), retained non-contributing compaction checkpoints drop, and state
+ * entries (usage, labels, timeline events, the edits themselves) pass through
+ * so stats and the chatlog timeline stay intact.
+ */
+export function projectedContextEntries(sessionManager: {
+  buildSessionProjection(): {
+    entries: ReadonlyArray<{ sourceEntry: SessionEntry; messages: ReadonlyArray<object> }>;
+  };
+}): SessionEntry[] {
+  const projected: SessionEntry[] = [];
+  sessionManager.buildSessionProjection().entries.forEach((item, index) => {
+    const source = item.sourceEntry;
+    if (source.type === "message") {
+      if (item.messages.length > 0)
+        projected.push({ ...source, message: item.messages[0] as AgentMessage });
+      return;
+    }
+    if (source.type === "custom_message") {
+      if (item.messages.length > 0) {
+        const content = (item.messages[0] as { content?: unknown }).content;
+        projected.push({ ...source, content: content as (typeof source)["content"] });
+      }
+      return;
+    }
+    // Only the newest compaction (projection index 0) contributes its summary;
+    // older checkpoints retained inside the kept range project to nothing.
+    if (source.type === "compaction" && index > 0) return;
+    projected.push(source);
+  });
+  return projected;
 }
 
 // ─── Display: configured external editor with in-app editor fallback ─────────
@@ -1976,10 +2050,11 @@ const extension: ExtensionFactory = (pi) => {
     ctx: ExtensionCommandContext,
   ): Promise<void> => {
     // context = the effective LLM context (branch resolution, compaction,
-    // summaries applied); other targets read the full branch.
+    // summaries, and 0.87 context edits applied); other targets read the full
+    // branch, where edited entries keep their original content.
     const entries =
       target === "context"
-        ? ctx.sessionManager.buildContextEntries()
+        ? projectedContextEntries(ctx.sessionManager)
         : ctx.sessionManager.getBranch();
     const meta = TARGETS.find((t) => t.id === target)!;
     const content = buildViewText(target, entries, {

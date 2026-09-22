@@ -17,6 +17,8 @@
 
 `N` 适用于 `context`、`chatlog` 和 `thinking`。`full` 适用于 `context` 和 `chatlog`。每个视图顶部都会显示 transcript 统计信息，其中包含当前 session 文件路径；未持久化的 session 显示 `In-memory`。
 
+`/transcript context` 从 Pi 的 canonical session projection 渲染生效上下文：分支解析、compaction、以及 Pi 0.87 的 `context_edit` 条目（被省略的目标不再出现；被替换的目标显示替换后的内容；保留但不参与上下文的旧 compaction 检查点会被丢弃）。其他目标渲染原始分支，被编辑的条目保持原始内容。在所有聊天式视图（`context`、`chatlog`）中，`✏️ Context Edit` 小节会标出目标条目（角色 + 摘要片段；目标不在切片内时回退为原始 entry id），替换场景还会引用替换后的文本。
+
 ## Context 增长
 
 `/transcript growth` 按 assistant 回合绘制上下文规模（读取每次请求的 usage）：头部汇总（turn 数、窗口、峰值）、三行堆叠 sparkline，以及列出每回合窗口占比、占比条、相对上一回合带符号增量和该步百分比增长（`%delta`）的表格。行尾标记 `<- compaction`（该行与上一回合之间存在 compaction）和 `(!) cache miss`（该回合重新计费的 token 达到阈值）。该视图始终覆盖整个 session；`N` 与 `full` 不适用。没有 usage 的回合（如中止的请求）会被跳过；占比条以最新模型的上下文窗口为基准，窗口未知时以 session 峰值为基准。

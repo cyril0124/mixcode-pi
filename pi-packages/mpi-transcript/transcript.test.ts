@@ -13,6 +13,7 @@ import {
   estimateContextSize,
   formatViewText,
   NVIM_TRANSCRIPT_LUA,
+  projectedContextEntries,
   resolveModel,
 } from "./index.js";
 
@@ -1445,4 +1446,123 @@ test("resolveModel matches an archived model id that differs only in case", () =
   assert.equal(resolveModel(registry, "jw-proxy", "DeepSeek-V4-Flash-Vision-Exp"), model);
   assert.equal(resolveModel(registry, "other-proxy", "deepseek-v4-flash-vision-exp"), undefined);
   assert.equal(resolveModel(registry, "jw-proxy", "gone-model"), undefined);
+});
+
+// ─── context edits (Pi 0.87) ─────────────────────────────────────────────────────
+
+function contextEditEntry(
+  targetId: string,
+  replacement: { content: unknown } | null,
+  at?: string,
+): SessionEntry {
+  return {
+    type: "context_edit",
+    id: `edit-${targetId}-${replacement === null ? "omit" : "replace"}`,
+    parentId: null,
+    timestamp: at ?? new Date().toISOString(),
+    targetId,
+    replacement,
+  } as unknown as SessionEntry;
+}
+
+function projectionOf(
+  items: ReadonlyArray<{ sourceEntry: SessionEntry; messages: ReadonlyArray<object> }>,
+): { buildSessionProjection(): { entries: typeof items } } {
+  return { buildSessionProjection: () => ({ entries: items }) };
+}
+
+/** The user message carried by a message entry, narrowly typed for projections. */
+function messageOfTestEntry(entry: SessionEntry): { role: string; content: unknown } {
+  return (entry as { message: { role: string; content: unknown } }).message;
+}
+
+test("projectedContextEntries drops omitted targets and applies replacements", () => {
+  const kept = userEntry("kept question");
+  const omitted = userEntry("secret plan");
+  const replaced = userEntry("original ask");
+  const entries = projectedContextEntries(
+    projectionOf([
+      { sourceEntry: kept, messages: [messageOfTestEntry(kept)] },
+      { sourceEntry: omitted, messages: [] },
+      {
+        sourceEntry: replaced,
+        messages: [{ ...messageOfTestEntry(replaced), content: "edited ask" }],
+      },
+    ]),
+  );
+  assert.equal(entries.length, 2);
+  assert.equal(entries[0]?.id, kept.id);
+  assert.equal(entries[1]?.id, replaced.id);
+  const message = (entries[1] as { message?: { content?: unknown } }).message;
+  assert.equal(message?.content, "edited ask");
+});
+
+test("projectedContextEntries applies custom_message replacements", () => {
+  const injected = {
+    type: "custom_message",
+    id: "cm-1",
+    parentId: null,
+    timestamp: new Date().toISOString(),
+    customType: "note",
+    content: "old note",
+    display: false,
+  } as unknown as SessionEntry;
+  const entries = projectedContextEntries(
+    projectionOf([{ sourceEntry: injected, messages: [{ content: "new note" }] }]),
+  );
+  assert.equal(entries.length, 1);
+  assert.equal((entries[0] as { content?: unknown }).content, "new note");
+});
+
+test("projectedContextEntries drops retained non-contributing compaction checkpoints", () => {
+  const checkpoint = {
+    type: "compaction",
+    id: "c-new",
+    parentId: null,
+    timestamp: new Date().toISOString(),
+    summary: "new summary",
+    tokensBefore: 20,
+  } as unknown as SessionEntry;
+  const stale = {
+    type: "compaction",
+    id: "c-old",
+    parentId: null,
+    timestamp: new Date().toISOString(),
+    summary: "old summary",
+    tokensBefore: 10,
+  } as unknown as SessionEntry;
+  const after = userEntry("after compaction");
+  const entries = projectedContextEntries(
+    projectionOf([
+      { sourceEntry: checkpoint, messages: [{ content: "summary message" }] },
+      { sourceEntry: after, messages: [messageOfTestEntry(after)] },
+      { sourceEntry: stale, messages: [] },
+    ]),
+  );
+  assert.deepEqual(
+    entries.map((entry) => entry.id),
+    [checkpoint.id, after.id],
+  );
+});
+
+test("buildViewText chatlog renders context edits with target labels", () => {
+  const secret = userEntry("secret plan");
+  const original = userEntry("original ask");
+  const text = buildViewText("chatlog", [
+    secret,
+    original,
+    contextEditEntry(secret.id, null),
+    contextEditEntry(original.id, { content: "edited ask" }),
+  ]);
+  assert.match(text, /✏️ Context Edit · omitted · user · "secret plan"/);
+  assert.match(text, /✏️ Context Edit · replaced · user · "original ask"/);
+  assert.match(text, /> edited ask/);
+});
+
+test("buildViewText chatlog falls back to the raw target id when the target is out of slice", () => {
+  const text = buildViewText("chatlog", [
+    userEntry("visible turn"),
+    contextEditEntry("gone-entry", null),
+  ]);
+  assert.match(text, /✏️ Context Edit · omitted · gone-entry/);
 });

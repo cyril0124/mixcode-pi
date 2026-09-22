@@ -17,6 +17,8 @@ To change the folding threshold, select `Fold threshold` and press Enter. Ctrl+U
 
 `N` applies to `context`, `chatlog`, and `thinking`. `full` applies to `context` and `chatlog`. Every view starts with transcript statistics, including the current session file path or `In-memory` for an unpersisted session.
 
+`/transcript context` renders the effective context from Pi's canonical session projection: branch resolution, compaction, and Pi 0.87 `context_edit` entries (omitted targets disappear; replaced targets show their replacement content; retained non-contributing compaction checkpoints are dropped). Other targets render the raw branch, where edited entries keep their original content. In every chat-style view (`context`, `chatlog`), a `✏️ Context Edit` section names the target entry. The label is the target's role plus a snippet of its content, or the raw entry id when the target is outside the slice. For replacements the section also quotes the replacement text.
+
 ## Context growth
 
 `/transcript growth` charts the context size of every assistant turn, read from its request usage: a summary header (turn count, window, peak), a three-row sparkline of per-turn sizes, and a table listing each turn's window share, a bar, the signed delta vs the previous turn, and that step's percentage growth (`%delta`). Rows carry `<- compaction` when a compaction entry sits between the row and the previous turn, and `(!) cache miss` when the turn re-billed enough tokens to count. The view always covers the whole session; `N` and `full` do not apply. Turns without usage (aborted requests) are skipped, and the bars scale to the latest model's context window, or to the session peak when the window is unknown.
