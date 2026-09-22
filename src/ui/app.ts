@@ -59,7 +59,7 @@ import { widgetArgumentCompletions } from "./app-submit-ui.js";
 import { setTheme, themeForId } from "./themes.js";
 import { workspaceNameCompletions } from "./workspace-actions.js";
 
-export interface MixCodeTuiOptions {
+interface MixCodeTuiOptions {
   completionSources?: MixCodeCompletionSources;
   onStateChanged?: (state: MixCodeState) => void | Promise<void>;
   workspaceFile?: string;
@@ -73,7 +73,7 @@ export interface MixCodeTuiOptions {
     piSettingsFile: string;
   };
 }
-export type MixCodeTui = TuiType & {
+type MixCodeTui = TuiType & {
   injectInput(data: string): void;
   /** Execute a deferred command on its owning tab with editor/dialog services and confirmation. */
   submitQueuedInput(sessionId: string, text: string): Promise<void>;
@@ -116,8 +116,9 @@ export function createMixCodeTui(
       ].find((value): value is string => typeof value === "string" && value.trim() !== ""),
   );
   // Strip only: extension clears never hit the wire, so the previous frame is still
-  // valid. Do not requestRender/clearScreen on block — that reintroduces the flash.
-  let uninstallStdoutGuard: (() => void) | undefined = installStdoutScreenGuard({});
+  // valid. The guard must not requestRender/clearScreen on block, which reintroduces
+  // the flash.
+  let uninstallStdoutGuard: (() => void) | undefined = installStdoutScreenGuard();
   (tui as TuiType & { mixCodeExitProcessOnQuit?: boolean }).mixCodeExitProcessOnQuit =
     options.exitProcessOnQuit === true;
   bindRuntimeRendering(runtime, tui, state, options.onStateChanged);
@@ -482,7 +483,7 @@ export function createMixCodeTui(
   const originalStop = tui.stop.bind(tui);
   tui.start = () => {
     // Pi extensions use stop()/start() for reversible terminal handoffs.
-    uninstallStdoutGuard ??= installStdoutScreenGuard({});
+    uninstallStdoutGuard ??= installStdoutScreenGuard();
     uiEventDisposers ??= bindUiEvents();
     originalStart();
     // MouseReportingTerminal.start() clears the screen. Force a full paint so

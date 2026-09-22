@@ -153,7 +153,6 @@ const homeTailCache = new WeakMap<
     width: number;
     rows: number;
     lines: string[];
-    clipped: boolean;
   }
 >();
 
@@ -388,7 +387,6 @@ function renderConversationPreview(
       message.role === "tools"
         ? {
             lines: [activeRenderTheme.dim(formatToolCallPreview(message.count, width - indent))],
-            clipped: false,
           }
         : wrappedPreviewTail(message.message, Math.max(1, width - indent), available + 1);
     for (let row = body.lines.length - 1; row >= 0 && content.length <= available; row--) {
@@ -397,7 +395,7 @@ function renderConversationPreview(
   }
   content.reverse();
   if (content.length === 0) content.push(activeRenderTheme.dim("No messages yet"));
-  // One extra row distinguishes a complete preview from clipped history.
+  // One extra row distinguishes a complete preview from truncated history.
   const tail =
     content.length > available && available > 1
       ? [activeRenderTheme.dim("↑ earlier messages"), ...content.slice(-(available - 1))]
@@ -417,7 +415,6 @@ function wrappedPreviewTail(message: ChatLine, width: number, rows: number) {
     width,
     rows,
     lines: wrapped.slice(-rows),
-    clipped: message.text.length > HOME_PREVIEW_TEXT_LIMIT || wrapped.length > rows,
   };
   homeTailCache.set(message, value);
   return value;

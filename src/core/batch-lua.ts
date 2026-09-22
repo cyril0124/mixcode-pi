@@ -423,7 +423,7 @@ export function validateBatchRequests(
  * system_prompt only applies when a new session is created (new tab or delete).
  * Append and clear reuse keep the existing session base prompt.
  */
-export function validateSystemPromptRequests(
+function validateSystemPromptRequests(
   requests: BatchTabRequest[],
   findExisting: (name: string) => boolean,
 ): void {

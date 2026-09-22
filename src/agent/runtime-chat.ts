@@ -428,7 +428,7 @@ export function disposeChatRenderers(chat: ChatLine[]): void {
   }
 }
 
-export function assistantText(
+function assistantText(
   content: Array<{ type: string; text?: string; thinking?: string; name?: string }>,
 ): string {
   return content

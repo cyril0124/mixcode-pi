@@ -8,7 +8,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { analyzeBashCommand, type BashAnalysis, splitBashCommand } from "./bash-policy.js";
+import { analyzeBashCommand, type BashAnalysis } from "./bash-policy.js";
 
 export const PERMISSION_CONFIG_FILENAME = "mpi-permission.json";
 
@@ -430,16 +430,17 @@ function patternMatchesCandidates(
 // Subject extraction
 // ---------------------------------------------------------------------------
 
-/** What a tool call is matched by. Unknown tools match their JSON input. */
+/**
+ * What a tool call is matched by. Unknown tools match their JSON input.
+ * Bash subjects are not derived here. Every Bash call reaches this module
+ * through `evaluateToolCall` with a `bashAnalysis` (see
+ * `evaluateToolCallDecisions`), so shells are parsed exactly once.
+ */
 export function extractSubject(
   toolName: string,
   input: Record<string, unknown>,
   cwd: string,
 ): ToolCallSubject {
-  if (toolName === "bash") {
-    const command = typeof input.command === "string" ? input.command : "";
-    return { kind: "commands", segments: splitBashCommand(command) };
-  }
   if (toolName === "read" || toolName === "edit" || toolName === "write" || toolName === "ls") {
     const raw = typeof input.path === "string" && input.path.trim() ? input.path : ".";
     return { kind: "path", path: path.resolve(cwd, raw) };

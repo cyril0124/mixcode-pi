@@ -14,8 +14,7 @@ export function optimizePromptConfigPath(agentDir: string): string {
 }
 
 export type OptimizePromptConfigLoad =
-  | { ok: true; path: string; config: OptimizePromptConfig; missing?: false }
-  | { ok: true; path: string; config: OptimizePromptConfig; missing: true }
+  | { ok: true; path: string; config: OptimizePromptConfig }
   | { ok: false; path: string; error: string };
 
 /** Non-empty trimmed string fields only; unknown keys ignored. */
@@ -44,8 +43,9 @@ export function loadOptimizePromptConfig(agentDir: string): OptimizePromptConfig
   try {
     text = fs.readFileSync(filePath, "utf8");
   } catch (error) {
+    // An absent file is a valid empty config. The file is optional and defaults apply downstream.
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return { ok: true, path: filePath, config: {}, missing: true };
+      return { ok: true, path: filePath, config: {} };
     }
     return {
       ok: false,

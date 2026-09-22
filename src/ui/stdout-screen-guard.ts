@@ -8,8 +8,7 @@
  * Contract:
  * - Writes that go through the host Terminal facade set hostWriteDepth > 0 and
  *   may clear the screen.
- * - Direct process.stdout writes with full-screen clear CSI are stripped; a
- *   single coalesced host repaint repairs the frame.
+ * - Direct process.stdout writes with full-screen clear CSI are stripped.
  */
 
 import type { Terminal } from "@earendil-works/pi-tui";
@@ -21,11 +20,6 @@ const CURSOR_HOME_RE = /\x1b\[H/g;
 
 let hostWriteDepth = 0;
 let originalWrite: typeof process.stdout.write | undefined;
-let repaintTimer: ReturnType<typeof setTimeout> | undefined;
-let onBlockedClear: (() => void) | undefined;
-
-/** Trailing coalesce window for restore storms (many async session_start clears). */
-const BLOCKED_CLEAR_REPAINT_MS = 50;
 
 function withHostStdoutWrite<T>(fn: () => T): T {
   hostWriteDepth += 1;
@@ -55,12 +49,9 @@ function stripUnauthorizedScreenClears(text: string): {
   return { text: next, stripped };
 }
 
-export function installStdoutScreenGuard(options: { onBlockedClear?: () => void }): () => void {
-  if (originalWrite) {
-    onBlockedClear = options.onBlockedClear;
-    return uninstallStdoutScreenGuard;
-  }
-  onBlockedClear = options.onBlockedClear;
+export function installStdoutScreenGuard(): () => void {
+  // Second installation is a no-op; the existing guard already owns stdout.
+  if (originalWrite) return uninstallStdoutScreenGuard;
   originalWrite = process.stdout.write.bind(process.stdout);
 
   process.stdout.write = ((
@@ -92,7 +83,6 @@ export function installStdoutScreenGuard(options: { onBlockedClear?: () => void 
         cb,
       );
     }
-    scheduleBlockedClearRepaint();
     if (text.length === 0) {
       // Preserve write() callback semantics for empty filtered chunks.
       if (typeof encoding === "function") encoding();
@@ -114,23 +104,7 @@ function uninstallStdoutScreenGuard(): void {
   if (!originalWrite) return;
   process.stdout.write = originalWrite;
   originalWrite = undefined;
-  onBlockedClear = undefined;
-  if (repaintTimer !== undefined) {
-    clearTimeout(repaintTimer);
-    repaintTimer = undefined;
-  }
   hostWriteDepth = 0;
-}
-
-function scheduleBlockedClearRepaint(): void {
-  // Trailing debounce: multi-tab session_start is async; a microtask per event
-  // would still fire N host repaints. Wait for the storm to settle.
-  if (repaintTimer !== undefined) clearTimeout(repaintTimer);
-  repaintTimer = setTimeout(() => {
-    repaintTimer = undefined;
-    onBlockedClear?.();
-  }, BLOCKED_CLEAR_REPAINT_MS);
-  repaintTimer.unref?.();
 }
 
 function chunkToString(chunk: string | Uint8Array): string | undefined {

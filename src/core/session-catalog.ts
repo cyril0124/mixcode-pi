@@ -221,11 +221,7 @@ async function runListingSubprocess(
   request: SessionCatalogRequest,
   signal?: AbortSignal,
 ): Promise<SessionInfo[]> {
-  const compiled = process.argv[1]?.startsWith("/$bunfs/") === true;
-  const args = compiled
-    ? [SESSION_CATALOG_WORKER_ARG]
-    : [process.argv[1]!, SESSION_CATALOG_WORKER_ARG];
-  const child = Bun.spawn([process.execPath, ...args], {
+  const child = Bun.spawn([process.execPath, SESSION_CATALOG_WORKER_ARG], {
     env: {
       ...process.env,
       [SESSION_CATALOG_REQUEST_ENV]: Buffer.from(JSON.stringify(request)).toString("base64url"),

@@ -75,7 +75,7 @@ import type {
 import { createMixCodeBashCustomTools } from "./mixcode-bash-env.js";
 import { activateMixCodeTools } from "./tools.js";
 
-export type RuntimeTabConfig = Omit<AgentRuntimeConfig, "sessionId" | "model" | "thinkingLevel"> & {
+type RuntimeTabConfig = Omit<AgentRuntimeConfig, "sessionId" | "model" | "thinkingLevel"> & {
   model?: MixCodeModel;
   thinkingLevel?: AgentRuntimeConfig["thinkingLevel"];
   /**
@@ -95,7 +95,7 @@ export type RuntimeTabConfig = Omit<AgentRuntimeConfig, "sessionId" | "model" | 
   getTabTitle?: () => string;
 };
 
-export interface RuntimeServiceOptions {
+interface RuntimeServiceOptions {
   workdir: string;
   systemPrompt?: string;
   agentDir: string;
@@ -122,14 +122,12 @@ export interface RuntimeLifecycleContext {
     agentSession: RuntimeTab["agentSession"],
   ) => void;
   createServices: (workdir: string, systemPrompt?: string) => Promise<AgentSessionServices>;
-  resolveModel: (provider: string, modelId: string) => MixCodeModel | undefined;
   resolveModelFromSession: (
     session: SessionManager,
     fallback: MixCodeTabInfo["model"] | MixCodeModel | undefined,
   ) => MixCodeModel;
   streamFn?: MixCodeStreamFn;
   getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined;
-  getDisabledExtensionKeys?: (workdir: string) => ReadonlySet<string>;
   /** UI-focused agent tab title for bash env; empty when Home is focused. */
   getFocusedTabTitle?: () => string | undefined;
 }
@@ -818,10 +816,7 @@ export async function updateRuntimeTabWorkdir(
   refreshStartupHeader(runtimeTab);
 }
 
-export function subscribeRuntimeTab(
-  runtimeTab: RuntimeTab,
-  context: RuntimeLifecycleContext,
-): void {
+function subscribeRuntimeTab(runtimeTab: RuntimeTab, context: RuntimeLifecycleContext): void {
   runtimeTab.agentSession.subscribe((event: AgentSessionEvent) => {
     context.applyEvent(runtimeTab, event);
     // compaction_end also flushes: manual compact has no agent_end, so prompts

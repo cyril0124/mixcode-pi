@@ -2,7 +2,7 @@ import { compositeTuiLine, sliceByColumn, visibleWidth } from "@earendil-works/p
 import type { MixCodeTheme } from "./themes.js";
 
 /** One-based screen rectangle matching a clickable target's visible cells. */
-export interface HoverTarget {
+interface HoverTarget {
   id: string;
   x: number;
   y: number;
@@ -89,7 +89,7 @@ export class PointerHover {
 }
 
 /** Underline distinguishes hover from selection even in monochrome themes. */
-export function paintHover(text: string, theme: MixCodeTheme): string {
+function paintHover(text: string, theme: MixCodeTheme): string {
   const marked = theme.selectedBg("\x01");
   const open = marked.slice(0, marked.indexOf("\x01"));
   // Existing chip/row backgrounds must not mask hover; keep their foregrounds.

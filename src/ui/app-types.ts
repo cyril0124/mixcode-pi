@@ -23,7 +23,7 @@ export interface SettingsPanelDependencies {
 
 export const SKIP_FINALIZE = Symbol("skip-finalize");
 
-export interface LocalCommandContext {
+interface LocalCommandContext {
   state: MixCodeState;
   runtime: MixCodeSubmitRuntime;
   active: MixCodeTabInfo | undefined;

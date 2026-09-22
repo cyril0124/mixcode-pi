@@ -19,7 +19,7 @@ export interface WaitingForInputEventPayload {
   active: boolean;
 }
 
-export interface MarkDoneEventPayload {
+interface MarkDoneEventPayload {
   reason: "command";
 }
 

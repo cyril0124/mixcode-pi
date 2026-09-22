@@ -42,6 +42,7 @@ import { renderExtensionHeader, renderInlineExtensionWidgets } from "./chrome.js
 import { activeRenderTheme, renderWithTheme } from "./context.js";
 import { renderHeaderKeyHints } from "../components/header-hints.js";
 import { clipChatImages, fitScrolledLinesWithInfo, type ScrolledLinesResult } from "./layout.js";
+import { isOversizedAssistantMessageText } from "./oversized-assistant-message.js";
 import { box } from "./primitives.js";
 import { applyToastOverlay } from "../components/toast-overlay.js";
 
@@ -143,20 +144,10 @@ function renderChatTailLines(
   width: number,
   viewportRows: number | undefined,
 ): string[] {
-  return joinTailBlocks(
+  return joinBlocksWithSeparator(
     [renderInlineWidgetLines(tab, width, viewportRows), renderQueuePreview(tab, width)],
     chatBlockSeparator(width),
   );
-}
-
-function joinTailBlocks(blocks: readonly string[][], separator: string): string[] {
-  const out: string[] = [];
-  for (const block of blocks) {
-    if (block.length === 0) continue;
-    if (out.length > 0) out.push(separator);
-    out.push(...block);
-  }
-  return out;
 }
 
 export function renderAgentSurface(
@@ -181,7 +172,6 @@ function renderAgentSurfaceInner(
 ): string[] {
   tab.chatJumpToLatestHitRegion = undefined;
   const surfaceWidth = maxHeight === undefined || width < 2 ? width : width - 1;
-  const mainWidth = surfaceWidth;
 
   if (maxHeight !== undefined && runtimeTab && tab.chatAtHome) {
     return renderAgentSurfaceWindowed(
@@ -191,21 +181,12 @@ function renderAgentSurfaceInner(
       width,
       maxHeight,
       surfaceWidth,
-      mainWidth,
       options,
     );
   }
 
   if (maxHeight !== undefined && runtimeTab && tab.chatScrollAnchorEntryId) {
-    return renderAgentSurfaceAnchored(
-      tab,
-      runtimeTab,
-      width,
-      maxHeight,
-      surfaceWidth,
-      mainWidth,
-      options,
-    );
+    return renderAgentSurfaceAnchored(tab, runtimeTab, width, maxHeight, surfaceWidth, options);
   }
 
   // Windowed path: only viable when the caller is going to clip to maxHeight
@@ -222,23 +203,22 @@ function renderAgentSurfaceInner(
         width,
         maxHeight,
         surfaceWidth,
-        mainWidth,
         options,
       );
     }
   }
 
-  const body = getCachedConversationLines(tab, runtimeTab, mainWidth, options);
+  const body = getCachedConversationLines(tab, runtimeTab, surfaceWidth, options);
   // Extension header rides at the very top of the scrollable conversation
   // (like Pi): visible when scrolled to the top, scrolls away otherwise.
-  const headerLines = scrollableHeaderLines(tab, mainWidth);
-  const tailLines = renderChatTailLines(tab, mainWidth, maxHeight);
+  const headerLines = scrollableHeaderLines(tab, surfaceWidth);
+  const tailLines = renderChatTailLines(tab, surfaceWidth, maxHeight);
   const withHeader = headerLines.length ? [...headerLines, ...body] : body;
   const lines =
     tailLines.length === 0
       ? withHeader
       : withHeader.length
-        ? [...withHeader, chatBlockSeparator(mainWidth), ...tailLines]
+        ? [...withHeader, chatBlockSeparator(surfaceWidth), ...tailLines]
         : tailLines;
   if (maxHeight === undefined) return lines;
   // Clamp chatScrollOffset to the actual scrollable range so that sentinel
@@ -289,27 +269,12 @@ function canUseWindowedRender(
   if (isActiveRun && chat.length >= WINDOW_RENDER_STREAMING_THRESHOLD) return true;
   return (
     chat.length >= WINDOW_RENDER_BLOCK_THRESHOLD ||
-    chat.some((line) => isOversizedAssistantBlock(line, oversizedPolicy))
+    chat.some(
+      (line) =>
+        (line.role === "assistant" || line.role === "thinking") &&
+        isOversizedAssistantMessageText(line.text, oversizedPolicy),
+    )
   );
-}
-
-function isOversizedAssistantBlock(
-  line: ChatLine,
-  policy: OversizedAssistantMessageSettings | undefined,
-): boolean {
-  if (!policy?.enabled) return false;
-  if (line.role !== "assistant" && line.role !== "thinking") return false;
-  if (Buffer.byteLength(line.text, "utf8") > policy.maxBytes) return true;
-  let lineCount = 1;
-  for (
-    let index = line.text.indexOf("\n");
-    index >= 0;
-    index = line.text.indexOf("\n", index + 1)
-  ) {
-    lineCount++;
-    if (lineCount > policy.maxLines) return true;
-  }
-  return false;
 }
 
 /**
@@ -334,7 +299,6 @@ function renderAgentSurfaceAnchored(
   width: number,
   maxHeight: number,
   surfaceWidth: number,
-  mainWidth: number,
   options: AgentSurfaceRenderOptions,
 ): string[] {
   const chat = runtimeTab.chat;
@@ -360,7 +324,6 @@ function renderAgentSurfaceAnchored(
       width,
       maxHeight,
       surfaceWidth,
-      mainWidth,
       options,
     );
   }
@@ -375,7 +338,7 @@ function renderAgentSurfaceAnchored(
   for (let i = anchorIndex - 1; i >= 0 && prefixRows < neededPrefixRows; i--) {
     const block = renderChatBlock(
       chat[i]!,
-      mainWidth,
+      surfaceWidth,
       tab,
       activeRenderTheme,
       chatBlockRenderOptions(runtimeTab, i, options),
@@ -386,9 +349,9 @@ function renderAgentSurfaceAnchored(
     prefixRows += block.length;
     prefixBlocksNewestFirst.push(block);
   }
-  const prefix = joinRenderedBlocksTopToBottom(
+  const prefix = joinBlocksWithSeparator(
     prefixBlocksNewestFirst.reverse(),
-    chatBlockSeparator(mainWidth),
+    chatBlockSeparator(surfaceWidth),
   );
 
   const suffix: string[] = [];
@@ -399,20 +362,20 @@ function renderAgentSurfaceAnchored(
     const line = chat[i]!;
     const block = renderChatBlock(
       line,
-      mainWidth,
+      surfaceWidth,
       tab,
       activeRenderTheme,
       chatBlockRenderOptions(runtimeTab, i, options),
     );
     frameBlockHeights.set(line, block.length);
     if (block.length === 0) continue;
-    if (suffixHasContent) suffix.push(chatBlockSeparator(mainWidth));
+    if (suffixHasContent) suffix.push(chatBlockSeparator(surfaceWidth));
     for (const renderedLine of block) suffix.push(renderedLine);
     suffixHasContent = true;
   }
-  const tailLines = renderChatTailLines(tab, mainWidth, viewport);
+  const tailLines = renderChatTailLines(tab, surfaceWidth, viewport);
   if (i >= chat.length && tailLines.length > 0) {
-    if (suffixHasContent) suffix.push(chatBlockSeparator(mainWidth));
+    if (suffixHasContent) suffix.push(chatBlockSeparator(surfaceWidth));
     suffix.push(...tailLines);
   }
   const lines = [...prefix, ...suffix];
@@ -420,7 +383,7 @@ function renderAgentSurfaceAnchored(
   const requestedStart = anchorStart - localOffset;
   const windowStart = Math.max(0, Math.min(requestedStart, Math.max(0, lines.length - viewport)));
   const visible = lines.slice(windowStart, windowStart + viewport);
-  while (visible.length < viewport) visible.push(chatBlockSeparator(mainWidth));
+  while (visible.length < viewport) visible.push(chatBlockSeparator(surfaceWidth));
 
   const total = estimateTotalHeight(chat, tailLines.length, frameBlockHeights);
   const start = Math.min(
@@ -430,7 +393,7 @@ function renderAgentSurfaceAnchored(
   const decorated = clipChatImages(
     lines,
     windowStart,
-    decorateWindow(visible, start, viewport, mainWidth),
+    decorateWindow(visible, start, viewport, surfaceWidth),
   );
   const fitted: ScrolledLinesResult = {
     lines: highlightVisibleChatLines(decorated, tab, surfaceWidth, viewport),
@@ -453,7 +416,7 @@ function matchesChatAnchor(line: ChatLine, tab: MixCodeTabInfo): boolean {
 }
 
 /** Join blocks already ordered top-to-bottom; insert separator between non-empty ones. */
-function joinRenderedBlocksTopToBottom(blocks: string[][], separator: string): string[] {
+function joinBlocksWithSeparator(blocks: string[][], separator: string): string[] {
   const out: string[] = [];
   for (const block of blocks) {
     if (block.length === 0) continue;
@@ -470,17 +433,16 @@ function renderAgentSurfaceWindowed(
   width: number,
   maxHeight: number,
   surfaceWidth: number,
-  mainWidth: number,
   options: AgentSurfaceRenderOptions,
   freezeAdjusted = false,
 ): string[] {
   const viewport = Math.max(0, Math.floor(maxHeight));
 
   // Extension header rides at the very top of the scrollable conversation.
-  const headerLines = scrollableHeaderLines(tab, mainWidth);
+  const headerLines = scrollableHeaderLines(tab, surfaceWidth);
 
   // Bottom-anchored content: inline widgets, then Steer/Follow-up.
-  const tailLines = renderChatTailLines(tab, mainWidth, viewport);
+  const tailLines = renderChatTailLines(tab, surfaceWidth, viewport);
   // Pending user-bash renders after the main stream (Pi pending-area parity).
   const displayChat = chatLinesForDisplay(chat);
   const originalIndices = originalChatIndicesForDisplay(chat, displayChat);
@@ -521,7 +483,7 @@ function renderAgentSurfaceWindowed(
     const originalIndex = originalIndices?.get(line) ?? i;
     const block = renderChatBlock(
       line,
-      mainWidth,
+      surfaceWidth,
       tab,
       activeRenderTheme,
       chatBlockRenderOptions(runtimeTab, originalIndex, options),
@@ -545,7 +507,7 @@ function renderAgentSurfaceWindowed(
   // newerFirstBlocks is [newest, ..., oldest]; reverse to oldest-first top-to-bottom.
   const orderedBlocks = tab.chatAtHome ? newerFirstBlocks : newerFirstBlocks.reverse();
   const orderedChatLines = tab.chatAtHome ? newerFirstChatLines : newerFirstChatLines.reverse();
-  const olderLines = joinRenderedBlocksTopToBottom(orderedBlocks, chatBlockSeparator(mainWidth));
+  const olderLines = joinBlocksWithSeparator(orderedBlocks, chatBlockSeparator(surfaceWidth));
 
   // When the backward walk reached the very first block, the header sits
   // directly above it (Pi-style). Otherwise it stays part of the virtual
@@ -561,13 +523,13 @@ function renderAgentSurfaceWindowed(
     // Separate on whatever is already above the tail, not just chat blocks: a
     // header with only empty-rendering blocks below it still needs the gap, and
     // the full-render path uses the same rule (see renderConversation above).
-    if (lines.length > 0) lines.push(chatBlockSeparator(mainWidth));
+    if (lines.length > 0) lines.push(chatBlockSeparator(surfaceWidth));
     lines.push(...tailLines);
   }
 
   // Empty-state placeholder mirrors what renderConversation would produce.
   if (lines.length === 0) {
-    const placeholder = renderConversationEmptyState(mainWidth);
+    const placeholder = renderConversationEmptyState(surfaceWidth);
     const withHeader = headerLines.length ? [...headerLines, ...placeholder] : placeholder;
     const fitted = fitScrolledLinesWithInfo(withHeader, maxHeight, surfaceWidth, 0);
     const highlighted = highlightVisibleChatLines(fitted.lines, tab, surfaceWidth, fitted.height);
@@ -592,7 +554,6 @@ function renderAgentSurfaceWindowed(
       width,
       maxHeight,
       surfaceWidth,
-      mainWidth,
       options,
       true,
     );
@@ -640,7 +601,7 @@ function renderAgentSurfaceWindowed(
   // If the window extends below the materialized lines (clampedOffset is
   // larger than what we collected because of imprecise estimates), pad with
   // blanks at the bottom rather than show stale content.
-  while (visible.length < viewport) visible.push(chatBlockSeparator(mainWidth));
+  while (visible.length < viewport) visible.push(chatBlockSeparator(surfaceWidth));
 
   // Determine virtual start row for boundary markers / scrollbar.
   // Rows above `lines` (un-rendered prefix) contribute total - lines.length.
@@ -651,7 +612,7 @@ function renderAgentSurfaceWindowed(
   const decorated = clipChatImages(
     lines,
     windowStart,
-    decorateWindow(visible, start, viewport, mainWidth),
+    decorateWindow(visible, start, viewport, surfaceWidth),
   );
 
   const fitted: ScrolledLinesResult = {

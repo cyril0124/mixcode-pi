@@ -2,7 +2,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { LoadExtensionsResult, SourceInfo } from "@earendil-works/pi-coding-agent";
 
-export const EXTENSION_MANAGER_FILE = "extension_manager.json";
+const EXTENSION_MANAGER_FILE = "extension_manager.json";
 
 export interface ExtensionManagerConfig {
   version: 1;
@@ -66,7 +66,7 @@ export function defaultExtensionManagerConfig(): ExtensionManagerConfig {
   return { version: 1, disabledExtensionKeys: [] };
 }
 
-export function normalizeExtensionManagerConfig(value: unknown): ExtensionManagerConfig {
+function normalizeExtensionManagerConfig(value: unknown): ExtensionManagerConfig {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return defaultExtensionManagerConfig();
   }
@@ -77,7 +77,7 @@ export function normalizeExtensionManagerConfig(value: unknown): ExtensionManage
   return { version: 1, disabledExtensionKeys };
 }
 
-export function extensionKeyFromSourceInfo(sourceInfo: SourceInfo): string {
+function extensionKeyFromSourceInfo(sourceInfo: SourceInfo): string {
   return [
     sourceInfo.scope || "unknown",
     sourceInfo.source || "unknown",

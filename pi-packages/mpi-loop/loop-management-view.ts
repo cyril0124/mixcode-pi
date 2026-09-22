@@ -8,12 +8,17 @@ import {
   visibleWidth,
   wrapTextWithAnsi,
 } from "@earendil-works/pi-tui";
-import { formatRelativeTime, LoopInputError, parseMaxRuns } from "./loop-helpers.js";
+import {
+  formatRelativeTime,
+  type LoopConflictMode,
+  LoopInputError,
+  parseMaxRuns,
+} from "./loop-helpers.js";
 
 /** Theme surface used by the loop management overlay. */
 type LoopTheme = Pick<Theme, "fg" | "bg">;
 
-export type LoopConflictMode = "skip" | "defer";
+export type { LoopConflictMode };
 
 export interface LoopViewEntry {
   id: string;

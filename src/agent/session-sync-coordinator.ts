@@ -23,11 +23,11 @@ export interface FileFingerprint {
   ino?: number;
 }
 
-export type StatFingerprintFn = (
+type StatFingerprintFn = (
   filePath: string,
 ) => FileFingerprint | undefined | Promise<FileFingerprint | undefined>;
 
-export interface SessionSyncCoordinatorOptions {
+interface SessionSyncCoordinatorOptions {
   sessionsRoot: string;
   /**
    * Called (debounced) when a registered session's file changed externally.

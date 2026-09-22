@@ -24,7 +24,6 @@ export interface WorkspaceOverlayView {
   query: string;
   selectedIndex: number;
   workspaces: WorkspaceSnapshot[];
-  workdir: string;
   message: string;
   input: string;
   pendingName?: string;

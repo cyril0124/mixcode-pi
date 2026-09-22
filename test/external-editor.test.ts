@@ -3,11 +3,7 @@ import * as fsPromises from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
-import {
-  editTextInExternalEditor,
-  isExternalEditorAvailable,
-  resolveAvailableExternalEditor,
-} from "./helpers/mixcode.js";
+import { editTextInExternalEditor, resolveAvailableExternalEditor } from "./helpers/mixcode.js";
 import { editTextWithTuiPaused } from "../src/ui/app-overlays.js";
 import type { OverlayTui } from "../src/ui/app-types.js";
 
@@ -38,8 +34,9 @@ test("external editor edits text through a real temporary file", async () => {
     await fsPromises.writeFile(rejectedProbe, "#!/bin/sh\nexit 7\n", "utf8");
     await fsPromises.chmod(script, 0o755);
     await fsPromises.chmod(rejectedProbe, 0o755);
-    assert.equal(isExternalEditorAvailable(script), true);
-    assert.equal(isExternalEditorAvailable(rejectedProbe), false);
+    // Availability probe runs through the exported editor-resolution path.
+    assert.equal(resolveAvailableExternalEditor(script), script);
+    assert.equal(resolveAvailableExternalEditor(rejectedProbe), undefined);
     assert.equal(
       await editTextInExternalEditor("initial", { editor: script, tempRoot: dir }),
       "edited text\n",
@@ -49,10 +46,10 @@ test("external editor edits text through a real temporary file", async () => {
       false,
     );
     await fsPromises.chmod(script, 0o644);
-    assert.equal(isExternalEditorAvailable(script), false);
-    assert.equal(isExternalEditorAvailable(dir), false);
-    assert.equal(isExternalEditorAvailable(path.join(script, "child")), false);
-    assert.equal(isExternalEditorAvailable(path.join(dir, "missing-editor")), false);
+    assert.equal(resolveAvailableExternalEditor(script), undefined);
+    assert.equal(resolveAvailableExternalEditor(dir), undefined);
+    assert.equal(resolveAvailableExternalEditor(path.join(script, "child")), undefined);
+    assert.equal(resolveAvailableExternalEditor(path.join(dir, "missing-editor")), undefined);
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }

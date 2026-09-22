@@ -30,6 +30,7 @@ import {
   formatRelativeTime,
   generateName,
   isStaleCtxError,
+  type LoopConflictMode,
   LoopInputError,
   MAX_AGE_MS,
   MIN_INTERVAL_MS,
@@ -70,8 +71,6 @@ Examples:
  /loop max-runs 1 5
  /loop max-runs 1 unlimited
  /loop prompt 1 check deploy status`;
-
-type LoopConflictMode = "skip" | "defer";
 
 interface LoopEntry {
   id: string;

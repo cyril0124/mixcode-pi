@@ -26,7 +26,7 @@ import {
   serializePermissionConfig,
   writePermissionConfig,
 } from "./permission-core.js";
-import { splitBashCommand } from "./bash-policy.js";
+import { analyzeBashCommand } from "./bash-policy.js";
 
 const CWD = "/project/myapp";
 const HOME = "/home/alice";
@@ -48,7 +48,18 @@ function layersOf(...configs: Array<[LayeredConfig["layer"], unknown]>): Layered
 }
 
 function evaluate(layers: LayeredConfig[], toolName: string, input: Record<string, unknown>) {
-  return evaluateToolCall({ layers, toolName, input, cwd: CWD, home: HOME });
+  // Bash subjects come from the analysis `evaluateToolCallDecisions` supplies,
+  // not from `extractSubject`.
+  const bashAnalysis =
+    toolName === "bash"
+      ? analyzeBashCommand(typeof input.command === "string" ? input.command : "")
+      : undefined;
+  return evaluateToolCall({ layers, toolName, input, cwd: CWD, home: HOME, bashAnalysis });
+}
+
+/** Bash rule subjects for one command, as `analyzeBashCommand` reports them. */
+function bashSegments(command: string): string[] {
+  return analyzeBashCommand(command).segments;
 }
 
 // ─── wildcard matching ───────────────────────────────────────────────────────
@@ -336,10 +347,10 @@ test("load: // and /* */ comments are stripped, // inside strings kept", () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-// ─── bash splitting ──────────────────────────────────────────────────────────
+// ─── bash segmentation ───────────────────────────────────────────────────────
 
-test("splitBashCommand: compound operators split into segments", () => {
-  assert.deepEqual(splitBashCommand("git status && rm -rf / ; ls | wc -l"), [
+test("analyzeBashCommand: compound operators split into segments", () => {
+  assert.deepEqual(bashSegments("git status && rm -rf / ; ls | wc -l"), [
     "git status",
     "rm -rf /",
     "ls",
@@ -347,37 +358,34 @@ test("splitBashCommand: compound operators split into segments", () => {
   ]);
 });
 
-test("splitBashCommand: quotes collapse to single-space normalized tokens", () => {
-  assert.deepEqual(splitBashCommand('git   commit -m "a b"'), ["git commit -m a b"]);
+test("analyzeBashCommand: quotes collapse to single-space normalized tokens", () => {
+  assert.deepEqual(bashSegments('git   commit -m "a b"'), ["git commit -m a b"]);
 });
 
-test("splitBashCommand: comments and heredoc bodies are not segments", () => {
-  assert.deepEqual(splitBashCommand("ls # rm -rf /"), ["ls"]);
-  assert.deepEqual(splitBashCommand("cat <<EOF\nrm -rf /\nEOF\necho done"), [
-    "cat <<EOF",
-    "echo done",
-  ]);
+test("analyzeBashCommand: comments and heredoc bodies are not segments", () => {
+  assert.deepEqual(bashSegments("ls # rm -rf /"), ["ls"]);
+  assert.deepEqual(bashSegments("cat <<EOF\nrm -rf /\nEOF\necho done"), ["cat <<EOF", "echo done"]);
 });
 
-test("splitBashCommand: quoted or commented heredoc markers do not hide following commands", () => {
-  assert.deepEqual(splitBashCommand("printf 'x <<EOF'\nrm -rf /"), ["printf x <<EOF", "rm -rf /"]);
-  assert.deepEqual(splitBashCommand('printf "x <<EOF"\nrm -rf /'), ["printf x <<EOF", "rm -rf /"]);
-  assert.deepEqual(splitBashCommand("echo hi # <<EOF\nrm -rf /"), ["echo hi", "rm -rf /"]);
-  assert.deepEqual(splitBashCommand("cat <<< value\nrm -rf /"), ["cat <<< value", "rm -rf /"]);
+test("analyzeBashCommand: quoted or commented heredoc markers do not hide following commands", () => {
+  assert.deepEqual(bashSegments("printf 'x <<EOF'\nrm -rf /"), ["printf x <<EOF", "rm -rf /"]);
+  assert.deepEqual(bashSegments('printf "x <<EOF"\nrm -rf /'), ["printf x <<EOF", "rm -rf /"]);
+  assert.deepEqual(bashSegments("echo hi # <<EOF\nrm -rf /"), ["echo hi", "rm -rf /"]);
+  assert.deepEqual(bashSegments("cat <<< value\nrm -rf /"), ["cat <<< value", "rm -rf /"]);
 });
 
-test("splitBashCommand: leading assignments and transparent wrappers are stripped", () => {
-  assert.deepEqual(splitBashCommand("FOO=1 sudo rm -rf /"), ["rm -rf /"]);
-  assert.deepEqual(splitBashCommand("env FOO=1 git push"), ["git push"]);
-  assert.deepEqual(splitBashCommand("$'rm' -rf /"), ["rm -rf /"]);
-  assert.deepEqual(splitBashCommand("command rm -rf /"), ["rm -rf /"]);
-  assert.deepEqual(splitBashCommand("builtin printf x"), ["printf x"]);
-  assert.deepEqual(splitBashCommand("exec rm -rf /"), ["rm -rf /"]);
+test("analyzeBashCommand: leading assignments and transparent wrappers are stripped", () => {
+  assert.deepEqual(bashSegments("FOO=1 sudo rm -rf /"), ["rm -rf /"]);
+  assert.deepEqual(bashSegments("env FOO=1 git push"), ["git push"]);
+  assert.deepEqual(bashSegments("$'rm' -rf /"), ["rm -rf /"]);
+  assert.deepEqual(bashSegments("command rm -rf /"), ["rm -rf /"]);
+  assert.deepEqual(bashSegments("builtin printf x"), ["printf x"]);
+  assert.deepEqual(bashSegments("exec rm -rf /"), ["rm -rf /"]);
 });
 
-test("splitBashCommand: logical-or and pipe operators split independently", () => {
-  assert.deepEqual(splitBashCommand("git status || rm -rf /"), ["git status", "rm -rf /"]);
-  assert.deepEqual(splitBashCommand("printf x | wc -c"), ["printf x", "wc -c"]);
+test("analyzeBashCommand: logical-or and pipe operators split independently", () => {
+  assert.deepEqual(bashSegments("git status || rm -rf /"), ["git status", "rm -rf /"]);
+  assert.deepEqual(bashSegments("printf x | wc -c"), ["printf x", "wc -c"]);
 });
 
 // ─── evaluation: tool rules ──────────────────────────────────────────────────
@@ -624,7 +632,7 @@ test("evaluateToolCallDecisions: an escaped dollar targets literal Bash text", (
     ok: true,
     pattern: "rm $TMPDIR/*",
   });
-  assert.deepEqual(splitBashCommand("rm $TMPDIR/x"), ["rm $TMPDIR/x"]);
+  assert.deepEqual(bashSegments("rm $TMPDIR/x"), ["rm $TMPDIR/x"]);
 });
 
 test("evaluateToolCallDecisions: bash file commands trigger external_directory", () => {
@@ -737,10 +745,6 @@ test("evaluate: external_directory has no * tool-key fallback and no default gat
 // ─── subject extraction ──────────────────────────────────────────────────────
 
 test("extractSubject: per-tool subject kinds", () => {
-  assert.deepEqual(extractSubject("bash", { command: "ls -la" }, CWD), {
-    kind: "commands",
-    segments: ["ls -la"],
-  });
   assert.deepEqual(extractSubject("read", { path: "src/a.ts" }, CWD), {
     kind: "path",
     path: `${CWD}/src/a.ts`,
@@ -751,6 +755,20 @@ test("extractSubject: per-tool subject kinds", () => {
     pattern: "foo",
   });
   assert.deepEqual(extractSubject("custom", { a: 1 }, CWD), { kind: "raw", text: '{"a":1}' });
+});
+
+test("evaluateToolCall: bash subjects come from the supplied analysis", () => {
+  const layers = layersOf(["global", { bash: { "ls *": "deny" } }]);
+  const decision = evaluateToolCall({
+    layers,
+    toolName: "bash",
+    input: { command: "ls -la && git status" },
+    cwd: CWD,
+    home: HOME,
+    bashAnalysis: analyzeBashCommand("ls -la && git status"),
+  });
+  assert.equal(decision.action, "deny");
+  assert.equal(decision.source?.pattern, "ls *");
 });
 
 // ─── mutation helpers ────────────────────────────────────────────────────────

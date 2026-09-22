@@ -78,7 +78,7 @@ export interface CtlArgs {
   help?: boolean;
 }
 
-export const CTL_HELP = `Usage: mpi ctl [--pid <n> | --workdir <path>] [--tab <title> | --session <id> | --focus-tab <title> | --focus-session <id>] <command>
+const CTL_HELP = `Usage: mpi ctl [--pid <n> | --workdir <path>] [--tab <title> | --session <id> | --focus-tab <title> | --focus-session <id>] <command>
 
 Commands:
   last-message            Print the focused tab's last user/assistant text (includes time)
@@ -384,8 +384,8 @@ export async function selectCtlInstance(
   return instances[0]!;
 }
 
-export const CTL_CLIENT_IDLE_TIMEOUT_MS = 10_000;
-export const CTL_CLIENT_WAIT_SLACK_SEC = 5;
+const CTL_CLIENT_IDLE_TIMEOUT_MS = 10_000;
+const CTL_CLIENT_WAIT_SLACK_SEC = 5;
 
 /** Client socket deadline. `wait` must outlive `--timeout`; other ops stay at 10s. */
 export function ctlClientTimeoutMs(request: Pick<CtlRequest, "op" | "timeout">): number {
@@ -425,8 +425,8 @@ export async function requestCtl(socketPath: string, request: CtlRequest): Promi
   });
 }
 
-export const CTL_STDOUT_LIMIT_BYTES = 8192;
-export const CTL_STDOUT_PREVIEW_BYTES = 4096;
+const CTL_STDOUT_LIMIT_BYTES = 8192;
+const CTL_STDOUT_PREVIEW_BYTES = 4096;
 
 export function shouldTruncateCtlOutput(op: CtlOp): boolean {
   return op !== "send-keys" && op !== "send-prompt" && op !== "wait";

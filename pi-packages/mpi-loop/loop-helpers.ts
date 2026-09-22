@@ -1,5 +1,8 @@
 /** Shared pure helpers for mpi-loop command parsing and display. */
 
+/** Timer-tick conflict policy for an active loop. */
+export type LoopConflictMode = "skip" | "defer";
+
 export const DEFAULT_INTERVAL = "10m";
 export const MIN_INTERVAL_MS = 10_000; // 10 seconds
 export const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days

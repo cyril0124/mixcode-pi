@@ -5,11 +5,15 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
 import { MixCodeRuntime } from "../src/agent/runtime.js";
-import { isLocalCommand } from "../src/core/commands.js";
+import { parseInput } from "../src/core/commands.js";
 import { createTab } from "../src/core/defaults.js";
 
 test("reset is a registered local command", () => {
-  assert.equal(isLocalCommand("reset"), true);
+  assert.deepEqual(parseInput("/reset"), {
+    kind: "local-command",
+    command: "reset",
+    args: "",
+  });
 });
 
 test("resetTabToRoot keeps session file and id, clears leaf and chat", async () => {

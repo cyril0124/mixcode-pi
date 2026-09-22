@@ -179,15 +179,13 @@ describe("mpi-optimize-prompt config", () => {
     }
   });
 
-  it("loadOptimizePromptConfig reads file or missing", async () => {
+  it("loadOptimizePromptConfig reads file or falls back to empty config", async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-optimize-config-"));
     try {
-      const missing = loadOptimizePromptConfig(dir);
-      assert.equal(missing.ok, true);
-      if (missing.ok) {
-        assert.equal(missing.missing, true);
-        assert.deepEqual(missing.config, {});
-      }
+      const absent = loadOptimizePromptConfig(dir);
+      assert.equal(absent.ok, true);
+      // A missing file loads an empty config, so downstream defaults apply.
+      if (absent.ok) assert.deepEqual(absent.config, {});
 
       await fs.writeFile(
         path.join(dir, "mpi-optimize-prompt.json"),

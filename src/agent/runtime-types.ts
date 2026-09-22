@@ -55,14 +55,13 @@ export type RuntimeModelRegistry = Pick<
   // providers have credentials so /reload can rebuild the selectable model list.
   | "refresh"
   | "getProviderAuthStatus"
-  | "getProviderDisplayName"
   | "getApiKeyForProvider"
 >;
 
 export type ExtensionArgumentCompleter = (
   argumentPrefix: string,
 ) => AutocompleteItem[] | null | Promise<AutocompleteItem[] | null>;
-export type ExtensionAutocompleteProviderFactory = Parameters<
+type ExtensionAutocompleteProviderFactory = Parameters<
   ExtensionUIContext["addAutocompleteProvider"]
 >[0];
 export type EditorFactory = NonNullable<Parameters<ExtensionUIContext["setEditorComponent"]>[0]>;
@@ -150,7 +149,7 @@ export type ExtensionCustomFactory<T> = (
   done: (result: T) => void,
 ) => ExtensionCustomComponent | Promise<ExtensionCustomComponent>;
 export type ExtensionCustomOptions = Parameters<ExtensionUIContext["custom"]>[1];
-export type ExtensionCustomOverlayCloser = () => void;
+type ExtensionCustomOverlayCloser = () => void;
 export type ExtensionFooterFactory = NonNullable<Parameters<ExtensionUIContext["setFooter"]>[0]>;
 export type ExtensionHeaderFactory = NonNullable<Parameters<ExtensionUIContext["setHeader"]>[0]>;
 export type ExtensionNewSessionOptions = Parameters<
@@ -168,7 +167,7 @@ export type SessionReplacementReason = Extract<
   "new" | "resume" | "fork"
 >;
 
-export interface ExtensionEditorHost {
+interface ExtensionEditorHost {
   getText: (sessionId?: string) => string;
   getExpandedText?: (sessionId?: string) => string;
   setText: (text: string, sessionId?: string) => void;
@@ -193,7 +192,7 @@ export interface ExtensionThemeHost {
   requestRender?: () => void;
 }
 
-export interface ExtensionAutocompleteProviderCache {
+interface ExtensionAutocompleteProviderCache {
   base: AutocompleteProvider;
   factoryCount: number;
   provider: AutocompleteProvider;

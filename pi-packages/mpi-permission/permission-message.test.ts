@@ -14,6 +14,7 @@ import {
   type LayeredConfig,
   type PermissionConfig,
 } from "./permission-core.js";
+import { analyzeBashCommand } from "./bash-policy.js";
 import { createPermissionOverlay } from "./permission-overlay.js";
 
 function parse(raw: unknown): PermissionConfig {
@@ -26,7 +27,16 @@ const cwd = "/project";
 const home = "/home/test";
 
 function evaluate(layers: LayeredConfig[], command: string) {
-  return evaluateToolCall({ layers, toolName: "bash", input: { command }, cwd, home });
+  // Bash subjects come from the analysis `evaluateToolCallDecisions` supplies,
+  // not from `extractSubject`.
+  return evaluateToolCall({
+    layers,
+    toolName: "bash",
+    input: { command },
+    cwd,
+    home,
+    bashAnalysis: analyzeBashCommand(command),
+  });
 }
 
 test("action objects reject malformed fields with the offending config location", () => {

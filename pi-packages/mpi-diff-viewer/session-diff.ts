@@ -413,16 +413,7 @@ export function buildSessionDiff(
     const oldContent = initial ?? "";
     const newContent = final ?? "";
     const hunks = parseUnifiedPatch(generateUnifiedPatch(file.path, oldContent, newContent, 3));
-    const additions = hunks.reduce(
-      (count, hunk) =>
-        count + hunk.rows.filter((row) => row.kind === "insert" || row.kind === "replace").length,
-      0,
-    );
-    const deletions = hunks.reduce(
-      (count, hunk) =>
-        count + hunk.rows.filter((row) => row.kind === "delete" || row.kind === "replace").length,
-      0,
-    );
+    const { additions, deletions } = countRowDeltas(hunks);
 
     files.push({
       path: file.path,

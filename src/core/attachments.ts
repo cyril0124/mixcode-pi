@@ -9,7 +9,7 @@ export function isProjectSkillsOnlyEnabled(env = process.env): boolean {
   return raw !== "0" && raw !== "false" && raw !== "off" && raw !== "no";
 }
 
-export function resolveSkillDirs(
+function resolveSkillDirs(
   baseWorkdir: string,
   homeDir = resolveHomeDir(),
   env = process.env,
@@ -25,16 +25,10 @@ export function resolveSkillDirs(
   return [...new Set(dirs.map((dir) => path.resolve(dir)))];
 }
 
-export interface SkillEntry {
-  name: string;
-  path: string;
-  description?: string;
-}
-
 export async function scanSkillEntries(
   baseWorkdir: string,
   homeDir = resolveHomeDir(),
-): Promise<SkillEntry[]> {
+): Promise<Array<{ name: string; path: string; description?: string }>> {
   // Delegate discovery, validation, collision handling and ignore-file support
   // to pi's public skill loader. skillPaths preserve MixCode's scan order
   // (project-local .agents first, then user .agents, then the pi agent dir),

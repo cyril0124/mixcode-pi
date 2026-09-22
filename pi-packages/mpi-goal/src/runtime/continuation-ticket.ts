@@ -22,7 +22,6 @@ type ContinuationTicketOptions = {
   triggerTurn?: boolean;
   deliverAs?: "steer" | "followUp";
   force?: boolean;
-  queueRevision?: number;
 };
 
 export function decideTerminalContinuationTicket(
@@ -41,7 +40,7 @@ export function decideTerminalContinuationTicket(
     goalId: goal.goalId,
     queueId: head.queueId,
     queuedGoal: cloneQueuedGoal(head),
-    queueRevision: opts.queueRevision ?? getQueueRevision(),
+    queueRevision: getQueueRevision(),
     triggerTurn: opts.triggerTurn,
     deliverAs: opts.deliverAs,
     force: opts.force,

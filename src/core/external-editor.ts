@@ -25,7 +25,7 @@ export async function editTextInExternalEditor(
   }
 }
 
-export type ExternalEditorProbe = (editor: string) => boolean;
+type ExternalEditorProbe = (editor: string) => boolean;
 
 export function resolveAvailableExternalEditor(
   preferred?: string,
@@ -36,7 +36,7 @@ export function resolveAvailableExternalEditor(
   return ["nvim", "vim"].find(probe);
 }
 
-export function isExternalEditorAvailable(editor?: string): boolean {
+function isExternalEditorAvailable(editor?: string): boolean {
   const [command, ...args] = parseEditorCommand(
     editor ?? process.env.VISUAL ?? process.env.EDITOR ?? "",
   );

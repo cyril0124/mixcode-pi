@@ -118,7 +118,7 @@ function isPrintableOrWhitespace(char: string): boolean {
   return code >= 0x20 || char === "\n" || char === "\r" || char === "\t";
 }
 
-export function findCsiEnd(text: string, start: number): number {
+function findCsiEnd(text: string, start: number): number {
   for (let index = start; index < text.length; index++) {
     const code = text.charCodeAt(index);
     if (code >= 0x40 && code <= 0x7e) return index;
@@ -130,7 +130,7 @@ function isSgrSequence(sequence: string): boolean {
   return /^\x1b\[[0-9;:]*m$/.test(sequence);
 }
 
-export function findStringControlEnd(text: string, start: number): number {
+function findStringControlEnd(text: string, start: number): number {
   for (let index = start; index < text.length; index++) {
     if (text[index] === "\x07") return index;
     if (text[index] === "\x1b" && text[index + 1] === "\\") return index + 1;
@@ -187,7 +187,7 @@ export function box(
   return drawBox({ title, lines, width, theme, rounded });
 }
 
-export function renderBoxTop(
+function renderBoxTop(
   title: string,
   innerWidth: number,
   theme: MixCodeTheme,

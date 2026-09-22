@@ -9,9 +9,9 @@ import {
   contextLimitPickerItems,
   applyContextLimit,
   applyContextLimitToSession,
-  adjustCompactionSettingsForLimit,
-  syncContextLimitToSessionModel,
+  captureCompactionBaseline,
 } from "../src/core/context-limit.js";
+import { SettingsManager } from "@earendil-works/pi-coding-agent";
 import type { MixCodeTabInfo } from "../src/core/types.js";
 import { createTab } from "../src/core/defaults.js";
 import { MIXCODE_FAUX_MODEL } from "../src/agent/faux-stream.js";
@@ -104,22 +104,20 @@ describe("contextLimitPickerItems", () => {
   });
 });
 
-describe("adjustCompactionSettingsForLimit", () => {
+describe("applyContextLimitToSession compaction budgets", () => {
   it("keeps compaction budgets below very small overridden limits", () => {
     const overrides: Array<{ compaction?: { reserveTokens?: number; keepRecentTokens?: number } }> =
       [];
-    adjustCompactionSettingsForLimit(
-      { applyOverrides: (override) => overrides.push(override) },
-      1000,
-      true,
-    );
+    applyContextLimitToSession(createMockTab(), 1000, {
+      settingsManager: { applyOverrides: (override) => overrides.push(override) },
+    });
     assert.deepEqual(overrides, [{ compaction: { reserveTokens: 100, keepRecentTokens: 250 } }]);
   });
 
   it("rejects reset when the manager baseline was not captured", () => {
     const settingsManager = { applyOverrides: () => undefined };
     assert.throws(
-      () => adjustCompactionSettingsForLimit(settingsManager, 1000, false),
+      () => applyContextLimitToSession(createMockTab(), "reset", { settingsManager }),
       /Compaction baseline was not captured/,
     );
   });
@@ -159,20 +157,24 @@ describe("applyContextLimit", () => {
   });
 });
 
-describe("syncContextLimitToSessionModel / applyContextLimitToSession", () => {
+describe("applyContextLimitToSession", () => {
   it("writes the UI limit into the live session model.contextWindow", () => {
     const tab = createMockTab();
     const sessionModel = { contextWindow: 131_072 };
-    applyContextLimit(tab, 32_000);
-    syncContextLimitToSessionModel(tab, sessionModel);
+    applyContextLimitToSession(tab, 32_000, {
+      model: sessionModel,
+      settingsManager: { applyOverrides: () => undefined },
+    });
     assert.equal(sessionModel.contextWindow, 32_000);
+    assert.equal(tab.contextLimit, 32_000);
   });
 
   it("restores the canonical model window on reset", () => {
     const tab = createMockTab({ contextLimit: 32_000, contextLimitOverridden: true });
     const sessionModel = { contextWindow: 32_000 };
-    applyContextLimit(tab, "reset");
-    syncContextLimitToSessionModel(tab, sessionModel);
+    const settingsManager = SettingsManager.inMemory({});
+    captureCompactionBaseline(settingsManager);
+    applyContextLimitToSession(tab, "reset", { model: sessionModel, settingsManager });
     assert.equal(sessionModel.contextWindow, 131_072);
   });
 

@@ -130,7 +130,7 @@ export async function applyModelSelection(
  * agent immediately uses the repaired model. Returns true when the runtime
  * actually performed a model reload (i.e. a registry was wired).
  */
-export type ModelReloadResult = { ok: true } | { ok: false; error: string };
+type ModelReloadResult = { ok: true } | { ok: false; error: string };
 
 export async function reloadRuntimeModels(
   state: MixCodeState,

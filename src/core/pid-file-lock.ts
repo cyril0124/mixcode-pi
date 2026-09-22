@@ -3,12 +3,9 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-export type PidLockSnapshot<T> =
-  | { kind: "missing" }
-  | { kind: "invalid" }
-  | { kind: "ok"; record: T };
+type PidLockSnapshot<T> = { kind: "missing" } | { kind: "invalid" } | { kind: "ok"; record: T };
 
-export function readPidLockSnapshot<T>(
+function readPidLockSnapshot<T>(
   filePath: string,
   parseRecord: (raw: string) => T | undefined,
 ): PidLockSnapshot<T> {
@@ -22,7 +19,7 @@ export function readPidLockSnapshot<T>(
 }
 
 /** Take a suspected-stale lock aside, re-verify, drop only if still stale. */
-export function tryReclaimStalePidLock<T>(
+function tryReclaimStalePidLock<T>(
   filePath: string,
   parseRecord: (raw: string) => T | undefined,
   isStale: (record: T | undefined) => boolean,
@@ -52,7 +49,7 @@ export function tryReclaimStalePidLock<T>(
   return true;
 }
 
-export interface AcquirePidFileLockOptions<T extends { pid: number }> {
+interface AcquirePidFileLockOptions<T extends { pid: number }> {
   lockPath: string;
   payload: string;
   pid?: number;

@@ -103,14 +103,14 @@ export function applyContextLimit(tab: MixCodeTabInfo, value: number | "reset"):
  * They read `model.contextWindow` / `getContextUsage().contextWindow`, not MixCode's
  * tab.contextLimit. Keep the two aligned for the active session only.
  */
-export type SessionContextWindowModel = { contextWindow: number };
+type SessionContextWindowModel = { contextWindow: number };
 
 /**
  * Push tab.contextLimit into the live session model so Pi-native compaction and
  * extensions that resolve the window from ctx.model see the /context-limit value.
  * Session-ephemeral: does not rewrite models.json; model switch replaces the object.
  */
-export function syncContextLimitToSessionModel(
+function syncContextLimitToSessionModel(
   tab: MixCodeTabInfo,
   model: SessionContextWindowModel | undefined | null,
 ): void {
@@ -189,7 +189,7 @@ export function captureCompactionBaseline(
  * keepRecentTokens controls the cut point; reserveTokens controls when the SDK
  * decides compaction is needed, so both must fit under tiny custom limits.
  */
-export function adjustCompactionSettingsForLimit(
+function adjustCompactionSettingsForLimit(
   settingsManager: CompactionOverrideTarget,
   contextLimit: number,
   overridden: boolean,

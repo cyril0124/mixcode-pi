@@ -27,12 +27,12 @@ export interface ListTabsToReconcileInput {
   localSessionIds: Iterable<string>;
   desiredSessionIds: Iterable<string>;
   localWorkdir: string;
-  /** Optional title/workdir hints from live peer registry snapshots. */
-  peerHints?: Array<{
-    pid: number;
-    workdir: string;
-    tabs: Array<{ sessionId: string; title: string; workdir: string }>;
-  }>;
+}
+
+/** Snapshot of live peer registries, used for optional title and workdir hints. */
+interface PeerRegistrySnapshot {
+  workdir: string;
+  tabs: Array<{ sessionId: string; title: string; workdir: string }>;
 }
 
 /** Pure diff: open missing desired ids, close local ids no longer desired. */
@@ -42,15 +42,13 @@ export function listTabsToReconcile(input: ListTabsToReconcileInput): TabReconci
     ...new Set([...input.desiredSessionIds].map(String).filter((id) => id.trim())),
   ];
   const desired = new Set(desiredOrder);
-  const hints = peerHintsBySession(input.peerHints, input.localWorkdir);
 
   const toOpen: PeerTabCandidate[] = [];
   for (const sessionId of desired) {
     if (local.has(sessionId)) continue;
-    const hint = hints.get(sessionId);
     // No synthetic Agent-{uuid8} title: openExistingAgentTab assigns Agent-NN
     // when title is absent.
-    toOpen.push(hint ?? { sessionId, workdir: input.localWorkdir });
+    toOpen.push({ sessionId, workdir: input.localWorkdir });
   }
 
   const toClose: string[] = [];
@@ -61,7 +59,7 @@ export function listTabsToReconcile(input: ListTabsToReconcileInput): TabReconci
 }
 
 function peerHintsBySession(
-  peers: ListTabsToReconcileInput["peerHints"],
+  peers: readonly PeerRegistrySnapshot[] | undefined,
   workdir: string,
 ): Map<string, PeerTabCandidate> {
   const localWorkdir = normalizeWorkdir(workdir);
@@ -151,7 +149,7 @@ export function startPeerTabSync(options: StartPeerTabSyncOptions): {
     // No shared file yet: do not close local tabs (bootstrap may still be seeding).
     if (!(await Bun.file(options.openTabsPath).exists())) return;
 
-    let peerHints: ListTabsToReconcileInput["peerHints"] = [];
+    let peerHints: readonly PeerRegistrySnapshot[] = [];
     try {
       const report = await loadStatus(options.rootStateDir, { workdir: options.workdir });
       peerHints = report.instances;

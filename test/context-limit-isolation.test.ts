@@ -5,10 +5,23 @@ import * as os from "node:os";
 import test from "node:test";
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
 import {
-  adjustCompactionSettingsForLimit,
+  applyContextLimitToSession,
   captureCompactionBaseline,
 } from "../src/core/context-limit.js";
-import { createTab, MIXCODE_FAUX_MODEL, MixCodeRuntime } from "./helpers/mixcode.js";
+import {
+  createTab,
+  MIXCODE_FAUX_MODEL,
+  MixCodeRuntime,
+  type RuntimeTab,
+} from "./helpers/mixcode.js";
+
+/** Apply a /context-limit value through `applyContextLimitToSession` for one tab. */
+function applyLimit(runtimeTab: RuntimeTab, value: number | "reset"): void {
+  applyContextLimitToSession(runtimeTab.tab, value, {
+    model: runtimeTab.agentSession.model,
+    settingsManager: runtimeTab.agentSession.settingsManager,
+  });
+}
 
 // Regression: /context-limit must not leak one tab's compaction override into
 // other tabs. Each tab owns its own SettingsManager, so adjusting one tab's
@@ -35,7 +48,7 @@ test("context-limit override on one tab does not contaminate another tab", async
 
     // Tab A reflects its own override; Tab B is unchanged.
     const beforeB = tabB.agentSession.settingsManager.getCompactionSettings();
-    adjustCompactionSettingsForLimit(tabA.agentSession.settingsManager, 4000, true);
+    applyLimit(tabA, 4000);
     const afterA = tabA.agentSession.settingsManager.getCompactionSettings();
     const afterB = tabB.agentSession.settingsManager.getCompactionSettings();
 
@@ -73,8 +86,8 @@ test("context-limit reset restores the tab baseline without touching siblings", 
     const baselineA = tabA.agentSession.settingsManager.getCompactionSettings();
     const beforeB = tabB.agentSession.settingsManager.getCompactionSettings();
 
-    adjustCompactionSettingsForLimit(tabA.agentSession.settingsManager, 4000, true);
-    adjustCompactionSettingsForLimit(tabA.agentSession.settingsManager, 4000, false);
+    applyLimit(tabA, 4000);
+    applyLimit(tabA, "reset");
 
     assert.deepEqual(tabA.agentSession.settingsManager.getCompactionSettings(), baselineA);
     assert.deepEqual(tabB.agentSession.settingsManager.getCompactionSettings(), beforeB);
@@ -98,7 +111,8 @@ test("context-limit overrides model-specific budgets and reset restores every mo
   const first = { provider: "provider", id: "model-a" };
   const second = { provider: "provider", id: "model-b" };
   const baseline = manager.getGlobalSettings();
-  adjustCompactionSettingsForLimit(manager, 4000, true);
+  const tab = createTab(1, "context-limit-overrides", process.cwd());
+  applyContextLimitToSession(tab, 4000, { settingsManager: manager });
   for (const model of [first, second]) {
     assert.deepEqual(manager.getCompactionSettings(model), {
       enabled: true,
@@ -106,9 +120,9 @@ test("context-limit overrides model-specific budgets and reset restores every mo
       keepRecentTokens: 1000,
     });
   }
-  adjustCompactionSettingsForLimit(manager, 10000, true);
+  applyContextLimitToSession(tab, 10000, { settingsManager: manager });
   assert.equal(manager.getCompactionSettings(second).reserveTokens, 1000);
-  adjustCompactionSettingsForLimit(manager, 10000, false);
+  applyContextLimitToSession(tab, "reset", { settingsManager: manager });
   assert.deepEqual(manager.getCompactionSettings(first), {
     enabled: true,
     reserveTokens: 12000,

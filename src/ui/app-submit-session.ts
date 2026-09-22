@@ -634,7 +634,7 @@ function syncTabContextUsage(
 
 function renderSessionInfoText(
   runtimeTab: RuntimeTab,
-  info: SessionStatsInfo = runtimeTab.agentSession.getSessionStats(),
+  info: SessionStatsInfo,
   identity: { tabTitle: string; workdir: string },
 ): string {
   // Pi handleSessionCommand: permanent stats dump with prompt-volume Input,

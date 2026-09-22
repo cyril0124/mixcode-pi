@@ -229,12 +229,10 @@ export class MixCodeRuntime {
       schedulePendingMessageFlush: (sessionId, agentSession) =>
         this.schedulePendingMessageFlush(sessionId, agentSession),
       createServices: (workdir, systemPrompt) => this.createServices(workdir, systemPrompt),
-      resolveModel: (provider, modelId) => this.resolveModel(provider, modelId),
       resolveModelFromSession: (session, fallback) =>
         resolveRuntimeModelFromSession(session, fallback, this.modelRuntime ?? this.modelRegistry),
       streamFn: this.streamFn,
       getApiKey: this.getApiKey,
-      getDisabledExtensionKeys: () => this.disabledExtensionKeys(),
       getFocusedTabTitle: () => this.getFocusedTabTitle(),
     };
   }
@@ -251,8 +249,6 @@ export class MixCodeRuntime {
   private extensionSessionContext(): RuntimeExtensionSessionContext {
     return {
       requireTab: (sessionId) => this.requireTab(sessionId),
-      createSession: (cwd, sessionId, parentSession) =>
-        this.createSession(cwd, sessionId, parentSession),
       replaceRuntimeTabSession: (runtimeTab, sessionManager, reason, setup) =>
         this.replaceRuntimeTabSession(runtimeTab, sessionManager, reason, setup),
       syncChatFromSession: (runtimeTab) => syncRuntimeChatFromSession(runtimeTab),

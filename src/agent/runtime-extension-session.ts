@@ -24,11 +24,6 @@ type ForkPosition = NonNullable<NonNullable<ExtensionForkOptions>["position"]>;
 
 export interface RuntimeExtensionSessionContext {
   requireTab: (sessionId: string) => RuntimeTab;
-  createSession: (
-    cwd: string,
-    sessionId?: string,
-    parentSession?: string,
-  ) => Promise<SessionManager>;
   replaceRuntimeTabSession: (
     runtimeTab: RuntimeTab,
     sessionManager: SessionManager,

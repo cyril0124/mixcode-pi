@@ -551,7 +551,6 @@ function makeOverlayView(partial: Partial<WorkspaceOverlayView>): WorkspaceOverl
     query: "",
     selectedIndex: 0,
     workspaces: [],
-    workdir: "",
     message: "",
     input: "",
     extraTabCount: 0,
@@ -565,7 +564,7 @@ function makeOverlayView(partial: Partial<WorkspaceOverlayView>): WorkspaceOverl
 
 test("workspace overlay renders empty project state", () => {
   const state = createInitialState("/repo");
-  const view = makeOverlayView({ mode: "restore", workdir: "/repo" });
+  const view = makeOverlayView({ mode: "restore" });
 
   assert.match(
     renderWorkspaceOverlay(view, state, 80).join("\n"),
@@ -576,7 +575,7 @@ test("workspace overlay renders empty project state", () => {
 test("save workspace overlay renders a bordered input field", () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo", { title: "plan" }));
-  const view = makeOverlayView({ mode: "save", input: "main", workdir: "/repo" });
+  const view = makeOverlayView({ mode: "save", input: "main" });
 
   const text = stripAnsi(renderWorkspaceOverlay(view, state, 80).join("\n"));
   assert.match(text, /Name/);
@@ -593,7 +592,6 @@ test("workspace overlay shows tab details before constrained-height clipping", (
   state.tabs.push(...tabs);
   const view = makeOverlayView({
     mode: "restore",
-    workdir: "/repo",
     workspaces: [snapshotWorkspace(state, "main", new Date("2026-05-23T03:12:00.000Z"))],
   });
 

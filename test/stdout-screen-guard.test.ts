@@ -17,8 +17,8 @@ async function withCapturedStdout(
     if (typeof callback === "function") (callback as () => void)();
     return true;
   }) as typeof process.stdout.write;
-  const install = (options: Parameters<typeof installStdoutScreenGuard>[0]) => {
-    dispose = installStdoutScreenGuard(options);
+  const install = () => {
+    dispose = installStdoutScreenGuard();
     return dispose;
   };
   try {
@@ -32,7 +32,7 @@ async function withCapturedStdout(
 
 test("stdout guard removes full-screen clear+home", async () => {
   const written = await withCapturedStdout((install) => {
-    install({});
+    install();
     process.stdout.write("\x1b[2J\x1b[Hkeep");
   });
   assert.equal(written.join(""), "keep");
@@ -40,7 +40,7 @@ test("stdout guard removes full-screen clear+home", async () => {
 
 test("stdout guard removes scrollback clear", async () => {
   const written = await withCapturedStdout((install) => {
-    install({});
+    install();
     process.stdout.write("pre\x1b[3Jpost");
   });
   assert.equal(written.join(""), "prepost");
@@ -48,33 +48,25 @@ test("stdout guard removes scrollback clear", async () => {
 
 test("stdout guard leaves bare cursor-home alone", async () => {
   const written = await withCapturedStdout((install) => {
-    install({});
+    install();
     process.stdout.write("\x1b[Hhello");
   });
   assert.equal(written.join(""), "\x1b[Hhello");
 });
 
-test("stdout guard blocks extension full-screen clear and coalesces repaint", async () => {
-  let blocked = 0;
-  const written = await withCapturedStdout(async (install) => {
-    install({
-      onBlockedClear: () => {
-        blocked += 1;
-      },
-    });
-    process.stdout.write("\x1b[2J\x1b[H");
+test("stdout guard writes nothing for clears that leave an empty chunk", async () => {
+  const written = await withCapturedStdout((install) => {
+    install();
     process.stdout.write("\x1b[2J\x1b[H");
     process.stdout.write("\x1b[2J\x1b[H");
     process.stdout.write("visible");
-    await Bun.sleep(80);
   });
   assert.equal(written.join(""), "visible");
-  assert.equal(blocked, 1, "N clears in one storm coalesce to one repaint");
 });
 
 test("withHostStdoutGuard marks terminal.clearScreen as host write", async () => {
   const written = await withCapturedStdout((install) => {
-    install({});
+    install();
     const inner = {
       start: () => undefined,
       stop: () => undefined,

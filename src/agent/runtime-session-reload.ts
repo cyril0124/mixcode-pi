@@ -11,7 +11,7 @@ import { disposeChatRenderers, entriesToChatLines, syncContextUsage } from "./ru
 import type { ChatLine, RuntimeTab } from "./runtime-types.js";
 import { restoreTranscriptTools } from "./tools.js";
 
-export interface ReloadSessionResult {
+interface ReloadSessionResult {
   reloaded: boolean;
 }
 

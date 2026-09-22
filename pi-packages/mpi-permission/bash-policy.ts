@@ -167,7 +167,12 @@ const PATH_VALUE_OPTIONS: ReadonlyMap<string, ReadonlySet<string>> = new Map([
   ["install", new Set(["-t", "--target-directory"])],
 ]);
 
-function unwrap(words: Word[]): Word[] {
+/**
+ * Index of the first word after the leading env assignments and transparent
+ * wrappers. `stopAt` names wrapper commands the caller wants to keep visible,
+ * so it can read the wrapper itself and its value-taking flags.
+ */
+function skipWrapperPrefix(words: Word[], stopAt: ReadonlySet<string>): number {
   let start = 0;
   for (;;) {
     const value = words[start]?.value;
@@ -176,7 +181,7 @@ function unwrap(words: Word[]): Word[] {
       start++;
       continue;
     }
-    if (!TRANSPARENT_PREFIXES.has(value)) break;
+    if (!TRANSPARENT_PREFIXES.has(value) || stopAt.has(value)) break;
     start++;
     while (start < words.length) {
       const option = words[start]!.value;
@@ -192,7 +197,14 @@ function unwrap(words: Word[]): Word[] {
       if (WRAPPER_VALUE_FLAGS.get(value)?.has(option) && !option.includes("=")) start++;
     }
   }
-  return words.slice(start);
+  return start;
+}
+
+/** No wrapper command is held back, so the traversal always ends at the real command. */
+const NO_STOPPED_WRAPPERS: ReadonlySet<string> = new Set();
+
+function unwrap(words: Word[]): Word[] {
+  return words.slice(skipWrapperPrefix(words, NO_STOPPED_WRAPPERS));
 }
 
 function normalized(command: Command): string | null {
@@ -302,39 +314,12 @@ function analyzeEnvSplit(
   analyzeInto([source, ...staticTrailing].join(" "), state, depth + 1);
 }
 
-// Index of the first word after leading env assignments and transparent
-// wrappers (stopping before `env` itself, whose -S value would otherwise be
-// consumed as a flag argument by the shared skip logic).
-function skipWrappers(words: Word[]): number {
-  let start = 0;
-  for (;;) {
-    const value = words[start]?.value;
-    if (!value) break;
-    if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(value)) {
-      start++;
-      continue;
-    }
-    if (!TRANSPARENT_PREFIXES.has(value) || value === "env") break;
-    start++;
-    while (start < words.length) {
-      const option = words[start]!.value;
-      if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(option)) {
-        start++;
-        continue;
-      }
-      if (!option.startsWith("-") || option === "--") {
-        if (option === "--") start++;
-        break;
-      }
-      start++;
-      if (WRAPPER_VALUE_FLAGS.get(value)?.has(option) && !option.includes("=")) start++;
-    }
-  }
-  return start;
-}
+// `env` is held back from the shared skip. Its -S value starts a nested script
+// the caller must read, so it must not be consumed as a flag argument.
+const ENV_WRAPPER_STOP: ReadonlySet<string> = new Set(["env"]);
 
 function collectEnvSplitString(words: Word[], state: MutableAnalysis, depth: number): void {
-  const start = skipWrappers(words);
+  const start = skipWrapperPrefix(words, ENV_WRAPPER_STOP);
   if (words[start]?.value !== "env") return;
   for (let i = start + 1; i < words.length; i++) {
     const word = words[i]!;
@@ -514,9 +499,4 @@ export function analyzeBashCommand(source: string): BashAnalysis {
     dynamicPathArguments: state.dynamicPathArguments,
     errors: state.errors,
   };
-}
-
-/** Backward-compatible command subjects used by permission rule matching. */
-export function splitBashCommand(source: string): string[] {
-  return analyzeBashCommand(source).segments;
 }

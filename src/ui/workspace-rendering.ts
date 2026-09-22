@@ -47,7 +47,7 @@ function renderSaveOverlay(
   return overlayPanel(
     "Save Workspace",
     [
-      activeRenderTheme.dim(overlay.workdir || state.workdir),
+      activeRenderTheme.dim(state.workdir),
       "",
       "Name",
       ...renderNameInputLines(overlay.input, inputWidth),
@@ -165,7 +165,7 @@ function renderWorkspaceSelector(
     return overlayPanel(
       "Project Workspaces",
       [
-        activeRenderTheme.dim(overlay.workdir || state.workdir),
+        activeRenderTheme.dim(state.workdir),
         "",
         "No saved workspaces for this directory.",
         "",
@@ -183,7 +183,7 @@ function renderWorkspaceSelector(
   const left = renderWorkspaceList(overlay, leftWidth, rows);
   const right = renderWorkspaceDetails(workspace, rightWidth, rows);
   const lines = [
-    activeRenderTheme.dim(overlay.workdir || state.workdir),
+    activeRenderTheme.dim(state.workdir),
     "",
     ...zipColumns(left, right, leftWidth, rightWidth),
     "",

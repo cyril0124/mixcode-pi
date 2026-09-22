@@ -7,7 +7,6 @@ import { test } from "node:test";
 import {
   createInitialState,
   createTab,
-  resolveSkillDirs,
   scanSkillEntries,
   createPicker,
   workdirBreadcrumb,
@@ -132,10 +131,8 @@ test("skill scanning finds flat and nested skills with parsed descriptions", asy
       (await scanSkillEntries(workdir, home)).map((skill) => skill.description),
       ["Check details across files.\nReport concise findings.\n", "Review code"],
     );
-    assert.equal(
-      new Set(resolveSkillDirs(workdir, workdir)).size,
-      resolveSkillDirs(workdir, workdir).length,
-    );
+    const scannedPaths = (await scanSkillEntries(workdir, workdir)).map((skill) => skill.path);
+    assert.equal(new Set(scannedPaths).size, scannedPaths.length);
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }

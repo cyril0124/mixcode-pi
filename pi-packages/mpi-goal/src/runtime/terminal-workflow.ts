@@ -23,9 +23,6 @@ type TerminalGoalWorkflowInput = {
   goal: GoalState | null;
   reason: PiGoalEventReason;
   runner: PostCompletionActionRunner;
-  triggerTurn?: boolean;
-  force?: boolean;
-  deliverAs?: "steer" | "followUp";
 };
 
 export async function processTerminalGoalWorkflow(
@@ -33,11 +30,7 @@ export async function processTerminalGoalWorkflow(
   ctx: ExtensionContext,
   input: TerminalGoalWorkflowInput,
 ): Promise<GoalState | null> {
-  let ticket = decideTerminalContinuationTicket(input.goal, getQueue(), {
-    triggerTurn: input.triggerTurn,
-    force: input.force,
-    deliverAs: input.deliverAs,
-  });
+  let ticket = decideTerminalContinuationTicket(input.goal, getQueue());
   const beforeActions = input.goal?.postCompletionActions;
   const afterActions = await runPostCompletionActionsSafely(
     pi,

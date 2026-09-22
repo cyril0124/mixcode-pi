@@ -42,10 +42,6 @@ import {
   type StallMessageDetails,
 } from "./widget.js";
 
-export * from "./exec.js";
-export * from "./heartbeat.js";
-export * from "./widget.js";
-
 /** Custom message type carrying a detached command's exit code. */
 export const BASH_DETACHED_EXIT_CUSTOM_TYPE = "bash-detached-exit";
 

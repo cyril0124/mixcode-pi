@@ -167,7 +167,7 @@ export function handleQuitConfirmKey(
 // the app keeps running afterward, so the confirmed deletion must also thread
 // onStateChanged through to persist the now-empty tab list (see
 // workspace-overlay.ts's handleDeleteConfirmKey for the same async+persist shape).
-export function handleDeleteAllSessionsConfirmKey(
+function handleDeleteAllSessionsConfirmKey(
   state: MixCodeState,
   data: string,
   tui: OverlayTui,
@@ -213,7 +213,7 @@ export function handleDeleteAllSessionsConfirmKey(
 
 // Same shape as handleDeleteAllSessionsConfirmKey, guarding /close-all-sessions
 // (non-destructive: tabs close but session files are kept, unlike delete-all).
-export function handleCloseAllSessionsConfirmKey(
+function handleCloseAllSessionsConfirmKey(
   state: MixCodeState,
   data: string,
   tui: OverlayTui,

@@ -53,7 +53,6 @@ export class WorkspaceOverlay implements Component, WorkspaceOverlayView {
   query = "";
   selectedIndex = 0;
   workspaces: WorkspaceSnapshot[];
-  workdir: string;
   message = "";
   input = "";
   pendingName?: string;
@@ -70,7 +69,6 @@ export class WorkspaceOverlay implements Component, WorkspaceOverlayView {
   ) {
     this.mode = init.mode;
     this.workspaces = init.workspaces ?? [];
-    this.workdir = deps.state.workdir;
   }
 
   invalidate(): void {}

@@ -23,7 +23,7 @@ export interface ChatSelectionState {
   dragging: boolean;
 }
 
-export interface NormalizedChatSelection {
+interface NormalizedChatSelection {
   start: ChatSelectionPoint;
   end: ChatSelectionPoint;
 }
@@ -130,7 +130,7 @@ export function scrollableChatSelectionForViewport(
   };
 }
 
-export function normalizeChatSelection(selection: ChatSelectionState): NormalizedChatSelection {
+function normalizeChatSelection(selection: ChatSelectionState): NormalizedChatSelection {
   const anchor = selection.anchor;
   const focus = selection.focus;
   if (anchor.row < focus.row || (anchor.row === focus.row && anchor.col <= focus.col)) {
@@ -139,7 +139,7 @@ export function normalizeChatSelection(selection: ChatSelectionState): Normalize
   return { start: focus, end: anchor };
 }
 
-export function isCollapsedChatSelection(selection: ChatSelectionState): boolean {
+function isCollapsedChatSelection(selection: ChatSelectionState): boolean {
   return (
     selection.anchor.row === selection.focus.row && selection.anchor.col === selection.focus.col
   );

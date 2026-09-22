@@ -6,7 +6,7 @@ import { renderBackgroundLine, sanitizeTerminalText } from "./primitives.js";
 /** Keep streaming Markdown bounded before it monopolizes the TUI event loop. */
 const STREAMING_ASSISTANT_MAX_CHARS = 8 * 1024;
 
-export function isStreamingAssistantMessageTooLarge(text: string): boolean {
+function isStreamingAssistantMessageTooLarge(text: string): boolean {
   return text.length > STREAMING_ASSISTANT_MAX_CHARS;
 }
 

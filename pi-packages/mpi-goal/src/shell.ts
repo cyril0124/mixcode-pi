@@ -92,7 +92,7 @@ export function registerMpiGoalShell(pi: ExtensionAPI): void {
     getArgumentCompletions: (argumentPrefix: string) => shellGoalCompletions(argumentPrefix),
     handler: async (args: string, ctx: ExtensionCommandContext) => {
       await ensureMpiGoalWired(pi);
-      const { dispatchGoalCommand } = await import("./app.js");
+      const { dispatchGoalCommand } = await loadGoalApp();
       await dispatchGoalCommand(pi, args, ctx);
     },
   });

@@ -108,15 +108,11 @@ import type {
   TurnAccountingSnapshot,
 } from "../domain/types.js";
 
-type AgentEndContinueArm =
-  | { kind: "idle" }
-  | { kind: "await-settle"; goalId: string }
-  | { kind: "dispatched" };
-
 type LifecycleSessionState = {
   activeTurn: TurnAccountingSnapshot | null;
   streamBudgetSignalsSent: Set<StreamBudgetSignal>;
-  agentEndContinue: AgentEndContinueArm;
+  /** True while agent_end armed a settle-time dispatch that agent_settled must consume. */
+  awaitSettleAgentEndContinue: boolean;
   /** Final assistant stopReason from the last agent_end (after Pi retries finished). */
   lastAgentEndStopReason?: string;
 };
@@ -130,7 +126,7 @@ function lifecycleState(): LifecycleSessionState {
     state = {
       activeTurn: null,
       streamBudgetSignalsSent: new Set(),
-      agentEndContinue: { kind: "idle" },
+      awaitSettleAgentEndContinue: false,
       lastAgentEndStopReason: undefined,
     };
     lifecycleBySession.set(key, state);
@@ -300,7 +296,8 @@ async function handleAgentEnd(
   const reason = queueHandoffReason(goal);
   const queueLength = getQueue().length;
   if (reason && goal && queueLength > 0) {
-    setAgentEndContinue({ kind: "dispatched" });
+    // The queue handoff below owns this turn's continuation; the settle path must not fire.
+    cancelAgentEndContinueArm();
     const sessionKey = currentGoalSessionKey();
     setTimeout(() => {
       void runInGoalSession(sessionKey, async () => {
@@ -316,16 +313,12 @@ async function handleAgentEnd(
   // Error agent_end can fire before Pi auto-retries. Do not dispatch here
   // — that would pause mid-retry. Wait for agent_settled only.
   if (lifecycleState().lastAgentEndStopReason === "error") {
-    setAgentEndContinue(
-      goal?.status === "active" ? { kind: "await-settle", goalId: goal.goalId } : { kind: "idle" },
-    );
+    armAgentEndContinueFor(goal);
     return;
   }
   // Pi 0.87 guarantees agent_settled fires from the run's finally block on every
   // exit path (completed, aborted, error), so settle is the single dispatch point.
-  setAgentEndContinue(
-    goal?.status === "active" ? { kind: "await-settle", goalId: goal.goalId } : { kind: "idle" },
-  );
+  armAgentEndContinueFor(goal);
 }
 
 async function handleAgentSettled(pi: ExtensionAPI, ctx: ExtensionContext): Promise<void> {
@@ -333,11 +326,11 @@ async function handleAgentSettled(pi: ExtensionAPI, ctx: ExtensionContext): Prom
 }
 
 function dispatchAgentEndContinue(pi: ExtensionAPI, ctx: ExtensionContext): void {
-  if (lifecycleState().agentEndContinue.kind !== "await-settle") return;
+  if (!lifecycleState().awaitSettleAgentEndContinue) return;
   ensureGoalHydrated(ctx);
   const goal = getGoal();
   if (goal?.status !== "active") return;
-  setAgentEndContinue({ kind: "dispatched" });
+  cancelAgentEndContinueArm();
   // Upstream API exhausted retries: pause goal (not active+idle fake work).
   if (lifecycleState().lastAgentEndStopReason === "error") {
     void pauseForSafety(
@@ -366,13 +359,17 @@ function lastAssistantStopReason(messages: unknown[] | undefined): string | unde
   return undefined;
 }
 
-function setAgentEndContinue(next: AgentEndContinueArm): void {
-  lifecycleState().agentEndContinue = next;
+/** Arm settle-time dispatch only when an active goal is still there to continue. */
+function armAgentEndContinueFor(goal: GoalState | null): void {
+  lifecycleState().awaitSettleAgentEndContinue = goal?.status === "active";
 }
 
-/** Cancel armed agent_end auto-continue (timers + settle dispatch). Call on pause/clear. */
+/**
+ * Clear armed agent_end auto-continue (timers + settle dispatch). Call on pause/clear,
+ * or right before the settle path dispatches so the arm is consumed exactly once.
+ */
 export function cancelAgentEndContinueArm(): void {
-  setAgentEndContinue({ kind: "dispatched" });
+  lifecycleState().awaitSettleAgentEndContinue = false;
 }
 
 function handleGoalSteeringMessageStart(

@@ -1,14 +1,10 @@
-import "./helpers/isolated-agent-dir.js";
+import { isolatedAgentDir } from "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
-import {
-  isProjectSkillsOnlyEnabled,
-  resolveSkillDirs,
-  scanSkillEntries,
-} from "../src/core/attachments.js";
+import { isProjectSkillsOnlyEnabled, scanSkillEntries } from "../src/core/attachments.js";
 
 describe("MIXCODE_PROJECT_SKILLS_ONLY environment variable", () => {
   const originalEnv = { ...process.env };
@@ -34,6 +30,12 @@ describe("MIXCODE_PROJECT_SKILLS_ONLY environment variable", () => {
       path.join(homeDir, ".agents", "skills", "global-skill", "SKILL.md"),
       "---\nname: global-skill\ndescription: Global skill\n---\nGlobal content",
     );
+
+    await fs.mkdir(path.join(isolatedAgentDir, "skills", "agent-skill"), { recursive: true });
+    await fs.writeFile(
+      path.join(isolatedAgentDir, "skills", "agent-skill", "SKILL.md"),
+      "---\nname: agent-skill\ndescription: Agent dir skill\n---\nAgent content",
+    );
   });
 
   afterEach(async () => {
@@ -48,38 +50,18 @@ describe("MIXCODE_PROJECT_SKILLS_ONLY environment variable", () => {
     }
   });
 
-  it("resolves all directories when disabled", () => {
-    const dirs = resolveSkillDirs(workdir, homeDir);
-    assert.equal(dirs.length >= 2, true);
-    assert.equal(
-      dirs.some((d) => d.includes(path.join(workdir, ".agents", "skills"))),
-      true,
-    );
-    assert.equal(
-      dirs.some((d) => d.includes(path.join(homeDir, ".agents", "skills"))),
-      true,
-    );
-  });
-
-  it("resolves only workdir directory when enabled", () => {
+  it("scans only the workdir skills directory when enabled", async () => {
     process.env.MIXCODE_PROJECT_SKILLS_ONLY = "1";
-    const dirs = resolveSkillDirs(workdir, homeDir);
-    assert.equal(dirs.length, 1);
-    assert.equal(dirs[0], path.resolve(workdir, ".agents", "skills"));
-  });
-
-  it("scans only local skills when enabled", async () => {
-    process.env.MIXCODE_PROJECT_SKILLS_ONLY = "1";
-    const skills = await scanSkillEntries(workdir, homeDir);
-    const names = skills.map((s) => s.name);
+    const names = (await scanSkillEntries(workdir, homeDir)).map((skill) => skill.name);
     assert.equal(names.includes("local-skill"), true);
     assert.equal(names.includes("global-skill"), false);
+    assert.equal(names.includes("agent-skill"), false);
   });
 
-  it("scans both local and global skills when disabled", async () => {
-    const skills = await scanSkillEntries(workdir, homeDir);
-    const names = skills.map((s) => s.name);
+  it("scans workdir, home, and agent-dir skills when disabled", async () => {
+    const names = (await scanSkillEntries(workdir, homeDir)).map((skill) => skill.name);
     assert.equal(names.includes("local-skill"), true);
     assert.equal(names.includes("global-skill"), true);
+    assert.equal(names.includes("agent-skill"), true);
   });
 });

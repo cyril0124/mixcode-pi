@@ -35,22 +35,15 @@ test("listTabsToReconcile opens missing and closes extras", () => {
     localSessionIds: ["keep", "drop-me"],
     desiredSessionIds: ["keep", "new-one"],
     localWorkdir: "/repo",
-    peerHints: [
-      {
-        pid: 2,
-        workdir: "/repo",
-        tabs: [{ sessionId: "new-one", title: "Peer New", workdir: "/repo" }],
-      },
-    ],
   });
   assert.deepEqual(plan.toClose, ["drop-me"]);
-  assert.deepEqual(plan.toOpen, [{ sessionId: "new-one", title: "Peer New", workdir: "/repo" }]);
+  assert.deepEqual(plan.toOpen, [{ sessionId: "new-one", workdir: "/repo" }]);
   assert.deepEqual(plan.desiredOrder, ["keep", "new-one"]);
 });
 
 // Regression: orphan open_tabs ids (no live peer registry title) must not get
 // Agent-{uuid8} titles. openExistingAgentTab then assigns Agent-NN.
-test("listTabsToReconcile without peer hints leaves title unset", () => {
+test("listTabsToReconcile leaves title unset", () => {
   const sessionId = "019f757b-c2e7-7c4c-a306-e2bd80c2cc45";
   const plan = listTabsToReconcile({
     localSessionIds: [],

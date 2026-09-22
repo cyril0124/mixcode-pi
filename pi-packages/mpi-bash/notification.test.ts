@@ -12,7 +12,9 @@ import {
   type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import { visibleWidth } from "@earendil-works/pi-tui";
-import bashExtension, { type DetachedExitDetails, killTree } from "./index.js";
+import bashExtension from "./index.js";
+import { killTree } from "./exec.js";
+import type { DetachedExitDetails } from "./widget.js";
 
 type Handler = (event: never, ctx: ExtensionContext) => unknown;
 type Notice = Parameters<ExtensionAPI["sendMessage"]>[0];

@@ -4,19 +4,18 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
 import { visibleWidth } from "@earendil-works/pi-tui";
-import bashExtension, {
+import bashExtension from "./index.js";
+import {
   BASH_EXECUTION_POLICY,
   createDetachingBashOperations,
-  formatCompletionNotice,
   type DetachedRun,
   type DetachedStart,
+  formatCompletionNotice,
   pruneOldLogs,
-  readLogForView,
-  renderBackgroundWidget,
-  renderCompletionMessage,
   resolveForegroundSeconds,
   stripCommandPrelude,
-} from "./index.js";
+} from "./exec.js";
+import { readLogForView, renderBackgroundWidget, renderCompletionMessage } from "./widget.js";
 
 /** The shape of pi's bash tool that these tests drive. */
 type BashTool = {

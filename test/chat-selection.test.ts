@@ -3,7 +3,6 @@ import { test } from "node:test";
 import { stripTerminalSequences as stripAnsi, visibleWidth } from "@earendil-works/pi-tui";
 import {
   highlightChatSelectionLine,
-  normalizeChatSelection,
   pointInChatSurface,
   screenToChatSelectionPoint,
   selectedChatText,
@@ -16,14 +15,18 @@ const selection: ChatSelectionState = {
   dragging: true,
 };
 
-test("chat selection normalizes reverse drag order", () => {
-  assert.deepEqual(
-    normalizeChatSelection({
-      anchor: { row: 3, col: 2 },
-      focus: { row: 1, col: 4 },
-      dragging: true,
-    }),
-    { start: { row: 1, col: 4 }, end: { row: 3, col: 2 } },
+const selectionLines = ["ignored", "hello \x1b[31mworld\x1b[39m   ", "again there", "ignored"];
+
+test("selectedChatText normalizes reverse drag order", () => {
+  const reversed: ChatSelectionState = {
+    anchor: { row: 2, col: 5 },
+    focus: { row: 1, col: 6 },
+    dragging: true,
+  };
+  assert.equal(selectedChatText(selectionLines, reversed), "world\nagain");
+  assert.equal(
+    selectedChatText(selectionLines, reversed),
+    selectedChatText(selectionLines, selection),
   );
 });
 
@@ -35,8 +38,7 @@ test("screen points clamp into chat surface coordinates", () => {
 });
 
 test("selectedChatText copies visible text across rows without ANSI styling", () => {
-  const lines = ["ignored", "hello \x1b[31mworld\x1b[39m   ", "again there", "ignored"];
-  assert.equal(selectedChatText(lines, selection), "world\nagain");
+  assert.equal(selectedChatText(selectionLines, selection), "world\nagain");
 });
 
 test("highlightChatSelectionLine highlights the selected visible cells", () => {
@@ -93,6 +95,7 @@ test("selectedChatText copies CJK graphemes at half-cell bounds", () => {
 
 test("highlightChatSelectionLine ignores collapsed selection", () => {
   assert.equal(highlightChatSelectionLine("你好", 0, drag(1, 1), mark), "你好");
+  assert.equal(selectedChatText(["你好世界"], drag(1, 1)), "");
 });
 
 test("highlightChatSelectionLine overlays selection on block backgrounds", () => {

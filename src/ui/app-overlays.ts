@@ -147,7 +147,7 @@ export async function showTextInPreferredViewer(
 }
 
 /** Live Notice/Error panel state for mouse select + full-text copy. */
-export interface ActiveNotice {
+interface ActiveNotice {
   text: string;
   title: string;
   danger?: boolean;
@@ -196,8 +196,8 @@ class LinesOverlay implements Component {
       .map((line) => padLine(line, width));
   }
 }
-export function showTextOverlay(tui: OverlayTui, text: string, options?: OverlayOptions): void {
-  showLinesOverlay(tui, () => text.split(/\r?\n/), options);
+export function showTextOverlay(tui: OverlayTui, text: string): void {
+  showLinesOverlay(tui, () => text.split(/\r?\n/));
 }
 
 export function showLinesOverlay(
