@@ -1,8 +1,8 @@
 import {
   type AssistantMessage,
-  type TranscriptContext,
   createAssistantMessageEventStream,
   type SimpleStreamOptions,
+  type TranscriptContext,
 } from "@earendil-works/pi-ai";
 import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import type { MixCodeModel } from "../core/types.js";
@@ -111,6 +111,7 @@ function providerModelConfig(model: MixCodeModel) {
     maxTokens: model.maxTokens,
     headers: model.headers,
     compat: model.compat,
+    inputLimits: model.inputLimits,
   };
 }
 
