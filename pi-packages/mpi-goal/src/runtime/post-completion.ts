@@ -8,11 +8,11 @@ import type {
   PostCompletionActionState,
 } from "../domain/types.js";
 
-export type PostCompletionActionRunInput = {
+type PostCompletionActionRunInput = {
   goal: GoalState;
   action: PostCompletionActionState;
 };
-export type PostCompletionActionRunResult =
+type PostCompletionActionRunResult =
   | {
       ok: true;
       actionId: string;
@@ -38,7 +38,7 @@ export function createPostCompletionActionStates(
   }));
 }
 
-export function getRunnablePostCompletionActions(goal: GoalState): PostCompletionActionState[] {
+function getRunnablePostCompletionActions(goal: GoalState): PostCompletionActionState[] {
   if (goal.status !== "complete") return [];
   return (goal.postCompletionActions ?? []).filter((action) => action.status === "pending");
 }

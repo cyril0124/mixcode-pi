@@ -65,7 +65,7 @@ export interface RenderChatBlockOptions {
 
 // Fallback when a collapsed thinking block has no remaining text after stripping
 // presentation artifacts. Pi's default hiddenThinkingLabel is the same string.
-export const HIDDEN_THINKING_LABEL = "Thinking...";
+const HIDDEN_THINKING_LABEL = "Thinking...";
 const HIDDEN_THINKING_VIEWPORT_ROWS = 3;
 // Consecutive provider blocks are joined with a blank line; each can carry a label.
 const HIDDEN_THINKING_LABEL_PREFIX = /(^|(?:\r?\n){2})[^\S\r\n]*(?:thinking:\s*)+/gi;

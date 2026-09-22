@@ -1,9 +1,9 @@
 import { spawnSync } from "node:child_process";
 import type { TranscriptEditorMode } from "./config.js";
 
-export const EXTERNAL_TRANSCRIPT_EDITORS = ["nvim", "vim"] as const;
-export type ExternalTranscriptEditor = (typeof EXTERNAL_TRANSCRIPT_EDITORS)[number];
-export type EditorAvailabilityProbe = (command: ExternalTranscriptEditor) => boolean;
+const EXTERNAL_TRANSCRIPT_EDITORS = ["nvim", "vim"] as const;
+type ExternalTranscriptEditor = (typeof EXTERNAL_TRANSCRIPT_EDITORS)[number];
+type EditorAvailabilityProbe = (command: ExternalTranscriptEditor) => boolean;
 
 /** Probe the executable without opening an editor or invoking a shell. */
 export function isEditorAvailable(command: ExternalTranscriptEditor): boolean {
@@ -16,7 +16,7 @@ export function isEditorAvailable(command: ExternalTranscriptEditor): boolean {
 }
 
 /** Return installed editors in the user's preferred auto-selection order. */
-export function availableTranscriptEditors(
+function availableTranscriptEditors(
   probe: EditorAvailabilityProbe = isEditorAvailable,
 ): ExternalTranscriptEditor[] {
   return EXTERNAL_TRANSCRIPT_EDITORS.filter(probe);

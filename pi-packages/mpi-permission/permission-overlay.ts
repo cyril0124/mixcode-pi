@@ -47,7 +47,7 @@ export type PermissionRow =
 type SelectableRow = Extract<PermissionRow, { kind: "layer" | "rule" }>;
 
 /** Rows for one layer draft: layer selector, then key groups. */
-export function buildPermissionRows(config: PermissionConfig): PermissionRow[] {
+function buildPermissionRows(config: PermissionConfig): PermissionRow[] {
   const rows: PermissionRow[] = [{ kind: "layer" }];
   for (const entry of config.entries) {
     rows.push({ kind: "header", tool: entry.tool });

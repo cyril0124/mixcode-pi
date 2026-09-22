@@ -41,6 +41,7 @@ import {
   type PendingDiffPreviewData,
   readWorkspaceUtf8File,
 } from "./pending-diff-preview.js";
+import { toRecord } from "./render-utils.js";
 import { registerThinkingLabeling } from "./thinking-label.js";
 import { wrapToolCallRenderer } from "./tool-call-renderer.js";
 import {
@@ -75,7 +76,7 @@ type RenderTheme = Parameters<NonNullable<ToolDefinition["renderResult"]>>[2];
 /** Structural subset of Pi's ToolRenderContext consumed by this package. */
 type ToolRenderContext = Parameters<NonNullable<ToolDefinition["renderResult"]>>[3];
 
-export interface WriteExecutionMeta {
+interface WriteExecutionMeta {
   fileExistedBeforeWrite: boolean;
   previousContent?: string;
 }
@@ -88,12 +89,6 @@ interface PendingDiffPreviewState {
 const EDIT_PENDING_PREVIEW_STATE_KEY = "mpiToolDisplayEditPendingPreview";
 const WRITE_PENDING_PREVIEW_STATE_KEY = "mpiToolDisplayWritePendingPreview";
 const WRITE_EXECUTION_META_STATE_KEY = "mpiToolDisplayWriteExecutionMeta";
-
-function toRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
-}
 
 function resolvePendingDiffPreview(
   context: ToolRenderContext | undefined,
@@ -185,12 +180,12 @@ function getWriteExecutionMeta(
   return pending;
 }
 
-export interface ToolDisplayRenderer {
+interface ToolDisplayRenderer {
   renderCall: CallRenderer;
   renderResult: ResultRenderer;
 }
 
-export interface ToolDisplayRendererCatalog {
+interface ToolDisplayRendererCatalog {
   bash: ToolDisplayRenderer;
   read: ToolDisplayRenderer;
   edit: ToolDisplayRenderer;

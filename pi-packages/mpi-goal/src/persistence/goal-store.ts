@@ -14,7 +14,7 @@ import type {
   PostCompletionActionStatus,
 } from "../domain/types.js";
 
-export type CreateGoalStateInput = {
+type CreateGoalStateInput = {
   objective: string;
   tokenBudget?: number;
   timeBudgetSeconds?: number;
@@ -54,7 +54,7 @@ export function getTelemetry(): GoalTelemetrySnapshot | null {
   return getMutableRuntimeState().telemetry;
 }
 
-export function getRuntimeState(): GoalRuntimeState {
+function getRuntimeState(): GoalRuntimeState {
   const state = getMutableRuntimeState();
   return { goal: state.goal, telemetry: state.telemetry };
 }

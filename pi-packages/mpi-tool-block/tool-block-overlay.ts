@@ -13,13 +13,13 @@ import {
   toolBlockRowState,
 } from "./tool-block-core.js";
 
-export type ThemeLike = {
+type ThemeLike = {
   fg(color: string, text: string): string;
   bg?(color: string, text: string): string;
   bold(text: string): string;
 };
 
-export interface ToolBlockOverlayOptions {
+interface ToolBlockOverlayOptions {
   theme: ThemeLike;
   requestRender: () => void;
   done: () => void;

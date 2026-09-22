@@ -1,12 +1,12 @@
 import { Type } from "typebox";
 
 export const EmptyParams = Type.Object({});
-export const PostCompletionActionParam = Type.Object({
+const PostCompletionActionParam = Type.Object({
   type: Type.Literal("context.reset"),
   mode: Type.Union([Type.Literal("clear"), Type.Literal("summarize")]),
 });
-export const TemplateFlags = Type.Record(Type.String(), Type.String());
-export const NullableNumber = Type.Union([Type.Number(), Type.Null()]);
+const TemplateFlags = Type.Record(Type.String(), Type.String());
+const NullableNumber = Type.Union([Type.Number(), Type.Null()]);
 export const CreateGoalParams = Type.Object({
   objective: Type.String({ description: "Goal objective explicitly requested by the user" }),
   token_budget: Type.Optional(Type.Number({ description: "Optional positive token budget" })),

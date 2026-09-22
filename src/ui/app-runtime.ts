@@ -8,9 +8,9 @@ import type { RuntimeChangeSource } from "./app-types.js";
 
 import { TAB_ACTIVE_SHIMMER_PERIOD_MS, TAB_ACTIVE_SHIMMER_SWEEP_MS } from "./rendering/chrome.js";
 
-export const WORKING_REDRAW_INTERVAL_MS = 80;
-export const SHIMMER_REDRAW_INTERVAL_MS = 50;
-export const LIVE_EXTENSION_REDRAW_INTERVAL_MS = 1_000;
+const WORKING_REDRAW_INTERVAL_MS = 80;
+const SHIMMER_REDRAW_INTERVAL_MS = 50;
+const LIVE_EXTENSION_REDRAW_INTERVAL_MS = 1_000;
 export function hydrateTabPromptHistory(
   state: MixCodeState,
   runtime: Pick<MixCodeRuntime, "getPromptHistory">,

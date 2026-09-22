@@ -174,3 +174,13 @@ export function previewLines(
   const remaining = Math.max(0, lines.length - shown.length);
   return { shown, remaining };
 }
+
+/** True only for plain objects; arrays, null, and primitives are rejected. */
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Plain-object view of an external value; non-objects become an empty record. */
+export function toRecord(value: unknown): Record<string, unknown> {
+  return isRecord(value) ? value : {};
+}

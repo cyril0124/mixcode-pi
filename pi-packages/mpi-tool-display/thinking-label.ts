@@ -1,12 +1,9 @@
 // License notices: ./THIRD_PARTY_NOTICES.md.
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
+import { filterSgrSequences } from "./ansi-utils.js";
 import { onReloadShutdown } from "./extension-lifecycle.js";
-
-// Local predicate keeps this package independent from unrelated metadata helpers.
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
+import { isRecord } from "./render-utils.js";
 
 interface ThemeLike {
   fg(color: string, text: string): string;
@@ -63,14 +60,11 @@ function shouldPrefixThinkingForApi(api: unknown): boolean {
   return true;
 }
 
-function stripAnsi(text: string): string {
-  return text.replace(/\x1b\[[0-9;]*m/g, "");
-}
-
 function stripThinkingPresentationArtifacts(text: string): string {
-  // stripAnsi removes complete SGR sequences; ESC-less "\d+m" fragments are
-  // ordinary model content and must never be stripped from thinking text.
-  let current = stripAnsi(text);
+  // filterSgrSequences removes complete SGR sequences; ESC-less "\d+m"
+  // fragments are ordinary model content and must never be stripped from
+  // thinking text.
+  let current = filterSgrSequences(text, () => []);
   while (true) {
     const withoutLabel = current.replace(THINKING_LABEL_PREFIX_PATTERN, "").trimStart();
     if (withoutLabel === current) {

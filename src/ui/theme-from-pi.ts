@@ -64,16 +64,24 @@ export function withTabStyles(
   };
 }
 
+/**
+ * Reopen a background SGR sequence after inner resets (`0m`, `49m`) so nested
+ * spans cannot strip the color; the closing sequence returns to default bg.
+ */
+export function persistentBgFromStart(start: string): (text: string) => string {
+  return (text: string) =>
+    `${start}${text
+      .replace(/\x1b\[0m/g, `\x1b[0m${start}`)
+      .replace(/\x1b\[49m/g, `\x1b[49m${start}`)}\x1b[49m`;
+}
+
 /** Build MixCode TUI chrome colors from a Pi Theme via fixed token mapping. */
 export function mixCodeThemeFromPi(theme: Theme): MixCodeTheme {
   const bgStart = (color: Parameters<Theme["getBgAnsi"]>[0]) => theme.getBgAnsi(color);
   const persistentBg = (color: Parameters<Theme["getBgAnsi"]>[0]) => {
     const start = bgStart(color);
     if (!start) return (text: string) => text;
-    return (text: string) =>
-      `${start}${text
-        .replace(/\x1b\[0m/g, `\x1b[0m${start}`)
-        .replace(/\x1b\[49m/g, `\x1b[49m${start}`)}\x1b[49m`;
+    return persistentBgFromStart(start);
   };
   const fg =
     (color: Parameters<Theme["fg"]>[0]) =>

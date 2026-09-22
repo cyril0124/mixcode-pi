@@ -32,7 +32,7 @@ export function renderExtensionHeader(tab: MixCodeTabInfo | undefined, width: nu
 }
 
 /** Tab bar may use at most this fraction of the terminal height (rows). */
-export const TAB_BAR_VIEWPORT_RATIO = 0.1;
+const TAB_BAR_VIEWPORT_RATIO = 0.1;
 
 /**
  * When the full "MixCode Home" chip would occupy more than this fraction of the
@@ -110,7 +110,7 @@ export function renderTabBar(
 }
 
 /** Max background-agent status markers shown before collapsing to [+N]. */
-export const ZEN_STATUS_MARKER_CAP = 5;
+const ZEN_STATUS_MARKER_CAP = 5;
 export type ZenStatusMarker = "working" | "waiting" | "done" | "error";
 
 /**

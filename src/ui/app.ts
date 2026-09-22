@@ -59,17 +59,6 @@ import { widgetArgumentCompletions } from "./app-submit-ui.js";
 import { setTheme, themeForId } from "./themes.js";
 import { workspaceNameCompletions } from "./workspace-actions.js";
 
-export { handleMixCodeKeyInput } from "./app-input.js";
-export { MixCodeRoot } from "./app-layout.js";
-export {
-  bindActiveTabShimmerRedraw,
-  bindLiveExtensionRedraw,
-  bindRuntimeRendering,
-  bindWorkingRedraw,
-} from "./app-runtime.js";
-export { handleSubmittedInput } from "./app-submit.js";
-export { renderHotkeysText } from "./hotkeys.js";
-export { renderSystemToolsText } from "./system-tools.js";
 export interface MixCodeTuiOptions {
   completionSources?: MixCodeCompletionSources;
   onStateChanged?: (state: MixCodeState) => void | Promise<void>;

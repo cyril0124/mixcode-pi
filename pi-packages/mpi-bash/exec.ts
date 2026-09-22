@@ -19,7 +19,7 @@ export const BASH_DEFAULT_TIMEOUT_SECONDS = 300;
 const PROCESS_TREE_TERM_GRACE_MS = 3000;
 
 /** Foreground blocking window before a command is handed to the background. */
-export const DEFAULT_FOREGROUND_SECONDS = 30;
+const DEFAULT_FOREGROUND_SECONDS = 30;
 
 /** Output kept in memory after detaching, to quote in the completion notice. */
 const NOTICE_TAIL_BYTES = 2000;
@@ -103,7 +103,7 @@ export function resolveForegroundSeconds(env: NodeJS.ProcessEnv = process.env): 
   return value;
 }
 
-export function formatDetachNotice(options: {
+function formatDetachNotice(options: {
   seconds: number;
   pid: number | undefined;
   logPath: string;

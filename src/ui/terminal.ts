@@ -5,29 +5,19 @@ export const MOUSE_REPORTING_DISABLE = "\x1b[?1006l\x1b[?1003l\x1b[?1002l\x1b[?1
 export const AUTOWRAP_DISABLE = "\x1b[?7l";
 export const AUTOWRAP_ENABLE = "\x1b[?7h";
 
-/** Forwards Terminal I/O and exposes inject() onto the TUI stdin callback. */
-export class InjectingTerminal implements Terminal {
-  private onInput: ((data: string) => void) | undefined;
+/**
+ * Shared pass-through surface for Terminal wrappers: every member below just
+ * forwards to the wrapped terminal. Subclasses keep only the lifecycle
+ * overrides they actually change (start / stop / drainInput).
+ */
+abstract class ForwardingTerminal implements Terminal {
+  constructor(protected readonly inner: Terminal) {}
 
-  constructor(private readonly inner: Terminal) {}
+  abstract start(onInput: (data: string) => void, onResize: () => void): void;
 
-  start(onInput: (data: string) => void, onResize: () => void): void {
-    this.onInput = onInput;
-    this.inner.start(onInput, onResize);
-  }
+  abstract stop(): void;
 
-  inject(data: string): void {
-    if (!this.onInput) throw new Error("Cannot inject input before the TUI starts");
-    this.onInput(data);
-  }
-
-  stop(): void {
-    this.inner.stop();
-  }
-
-  drainInput(maxMs?: number, idleMs?: number): Promise<void> {
-    return this.inner.drainInput(maxMs, idleMs);
-  }
+  abstract drainInput(maxMs?: number, idleMs?: number): Promise<void>;
 
   write(data: string): void {
     this.inner.write(data);
@@ -78,6 +68,29 @@ export class InjectingTerminal implements Terminal {
   }
 }
 
+/** Forwards Terminal I/O and exposes inject() onto the TUI stdin callback. */
+export class InjectingTerminal extends ForwardingTerminal {
+  private onInput: ((data: string) => void) | undefined;
+
+  start(onInput: (data: string) => void, onResize: () => void): void {
+    this.onInput = onInput;
+    this.inner.start(onInput, onResize);
+  }
+
+  inject(data: string): void {
+    if (!this.onInput) throw new Error("Cannot inject input before the TUI starts");
+    this.onInput(data);
+  }
+
+  stop(): void {
+    this.inner.stop();
+  }
+
+  drainInput(maxMs?: number, idleMs?: number): Promise<void> {
+    return this.inner.drainInput(maxMs, idleMs);
+  }
+}
+
 /**
  * External programs sharing the tty (vim, less, `reset`, embedded shells) can
  * clear mouse reporting on exit, leaving the mouse dead while keyboard input
@@ -87,11 +100,9 @@ export class InjectingTerminal implements Terminal {
  */
 const MOUSE_REPORTING_REASSERT_INTERVAL_MS = 1000;
 
-export class MouseReportingTerminal implements Terminal {
+export class MouseReportingTerminal extends ForwardingTerminal {
   private started = false;
   private reassertTimer?: ReturnType<typeof setInterval>;
-
-  constructor(private readonly inner: Terminal) {}
 
   start(onInput: (data: string) => void, onResize: () => void): void {
     this.inner.start(onInput, onResize);
@@ -124,54 +135,6 @@ export class MouseReportingTerminal implements Terminal {
     this.stopReassert();
     if (this.started) this.inner.write(`${MOUSE_REPORTING_DISABLE}${AUTOWRAP_ENABLE}`);
     await this.inner.drainInput(maxMs, idleMs);
-  }
-
-  write(data: string): void {
-    this.inner.write(data);
-  }
-
-  get columns(): number {
-    return this.inner.columns;
-  }
-
-  get rows(): number {
-    return this.inner.rows;
-  }
-
-  get kittyProtocolActive(): boolean {
-    return this.inner.kittyProtocolActive;
-  }
-
-  moveBy(lines: number): void {
-    this.inner.moveBy(lines);
-  }
-
-  hideCursor(): void {
-    this.inner.hideCursor();
-  }
-
-  showCursor(): void {
-    this.inner.showCursor();
-  }
-
-  clearLine(): void {
-    this.inner.clearLine();
-  }
-
-  clearFromCursor(): void {
-    this.inner.clearFromCursor();
-  }
-
-  clearScreen(): void {
-    this.inner.clearScreen();
-  }
-
-  setTitle(title: string): void {
-    this.inner.setTitle(title);
-  }
-
-  setProgress(active: boolean): void {
-    this.inner.setProgress(active);
   }
 }
 

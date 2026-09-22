@@ -65,7 +65,7 @@ export function loadOptimizePromptConfig(agentDir: string): OptimizePromptConfig
   }
 }
 
-export function formatOptimizePromptConfig(config: OptimizePromptConfig): string {
+function formatOptimizePromptConfig(config: OptimizePromptConfig): string {
   // Serialize explicitly so schemaRef is written under its on-disk `$schema` key.
   const { schemaRef, ...fields } = config;
   const out = { ...(schemaRef !== undefined ? { $schema: schemaRef } : {}), ...fields };

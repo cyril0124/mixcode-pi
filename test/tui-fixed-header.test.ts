@@ -7,13 +7,10 @@ import {
   visibleWidth,
   type Terminal,
 } from "@earendil-works/pi-tui";
-import {
-  bindRuntimeRendering,
-  bindWorkingRedraw,
-  createMixCodeTui as createProductionMixCodeTui,
-  handleMixCodeKeyInput,
-  MixCodeRoot,
-} from "../src/ui/app.js";
+import { bindRuntimeRendering, bindWorkingRedraw } from "../src/ui/app-runtime.js";
+import { createMixCodeTui as createProductionMixCodeTui } from "../src/ui/app.js";
+import { handleMixCodeKeyInput } from "../src/ui/app-input.js";
+import { MixCodeRoot } from "../src/ui/app-layout.js";
 import {
   fitHeadLines,
   fitTailLines,

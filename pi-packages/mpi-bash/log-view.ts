@@ -287,7 +287,7 @@ export class LogView implements Component {
     ];
     // The last resort still names the key; a truncated prompt would hide it.
     const prompt = prompts.find((text) => visibleWidth(text) <= innerWidth) ?? " y/n";
-    return this.theme.fg("error", truncateToWidth(prompt ?? "", innerWidth, "…"));
+    return this.theme.fg("error", truncateToWidth(prompt, innerWidth, "…"));
   }
 
   private rows(): number {

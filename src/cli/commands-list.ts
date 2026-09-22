@@ -145,17 +145,16 @@ List slash commands available for this workdir (local, extension, prompt).
 
 export async function runCommandsCommand(
   rawArgs: string[],
-  options: { fallbackWorkdir?: string; packageRoot?: string; agentDir?: string } = {},
+  options: { packageRoot?: string } = {},
 ): Promise<void> {
-  const parsed = parseCommandsArgs(rawArgs, options.fallbackWorkdir ?? cwd());
+  const parsed = parseCommandsArgs(rawArgs, cwd());
   if (parsed.help) {
     process.stdout.write(`${COMMANDS_HELP}\n`);
     return;
   }
-  const workdir = parsed.workdir ?? path.resolve(options.fallbackWorkdir ?? cwd());
+  const workdir = parsed.workdir ?? path.resolve(cwd());
   const catalog = await loadCommandCatalog({
     workdir,
-    agentDir: options.agentDir,
     packageRoot: options.packageRoot,
   });
   if (parsed.json) {

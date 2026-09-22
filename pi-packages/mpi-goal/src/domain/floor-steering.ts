@@ -12,13 +12,13 @@ export type FloorWorkCard = {
   avoid: string[];
 };
 
-export type FloorWorkSelectionContext = {
+type FloorWorkSelectionContext = {
   goal: GoalState;
   telemetry: GoalTelemetrySnapshot | null;
   floor: CompletionFloorEvaluation;
 };
 
-export const FLOOR_VALUE_PASS_CATALOG: readonly FloorWorkCard[] = [
+const FLOOR_VALUE_PASS_CATALOG: readonly FloorWorkCard[] = [
   {
     id: "requirement_gap_audit",
     label: "Requirement gap audit",
@@ -136,7 +136,7 @@ Autonomous fallback ladder if this pass is not viable: requirement/gap audit →
 Do not ask the user what else to do unless the original objective explicitly required a user decision or a separate safety/destructive-action boundary blocks autonomous work. Do not fill quota with repeated summaries or unrelated churn.`;
 }
 
-export function formatFloorBlock(floor: CompletionFloorEvaluation): string {
+function formatFloorBlock(floor: CompletionFloorEvaluation): string {
   const lines = ["Unmet completion floor(s):"];
   if (floor.minTokensBeforeWrapUp !== undefined) {
     lines.push(

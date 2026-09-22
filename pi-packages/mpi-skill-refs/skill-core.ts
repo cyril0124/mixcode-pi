@@ -135,7 +135,7 @@ function resolveAgentDir(homeDir: string, agentDir?: string): string {
 /**
  * Package-contributed skill roots under a Pi agent dir.
  */
-export async function listPackageSkillDirs(agentDir: string): Promise<string[]> {
+async function listPackageSkillDirs(agentDir: string): Promise<string[]> {
   const roots: string[] = [];
   await collectPackageSkillDirs(path.join(agentDir, "npm", "node_modules"), roots);
   await collectPackageSkillDirs(path.join(agentDir, "extensions"), roots);

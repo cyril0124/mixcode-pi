@@ -1,10 +1,7 @@
 // License notices: ./THIRD_PARTY_NOTICES.md.
 // Local scope omits unused tool-ownership and output-mode settings.
-export const DIFF_VIEW_MODES = ["auto", "split", "unified"] as const;
-export const DIFF_INDICATOR_MODES = ["bars", "classic", "none"] as const;
-
-export type DiffViewMode = (typeof DIFF_VIEW_MODES)[number];
-export type DiffIndicatorMode = (typeof DIFF_INDICATOR_MODES)[number];
+export type DiffViewMode = "auto" | "split" | "unified";
+export type DiffIndicatorMode = "bars" | "classic" | "none";
 
 /** Diff-render and output-preview knobs consumed by the renderers. */
 export interface ToolDisplayConfig {

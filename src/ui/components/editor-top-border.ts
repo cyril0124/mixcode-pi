@@ -3,7 +3,7 @@ import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 /** Visible-width geometry for the labels embedded in the editor's top border. */
 const VIM_BADGE_TEXT = "[VIM]";
 const ZEN_BADGE_TEXT = "[ZEN]";
-export const SYS_BADGE_TEXT = "[sys]";
+const SYS_BADGE_TEXT = "[sys]";
 // Right chunk around the title: " <title> " + 2 trailing dashes.
 const TITLE_FRAME_WIDTH = 1 /* leading space */ + 1 /* trailing space */ + 2 /* trailing dashes */;
 // Optional " [sys]" after the title (space + badge), before the trailing frame space/dashes.

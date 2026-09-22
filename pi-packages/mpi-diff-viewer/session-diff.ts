@@ -10,7 +10,7 @@ interface ToolCallBlock {
   arguments: Record<string, unknown>;
 }
 
-export interface SessionMessage {
+interface SessionMessage {
   role: string;
   content: unknown;
   toolCallId?: string;
@@ -31,12 +31,12 @@ interface FileMods {
   mods: Mod[];
 }
 
-export interface ReversePatchHunk {
+interface ReversePatchHunk {
   newStart: number;
   lines: string[];
 }
 
-export type DiffRowKind = "equal" | "insert" | "delete" | "replace";
+type DiffRowKind = "equal" | "insert" | "delete" | "replace";
 
 export interface DiffRow {
   kind: DiffRowKind;
@@ -48,7 +48,7 @@ export interface DiffRow {
   newNoNewline?: boolean;
 }
 
-export interface DiffHunk {
+interface DiffHunk {
   header: string;
   oldStart: number;
   oldCount: number;

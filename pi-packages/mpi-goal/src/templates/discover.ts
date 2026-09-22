@@ -6,7 +6,7 @@ const TEMPLATE_DIR = ".pi-goals";
 const DEFAULT_COMMAND_TIMEOUT_MS = 10_000;
 const DEFAULT_COMMAND_OUTPUT_LIMIT = 20_000;
 
-export type GoalTemplate = {
+type GoalTemplate = {
   name: string;
   path: string;
   description?: string;
@@ -17,7 +17,7 @@ export type GoalTemplate = {
   body: string;
 };
 
-export type GoalTemplateMetadata = {
+type GoalTemplateMetadata = {
   name: string;
   path: string;
   description?: string;
@@ -28,7 +28,7 @@ export type GoalTemplateMetadata = {
   requiresArgs: boolean;
 };
 
-export type ResolvedGoalTemplate = {
+type ResolvedGoalTemplate = {
   name: string;
   path: string;
   objective: string;
@@ -36,12 +36,12 @@ export type ResolvedGoalTemplate = {
   args: string;
 };
 
-export type TemplateResolution =
+type TemplateResolution =
   | { ok: true; template: ResolvedGoalTemplate }
   | { ok: false; error: string }
   | { ok: false; notTemplate: true };
 
-export type GoalTemplateInvocation = {
+type GoalTemplateInvocation = {
   name: string;
   flags: Record<string, string>;
   args: string;
@@ -49,7 +49,7 @@ export type GoalTemplateInvocation = {
 
 type Frontmatter = Record<string, string>;
 
-export function discoverGoalTemplates(root = process.cwd()): GoalTemplate[] {
+function discoverGoalTemplates(root = process.cwd()): GoalTemplate[] {
   const templates: GoalTemplate[] = [];
   for (const dir of findTemplateDirs(root)) collectTemplates(root, dir, templates);
   templates.sort((a, b) => a.name.localeCompare(b.name));

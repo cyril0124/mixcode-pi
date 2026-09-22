@@ -2,13 +2,13 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
 export const CONFIG_FILENAME = "mpi-command-router.json";
-export const COMMAND_NAME_PATTERN = /^[A-Za-z0-9_][A-Za-z0-9_.+-]*$/;
+const COMMAND_NAME_PATTERN = /^[A-Za-z0-9_][A-Za-z0-9_.+-]*$/;
 
 // `$$` is a literal dollar; `$NAME` and `${NAME}` read the environment. The trailing
 // `\{` alternative catches a `$` that opens a braced reference and never closes it.
 const ENVIRONMENT_REFERENCE = /\$(\$|\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*)|\{)/g;
 
-export interface RouterConfig {
+interface RouterConfig {
   enabled: boolean;
   routes: Record<string, [string, ...string[]]>;
 }
@@ -22,7 +22,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * rather than an empty string, so a typo cannot silently produce a broken target.
  * A malformed `${` reference is rejected for the same reason.
  */
-export function expandEnvironmentVariables(
+function expandEnvironmentVariables(
   value: string,
   env: Record<string, string | undefined>,
   describe: string,
@@ -44,7 +44,7 @@ export function expandEnvironmentVariables(
 }
 
 /** Validate the complete JSON boundary, including disabled routes; never coerce invalid settings. */
-export function parseConfig(
+function parseConfig(
   raw: unknown,
   env: Record<string, string | undefined> = process.env,
 ): RouterConfig {
@@ -115,7 +115,7 @@ export async function loadConfigFile(filename: string): Promise<RouterConfig | n
 }
 
 /** Result of toggling one layer's `enabled` flag. */
-export interface EnabledChange {
+interface EnabledChange {
   /** True when the file did not exist and was created with an empty route map. */
   created: boolean;
 }

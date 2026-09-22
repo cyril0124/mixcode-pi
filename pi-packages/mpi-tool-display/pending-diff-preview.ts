@@ -2,6 +2,7 @@
 import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, relative, resolve } from "node:path";
+import { toRecord } from "./render-utils.js";
 
 export interface PendingDiffPreviewData {
   filePath: string;
@@ -11,14 +12,6 @@ export interface PendingDiffPreviewData {
   headerLabel: string;
   notice?: string;
 }
-
-type EditPreviewInput = {
-  path?: unknown;
-  file_path?: unknown;
-  oldText?: unknown;
-  newText?: unknown;
-  edits?: unknown;
-};
 
 type EditReplacement = {
   oldText: string;
@@ -198,23 +191,15 @@ function restoreLineEndings(content: string, ending: "\r\n" | "\n"): string {
   return ending === "\r\n" ? content.replace(/\n/g, "\r\n") : content;
 }
 
-function toEditInput(value: unknown): EditPreviewInput {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return {};
-  }
-
-  return value as EditPreviewInput;
-}
-
 function getToolPath(input: unknown, preferFilePath: boolean): string | undefined {
-  const record = toEditInput(input);
+  const record = toRecord(input);
   const filePath = trimPath(record.file_path);
   const path = trimPath(record.path);
   return preferFilePath ? (filePath ?? path) : (path ?? filePath);
 }
 
 function getWriteContent(input: unknown): string | undefined {
-  const record = toEditInput(input);
+  const record = toRecord(input);
   return typeof record.newText === "string"
     ? undefined
     : typeof (record as { content?: unknown }).content === "string"
@@ -223,7 +208,7 @@ function getWriteContent(input: unknown): string | undefined {
 }
 
 function getEditReplacements(input: unknown): EditReplacement[] {
-  const record = toEditInput(input);
+  const record = toRecord(input);
   if (Array.isArray(record.edits)) {
     return record.edits.flatMap((entry) => {
       if (!entry || typeof entry !== "object" || Array.isArray(entry)) {

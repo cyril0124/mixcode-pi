@@ -11,7 +11,7 @@ export type CompletionFloorEvaluation = {
   anyFloorConfigured: boolean;
 };
 
-export type GoalFloorConfig = {
+type GoalFloorConfig = {
   tokenBudget?: number;
   timeBudgetSeconds?: number;
   minTokensBeforeWrapUp?: number;

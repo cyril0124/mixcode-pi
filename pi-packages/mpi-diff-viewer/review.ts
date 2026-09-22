@@ -1,5 +1,5 @@
 export type ReviewIntent = "fix" | "discuss";
-export type ReviewSide = "old" | "new";
+type ReviewSide = "old" | "new";
 
 export type ReviewTarget =
   | { kind: "all" }
@@ -13,7 +13,7 @@ export type ReviewTarget =
       code: string[];
     };
 
-export interface ReviewComment {
+interface ReviewComment {
   target: ReviewTarget;
   intent: ReviewIntent;
   body: string;
@@ -27,7 +27,7 @@ export function createReviewDraft(): ReviewDraft {
   return { comments: [] };
 }
 
-export function reviewTargetKey(target: ReviewTarget): string {
+function reviewTargetKey(target: ReviewTarget): string {
   if (target.kind === "all") return "all";
   if (target.kind === "file") return `file:${target.path}`;
   return `line:${target.path}:${target.side}:${target.startLine}:${target.endLine}`;

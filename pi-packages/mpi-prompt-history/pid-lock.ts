@@ -37,7 +37,7 @@ export class PidLockBusyError extends Error {
   }
 }
 
-export function lockDir(stateDir: string): string {
+function lockDir(stateDir: string): string {
   return path.join(stateDir, ".locks");
 }
 

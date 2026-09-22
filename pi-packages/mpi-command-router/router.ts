@@ -4,7 +4,7 @@ import * as path from "node:path";
 import { configPath, loadConfigFile, projectConfigPath } from "./config.js";
 
 /** Session facts a project config layer depends on. */
-export interface PrepareScope {
+interface PrepareScope {
   /** Session working directory; the project config lives under `<cwd>/<configDirName>`. */
   cwd: string;
   /** Untrusted projects contribute no routes. */

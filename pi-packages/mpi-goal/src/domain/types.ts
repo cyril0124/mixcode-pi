@@ -87,7 +87,7 @@ export type GoalTelemetrySnapshot = {
   updatedAt: number;
 };
 
-export type PiGoalEventKind = "set" | "update" | "account" | "telemetry" | "clear";
+type PiGoalEventKind = "set" | "update" | "account" | "telemetry" | "clear";
 export type PiGoalEventReason =
   | "command"
   | "tool"
@@ -126,7 +126,7 @@ export type TurnAccountingSnapshot = {
   completedGoal: boolean;
 };
 
-export type GoalSteeringKind = "continuation" | "budgetLimit" | "pause";
+type GoalSteeringKind = "continuation" | "budgetLimit" | "pause";
 
 export type GoalSteeringDetails = {
   goalId: string;

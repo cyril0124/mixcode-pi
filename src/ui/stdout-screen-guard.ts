@@ -20,7 +20,6 @@ const FULL_SCREEN_CLEAR_RE = /\x1b\[(?:2|3)J/g;
 const CURSOR_HOME_RE = /\x1b\[H/g;
 
 let hostWriteDepth = 0;
-let installed = false;
 let originalWrite: typeof process.stdout.write | undefined;
 let repaintTimer: ReturnType<typeof setTimeout> | undefined;
 let onBlockedClear: (() => void) | undefined;
@@ -57,11 +56,10 @@ function stripUnauthorizedScreenClears(text: string): {
 }
 
 export function installStdoutScreenGuard(options: { onBlockedClear?: () => void }): () => void {
-  if (installed) {
+  if (originalWrite) {
     onBlockedClear = options.onBlockedClear;
     return uninstallStdoutScreenGuard;
   }
-  installed = true;
   onBlockedClear = options.onBlockedClear;
   originalWrite = process.stdout.write.bind(process.stdout);
 
@@ -112,10 +110,10 @@ export function installStdoutScreenGuard(options: { onBlockedClear?: () => void 
 }
 
 function uninstallStdoutScreenGuard(): void {
-  if (!installed || !originalWrite) return;
+  // originalWrite is the single installed-state source of truth.
+  if (!originalWrite) return;
   process.stdout.write = originalWrite;
   originalWrite = undefined;
-  installed = false;
   onBlockedClear = undefined;
   if (repaintTimer !== undefined) {
     clearTimeout(repaintTimer);

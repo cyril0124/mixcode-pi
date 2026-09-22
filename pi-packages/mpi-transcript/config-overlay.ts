@@ -7,7 +7,7 @@ interface ThemeLike {
   fg(color: string, text: string): string;
 }
 
-export interface TranscriptConfigOverlayOptions {
+interface TranscriptConfigOverlayOptions {
   theme: ThemeLike;
   requestRender: () => void;
   done: () => void;
@@ -27,7 +27,7 @@ const MODE_LABELS: Record<TranscriptEditorMode, string> = {
   builtin: "Built-in",
 };
 
-export function transcriptEditorModeLabel(mode: TranscriptEditorMode): string {
+function transcriptEditorModeLabel(mode: TranscriptEditorMode): string {
   return MODE_LABELS[mode];
 }
 

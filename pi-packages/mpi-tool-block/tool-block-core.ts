@@ -25,7 +25,7 @@ export type ToolRef = {
   plugin: string;
 };
 
-export type SourceLike = {
+type SourceLike = {
   source?: string;
   path?: string;
 };
@@ -38,7 +38,7 @@ export type ToolBlockRow =
   | { kind: "header"; label: string }
   | { kind: "tool"; name: string; plugin: string; hidden: boolean; inactive?: boolean };
 
-export type ToolBlockToolState = "hidden" | "visible" | "inactive";
+type ToolBlockToolState = "hidden" | "visible" | "inactive";
 
 export type ConfigLoadResult =
   | { ok: true; config: ToolBlockConfig; path: string; missing?: false }

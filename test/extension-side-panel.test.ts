@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { type Terminal, visibleWidth } from "@earendil-works/pi-tui";
-import { createMixCodeTui, handleMixCodeKeyInput } from "../src/ui/app.js";
+import { createMixCodeTui } from "../src/ui/app.js";
+import { handleMixCodeKeyInput } from "../src/ui/app-input.js";
 import { handleMouseInput } from "../src/ui/app-mouse.js";
 import { createInitialState, createTab } from "../src/core/defaults.js";
 import type { MixCodeState } from "../src/core/types.js";

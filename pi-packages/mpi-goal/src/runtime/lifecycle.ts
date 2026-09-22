@@ -159,7 +159,7 @@ export function flushAndStopGoalActiveTime(
   stopActiveTime();
 }
 
-export type GoalLifecycleOptions = {
+type GoalLifecycleOptions = {
   /** Invoked after goal/queue state is restored from the session branch. */
   onStateRestored?: () => void;
 };

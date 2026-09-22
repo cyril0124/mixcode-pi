@@ -19,7 +19,7 @@ import { getGoal } from "../persistence/goal-store.js";
 import { syncGoalUi } from "../surface/ui/notify.js";
 import type { GoalState, PiGoalEventReason, PostCompletionActionState } from "../domain/types.js";
 
-export type TerminalGoalWorkflowInput = {
+type TerminalGoalWorkflowInput = {
   goal: GoalState | null;
   reason: PiGoalEventReason;
   runner: PostCompletionActionRunner;

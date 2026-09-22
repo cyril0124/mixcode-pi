@@ -23,7 +23,7 @@ export type DequeueAudit = {
   authority: string;
 };
 
-export type QueueRepairResult =
+type QueueRepairResult =
   | { status: "restored"; queueId: string }
   | { status: "already_present"; queueId: string }
   | { status: "blocked_different_head"; queueId: string; currentHeadId: string }
@@ -58,7 +58,7 @@ type QueueEventRecord = {
 
 type ParsedOptionalField<T> = { ok: true; value: T | undefined } | { ok: false };
 
-export type GoalQueueRuntimeState = {
+type GoalQueueRuntimeState = {
   queue: QueuedGoal[];
   revision?: number;
 };

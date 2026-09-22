@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { AutocompleteProvider, Terminal } from "@earendil-works/pi-tui";
-import { createMixCodeTui, handleMixCodeKeyInput } from "../src/ui/app.js";
+import { createMixCodeTui } from "../src/ui/app.js";
+import { handleMixCodeKeyInput } from "../src/ui/app-input.js";
 import { createInitialState, createTab } from "../src/core/defaults.js";
 import type { MixCodeTabInfo } from "../src/core/types.js";
 import type { MixCodeRuntime } from "../src/agent/runtime.js";

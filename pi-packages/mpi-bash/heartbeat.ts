@@ -17,7 +17,7 @@ import { readLogTail, type StallDetails } from "./widget.js";
  */
 
 /** Log silence before the first reminder. */
-export const DEFAULT_STALL_SECONDS = 60;
+const DEFAULT_STALL_SECONDS = 60;
 
 /** Each reminder waits this many times longer than the previous one. */
 const BACKOFF_FACTOR = 2;
@@ -69,7 +69,7 @@ interface StallState {
 }
 
 /** One stalled job: what the model reads, and what the chat panel renders. */
-export interface StallReport {
+interface StallReport {
   jobs: StallDetails[];
   /** Advance backoff only for jobs actually delivered, once per report. */
   markDelivered(jobIds: readonly number[], now?: number): void;

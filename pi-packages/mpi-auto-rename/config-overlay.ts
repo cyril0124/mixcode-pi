@@ -31,7 +31,6 @@ export interface AutoRenameConfigOverlayOptions {
   onChange?: (config: AutoRenameConfig) => void;
   initial: AutoRenameConfig;
   modelOptions: string[];
-  thinkingOptions?: string[];
   getThinkingOptions?: (modelRef: string) => string[];
   getMaxVisible?: () => number;
 }
@@ -51,8 +50,7 @@ export function createAutoRenameConfigOverlay(options: AutoRenameConfigOverlayOp
   const modelOptions = uniqueOptions([AUTO_RENAME_INHERIT, ...options.modelOptions]);
 
   function currentThinkingOptions(): string[] {
-    const extra =
-      options.getThinkingOptions?.(currentModelLabel()) ?? options.thinkingOptions ?? [];
+    const extra = options.getThinkingOptions?.(currentModelLabel()) ?? [];
     return uniqueOptions([AUTO_RENAME_INHERIT, ...extra]);
   }
 

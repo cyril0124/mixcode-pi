@@ -81,7 +81,7 @@ type ActiveTab = MixCodeState["tabs"][number];
  * Temporary UI owns the input slot (login dialog, ctx.ui.custom / editor overlay).
  * Permanent setEditorComponent skins are NOT takeovers — they still use MixCode keys.
  */
-export function isPendingEditorTakeover(
+function isPendingEditorTakeover(
   active: ActiveTab | undefined,
   editorActions?: MixCodeEditorActions,
 ): boolean {

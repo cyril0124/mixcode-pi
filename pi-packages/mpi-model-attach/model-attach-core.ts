@@ -13,7 +13,7 @@ export type ModelLike = {
   input?: readonly string[];
 };
 
-export type ModelAttachMatch = {
+type ModelAttachMatch = {
   /** Glob against `provider/modelId`, e.g. `deepseek/*`. A list means any-of. */
   model?: string | string[];
   /** Every listed modality must be absent from model.input. */
@@ -22,13 +22,13 @@ export type ModelAttachMatch = {
   hasInput?: string[];
 };
 
-export type ModelAttachRule = {
+type ModelAttachRule = {
   match: ModelAttachMatch;
   add?: string[];
   remove?: string[];
 };
 
-export type ModelAttachSection = {
+type ModelAttachSection = {
   /** When false, this section's rules are not applied. Default true when omitted. */
   enabled?: boolean;
   rules: ModelAttachRule[];
@@ -49,14 +49,14 @@ export function isSectionEnabled(section: ModelAttachSection | null | undefined)
   return section.enabled !== false;
 }
 
-export type ConfigLoadResult =
+type ConfigLoadResult =
   | { ok: true; config: ModelAttachConfig; path: string }
   | { ok: true; config: null; path: string; missing: true }
   | { ok: false; path: string; error: string };
 
 export type ApplyWarning = { kind: "add" | "remove" | "path"; message: string };
 
-export type ApplyResult = {
+type ApplyResult = {
   skills: Skill[];
   warnings: ApplyWarning[];
   matchedRuleIndexes: number[];
@@ -64,7 +64,7 @@ export type ApplyResult = {
 
 export type PlanWarning = { kind: "add" | "remove" | "path" | "name"; message: string };
 
-export type LoadPlan = {
+type LoadPlan = {
   /** Absolute extension entry paths to load (order preserved, deduped). */
   paths: string[];
   warnings: PlanWarning[];
@@ -421,7 +421,7 @@ export function parseModelAttachConfig(
 }
 
 /** On-disk shape: schemaRef goes back under its `$schema` key, first. */
-export function serializeModelAttachConfig(config: ModelAttachConfig): Record<string, unknown> {
+function serializeModelAttachConfig(config: ModelAttachConfig): Record<string, unknown> {
   const { schemaRef, skills, extensions } = config;
   return {
     ...(schemaRef !== undefined ? { $schema: schemaRef } : {}),

@@ -15,7 +15,7 @@ import {
 } from "../../domain/format.js";
 import type { GoalState, GoalStatus } from "../../domain/types.js";
 
-export type GoalQueueRow = {
+type GoalQueueRow = {
   queueId: string;
   objective: string;
   template?: string;
@@ -26,7 +26,7 @@ export type GoalOverlaySnapshot = {
   queue: GoalQueueRow[];
 };
 
-export type GoalOverlayActions = {
+type GoalOverlayActions = {
   getSnapshot: () => GoalOverlaySnapshot;
   pause: () => void;
   resume: () => void;

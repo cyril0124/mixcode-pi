@@ -5,7 +5,7 @@ import type { GoalQueueSteeringReason } from "../domain/types.js";
 
 const OBJECTIVE_PREVIEW_CHARS = 4_000;
 
-export type QueueHandoffOptions = {
+type QueueHandoffOptions = {
   triggerTurn?: boolean;
   goalId?: string;
   deliverAs?: "steer" | "followUp";
@@ -36,7 +36,7 @@ export function sendQueueHandoff(
 }
 
 /** Payload shared by the queue-handoff steering message and boundary drafts. */
-export type QueueHandoffDraft = { content: string; details: Record<string, unknown> };
+type QueueHandoffDraft = { content: string; details: Record<string, unknown> };
 
 /** Build the queue-handoff payload for the current queue head, or null if empty. */
 export function buildQueueHandoffDraft(reason: GoalQueueSteeringReason): QueueHandoffDraft | null {

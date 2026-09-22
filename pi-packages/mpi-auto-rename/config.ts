@@ -28,8 +28,7 @@ export function autoRenameConfigPath(agentDir: string): string {
 }
 
 export type AutoRenameConfigLoad =
-  | { ok: true; path: string; config: AutoRenameConfig; missing?: false }
-  | { ok: true; path: string; config: AutoRenameConfig; missing: true }
+  | { ok: true; path: string; config: AutoRenameConfig }
   | { ok: false; path: string; error: string };
 
 /** Non-empty trimmed `model` / `thinking`, boolean `onFirstMessage`, positive-int `maxContextChars`; unknown keys ignored. */
@@ -71,7 +70,7 @@ export function loadAutoRenameConfig(agentDir: string): AutoRenameConfigLoad {
     text = fs.readFileSync(filePath, "utf8");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return { ok: true, path: filePath, config: {}, missing: true };
+      return { ok: true, path: filePath, config: {} };
     }
     return {
       ok: false,

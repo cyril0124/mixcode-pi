@@ -18,7 +18,7 @@ export type ContinuationTicket =
     }
   | { kind: "none"; reason: string };
 
-export type ContinuationTicketOptions = {
+type ContinuationTicketOptions = {
   triggerTurn?: boolean;
   deliverAs?: "steer" | "followUp";
   force?: boolean;

@@ -13,16 +13,16 @@ import type {
   SessionStartEvent,
 } from "@earendil-works/pi-coding-agent";
 
-export type HerdrReportState = "working" | "idle" | "blocked";
+type HerdrReportState = "working" | "idle" | "blocked";
 
 export const HERDR_REPORT_SOURCE = "mpi";
 export const HERDR_REPORT_AGENT = "mpi";
-export const MIXCODE_ENV = "MIXCODE" as const;
+const MIXCODE_ENV = "MIXCODE" as const;
 export const WAITING_FOR_INPUT_EVENT = "mpi:waiting-for-input" as const;
 export const MARK_DONE_EVENT = "mpi:mark-done" as const;
 const STATE_REFRESH_INTERVAL_MS = 2000;
 
-export interface WaitingForInputEventPayload {
+interface WaitingForInputEventPayload {
   count: number;
 }
 
@@ -101,7 +101,7 @@ export function applySessionShutdown(busy: Set<string>, key: string | undefined)
   if (key) busy.delete(key);
 }
 
-export interface HerdrLedger {
+interface HerdrLedger {
   live: number;
   blocked: number;
   busy: Set<string>;
@@ -141,7 +141,7 @@ export function parseWaitingForInputPayload(raw: unknown): WaitingForInputEventP
   return { count: n };
 }
 
-export interface HerdrRequest {
+interface HerdrRequest {
   id: string;
   method: string;
   params: Record<string, unknown>;
@@ -208,7 +208,7 @@ type QueuedState = {
  * The caller supplies a sequence newer than pending reports so late delivery
  * cannot reclaim the released agent. Exit listeners cannot await socket I/O.
  */
-export function buildExitReleaseArgv(paneId: string, seq: number): string[] {
+function buildExitReleaseArgv(paneId: string, seq: number): string[] {
   return [
     "pane",
     "release-agent",

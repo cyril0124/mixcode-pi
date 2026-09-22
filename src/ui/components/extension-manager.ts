@@ -274,7 +274,7 @@ export function openExtensionManager(
   return panel;
 }
 
-export function closeExtensionManager(state: MixCodeState, tui: OverlayTui): void {
+function closeExtensionManager(state: MixCodeState, tui: OverlayTui): void {
   currentPanel = undefined;
   state.extensionManager.open = false;
   closeAppOverlay(tui);

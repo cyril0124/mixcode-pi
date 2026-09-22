@@ -24,9 +24,9 @@ import {
   parsePermissionConfig,
   removeRule,
   serializePermissionConfig,
-  splitBashCommand,
   writePermissionConfig,
 } from "./permission-core.js";
+import { splitBashCommand } from "./bash-policy.js";
 
 const CWD = "/project/myapp";
 const HOME = "/home/alice";

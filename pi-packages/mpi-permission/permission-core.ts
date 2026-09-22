@@ -10,8 +10,6 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { analyzeBashCommand, type BashAnalysis, splitBashCommand } from "./bash-policy.js";
 
-export { splitBashCommand } from "./bash-policy.js";
-
 export const PERMISSION_CONFIG_FILENAME = "mpi-permission.json";
 
 export type PermissionAction = "allow" | "ask" | "deny";
@@ -689,7 +687,7 @@ export function evaluateToolCallDecisions(args: {
 
 const ACTION_CYCLE: PermissionAction[] = ["allow", "ask", "deny"];
 
-export function cycleAction(action: PermissionAction): PermissionAction {
+function cycleAction(action: PermissionAction): PermissionAction {
   return ACTION_CYCLE[(ACTION_CYCLE.indexOf(action) + 1) % ACTION_CYCLE.length]!;
 }
 

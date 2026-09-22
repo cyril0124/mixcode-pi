@@ -76,13 +76,13 @@ export function errorResult(error: string) {
   };
 }
 
-export function remainingTokens(goal: GoalState | null): number | undefined {
+function remainingTokens(goal: GoalState | null): number | undefined {
   return goal?.tokenBudget === undefined
     ? undefined
     : Math.max(0, goal.tokenBudget - goal.tokensUsed);
 }
 
-export function remainingTime(goal: GoalState | null): number | undefined {
+function remainingTime(goal: GoalState | null): number | undefined {
   return goal?.timeBudgetSeconds === undefined
     ? undefined
     : Math.max(0, goal.timeBudgetSeconds - goal.timeUsedSeconds);

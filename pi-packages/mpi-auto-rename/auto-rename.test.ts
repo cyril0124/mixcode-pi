@@ -850,7 +850,7 @@ test("config overlay lists all settings and toggles onFirstMessage in place", ()
     },
     initial: {},
     modelOptions: ["acme/cheap"],
-    thinkingOptions: ["inherit", "low", "high"],
+    getThinkingOptions: () => ["inherit", "low", "high"],
   });
 
   const main = view.render(60).join("\n");
@@ -883,7 +883,7 @@ test("config overlay picks model and thinking from nested lists", () => {
     },
     initial: {},
     modelOptions: ["acme/cheap"],
-    thinkingOptions: ["inherit", "low"],
+    getThinkingOptions: () => ["inherit", "low"],
   });
 
   view.handleInput("\r");
@@ -911,7 +911,7 @@ test("config overlay picks maxContextChars and omits the default", () => {
     },
     initial: {},
     modelOptions: ["acme/cheap"],
-    thinkingOptions: ["inherit", "low"],
+    getThinkingOptions: () => ["inherit", "low"],
   });
 
   view.handleInput("\x1b[B");

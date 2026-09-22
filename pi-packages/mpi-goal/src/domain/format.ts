@@ -9,7 +9,7 @@ import {
 } from "./constants.js";
 import type { GoalState, GoalStatus } from "./types.js";
 
-export type ObjectiveValidation =
+type ObjectiveValidation =
   | { ok: true; objective: string }
   | { ok: false; message: string; hint?: string };
 
@@ -129,13 +129,13 @@ export function formatTokenResource(goal: GoalState): string {
   return `Tokens: ${used} / ${formatTokensCompact(goal.tokenBudget)}`;
 }
 
-export function formatTimeFloor(goal: GoalState): string | undefined {
+function formatTimeFloor(goal: GoalState): string | undefined {
   if (goal.minTimeSecondsBeforeWrapUp === undefined) return undefined;
   const floor = evaluateCompletionFloor(goal);
   return `Time floor: ${formatElapsed(goal.timeUsedSeconds)} / ${formatElapsed(goal.minTimeSecondsBeforeWrapUp)}${floor.timeFloorMet ? " met" : " before wrap-up"}`;
 }
 
-export function formatTokenFloor(goal: GoalState): string | undefined {
+function formatTokenFloor(goal: GoalState): string | undefined {
   if (goal.minTokensBeforeWrapUp === undefined) return undefined;
   const floor = evaluateCompletionFloor(goal);
   return `Token floor: ${formatTokensCompact(goal.tokensUsed)} / ${formatTokensCompact(goal.minTokensBeforeWrapUp)}${floor.tokenFloorMet ? " met" : " before wrap-up"}`;

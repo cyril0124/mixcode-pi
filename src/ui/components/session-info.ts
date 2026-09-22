@@ -7,35 +7,14 @@ import type {
   CacheWarmingStatus,
   ModelPriceSource,
   SessionEntry,
+  SessionManager,
+  SessionStats,
 } from "@earendil-works/pi-coding-agent";
 import {
   computeCacheWaste,
   formatCacheWarmingStatus,
   getUsageCostBreakdown,
 } from "@earendil-works/pi-coding-agent";
-
-export type SessionStatsLike = {
-  sessionFile?: string;
-  sessionId: string;
-  userMessages: number;
-  assistantMessages: number;
-  toolCalls: number;
-  toolResults: number;
-  totalMessages: number;
-  tokens: {
-    input: number;
-    output: number;
-    cacheRead: number;
-    cacheWrite: number;
-    total: number;
-  };
-  cost: number;
-};
-
-export type SessionNameSource = {
-  getSessionName?: () => string | undefined | null;
-  getEntries?: () => SessionEntry[];
-};
 
 const EMPTY_MODEL_PRICES: ModelPriceSource = { getModel: () => undefined };
 
@@ -49,8 +28,8 @@ export function formatSessionTokens(count: number): string {
 }
 
 export function renderSessionInfoText(
-  session: SessionNameSource,
-  info: SessionStatsLike,
+  session: Partial<Pick<SessionManager, "getSessionName" | "getEntries">>,
+  info: SessionStats,
   options: {
     entries?: SessionEntry[];
     models?: ModelPriceSource;

@@ -497,11 +497,8 @@ export async function resolveSendPromptText(
   return text;
 }
 
-export async function runCtlCommand(
-  rawArgs: string[],
-  options: { fallbackWorkdir?: string; stateDir?: string } = {},
-): Promise<void> {
-  const parsed = parseCtlArgs(rawArgs, options.fallbackWorkdir ?? cwd());
+export async function runCtlCommand(rawArgs: string[]): Promise<void> {
+  const parsed = parseCtlArgs(rawArgs, cwd());
   if (parsed.help) {
     process.stdout.write(`${CTL_HELP}\n`);
     return;
@@ -512,7 +509,7 @@ export async function runCtlCommand(
     throw new Error("send-prompt --expect-response requires MIXCODE_TAB_TITLE");
   }
   const fromPid = mixcodePidFromEnv();
-  const stateDir = options.stateDir ?? resolveMixcodeStateDir();
+  const stateDir = resolveMixcodeStateDir();
   const instance = await selectCtlInstance(parsed, { stateDir });
   const response = await requestCtl(instanceCtlSocketFile(stateDir, instance.pid), {
     op: parsed.op,

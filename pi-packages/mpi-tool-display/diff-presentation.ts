@@ -3,7 +3,7 @@ import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { pluralize } from "./render-utils.js";
 import type { ToolDisplayConfig } from "./types.js";
 
-export interface DiffSummaryStats {
+interface DiffSummaryStats {
   added: number;
   removed: number;
   hunks: number;

@@ -6,7 +6,7 @@ type ThemeLike = {
   bold?(text: string): string;
 };
 
-export interface ToolDisplayConfigOverlayOptions {
+interface ToolDisplayConfigOverlayOptions {
   theme: ThemeLike;
   requestRender: () => void;
   done: () => void;

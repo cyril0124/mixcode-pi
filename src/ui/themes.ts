@@ -11,7 +11,7 @@ import {
   Theme,
 } from "./pi-theme-api.js";
 import type { MixCodeTheme } from "./theme-from-pi.js";
-import { mixCodeThemeFromPi, withTabStyles } from "./theme-from-pi.js";
+import { mixCodeThemeFromPi, persistentBgFromStart, withTabStyles } from "./theme-from-pi.js";
 
 export type { MixCodeTheme } from "./theme-from-pi.js";
 
@@ -20,29 +20,16 @@ export interface ThemeInfo {
 }
 
 const rgb = (hex: string) => {
-  const value = hex.replace(/^#/, "");
-  const r = Number.parseInt(value.slice(0, 2), 16);
-  const g = Number.parseInt(value.slice(2, 4), 16);
-  const b = Number.parseInt(value.slice(4, 6), 16);
+  const [r, g, b] = parseRgb(hex);
   return (text: string) => `\x1b[38;2;${r};${g};${b}m${text}\x1b[39m`;
 };
 const bgPair = (hex: string) => {
-  const value = hex.replace(/^#/, "");
-  const r = Number.parseInt(value.slice(0, 2), 16);
-  const g = Number.parseInt(value.slice(2, 4), 16);
-  const b = Number.parseInt(value.slice(4, 6), 16);
+  const [r, g, b] = parseRgb(hex);
   return { start: `\x1b[48;2;${r};${g};${b}m`, end: "\x1b[49m" };
 };
 const persistentBgRgb = (hex: string) => {
-  const value = hex.replace(/^#/, "");
-  const r = Number.parseInt(value.slice(0, 2), 16);
-  const g = Number.parseInt(value.slice(2, 4), 16);
-  const b = Number.parseInt(value.slice(4, 6), 16);
-  const start = `\x1b[48;2;${r};${g};${b}m`;
-  return (text: string) =>
-    `${start}${text
-      .replace(/\x1b\[0m/g, `\x1b[0m${start}`)
-      .replace(/\x1b\[49m/g, `\x1b[49m${start}`)}\x1b[49m`;
+  const [r, g, b] = parseRgb(hex);
+  return persistentBgFromStart(`\x1b[48;2;${r};${g};${b}m`);
 };
 const identity = (text: string) => text;
 
@@ -911,18 +898,6 @@ const AURORA_THEME: MixCodeTheme = {
   systemBackground: bgPair("#101c26"),
 };
 
-/** Built-in MixCode themes with stable ids (chrome may be hand-tuned). */
-export const THEMES: ThemeInfo[] = [
-  { id: "mixcode-dark" },
-  { id: "claude-warm" },
-  { id: "tokyo-night" },
-  { id: "terminal" },
-  { id: "catppuccin" },
-  { id: "kanagawa" },
-  { id: "rose-pine" },
-  { id: "aurora" },
-];
-
 /** Internal Pi Theme.name; not a user-facing MixCode theme id. */
 const INTERNAL_THEME_IDS = new Set(["mixcode-extension"]);
 
@@ -936,6 +911,12 @@ const BUILTIN_MIXCODE: Record<string, MixCodeTheme> = {
   "rose-pine": ROSE_PINE_THEME,
   aurora: AURORA_THEME,
 };
+
+/**
+ * Built-in MixCode themes with stable ids (chrome may be hand-tuned).
+ * BUILTIN_MIXCODE keys are the single source of truth for ids, order, and count.
+ */
+export const THEMES: ThemeInfo[] = Object.keys(BUILTIN_MIXCODE).map((id) => ({ id }));
 
 const BUILTIN_PI_THEMES: Theme[] = [
   MIXCODE_EXTENSION_THEME,

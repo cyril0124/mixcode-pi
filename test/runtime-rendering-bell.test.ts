@@ -3,7 +3,7 @@ import { test } from "node:test";
 import type { Terminal } from "@earendil-works/pi-tui";
 import { createTab } from "../src/core/defaults.js";
 import type { MixCodeTabInfo } from "../src/core/types.js";
-import { bindRuntimeRendering } from "../src/ui/app.js";
+import { bindRuntimeRendering } from "../src/ui/app-runtime.js";
 
 /** Terminal stub that records every escape sequence the bell path emits. */
 function recordingTerminal(writes: string[]): Terminal {

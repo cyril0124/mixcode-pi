@@ -140,19 +140,15 @@ lists; does not start the TUI, load extensions, or use the network. Providers
 registered dynamically by extensions (pi.registerProvider) are not included.
 `;
 
-export async function runListModelsCommand(
-  rawArgs: string[],
-  options: { agentDir?: string; stateDir?: string } = {},
-): Promise<void> {
+export async function runListModelsCommand(rawArgs: string[]): Promise<void> {
   const parsed = parseListModelsArgs(rawArgs);
   if (parsed.help) {
     process.stdout.write(`${LIST_MODELS_HELP}\n`);
     return;
   }
-  const catalog = await loadModelCatalog({
-    ...options,
-    ...(parsed.search === undefined ? {} : { search: parsed.search }),
-  });
+  const catalog = await loadModelCatalog(
+    parsed.search === undefined ? {} : { search: parsed.search },
+  );
   if (parsed.json) {
     process.stdout.write(`${JSON.stringify(catalog, null, 2)}\n`);
     return;

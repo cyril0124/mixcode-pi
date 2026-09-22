@@ -11,23 +11,24 @@ import {
   shortenPath,
   splitLines,
   stripAllEscapes,
+  toRecord,
 } from "./render-utils.js";
 import type { ToolDisplayConfig } from "./types.js";
 import { countWriteContentLines, getWriteContentSizeBytes } from "./write-display-utils.js";
 
 export { countWriteContentLines };
 
-export interface RenderThemeLike {
+interface RenderThemeLike {
   fg(color: string, text: string): string;
   bold(text: string): string;
 }
 
-export interface ToolRenderResultOptionsLike {
+interface ToolRenderResultOptionsLike {
   expanded: boolean;
   isPartial: boolean;
 }
 
-export type ToolRenderInputLike = {
+type ToolRenderInputLike = {
   content?: Array<{ type: string; text?: string }>;
   details?: unknown;
 };
@@ -38,12 +39,6 @@ export function textResult(text: string): Text {
 
 export function partialResultText(theme: RenderThemeLike, label: string): Text {
   return textResult(theme.fg("warning", label));
-}
-
-function toRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
 }
 
 export function getStringField(value: unknown, field: string): string | undefined {

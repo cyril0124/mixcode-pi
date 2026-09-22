@@ -95,7 +95,7 @@ async function retractOrAbort(
   tui.requestRender();
 }
 
-export function handleQueuedFlushKey(
+function handleQueuedFlushKey(
   state: MixCodeState,
   active: MixCodeState["tabs"][number],
   data: string,
@@ -256,7 +256,7 @@ export function handleCloseAllSessionsConfirmKey(
   }
   return true;
 }
-export function handleSessionActionConfirmKey(
+function handleSessionActionConfirmKey(
   state: MixCodeState,
   data: string,
   tui: OverlayTui,
@@ -320,7 +320,7 @@ export function canOpenCommandPalette(
   return commandPaletteEntriesWithExtensions(state, extensionCommands).length > 0;
 }
 
-export function handleCommandPaletteKey(
+function handleCommandPaletteKey(
   state: MixCodeState,
   data: string,
   tui: OverlayTui,
@@ -390,7 +390,7 @@ export function handleCommandPaletteKey(
   return true;
 }
 
-export function handleTabJumpKey(state: MixCodeState, data: string, tui: OverlayTui): boolean {
+function handleTabJumpKey(state: MixCodeState, data: string, tui: OverlayTui): boolean {
   if (handleTabJumpMouse(state, data, tui)) return true;
   if (matchesKey(data, "escape")) {
     closeTabJump(state);
@@ -615,7 +615,7 @@ export function handleEscapeKey(
   return undefined;
 }
 
-export function handlePickerKey(
+function handlePickerKey(
   state: MixCodeState,
   data: string,
   tui: OverlayTui,

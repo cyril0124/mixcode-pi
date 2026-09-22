@@ -36,7 +36,7 @@ export interface ReviewEditor {
   focused?: boolean;
 }
 
-export interface DiffViewerConfig {
+interface DiffViewerConfig {
   tui: ViewerTui;
   theme: Theme;
   diff: SessionDiff;

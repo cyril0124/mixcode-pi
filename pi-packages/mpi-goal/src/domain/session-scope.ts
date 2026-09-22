@@ -9,7 +9,7 @@ const storage = new AsyncLocalStorage<string>();
 
 const DEFAULT_KEY = "__no_session__";
 
-export type SessionIdSource = {
+type SessionIdSource = {
   getSessionId?: () => string;
   getSessionFile?: () => string | null | undefined;
 };

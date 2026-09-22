@@ -21,7 +21,7 @@ export type CompletionDecision =
       floor: CompletionFloorEvaluation;
     };
 
-export type GoalCompletionGateInput = {
+type GoalCompletionGateInput = {
   currentGoal: GoalState;
   candidateGoal: GoalState;
   telemetry: GoalTelemetrySnapshot | null;

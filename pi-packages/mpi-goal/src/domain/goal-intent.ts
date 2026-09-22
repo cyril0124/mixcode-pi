@@ -1,7 +1,7 @@
 import type { ContextResetMode, PostCompletionActionSpec } from "./types.js";
 import { parseGoalTemplateInvocation, resolveGoalTemplateByName } from "../templates/discover.js";
 
-export type GoalIntent =
+type GoalIntent =
   | { kind: "direct"; objective: string; postCompletionActions: PostCompletionActionSpec[] }
   | {
       kind: "template";
@@ -12,22 +12,22 @@ export type GoalIntent =
       postCompletionActions: PostCompletionActionSpec[];
     };
 
-export type GoalIntentResult = { ok: true; intent: GoalIntent } | { ok: false; error: string };
-export type ActionSpecResult =
+type GoalIntentResult = { ok: true; intent: GoalIntent } | { ok: false; error: string };
+type ActionSpecResult =
   | { ok: true; actions: PostCompletionActionSpec[] }
   | { ok: false; error: string };
-export type ParsedDirectiveResult = { objective: string; action?: PostCompletionActionSpec };
+type ParsedDirectiveResult = { objective: string; action?: PostCompletionActionSpec };
 
-export type PostCompletionActionInput = {
+type PostCompletionActionInput = {
   postCompletionActions?: PostCompletionActionSpec[];
 };
 
-export type DirectGoalIntentInput = PostCompletionActionInput & { objective: string };
-export type TemplateGoalIntentInput = PostCompletionActionInput & { invocation: string };
+type DirectGoalIntentInput = PostCompletionActionInput & { objective: string };
+type TemplateGoalIntentInput = PostCompletionActionInput & { invocation: string };
 
 const TRAILING_DIRECTIVE = /(?:\s+and\s+(summarize|clear)(?:\s+the)?\s+context)\s*[.!?]?\s*$/i;
 
-export function parseTrailingPostCompletionDirective(input: string): ParsedDirectiveResult {
+function parseTrailingPostCompletionDirective(input: string): ParsedDirectiveResult {
   const match = input.match(TRAILING_DIRECTIVE);
   if (!match) return { objective: input.trim() };
   // The capture is always present on a match; "clear" and "summarize" are its only alternatives.
@@ -36,13 +36,11 @@ export function parseTrailingPostCompletionDirective(input: string): ParsedDirec
   return { objective: input.slice(0, match.index).trim(), action: { type: "context.reset", mode } };
 }
 
-export function normalizePostCompletionActionSpecs(
-  input: PostCompletionActionInput,
-): ActionSpecResult {
+function normalizePostCompletionActionSpecs(input: PostCompletionActionInput): ActionSpecResult {
   return mergePostCompletionActionSpecs([], input.postCompletionActions ?? []);
 }
 
-export function mergePostCompletionActionSpecs(
+function mergePostCompletionActionSpecs(
   left: PostCompletionActionSpec[],
   right: PostCompletionActionSpec[],
 ): ActionSpecResult {

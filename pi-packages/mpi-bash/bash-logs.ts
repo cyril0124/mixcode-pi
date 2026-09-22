@@ -16,7 +16,7 @@ const OVERLAY_CHROME = 6;
 const FOLLOW_MS = 1000;
 const RUNNING_DOT = "●";
 
-export interface BashLogsOptions {
+interface BashLogsOptions {
   theme: LogViewTheme & { bg?: Theme["bg"]; bold?: Theme["bold"] };
   list: () => Array<DetachedStart | FinishedRun>;
   requestRender: () => void;
