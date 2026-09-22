@@ -488,8 +488,10 @@ async function replaceRuntimeTabSessionUnlocked(
   if (setup) {
     // Pi newSession awaits setup before rebind emits session_start. Both the
     // extension context and the next model request must see the seeded history.
+    // 0.87.0 keeps SessionManager canonical; refreshContext() republishes the
+    // agent transcript from the seeded session projection.
     await setup(sessionManager);
-    created.session.agent.state.messages = sessionManager.buildSessionContext().messages;
+    created.session.refreshContext();
   }
   runtimeTab.queuedPromptCount = 0;
   runtimeTab.queuedFollowUpCount = 0;

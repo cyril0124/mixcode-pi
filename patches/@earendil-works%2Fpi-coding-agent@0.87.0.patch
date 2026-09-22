@@ -1,8 +1,8 @@
 diff --git a/dist/core/agent-session.d.ts b/dist/core/agent-session.d.ts
-index b66ebcb0b8aa2907543560cd274429b65f9747d4..008e9e5bddedf003175f0f9bb43d6fb925b5ec73 100644
+index 5620ac326bd3885819f4dbca401522c3058a640b..fafb2fc8feea493b8d4490599ef9e652a8d017ec 100644
 --- a/dist/core/agent-session.d.ts
 +++ b/dist/core/agent-session.d.ts
-@@ -477,6 +477,33 @@ export declare class AgentSession {
+@@ -501,6 +501,33 @@ export declare class AgentSession {
      /** Get pending steering messages (read-only) */
      getSteeringMessages(): readonly string[];
      /** Get pending follow-up messages (read-only) */
@@ -37,7 +37,7 @@ index b66ebcb0b8aa2907543560cd274429b65f9747d4..008e9e5bddedf003175f0f9bb43d6fb9
      get resourceLoader(): ResourceLoader;
      /**
 diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js
-index 638646dacdbcb9c00bbc0de14f28abb700c8dc3f..083e8724880384322c98b72c771938daed2c79bc 100644
+index 36fdb31c121d1121cebc51c6f0d61d09cf07bae0..61491c41ccd21f1e4bcdda7248765ba3cdfdb4b7 100644
 --- a/dist/core/agent-session.js
 +++ b/dist/core/agent-session.js
 @@ -14,7 +14,7 @@
@@ -49,7 +49,7 @@ index 638646dacdbcb9c00bbc0de14f28abb700c8dc3f..083e8724880384322c98b72c771938da
  import { clampThinkingLevel, cleanupSessionResources, getSupportedThinkingLevels, isContextOverflow, isRecoverableLength, isRetryableAssistantError, modelsAreEqual, resetApiProviders, streamSimple, } from "@earendil-works/pi-ai/compat";
  import { getThemeByName, theme } from "../modes/interactive/theme/theme.js";
  import { stripFrontmatter } from "../utils/frontmatter.js";
-@@ -659,7 +659,25 @@ export class AgentSession {
+@@ -877,7 +877,25 @@ export class AgentSession {
      }
      /** Current effective system prompt, including changes not yet sent to the model. */
      get systemPrompt() {
@@ -76,7 +76,7 @@ index 638646dacdbcb9c00bbc0de14f28abb700c8dc3f..083e8724880384322c98b72c771938da
      }
      /** Current retry attempt (0 if not retrying) */
      get retryAttempt() {
-@@ -810,7 +828,10 @@ export class AgentSession {
+@@ -1028,7 +1046,10 @@ export class AgentSession {
              const tool = this._toolRegistry.get(name);
              return tool ? [tool] : [];
          });
@@ -88,16 +88,16 @@ index 638646dacdbcb9c00bbc0de14f28abb700c8dc3f..083e8724880384322c98b72c771938da
          return sections ? { role: "system", content: "", sections, timestamp: Date.now() } : undefined;
      }
      /**
-@@ -1022,7 +1043,7 @@ export class AgentSession {
-             this._pendingNextTurnMessages = [];
-             // Emit before_agent_start extension event
+@@ -1280,7 +1301,7 @@ export class AgentSession {
+             // Emit before_agent_start before normalizing images so extension-driven model
+             // selection determines the resize profile used for the request and history.
              const selectedToolsBefore = this._baseSystemPromptOptions.selectedTools;
 -            const result = await this._extensionRunner.emitBeforeAgentStart(expandedText, currentImages, this._baseSystemPromptOptions);
 +            const result = await this._extensionRunner.emitBeforeAgentStart(expandedText, currentImages, this._baseSystemPromptOptions, (options) => this._renderSystemPrompt(options));
              // Handlers may edit event.systemPromptOptions.selectedTools or call setActiveTools(),
              // which updates the live loadout instead. An explicit edit wins; otherwise the live
              // loadout is authoritative, so a setActiveTools() call is not undone here.
-@@ -1313,6 +1334,43 @@ export class AgentSession {
+@@ -1587,6 +1608,43 @@ export class AgentSession {
          this._emitQueueUpdate();
          return { steering, followUp };
      }
@@ -141,7 +141,7 @@ index 638646dacdbcb9c00bbc0de14f28abb700c8dc3f..083e8724880384322c98b72c771938da
      /** Number of pending messages (includes both steering and follow-up) */
      get pendingMessageCount() {
          return this._steeringMessages.length + this._followUpMessages.length;
-@@ -2211,13 +2269,29 @@ export class AgentSession {
+@@ -2495,13 +2553,29 @@ export class AgentSession {
          const excludedToolNames = this._excludedToolNames;
          const isAllowedTool = (name) => (!allowedToolNames || allowedToolNames.has(name)) && !excludedToolNames?.has(name);
          const registeredTools = this._extensionRunner.getAllRegisteredTools();
@@ -172,7 +172,7 @@ index 638646dacdbcb9c00bbc0de14f28abb700c8dc3f..083e8724880384322c98b72c771938da
          const definitionRegistry = new Map(Array.from(this._baseToolDefinitions.entries())
              .filter(([name]) => isAllowedTool(name))
              .map(([name, definition]) => [
-@@ -2227,7 +2301,7 @@ export class AgentSession {
+@@ -2511,7 +2585,7 @@ export class AgentSession {
                  sourceInfo: createSyntheticSourceInfo(`<builtin:${name}>`, { source: "builtin" }),
              },
          ]));
@@ -181,7 +181,7 @@ index 638646dacdbcb9c00bbc0de14f28abb700c8dc3f..083e8724880384322c98b72c771938da
              definitionRegistry.set(tool.definition.name, {
                  definition: tool.definition,
                  sourceInfo: tool.sourceInfo,
-@@ -2247,7 +2321,7 @@ export class AgentSession {
+@@ -2531,7 +2605,7 @@ export class AgentSession {
          })
              .filter((entry) => entry !== undefined));
          const runner = this._extensionRunner;
@@ -190,7 +190,7 @@ index 638646dacdbcb9c00bbc0de14f28abb700c8dc3f..083e8724880384322c98b72c771938da
          const wrappedBuiltInTools = wrapRegisteredTools(Array.from(this._baseToolDefinitions.values())
              .filter((definition) => isAllowedTool(definition.name))
              .map((definition) => ({
-@@ -2966,4 +3040,53 @@ export class AgentSession {
+@@ -3236,4 +3310,53 @@ export class AgentSession {
          return this._extensionRunner;
      }
  }
@@ -292,10 +292,10 @@ index be748bf45bea69461ef4f2a9a4dfc99bb3cbb1b1..0140819423f623d9cb2ce819aefe2520
      // Compiled binaries and the bundled Node distribution use embedded modules.
      // Source TypeScript reuses host modules and root tsconfig paths. Unbundled
 diff --git a/dist/core/extensions/runner.d.ts b/dist/core/extensions/runner.d.ts
-index 5d7d345ab9ff41ffb08a5938b6a43659b7660972..97861d025526c1757ea34216955043a7573a815c 100644
+index 17cf9371a0e5dc6820f1cb57f5e589cedf3bdfa8..89a8e5d0f597646f3bac18d3d0fee8c038df4d1d 100644
 --- a/dist/core/extensions/runner.d.ts
 +++ b/dist/core/extensions/runner.d.ts
-@@ -159,7 +159,7 @@ export declare class ExtensionRunner {
+@@ -172,7 +172,7 @@ export declare class ExtensionRunner {
      emitContext(messages: AgentMessage[]): Promise<AgentMessage[]>;
      emitBeforeProviderRequest(payload: unknown): Promise<unknown>;
      emitBeforeProviderHeaders(headers: ProviderHeaders): Promise<ProviderHeaders>;
@@ -305,10 +305,10 @@ index 5d7d345ab9ff41ffb08a5938b6a43659b7660972..97861d025526c1757ea34216955043a7
          skillPaths: Array<{
              path: string;
 diff --git a/dist/core/extensions/runner.js b/dist/core/extensions/runner.js
-index a9b57dace0913f9628c7b49207dea97238d79953..0a5a7d839789eefae9073435af1e7b8bda64f6e6 100644
+index b8c238f303814fc0e38d9ba986aa74d7113ccad4..cedbb8bd134d81b7c9692b6b784ec06ecb89adca 100644
 --- a/dist/core/extensions/runner.js
 +++ b/dist/core/extensions/runner.js
-@@ -908,9 +908,9 @@ export class ExtensionRunner {
+@@ -1013,9 +1013,9 @@ export class ExtensionRunner {
          }
          return headers;
      }
@@ -467,11 +467,11 @@ index 795c6a199bcb4cc88351be9bbef2e73cb8e4e61f..5969a652c15b161f187b088cf891b536
  //# sourceMappingURL=keybindings.js.map
 \ No newline at end of file
 diff --git a/dist/core/session-manager.d.ts b/dist/core/session-manager.d.ts
-index b6f73c347cdef7e6f82152c958e1d211f2f8e199..b710f1cc467551a1d3884d81dd0ccf5608140947 100644
+index 76c53813b3c8de823afe3a34b4447da983450c26..7f23ccb04ef5dbd4ff42edd1f699767cf9865123 100644
 --- a/dist/core/session-manager.d.ts
 +++ b/dist/core/session-manager.d.ts
-@@ -177,6 +177,8 @@ export declare function buildContextEntries(entries: SessionEntry[], leafId?: st
-  */
+@@ -201,6 +201,8 @@ export declare function buildSessionProjection(entries: SessionEntry[], leafId?:
+ /** Build the finalized model context from the canonical session projection. */
  export declare function buildSessionContext(entries: SessionEntry[], leafId?: string | null, byId?: Map<string, SessionEntry>): SessionContext;
  export declare function getDefaultSessionDir(cwd: string, agentDir?: string): string;
 +/** MIXCODE_EXPORT: pure cwd->sessions-dir encoding (no mkdir side effect). */
@@ -480,10 +480,10 @@ index b6f73c347cdef7e6f82152c958e1d211f2f8e199..b710f1cc467551a1d3884d81dd0ccf56
  export declare function loadEntriesFromFile(filePath: string): FileEntry[];
  /** Exported for testing */
 diff --git a/dist/core/session-manager.js b/dist/core/session-manager.js
-index 08c8f98b05ed1b64038fbfecb5140cb38cc8e616..8b9e0468b18f19b0d0ce1078872440bf54a21bd2 100644
+index 0ddbb9cccaa7355ca44d4bbc768eaab8af57bac8..21fd635d73621893013b9fc8857b89f24fa545c9 100644
 --- a/dist/core/session-manager.js
 +++ b/dist/core/session-manager.js
-@@ -242,7 +242,7 @@ export function buildSessionContext(entries, leafId, byId) {
+@@ -287,7 +287,7 @@ export function buildSessionContext(entries, leafId, byId) {
   * Compute the default session directory for a cwd.
   * Encodes cwd into a safe directory name under ~/.pi/agent/sessions/.
   */
@@ -705,7 +705,7 @@ index d1218b8c39248710d0c7acbbfcb686e4ff17f6bc..bad4b96deb7932a1063231659e28c724
          throw getNoChangeError(path, normalizedEdits.length);
      }
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index 205144dbf79e7fc8b15ffc5d9db9922aef3d87de..db1c7eda9325bfad409598b68ca0b3359e30a0be 100644
+index 52dcaafdf0fac5b42a733039103edb68a7538de3..41f6d14bd08ff621b8284515d791c48b471d8ab2 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
 @@ -1,6 +1,8 @@
@@ -765,7 +765,7 @@ index 205144dbf79e7fc8b15ffc5d9db9922aef3d87de..db1c7eda9325bfad409598b68ca0b335
  //# sourceMappingURL=index.d.ts.map
 \ No newline at end of file
 diff --git a/dist/index.js b/dist/index.js
-index 01017cdbf6a26b3d36e236c7f9e835fbf0fa5c3a..8fdd28b3349d259ce2eb2f52888f3bcb2e545bea 100644
+index d8339661293e51358d0165680bad4334ff78f92e..5170f398b0f500abe3c181f4145071505e11aa74 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -3,6 +3,8 @@ export { parseArgs } from "./cli/args.js";

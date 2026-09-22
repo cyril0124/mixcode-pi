@@ -303,7 +303,7 @@ index 0e4d31074f4a0ee62a47fc29dd6b7475a4f29cd7..cceea1db2bcf398896e328fe8a4e4fdd
      searchMatchStyle?: (text: string) => string;
      /** Style the current transcript search match. */
 diff --git a/dist/tui-alt-screen.js b/dist/tui-alt-screen.js
-index ecd81547869862260cd3923c9ba2e587c5b934c1..b0d4141323c72b100b3817720b67130aad7b8a3b 100644
+index 13459fd73841c2908bd58012dd885b086eefa35b..6c761bd7d965a53978d0440663e77395fe05d6a5 100644
 --- a/dist/tui-alt-screen.js
 +++ b/dist/tui-alt-screen.js
 @@ -19,7 +19,10 @@ const FOCUS_IN = "\x1b[I";
@@ -338,7 +338,7 @@ index ecd81547869862260cd3923c9ba2e587c5b934c1..b0d4141323c72b100b3817720b67130a
              this.lastDocument = this.applyLineResets(documentLines.map((line) => line.replaceAll(CURSOR_MARKER, ""))).map((line) => (isImageLine(line) || visibleWidth(line) <= width ? line : sliceByColumn(line, 0, width, true)));
              let buffer = `${BEGIN_SYNCHRONIZED_OUTPUT}${EXIT_ALT_SCREEN}${DISABLE_AUTOWRAP}`;
              for (let row = 0; row < this.lastDocument.length; row++) {
-@@ -1435,7 +1440,7 @@ export class TuiAltScreen extends TuiBase {
+@@ -1438,7 +1443,7 @@ export class TuiAltScreen extends TuiBase {
          if (this.refreshSearch(nextLayout)) {
              nextLayout = renderLayoutFrame(root, width, height, () => this.requestRender());
          }
@@ -347,7 +347,7 @@ index ecd81547869862260cd3923c9ba2e587c5b934c1..b0d4141323c72b100b3817720b67130a
          screen = this.applySearchHighlights(screen, nextLayout);
          screen = this.compositeScrollToEndIndicator(screen, nextLayout, width);
          screen = this.compositeOverlays(screen, width, height);
-@@ -1445,6 +1450,7 @@ export class TuiAltScreen extends TuiBase {
+@@ -1448,6 +1453,7 @@ export class TuiAltScreen extends TuiBase {
          screen = this.compositeFlashes(screen, width, height);
          const cursorPos = this.extractCursorPosition(screen, height);
          screen = this.applyLineResets(screen).map((line) => {
@@ -355,7 +355,7 @@ index ecd81547869862260cd3923c9ba2e587c5b934c1..b0d4141323c72b100b3817720b67130a
              if (isImageLine(line) || visibleWidth(line) <= width)
                  return line;
              return sliceByColumn(line, 0, width, true);
-@@ -1456,7 +1462,8 @@ export class TuiAltScreen extends TuiBase {
+@@ -1459,7 +1465,8 @@ export class TuiAltScreen extends TuiBase {
          const preparedKittyScreen = redrawImages && this.imageProtocol === "kitty"
              ? this.prepareKittyScreen(screen)
              : { lines: screen, evictedImageDeletion: "" };

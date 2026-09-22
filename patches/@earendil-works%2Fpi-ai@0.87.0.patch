@@ -137,7 +137,7 @@ index dfdb6ec3651febbba6b8788f16118ecbf4b38fa8..a914df6a8ff8ce80751ac4bc88f2b646
                  // Streaming scratch buffers are only used during parsing; never persist them.
                  delete block.partialJson;
 diff --git a/dist/api/openai-completions.js b/dist/api/openai-completions.js
-index 634f8917826ab1eed20b44896c4b36ec1361cc66..1c5a734385b55309a33934ff8451d2fd650b2ce7 100644
+index 80720d096966bf057708433de0b128935aece8b6..b3183243df51aa409d5d2869ae14f76f56c30459 100644
 --- a/dist/api/openai-completions.js
 +++ b/dist/api/openai-completions.js
 @@ -1,6 +1,7 @@
@@ -249,7 +249,7 @@ index 216a45feebc02acef047d1ff133729fb0751b76c..775a659bc77e75708f8a4510710d0334
          websocketConnectTimeoutMs: options?.websocketConnectTimeoutMs,
          maxRetries: options?.maxRetries,
 diff --git a/dist/providers/faux.js b/dist/providers/faux.js
-index 463e740f0c7bb624ee3a83bc33b0d0da89bf4ca4..4815f334ae2539586a66b98e4e4b47b1227bc3ad 100644
+index ab547f4d50e5d39b1b5cb67fea4709e8052db8fe..3af3b06cdcc2bf3ce6c0f04c43ffef62eb640792 100644
 --- a/dist/providers/faux.js
 +++ b/dist/providers/faux.js
 @@ -1,3 +1,4 @@
@@ -257,7 +257,7 @@ index 463e740f0c7bb624ee3a83bc33b0d0da89bf4ca4..4815f334ae2539586a66b98e4e4b47b1
  import { createProvider } from "../models.js";
  import { createAssistantMessageEventStream } from "../utils/event-stream.js";
  import { getSystemMessageText } from "../utils/text.js";
-@@ -370,6 +371,7 @@ export function createFauxCore(options) {
+@@ -371,6 +372,7 @@ export function createFauxCore(options) {
                  await streamWithDeltas(outer, message, minTokenSize, maxTokenSize, tokensPerSecond, streamOptions?.signal);
              }
              catch (error) {
@@ -266,7 +266,7 @@ index 463e740f0c7bb624ee3a83bc33b0d0da89bf4ca4..4815f334ae2539586a66b98e4e4b47b1
                  outer.push({ type: "error", reason: "error", error: message });
                  outer.end(message);
 diff --git a/dist/types.d.ts b/dist/types.d.ts
-index 8d0e4b84afa54807c435d7af8595fc63443e6a78..9d788d4d8d10173cbee6f957bf3dff8c553736a1 100644
+index 5915ca64b161bc7bcebdb14d2ad1a2c18cde942e..5912b6e29da12948037b1837878ce24f035b141f 100644
 --- a/dist/types.d.ts
 +++ b/dist/types.d.ts
 @@ -109,6 +109,16 @@ export interface ProviderRequestOptions<TModel = Model<Api>> {

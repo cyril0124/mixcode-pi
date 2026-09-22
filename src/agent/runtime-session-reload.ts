@@ -100,9 +100,10 @@ export function reloadRuntimeSessionFromDisk(runtimeTab: RuntimeTab): ReloadSess
     runtimeTab.chatWindowStartIndex = 0;
     // The agent's LLM context must reflect the reloaded branch, or the next turn
     // would send a stale message list even though the UI looks up to date.
+    // 0.87.0 keeps SessionManager canonical; refreshContext() republishes the
+    // agent transcript from the reloaded session projection.
     const previousMessages = runtimeTab.agentSession.messages;
-    runtimeTab.agentSession.agent.state.messages =
-      runtimeTab.session.buildSessionContext().messages;
+    runtimeTab.agentSession.refreshContext();
     // Only a changed recorded loadout supersedes local tool choices. A peer's
     // rename or ordinary turn must not undo a selection awaiting its first request.
     restoreTranscriptTools(runtimeTab.agentSession, previousMessages);

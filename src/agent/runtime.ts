@@ -489,8 +489,9 @@ export class MixCodeRuntime {
     }
     runtimeTab.session.resetLeaf();
     // Match navigateTree / session-reload: agent context follows the new leaf path.
-    runtimeTab.agentSession.agent.state.messages =
-      runtimeTab.session.buildSessionContext().messages;
+    // 0.87.0 keeps SessionManager canonical; refreshContext() rebuilds the agent
+    // transcript from the session projection (entry-id mapping included).
+    runtimeTab.agentSession.refreshContext();
     this.rebuildChatFromSession(sessionId);
     runtimeTab.tab.currentContextTokens = undefined;
     return { noop: false };
