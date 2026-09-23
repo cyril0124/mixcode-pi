@@ -1,7 +1,8 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
+import { contentText, getCurrentSystemMessage, getSystemMessageText } from "@earendil-works/pi-ai";
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import type { SearchToolAvailability, SystemPromptSection } from "../core/system-prompt.js";
-import { buildMixCodeSystemPromptSections } from "../core/system-prompt.js";
+import { buildMixCodeSystemPromptSections, sectionRowsFromRecord } from "../core/system-prompt.js";
 import type { QueueKind } from "../core/types.js";
 import type { RuntimeTab } from "./runtime-types.js";
 
@@ -30,14 +31,47 @@ export function restoreSteeringMessages(
   runtimeTab.agentSession.restoreQueuedMessages("steering", removed);
 }
 
-/** Latest section breakdown per session; written on every assembler rebuild. */
-const systemPromptSectionsBySession = new WeakMap<AgentSession, SystemPromptSection[]>();
+/** Leading system prompt the provider receives, with its display rows. */
+export interface EffectiveSystemPrompt {
+  /** Exact text after every recorded section patch is replayed. */
+  text: string;
+  /** Rows whose texts concatenate to `text`, for the `/system-prompt` footer. */
+  sections: SystemPromptSection[];
+}
 
-/** Sections of the session's last assembled base system prompt, if built yet. */
-export function getSystemPromptSections(
+/**
+ * Leading system prompt of a session with all recorded section patches replayed.
+ *
+ * Read the replay instead of `agentSession.systemPrompt`. Once a run settles, Pi
+ * renders that getter from the base build options, and `before_agent_start`
+ * extensions write their sections to a per-run copy, so extension sections are
+ * missing from it. The transcript keeps them, and it carries what the provider
+ * receives.
+ *
+ * Returns undefined before the first system message is recorded.
+ */
+export function getEffectiveSystemPrompt(
   agentSession: AgentSession,
-): SystemPromptSection[] | undefined {
-  return systemPromptSectionsBySession.get(agentSession);
+): EffectiveSystemPrompt | undefined {
+  const message = getCurrentSystemMessage(agentSession.messages);
+  if (!message) return undefined;
+  const recorded: Record<string, string> = {};
+  for (const [name, value] of Object.entries(message.sections ?? {})) {
+    if (typeof value === "string") recorded[name] = value;
+  }
+  // getSystemMessageText renders the content first, then the sections.
+  const content = contentText(message.content);
+  const rows = sectionRowsFromRecord(recorded);
+  return {
+    text: getSystemMessageText(message),
+    sections:
+      content.length === 0
+        ? rows
+        : [
+            { name: "content", text: content },
+            ...rows.map((row, index) => (index === 0 ? { ...row, text: `\n\n${row.text}` } : row)),
+          ],
+  };
 }
 
 /**
@@ -51,8 +85,7 @@ export function applyMixCodeSystemPrompt(
 ): void {
   agentSession.setSystemPromptAssembler((collected) => {
     const options = { ...collected, searchTools };
-    const { transcriptSections, sections } = buildMixCodeSystemPromptSections(options);
-    systemPromptSectionsBySession.set(agentSession, sections);
+    const { transcriptSections } = buildMixCodeSystemPromptSections(options);
     return { sections: transcriptSections, options };
   });
 }

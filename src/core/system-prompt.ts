@@ -80,47 +80,32 @@ export function buildMixCodeSystemPromptSections(options: MixCodeSystemPromptPar
   const date = currentDate();
   const promptCwd = cwd.replace(/\\/g, "/");
 
-  const sections: SystemPromptSection[] = [];
   const transcriptSections: Record<string, string> = {};
-  let hasContent = false;
-  const appendGroup = (key: string, fragments: SystemPromptSection[]) => {
-    const text = fragments.map((fragment) => fragment.text).join("");
+  const appendGroup = (key: string, text: string) => {
     // Keep fixed empty slots. Pi's Map-based replay keeps first-insertion order;
     // deleting a slot would move it to the end when its content returns.
     transcriptSections[key] = text;
-    let needsSeparator = hasContent && text.length > 0;
-    for (const fragment of fragments) {
-      const prefix = needsSeparator && fragment.text.length > 0 ? "\n\n" : "";
-      sections.push({ name: fragment.name, text: prefix + fragment.text });
-      if (fragment.text.length > 0) needsSeparator = false;
-    }
-    hasContent ||= text.length > 0;
   };
 
-  appendGroup("preamble", [{ name: "Identity", text: identity }]);
-  appendGroup("tools", [{ name: "Tools & Guidelines", text: toolsSection.slice(2) }]);
-  appendGroup("docs", docsSection ? [{ name: "Documentation", text: docsSection.slice(2) }] : []);
-  appendGroup(
-    "addendum",
-    appendSystemPrompt ? [{ name: "Append (appendSystemPrompt)", text: appendSystemPrompt }] : [],
-  );
+  appendGroup("preamble", identity);
+  appendGroup("tools", toolsSection.slice(2));
+  appendGroup("docs", docsSection ? docsSection.slice(2) : "");
+  appendGroup("addendum", appendSystemPrompt ?? "");
 
-  const project: SystemPromptSection[] = [];
   const files = contextFiles ?? [];
-  if (files.length > 0) {
-    project.push({
-      name: "Project context (frame)",
-      text: "<project_context>\n\nProject-specific instructions and guidelines:\n\n",
-    });
-    for (const { path: filePath, content } of files) {
-      project.push({
-        name: `Project context: ${filePath}`,
-        text: `<project_instructions path="${filePath}">\n${content}\n</project_instructions>\n\n`,
-      });
-    }
-    project.push({ name: "Project context (frame)", text: "</project_context>\n" });
-  }
-  appendGroup("project_context", project);
+  appendGroup(
+    "project_context",
+    files.length === 0
+      ? ""
+      : [
+          "<project_context>\n\nProject-specific instructions and guidelines:\n\n",
+          ...files.map(
+            ({ path: filePath, content }) =>
+              `<project_instructions path="${filePath}">\n${content}\n</project_instructions>\n\n`,
+          ),
+          "</project_context>\n",
+        ].join(""),
+  );
 
   // Pi formats skill instructions for whichever active tool can read the files.
   const skillFileReadTool: "read" | "bash" | undefined = !selectedTools
@@ -129,13 +114,8 @@ export function buildMixCodeSystemPromptSections(options: MixCodeSystemPromptPar
   appendGroup(
     "skills",
     skillFileReadTool && skills && skills.length > 0
-      ? [
-          {
-            name: "Skills",
-            text: formatSkillsForPrompt(skills, skillFileReadTool).replace(/^\n+/, ""),
-          },
-        ]
-      : [],
+      ? formatSkillsForPrompt(skills, skillFileReadTool).replace(/^\n+/, "")
+      : "",
   );
 
   // Extension names stay inside their own group, so they cannot overwrite host
@@ -143,17 +123,9 @@ export function buildMixCodeSystemPromptSections(options: MixCodeSystemPromptPar
   const extensionSections = Object.entries(options.sections ?? {}).filter(([, text]) => text);
   appendGroup(
     "extensions",
-    extensionSections.map(([name, content], index) => ({
-      name: `Extension: ${name}`,
-      text: `${index > 0 ? "\n\n" : ""}<${name}>\n${content}\n</${name}>`,
-    })),
+    extensionSections.map(([name, content]) => `<${name}>\n${content}\n</${name}>`).join("\n\n"),
   );
-  appendGroup("environment", [
-    {
-      name: "Environment (date & cwd)",
-      text: `Current date: ${date}\nCurrent working directory: ${promptCwd}\n`,
-    },
-  ]);
+  appendGroup("environment", `Current date: ${date}\nCurrent working directory: ${promptCwd}\n`);
 
   const prompt = getSystemMessageText({
     role: "system",
@@ -161,7 +133,55 @@ export function buildMixCodeSystemPromptSections(options: MixCodeSystemPromptPar
     sections: transcriptSections,
     timestamp: 0,
   });
+  // Rows come from the record, so the footer counts exactly the prompt text.
+  const sections = sectionRowsFromRecord(transcriptSections);
   return { prompt, sections, transcriptSections };
+}
+
+/** One `<project_instructions path="...">...</project_instructions>` block of the project group. */
+const PROJECT_FILE_ROW_RE =
+  /<project_instructions path="([^"]*)">[\s\S]*?<\/project_instructions>\n\n?/g;
+
+/**
+ * Display rows for a replayed system-message section record.
+ *
+ * Contract: the rows concatenate to `getSystemMessageText` of the same record,
+ * with nonempty groups joined by a blank line and empty groups dropped. Rows carry
+ * the section keys, except `project_context`, which splits into the wrapper frame
+ * and one row per project file so the stats table keeps a per-file breakdown.
+ * Splits slice the original text rather than trimming it, which keeps the
+ * concatenation exact.
+ */
+export function sectionRowsFromRecord(sections: Record<string, string>): SystemPromptSection[] {
+  const rows: SystemPromptSection[] = [];
+
+  for (const [name, text] of Object.entries(sections)) {
+    const files = name === "project_context" ? [...text.matchAll(PROJECT_FILE_ROW_RE)] : [];
+    const group: SystemPromptSection[] = [];
+    if (files.length === 0) {
+      group.push({ name, text });
+    } else {
+      let cursor = 0;
+      for (const file of files) {
+        const start = file.index ?? cursor;
+        group.push({ name: `${name} (frame)`, text: text.slice(cursor, start) });
+        group.push({
+          name: `${name}: ${file[1]}`,
+          text: text.slice(start, start + file[0].length),
+        });
+        cursor = start + file[0].length;
+      }
+      group.push({ name: `${name} (frame)`, text: text.slice(cursor) });
+    }
+
+    const present = group.filter((row) => row.text.length > 0);
+    if (present.length === 0) continue;
+    // Blank line between nonempty groups, never inside a group's own rows.
+    if (rows.length > 0) present[0]!.text = `\n\n${present[0]!.text}`;
+    rows.push(...present);
+  }
+
+  return rows;
 }
 
 /**

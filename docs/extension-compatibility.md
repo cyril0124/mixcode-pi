@@ -163,7 +163,7 @@ MixCode stores the host prompt in eight ordered transcript sections:
 | `extensions` | Sections contributed by extensions |
 | `environment` | Date and working directory |
 
-Pi's `diffSystemPromptSections` records changed groups before each model request, including requests between tool calls. Empty groups retain their keys with `""`; this clears the text and preserves the group's position when content returns. Pi joins nonempty groups with a blank line. `/system-prompt` counts the same text and separators, with a separate display row for each project file. Extension section names are contained within `extensions` and cannot replace host groups.
+Pi's `diffSystemPromptSections` records changed groups before each model request, including requests between tool calls. Empty groups retain their keys with `""`; this clears the text and preserves the group's position when content returns. Pi joins nonempty groups with a blank line. `/system-prompt` replays the leading system message with every later section patch applied and counts that text and its separators, with a separate display row for each project file. The replay is what the provider receives, so it carries extension sections between runs, when `agentSession.systemPrompt` has already fallen back to the base build options. Extension section names are contained within `extensions` and cannot replace host groups.
 
 Opening a session preserves its recorded history. For a session whose full prompt occupies one `preamble` section, the next request replaces that section with the host identity and adds the remaining groups. Branch navigation and compaction replay the recorded sections and tool declarations.
 

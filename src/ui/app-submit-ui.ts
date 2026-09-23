@@ -1,5 +1,5 @@
 import { getConsoleHistory } from "../cli/console-tui-bridge.js";
-import { getSystemPromptSections } from "../agent/pi-session-internals.js";
+import { getEffectiveSystemPrompt } from "../agent/pi-session-internals.js";
 import { MIXCODE_EXTENSION_KEYBINDINGS } from "../agent/runtime-extension-theme.js";
 import type { LocalCommand } from "../core/commands.js";
 import { openCommandPalette, openTabJump } from "../core/overlays.js";
@@ -205,9 +205,10 @@ const handleSystemPrompt: LocalCommandHandler = async ({ active, args, runtime, 
   if (args.trim()) throw new Error("Error: Usage: /system-prompt");
   const runtimeTab = runtime.getTab(active!.sessionId);
   if (!runtimeTab) throw new Error(`Unknown tab session: ${active!.sessionId}`);
-  let text = runtimeTab.agentSession.systemPrompt;
-  const sections = getSystemPromptSections(runtimeTab.agentSession);
-  if (sections) text += renderSystemPromptSectionStats(sections, text);
+  const effective = getEffectiveSystemPrompt(runtimeTab.agentSession);
+  // Before the first request records a system message, fall back to Pi's base render.
+  let text = effective?.text ?? runtimeTab.agentSession.systemPrompt;
+  if (effective) text += renderSystemPromptSectionStats(effective.sections, text);
   await editTextWithTuiPaused(tui, text);
   return undefined;
 };

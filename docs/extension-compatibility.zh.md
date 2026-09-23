@@ -160,7 +160,7 @@ MixCode 将宿主提示词保存为八个有序 transcript 分组：
 | `extensions` | 扩展提供的 section |
 | `environment` | 日期与工作目录 |
 
-Pi 的 `diffSystemPromptSections` 在每次模型请求前记录改变的分组，也包括工具调用之间的请求。清空分组时保留值为 `""` 的键，清除文本并保留位置，内容重新出现时仍在原处。Pi 用空行连接非空分组。`/system-prompt` 统计相同的文本与分隔符，并分别显示每个项目文件的统计行。扩展 section 的名称位于 `extensions` 内，不会覆盖宿主分组。
+Pi 的 `diffSystemPromptSections` 在每次模型请求前记录改变的分组，也包括工具调用之间的请求。清空分组时保留值为 `""` 的键，清除文本并保留位置，内容重新出现时仍在原处。Pi 用空行连接非空分组。`/system-prompt` 回放首条 system message 并应用后续全部 section patch，统计该文本及其分隔符，并为每个项目文件单独显示统计行。回放结果就是 provider 收到的提示词，因此在两次运行之间也包含扩展 section，而此时 `agentSession.systemPrompt` 已回落到基础构建选项。扩展 section 的名称位于 `extensions` 内，不会覆盖宿主分组。
 
 打开会话时保留已记录的历史。若会话把完整提示词放在一个 `preamble` 中，下一次请求会将该段替换为宿主身份说明，并添加其余分组。分支导航和压缩回放已记录的分段与工具声明。
 

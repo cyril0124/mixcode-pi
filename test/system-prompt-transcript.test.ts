@@ -17,12 +17,13 @@ import {
 import {
   SessionManager,
   SettingsManager,
+  type AgentSession,
   type ExtensionFactory,
 } from "@earendil-works/pi-coding-agent";
 import { MIXCODE_FAUX_MODEL, mixcodeFauxStream } from "../src/agent/faux-stream.js";
 import { createTab, MixCodeRuntime } from "./helpers/mixcode.js";
 import type { MixCodeStreamFn } from "../src/agent/runtime-types.js";
-import { getSystemPromptSections } from "../src/agent/pi-session-internals.js";
+import { getEffectiveSystemPrompt } from "../src/agent/pi-session-internals.js";
 
 async function fixture(
   t: TestContext,
@@ -294,12 +295,50 @@ test("mid-run tool changes update only the tool prompt group and declarations", 
   const updates = promptUpdates(tab.session);
   assert.deepEqual(Object.keys(updates[1]!.sections ?? {}), ["tools"]);
   assert.ok(updates[1]!.toolsRemoved?.some((tool) => tool.name === "select_read"));
-  assert.equal(
-    getSystemPromptSections(tab.agentSession)
-      ?.map((section) => section.text)
-      .join(""),
-    requests[1]!.prompt,
+  const effective = getEffectiveSystemPrompt(tab.agentSession);
+  assert.equal(effective?.text, requests[1]!.prompt);
+  assert.equal(effective?.sections.map((section) => section.text).join(""), requests[1]!.prompt);
+});
+
+test("extension sections survive in the replayed prompt after a run settles", async (t) => {
+  const { runtime, tab } = await fixture(t, (pi) => {
+    pi.on("before_agent_start", (event) => {
+      event.systemPromptOptions.sections["example-extension"] = "EXTENSION-TEXT";
+    });
+  });
+  await runtime.prompt("s1", "first");
+
+  const effective = getEffectiveSystemPrompt(tab.agentSession);
+  assert.ok(effective);
+  assert.match(effective.text, /<example-extension>\nEXTENSION-TEXT\n<\/example-extension>/);
+  assert.doesNotMatch(tab.agentSession.systemPrompt, /EXTENSION-TEXT/);
+  assert.deepEqual(
+    effective.sections.filter((section) => section.name === "extensions"),
+    [{ name: "extensions", text: "\n\n<example-extension>\nEXTENSION-TEXT\n</example-extension>" }],
   );
+  assert.equal(effective.sections.map((section) => section.text).join(""), effective.text);
+});
+
+test("replayed content becomes its own row so rows concatenate to the prompt", () => {
+  const agentSession = {
+    messages: [
+      {
+        role: "system",
+        content: "LEGACY-PROMPT",
+        sections: { preamble: "HOST-IDENTITY" },
+        timestamp: 0,
+      },
+    ],
+  } as unknown as AgentSession;
+
+  const effective = getEffectiveSystemPrompt(agentSession);
+  assert.ok(effective);
+  assert.equal(effective.text, "LEGACY-PROMPT\n\nHOST-IDENTITY");
+  assert.deepEqual(
+    effective.sections.map((section) => section.name),
+    ["content", "preamble"],
+  );
+  assert.equal(effective.sections.map((section) => section.text).join(""), effective.text);
 });
 
 test("extension forced prompt overrides the host for one run without replacing persisted instructions", async (t) => {

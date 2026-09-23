@@ -7,7 +7,10 @@ import {
   type SystemMessage,
 } from "@earendil-works/pi-ai";
 import type { Skill } from "@earendil-works/pi-coding-agent";
-import { buildMixCodeSystemPromptSections } from "../src/core/system-prompt.js";
+import {
+  buildMixCodeSystemPromptSections,
+  sectionRowsFromRecord,
+} from "../src/core/system-prompt.js";
 import { renderSystemPromptSectionStats } from "../src/ui/components/system-prompt-stats.js";
 
 const skill = (name: string): Skill =>
@@ -49,15 +52,15 @@ test("sections concatenate to the exact assembled prompt", () => {
 test("project context files get one section each, global and project distinct", () => {
   const { sections } = buildMixCodeSystemPromptSections(richOptions);
   const names = sections.map((s) => s.name);
-  assert.ok(names.includes("Project context: /home/u/.pi/agent/AGENTS.md"));
-  assert.ok(names.includes("Project context: /proj/AGENTS.md"));
+  assert.ok(names.includes("project_context: /home/u/.pi/agent/AGENTS.md"));
+  assert.ok(names.includes("project_context: /proj/AGENTS.md"));
   // open frame + close frame
-  assert.equal(names.filter((n) => n === "Project context (frame)").length, 2);
+  assert.equal(names.filter((n) => n === "project_context (frame)").length, 2);
 });
 
 test("appendSystemPrompt lands in its own section", () => {
   const { sections } = buildMixCodeSystemPromptSections(richOptions);
-  const appendSection = sections.find((s) => s.name === "Append (appendSystemPrompt)");
+  const appendSection = sections.find((s) => s.name === "addendum");
   assert.ok(appendSection, "append section exists");
   assert.equal(appendSection.text, "\n\nAPPEND-MARKER");
 });
@@ -67,26 +70,26 @@ test("skills section is gated on a file-reading tool like Pi's assembler", () =>
     ...richOptions,
     selectedTools: ["read", "edit"],
   });
-  assert.ok(withRead.sections.some((s) => s.name === "Skills"));
+  assert.ok(withRead.sections.some((s) => s.name === "skills"));
   assert.match(withRead.prompt, /Use the read tool to load a skill's file/);
 
   const withBashOnly = buildMixCodeSystemPromptSections({
     ...richOptions,
     selectedTools: ["bash", "edit"],
   });
-  assert.ok(withBashOnly.sections.some((s) => s.name === "Skills"));
+  assert.ok(withBashOnly.sections.some((s) => s.name === "skills"));
   assert.match(withBashOnly.prompt, /Use bash to load a skill's file/);
 
   const withoutFileTool = buildMixCodeSystemPromptSections({
     ...richOptions,
     selectedTools: ["edit", "write"],
   });
-  assert.ok(!withoutFileTool.sections.some((s) => s.name === "Skills"));
+  assert.ok(!withoutFileTool.sections.some((s) => s.name === "skills"));
   assert.doesNotMatch(withoutFileTool.prompt, /<available_skills>/);
   assert.equal(withoutFileTool.sections.map((s) => s.text).join(""), withoutFileTool.prompt);
 });
 
-test("all-disabled skills keep join equality with an empty Skills section", () => {
+test("all-disabled skills emit no skills row and keep join equality", () => {
   const { prompt, sections } = buildMixCodeSystemPromptSections({
     ...richOptions,
     skills: [skill("hidden-1"), skill("hidden-2")].map((s) => ({
@@ -94,9 +97,8 @@ test("all-disabled skills keep join equality with an empty Skills section", () =
       disableModelInvocation: true,
     })),
   });
-  const skillsSection = sections.find((s) => s.name === "Skills");
-  assert.ok(skillsSection);
-  assert.equal(skillsSection.text, "");
+  // An empty group contributes nothing to the prompt, so it gets no row.
+  assert.ok(!sections.some((s) => s.name === "skills"));
   assert.equal(sections.map((s) => s.text).join(""), prompt);
 });
 
@@ -179,6 +181,35 @@ test("extension section names cannot replace host transcript groups", () => {
   assert.equal(sections.map((section) => section.text).join(""), prompt);
 });
 
+test("replayed section rows concatenate to the rendered prompt and keep per-file rows", () => {
+  const { prompt, transcriptSections } = buildMixCodeSystemPromptSections({
+    ...richOptions,
+    sections: { "example-extension": "EXTENSION-TEXT" },
+  });
+  const rows = sectionRowsFromRecord(transcriptSections);
+  assert.equal(rows.map((row) => row.text).join(""), prompt);
+  assert.match(
+    rows.find((row) => row.name === "extensions")?.text ?? "",
+    /<example-extension>\nEXTENSION-TEXT\n<\/example-extension>/,
+  );
+  assert.ok(
+    rows.some(
+      (row) => row.name === "project_context (frame)" && row.text.includes("<project_context>"),
+    ),
+  );
+  assert.ok(
+    rows.some(
+      (row) =>
+        row.name === "project_context: /proj/AGENTS.md" && row.text.includes("project rules"),
+    ),
+  );
+  // Rows cover the whole prompt, so the stats footer has nothing to reconcile.
+  assert.doesNotMatch(
+    renderSystemPromptSectionStats(rows, prompt),
+    /extension override or format drift/,
+  );
+});
+
 test("renderer totals 100% and skips empty sections", () => {
   const { prompt, sections } = buildMixCodeSystemPromptSections(richOptions);
   const out = renderSystemPromptSectionStats(sections, prompt);
@@ -186,7 +217,7 @@ test("renderer totals 100% and skips empty sections", () => {
   assert.match(out, /Total\s+\d+ chars\s+~\d+ tok\s+100\.0%/);
   assert.doesNotMatch(out, /extension override or format drift/);
   // Non-empty sections all appear; the Skills placeholder above is not empty here.
-  assert.match(out, /Project context: \/home\/u\/\.pi\/agent\/AGENTS\.md/);
+  assert.match(out, /project_context: \/home\/u\/\.pi\/agent\/AGENTS\.md/);
 });
 
 test("renderer notes a mismatch when the effective prompt is an extension override", () => {

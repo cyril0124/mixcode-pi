@@ -582,7 +582,7 @@ test("submitted input opens system prompt in external editor by default", async 
     const lifecycle: string[] = [];
     const runtime = {
       appendSystemMessage: (_sessionId: string, _text: string) => undefined,
-      getTab: () => ({ agentSession: { systemPrompt: "system from runtime" } }),
+      getTab: () => ({ agentSession: { systemPrompt: "system from runtime", messages: [] } }),
     } as unknown as MixCodeRuntime;
     const tui = {
       requestRender: () => undefined,
@@ -617,6 +617,61 @@ test("submitted input opens system prompt in external editor by default", async 
       false,
     );
     assert.deepEqual(lifecycle, ["pause", "resume"]);
+  } finally {
+    if (previousEditor === undefined) delete process.env.EDITOR;
+    else process.env.EDITOR = previousEditor;
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("system prompt editor receives the replayed prompt with extension sections", async () => {
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-system-prompt-replay-"));
+  const captureFile = path.join(dir, "capture.txt");
+  const editorScript = path.join(dir, "editor.sh");
+  const previousEditor = process.env.EDITOR;
+  try {
+    await fsPromises.writeFile(editorScript, `#!/bin/sh\ncp "$1" "${captureFile}"\n`, {
+      mode: 0o755,
+    });
+    const state = createInitialState("/repo");
+    state.tabs.push(createTab(1, "s1", "/repo", { status: "done" }));
+    state.activeTabId = "s1";
+    const runtime = {
+      getTab: () => ({
+        agentSession: {
+          // Pi's own render falls back to the base build options between runs.
+          systemPrompt: "BASE-ONLY-PROMPT",
+          messages: [
+            {
+              role: "system",
+              content: "",
+              sections: {
+                preamble: "HOST-IDENTITY",
+                extensions: "<example-extension>\nEXTENSION-TEXT\n</example-extension>",
+              },
+              timestamp: 0,
+            },
+          ],
+        },
+      }),
+    } as unknown as MixCodeRuntime;
+    const tui = {
+      requestRender: () => undefined,
+      showOverlay: () => ({}) as never,
+      stop: () => undefined,
+      start: () => undefined,
+      pause: () => undefined,
+      resume: () => undefined,
+    };
+
+    process.env.EDITOR = editorScript;
+    await handleSubmittedInput(state, runtime, "/system-prompt", tui);
+
+    const captured = await fsPromises.readFile(captureFile, "utf8");
+    assert.match(captured, /HOST-IDENTITY/);
+    assert.match(captured, /<example-extension>\nEXTENSION-TEXT\n<\/example-extension>/);
+    assert.doesNotMatch(captured, /BASE-ONLY-PROMPT/);
+    assert.match(captured, /extensions\s+\d+ chars/);
   } finally {
     if (previousEditor === undefined) delete process.env.EDITOR;
     else process.env.EDITOR = previousEditor;
