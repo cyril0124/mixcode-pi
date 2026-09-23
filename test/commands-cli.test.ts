@@ -33,7 +33,12 @@ test("mergeCommandCatalog prefers local names and formats usage", () => {
     ],
     extension: [
       { name: "compact", description: "extension compact" },
-      { name: "commands", description: "Browse commands", path: "/ext/command-browser.ts" },
+      {
+        name: "commands",
+        description: "Browse commands",
+        argumentHint: "[--json]",
+        path: "/ext/command-browser.ts",
+      },
     ],
     prompt: [{ name: "review", description: "Review template", argumentHint: "<file>" }],
   });
@@ -44,6 +49,7 @@ test("mergeCommandCatalog prefers local names and formats usage", () => {
   assert.equal(byName["context-limit"]?.usage, "/context-limit <tokens|reset>");
   assert.equal(byName.commands?.source, "extension");
   assert.equal(byName.commands?.path, "/ext/command-browser.ts");
+  assert.equal(byName.commands?.usage, "/commands [--json]");
   assert.equal(byName.review?.usage, "/review <file>");
   assert.equal(byName["skill:mpi-ctl"], undefined);
   assert.match(formatCommandCatalog(catalog), /\/context-limit <tokens\|reset>\n {2}Set limit/);
@@ -58,6 +64,7 @@ test("loadCommandCatalog includes local and a fixture extension command", async 
     `export default function (pi) {
   pi.registerCommand("probe-cmd", {
     description: "probe command",
+    argumentHint: "<target>",
     handler: async () => undefined,
   });
 };
@@ -76,6 +83,7 @@ test("loadCommandCatalog includes local and a fixture extension command", async 
     const probe = catalog.find((entry) => entry.name === "probe-cmd");
     assert.equal(probe?.source, "extension");
     assert.equal(probe?.path, extFile);
+    assert.equal(probe?.usage, "/probe-cmd <target>");
   } finally {
     await fs.rm(agentDir, { recursive: true, force: true });
     await fs.rm(workdir, { recursive: true, force: true });

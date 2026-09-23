@@ -60,7 +60,12 @@ function formatCommandUsage(name: string, argumentHint?: string): string {
 
 export function mergeCommandCatalog(parts: {
   local?: Array<{ name: string; description: string; argumentHint?: string }>;
-  extension?: Array<{ name: string; description?: string; path?: string }>;
+  extension?: Array<{
+    name: string;
+    description?: string;
+    argumentHint?: string;
+    path?: string;
+  }>;
   prompt?: Array<{ name: string; description?: string; argumentHint?: string; path?: string }>;
 }): CommandListEntry[] {
   const map = new Map<string, CommandListEntry>();
@@ -89,7 +94,7 @@ export function mergeCommandCatalog(parts: {
     });
   };
   for (const command of parts.extension ?? []) {
-    add(command.name, "extension", command.description, undefined, command.path);
+    add(command.name, "extension", command.description, command.argumentHint, command.path);
   }
   for (const command of parts.prompt ?? []) {
     add(command.name, "prompt", command.description, command.argumentHint, command.path);
@@ -123,6 +128,9 @@ export async function loadCommandCatalog(options: {
   const extension = session.extensionRunner.getRegisteredCommands().map((command) => ({
     name: command.invocationName,
     description: command.description,
+    // Pi spreads registerCommand options, so extensions may set argumentHint even
+    // though RegisteredCommand's published type omits it.
+    argumentHint: (command as { argumentHint?: string }).argumentHint,
     path: command.sourceInfo.path,
   }));
   const prompt = services.resourceLoader.getPrompts().prompts.map((template) => ({
