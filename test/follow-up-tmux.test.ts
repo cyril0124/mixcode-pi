@@ -117,8 +117,16 @@ test("tmux TUI edits dual queues and resumes paused follow-up rounds in order", 
 
     // Recreate a Follow-up, then S edits Steer and preserves Follow-up.
     await tmuxRun(tmux, label, ["send-keys", "-t", session, "C-c"]);
-    await tmuxRun(tmux, label, ["send-keys", "-t", session, "-l", "/follow-up follow again"]);
-    await waitForPane(tmux, label, session, (plain) => /\/follow-up follow again/.test(plain));
+    await tmuxRun(tmux, label, [
+      "send-keys",
+      "-t",
+      session,
+      "-l",
+      "/follow-up --batch follow again",
+    ]);
+    await waitForPane(tmux, label, session, (plain) =>
+      /\/follow-up --batch follow again/.test(plain),
+    );
     await tmuxRun(tmux, label, ["send-keys", "-t", session, "Enter"]);
     await waitForPane(
       tmux,
@@ -154,11 +162,11 @@ test("tmux TUI edits dual queues and resumes paused follow-up rounds in order", 
       (plain) => /Follow-up \(1\)[\s\S]*follow again/.test(plain) && !/Steer \(1\)/.test(plain),
     );
     assert.match(afterEsc.plain, /Follow-up \(1\)[\s\S]*follow again/);
-    assert.match(afterEsc.plain, /Paused · \/follow-up-next to resume/);
+    assert.match(afterEsc.plain, /Paused · \/follow-up to resume/);
 
-    // A next task appended while paused must stay queued and retain its command
-    // prefix when Ctrl+U restores it to the editor.
-    await submitText(tmux, label, session, "/follow-up-next next task");
+    // A bare follow-up appended while paused must stay queued and retain its
+    // command prefix when Ctrl+U restores it to the editor.
+    await submitText(tmux, label, session, "/follow-up next task");
     const withNext = await waitForPane(
       tmux,
       label,
@@ -166,14 +174,14 @@ test("tmux TUI edits dual queues and resumes paused follow-up rounds in order", 
       (plain) => /Follow-up \(2\)/.test(plain) && /Round 2 · next · next task/.test(plain),
     );
     assert.match(withNext.plain, /Round 1 · follow again/);
-    assert.match(withNext.plain, /Paused · \/follow-up-next to resume/);
+    assert.match(withNext.plain, /Paused · \/follow-up to resume/);
 
     await tmuxRun(tmux, label, ["send-keys", "-t", session, "C-u"]);
     const editingNext = await waitForPane(
       tmux,
       label,
       session,
-      (plain) => /Follow-up \(1\)/.test(plain) && /\/follow-up-next next task/.test(plain),
+      (plain) => /Follow-up \(1\)/.test(plain) && /\/follow-up next task/.test(plain),
     );
     assert.doesNotMatch(editingNext.plain, /Round 2 · next/);
     assert.match(editingNext.plain, /Round 1 · follow again/);
@@ -185,9 +193,9 @@ test("tmux TUI edits dual queues and resumes paused follow-up rounds in order", 
       (plain) => /Follow-up \(2\)/.test(plain) && /Round 2 · next · next task/.test(plain),
     );
 
-    await submitText(tmux, label, session, "/follow-up after next");
+    await submitText(tmux, label, session, "/follow-up --batch after next");
     await waitForPane(tmux, label, session, (plain) => /Follow-up \(3\)/.test(plain));
-    await submitText(tmux, label, session, "/follow-up last batch");
+    await submitText(tmux, label, session, "/follow-up --batch last batch");
     const rounds = await waitForPane(tmux, label, session, (plain) =>
       /Follow-up \(4\)/.test(plain),
     );
@@ -195,7 +203,7 @@ test("tmux TUI edits dual queues and resumes paused follow-up rounds in order", 
     assert.match(rounds.plain, /Round 2 · next · next task/);
     assert.match(rounds.plain, /Round 3 · after next/);
     assert.match(rounds.plain, /Round 3 · last batch/);
-    assert.match(rounds.plain, /Paused · \/follow-up-next to resume/);
+    assert.match(rounds.plain, /Paused · \/follow-up to resume/);
 
     // Idle is not permission to drain a queue paused by Esc.
     await Bun.write(path.join(dir, "release"), "1");
@@ -212,12 +220,12 @@ test("tmux TUI edits dual queues and resumes paused follow-up rounds in order", 
       tmux,
       label,
       session,
-      (plain) => /Follow-up \(4\)/.test(plain) && /Paused · \/follow-up-next to resume/.test(plain),
+      (plain) => /Follow-up \(4\)/.test(plain) && /Paused · \/follow-up to resume/.test(plain),
     );
 
     // Only a bare command resumes; commands and edited-away text must never
     // become user messages, and the next task must divide adjacent batches.
-    await submitText(tmux, label, session, "/follow-up-next");
+    await submitText(tmux, label, session, "/follow-up");
     const drained = await waitForSnapshot(
       dir,
       (snapshot) =>
@@ -236,8 +244,8 @@ test("tmux TUI edits dual queues and resumes paused follow-up rounds in order", 
       session,
       (plain) => !/Follow-up \(\d+\)/.test(plain) && /Echo: after next/.test(plain),
     );
-    assert.doesNotMatch(resumed.plain, /Paused · \/follow-up-next to resume/);
-    await submitText(tmux, label, session, "/follow-up-next /color red");
+    assert.doesNotMatch(resumed.plain, /Paused · \/follow-up to resume/);
+    await submitText(tmux, label, session, "/follow-up --batch /color red");
     const red = await waitForSnapshot(dir, (snapshot) => snapshot.color === "red");
     assert.deepEqual(red.modelUserMessages, drained.modelUserMessages);
     await submitText(tmux, label, session, "/follow-up /color blue");
@@ -301,14 +309,14 @@ test("tmux /batch displays exclusive rounds and resumes them after Esc", {
     await waitForPane(tmux, label, session, (plain) => /Esc again: stop/.test(plain));
     await tmuxRun(tmux, label, ["send-keys", "-t", session, "Escape"]);
     await waitForPane(tmux, label, session, (plain) =>
-      /Paused · \/follow-up-next to resume/.test(plain),
+      /Paused · \/follow-up to resume/.test(plain),
     );
     await Bun.write(path.join(dir, "release"), "1");
     const paused = await waitForSnapshot(dir, (snapshot) => snapshot.isIdle);
     assert.equal(paused.followUpsPaused, true);
     assert.deepEqual(paused.pendingFollowUps, ["batch second", "batch last"]);
     assert.deepEqual(paused.modelUserMessages, ["do work"]);
-    await submitText(tmux, label, session, "/follow-up-next");
+    await submitText(tmux, label, session, "/follow-up");
     const drained = await waitForSnapshot(
       dir,
       (snapshot) =>

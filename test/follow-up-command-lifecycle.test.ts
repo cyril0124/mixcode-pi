@@ -265,12 +265,17 @@ test("queued confirmation rejects when the confirmed action cannot persist state
   });
 });
 
-for (const command of ["follow-up", "follow-up-next"]) {
-  test(`/${command} preserves quotes, internal spaces and newlines through runtime delivery`, async () => {
+for (const { command, kind } of [
+  { command: "/follow-up", kind: "next" },
+  { command: "/follow-up --batch", kind: "batch" },
+] as const) {
+  test(`${command} preserves quotes, internal spaces and newlines through runtime delivery`, async () => {
     await withRuntime(async ({ runtime, state, tab }) => {
       tab.followUpsPaused = true;
       const text = 'quote "two  words"\nnext   line';
-      await handleSubmittedInput(state, runtime, `/${command} ${text}`, testTui());
+      await handleSubmittedInput(state, runtime, `${command} ${text}`, testTui());
+      // The optional flag is consumed, not carried into the queued payload.
+      assert.deepEqual(tab.followUpQueue, [{ text, kind }]);
       assert.deepEqual(tab.pendingFollowUps, [text]);
       await runtime.resumeFollowUps(tab.sessionId);
       assert.deepEqual(

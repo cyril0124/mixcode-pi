@@ -60,7 +60,7 @@ test("extension commands separate ordinary follow-up batches at the head and mid
   const f = await fixture();
   try {
     for (const text of ["/boundary-demo first", "A", "B", "/boundary-demo second", "C"]) {
-      await handleSubmittedInput(f.state, f.runtime, `/follow-up ${text}`, testTui());
+      await handleSubmittedInput(f.state, f.runtime, `/follow-up --batch ${text}`, testTui());
     }
     await f.runtime.resumeFollowUps(f.tab.sessionId);
     assert.deepEqual(f.commands, ["first", "second"]);
@@ -128,8 +128,8 @@ test("queued reload hands remaining work to the new session exactly once", async
   const f = await fixture();
   try {
     const oldSession = f.runtimeTab.agentSession;
-    await handleSubmittedInput(f.state, f.runtime, "/follow-up-next /reload", testTui());
-    await handleSubmittedInput(f.state, f.runtime, "/follow-up-next after reload", testTui());
+    await handleSubmittedInput(f.state, f.runtime, "/follow-up /reload", testTui());
+    await handleSubmittedInput(f.state, f.runtime, "/follow-up after reload", testTui());
     await f.runtime.resumeFollowUps(f.tab.sessionId);
     assert.notEqual(f.runtimeTab.agentSession, oldSession);
     assert.deepEqual(

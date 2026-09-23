@@ -603,7 +603,7 @@ test("/batch appends arrays to paused tabs without resuming or steering", async 
     assert.deepEqual(tab.pendingMessages, []);
     assert.deepEqual(userTexts(runtime, tab.sessionId), []);
     assert.equal(tab.followUpsPaused, true);
-    await submit("/follow-up-next");
+    await submit("/follow-up");
     assert.deepEqual(userTexts(runtime, tab.sessionId), ["earlier", "first", "second"]);
   });
 });

@@ -124,7 +124,7 @@ Local commands execute separately on the sequence's tab and are not sent to the 
 
 `openTab` / `open_tab` collects requests while the script runs. When MixCode applies a request, it appends the entire sequence after any pending user follow-ups. Each entry occupies a separate round. Batch submission returns after enqueueing; the agent continues running in the background.
 
-Adding a sequence leaves a paused queue paused. Final agent failures or aborting with `Esc` pause remaining rounds; `/follow-up-next` without text resumes them. A failed round already accepted is not retried automatically. Pending tasks are lost on restart. See [queue and follow-up semantics](queue-and-follow-up.md) for dispatch, editing, and pause behavior.
+Adding a sequence leaves a paused queue paused. Final agent failures or aborting with `Esc` pause remaining rounds; `/follow-up` without text resumes them. A failed round already accepted is not retried automatically. Pending tasks are lost on restart. See [queue and follow-up semantics](queue-and-follow-up.md) for dispatch, editing, and pause behavior.
 
 Each request applies model, thinking, and context limit before enqueueing. Later rounds use the session's current configuration; entries have no individual overrides. Distinct tabs run in parallel, and requests for the same title apply in order. A later `prompt` can steer an active round, and later configuration changes can affect pending rounds.
 

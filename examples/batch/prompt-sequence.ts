@@ -15,5 +15,5 @@ const script: MixCodeBatchScript = (mixcode) => {
   });
 };
 
-// A paused queue stays paused; use /follow-up-next without text to resume.
+// A paused queue stays paused; use /follow-up without text to resume.
 export default script;

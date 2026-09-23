@@ -3,6 +3,7 @@ import {
   restorePendingPromptContext,
   takePendingPromptContext,
 } from "./runtime-prompt-context.js";
+import { FOLLOW_UP_BATCH_FLAG } from "../core/commands.js";
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import { runWithConsoleTab } from "../core/console-scope.js";
 import type { QueueKind } from "../core/types.js";
@@ -174,8 +175,8 @@ export function popRuntimePendingMessage(
     const entry = runtimeTab.tab.followUpQueue.pop();
     if (entry) {
       syncFollowUpPreview(runtimeTab);
-      if (entry.kind === "next") return `/follow-up-next ${entry.text}`;
-      return entry.command ? `/follow-up ${entry.text}` : entry.text;
+      if (entry.kind === "next") return `/follow-up ${entry.text}`;
+      return entry.command ? `/follow-up ${FOLLOW_UP_BATCH_FLAG} ${entry.text}` : entry.text;
     }
   }
   const messages =

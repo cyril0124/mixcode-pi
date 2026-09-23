@@ -8,7 +8,6 @@ export type LocalCommand =
   | "workdir"
   | "fork"
   | "follow-up"
-  | "follow-up-next"
   | "tree"
   | "close-session"
   | "delete-session"
@@ -84,6 +83,32 @@ function sessionActionYesCompletions(
   const needle = prefix.trim().toLowerCase();
   if (needle && !"yes".startsWith(needle)) return [];
   return [{ value: "yes", label: "yes", description: "Skip confirmation" }];
+}
+
+/**
+ * `--batch` groups this follow-up with adjacent batch entries into one round.
+ * `/follow-up` with text otherwise queues an exclusive round.
+ */
+export const FOLLOW_UP_BATCH_FLAG = "--batch";
+
+/** Offer the flag while the argument is still an incomplete flag token. */
+function followUpFlagCompletions(
+  prefix: string,
+): Array<{ value: string; label: string; description?: string }> {
+  const text = prefix.trim();
+  const incompleteFlag =
+    text !== FOLLOW_UP_BATCH_FLAG &&
+    text.startsWith("-") &&
+    !/\s/.test(text) &&
+    FOLLOW_UP_BATCH_FLAG.startsWith(text);
+  if (text !== "" && !incompleteFlag) return [];
+  return [
+    {
+      value: FOLLOW_UP_BATCH_FLAG,
+      label: FOLLOW_UP_BATCH_FLAG,
+      description: "Merge with adjacent batch follow-ups into one round",
+    },
+  ];
 }
 
 function newSessionFocusCompletions(
@@ -168,21 +193,13 @@ export const LOCAL_COMMANDS: Array<{
   },
   {
     name: "follow-up",
-    description: "Queue a message to send after the current agent turn finishes",
-    argumentHint: "<message>",
-    palette: {
-      label: "Queue Follow-up",
-      description: "Send after the agent finishes (not in-flight steer)",
-      requires: "session",
-    },
-  },
-  {
-    name: "follow-up-next",
-    description: "Queue a separate follow-up round, or resume queued follow-ups without a message",
-    argumentHint: "[message]",
+    description: "Queue a follow-up round, or resume queued follow-ups without a message",
+    argumentHint: `[${FOLLOW_UP_BATCH_FLAG}] [message]`,
+    getArgumentCompletions: followUpFlagCompletions,
     palette: {
       label: "Queue or Resume Follow-up",
-      description: "Queue a separate round; no message resumes paused follow-ups",
+      description:
+        "Queue a separate round; --batch merges adjacent rounds; no message resumes paused follow-ups",
       requires: "session",
     },
   },

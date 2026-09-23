@@ -6,7 +6,7 @@ import * as path from "node:path";
 import { test } from "node:test";
 import { stripVTControlCharacters as stripAnsi } from "node:util";
 import { visibleWidth } from "@earendil-works/pi-tui";
-import { parseInput } from "../src/core/commands.js";
+import { LOCAL_COMMANDS, parseInput } from "../src/core/commands.js";
 import { createInitialState, createTab } from "../src/core/defaults.js";
 import type { MixCodeState, MixCodeTabInfo } from "../src/core/types.js";
 import { handleMixCodeKeyInput } from "../src/ui/app-input.js";
@@ -29,17 +29,42 @@ function queuedTab() {
   });
 }
 
-test("follow-up-next parses both a queued message and an explicit resume", () => {
-  assert.deepEqual(parseInput("/follow-up-next test the result"), {
+test("/follow-up parses a queued message, a resume, and the --batch flag", () => {
+  assert.deepEqual(parseInput("/follow-up test the result"), {
     kind: "local-command",
-    command: "follow-up-next",
+    command: "follow-up",
     args: "test the result",
   });
-  assert.deepEqual(parseInput("/follow-up-next"), {
+  assert.deepEqual(parseInput("/follow-up"), {
     kind: "local-command",
-    command: "follow-up-next",
+    command: "follow-up",
     args: "",
   });
+  // The flag stays in the parsed args; the handler strips it before queueing.
+  assert.deepEqual(parseInput("/follow-up --batch test the result"), {
+    kind: "local-command",
+    command: "follow-up",
+    args: "--batch test the result",
+  });
+  // A removed command name is ordinary prompt text, not a command.
+  assert.deepEqual(parseInput("/follow-up-next test the result"), {
+    kind: "prompt",
+    args: "/follow-up-next test the result",
+  });
+});
+
+test("/follow-up advertises the --batch flag through its hint and completion", () => {
+  const command = LOCAL_COMMANDS.find((item) => item.name === "follow-up");
+  assert.ok(command, "follow-up command is registered");
+  assert.equal(command.argumentHint, "[--batch] [message]");
+  const values = (prefix: string) =>
+    command.getArgumentCompletions?.(prefix)?.map((item) => item.value);
+  assert.deepEqual(values(""), ["--batch"]);
+  assert.deepEqual(values("--b"), ["--batch"]);
+  assert.deepEqual(values("--batch"), []);
+  assert.deepEqual(values("--batch hello"), []);
+  assert.deepEqual(values("hello"), []);
+  assert.match(command.getArgumentCompletions?.("--b")?.[0]?.description ?? "", /one round/);
 });
 
 test("queue preview groups adjacent batch messages and isolates next messages in FIFO rounds", () => {
@@ -61,7 +86,7 @@ test("paused queue advertises explicit resume separately from queue editing", ()
   const preview = stripAnsi(lines.join("\n"));
   const followBlock = preview.slice(preview.indexOf("Follow-up"));
   assert.match(followBlock, /Paused/);
-  assert.match(followBlock, /\/follow-up-next to resume/);
+  assert.match(followBlock, /\/follow-up to resume/);
   assert.match(followBlock, /Ctrl\+U,F->edit/);
   assert.doesNotMatch(followBlock, /Esc->send now/);
   assert.equal(
@@ -90,7 +115,7 @@ async function withRuntime(
     tab: MixCodeTabInfo;
   }) => Promise<void>,
 ): Promise<void> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mixcode-follow-up-next-ui-"));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mixcode-follow-up-cmd-ui-"));
   const runtime = new MixCodeRuntime({ sessionsRoot: dir });
   const cleanup = new FollowUpCleanup(runtime, dir);
   try {
@@ -114,8 +139,8 @@ test("follow-up commands preserve batch/next boundaries while paused and Ctrl+U 
   await withRuntime(async ({ runtime, state, tab }) => {
     tab.followUpsPaused = true;
     const tui = testTui();
-    await handleSubmittedInput(state, runtime, "/follow-up batch A", tui);
-    await handleSubmittedInput(state, runtime, "/follow-up-next exclusive B", tui);
+    await handleSubmittedInput(state, runtime, "/follow-up --batch batch A", tui);
+    await handleSubmittedInput(state, runtime, "/follow-up exclusive B", tui);
     assert.deepEqual(tab.followUpQueue, [
       { text: "batch A", kind: "batch" },
       { text: "exclusive B", kind: "next" },
@@ -128,7 +153,7 @@ test("follow-up commands preserve batch/next boundaries while paused and Ctrl+U 
         editorText = text;
       },
     });
-    assert.equal(editorText, "/follow-up-next exclusive B");
+    assert.equal(editorText, "/follow-up exclusive B");
     assert.deepEqual(tab.pendingFollowUps, ["batch A"]);
   });
 });
@@ -170,11 +195,11 @@ test("Alt+Enter appends a batch follow-up while idle and paused", async () => {
   });
 });
 
-test("follow-up-next without arguments resumes a paused queue through command submission", async () => {
+test("/follow-up without arguments resumes a paused queue through command submission", async () => {
   await withRuntime(async ({ runtime, state, tab }) => {
     tab.followUpsPaused = true;
-    await handleSubmittedInput(state, runtime, "/follow-up-next resumed text", testTui());
-    await handleSubmittedInput(state, runtime, "/follow-up-next", testTui());
+    await handleSubmittedInput(state, runtime, "/follow-up resumed text", testTui());
+    await handleSubmittedInput(state, runtime, "/follow-up", testTui());
     const runtimeTab = runtime.getTab(tab.sessionId)!;
     await runtimeTab.agentSession.waitForIdle();
     assert.equal(tab.followUpsPaused, false);
@@ -186,10 +211,10 @@ test("follow-up-next without arguments resumes a paused queue through command su
   });
 });
 
-test("follow-up-next without queued messages surfaces its user-facing error", async () => {
+test("/follow-up without queued messages surfaces its user-facing error", async () => {
   await withRuntime(async ({ runtime, state }) => {
     await assert.rejects(
-      handleSubmittedInput(state, runtime, "/follow-up-next", testTui()),
+      handleSubmittedInput(state, runtime, "/follow-up", testTui()),
       /Error: No follow-up messages to resume/,
     );
   });
@@ -199,7 +224,7 @@ test("queued local slash command runs on its owning tab without sending model te
   await withRuntime(async ({ runtime, state, tab }) => {
     const runtimeTab = runtime.getTab(tab.sessionId)!;
     tab.followUpsPaused = true;
-    await handleSubmittedInput(state, runtime, "/follow-up-next /color red", testTui());
+    await handleSubmittedInput(state, runtime, "/follow-up --batch /color red", testTui());
     assert.equal(tab.color, undefined);
     const other = createTab(2, "other-tab", tab.workdir);
     state.tabs.push(other);
@@ -219,7 +244,7 @@ test("queued slash commands retain FIFO order and thrown command errors pause re
   await withRuntime(async ({ runtime, state, tab }) => {
     tab.followUpsPaused = true;
     await handleSubmittedInput(state, runtime, "/follow-up /color red", testTui());
-    await handleSubmittedInput(state, runtime, "/follow-up-next /follow-up", testTui());
+    await handleSubmittedInput(state, runtime, "/follow-up /follow-up --batch", testTui());
     await handleSubmittedInput(state, runtime, "/follow-up /color blue", testTui());
     await assert.rejects(runtime.resumeFollowUps(tab.sessionId), /Error: Usage: \/follow-up/);
     assert.equal(tab.color, "red");
@@ -238,16 +263,16 @@ test("queued slash commands retain FIFO order and thrown command errors pause re
   });
 });
 
-test("ordinary follow-up commands separate text batches and retain their prefix when edited", async () => {
+test("each bare follow-up text queues its own round and retains its prefix when edited", async () => {
   await withRuntime(async ({ runtime, state, tab }) => {
     tab.followUpsPaused = true;
     await handleSubmittedInput(state, runtime, "/follow-up before", testTui());
     await handleSubmittedInput(state, runtime, "/follow-up /color red", testTui());
     await handleSubmittedInput(state, runtime, "/follow-up after", testTui());
     const preview = stripAnsi(renderQueuePreview(tab, 100).join("\n"));
-    assert.match(preview, /Round 1 · before/);
+    assert.match(preview, /Round 1 · next · before/);
     assert.match(preview, /Round 2 · command · \/color red/);
-    assert.match(preview, /Round 3 · after/);
+    assert.match(preview, /Round 3 · next · after/);
     await runtime.resumeFollowUps(tab.sessionId);
     assert.equal(tab.color, "red");
     assert.deepEqual(
@@ -264,12 +289,12 @@ test("ordinary follow-up commands separate text batches and retain their prefix 
   });
 });
 
-test("both follow-up-next forms reject a disabled model without changing the paused queue", async () => {
+test("both /follow-up forms reject a disabled model without changing the paused queue", async () => {
   await withRuntime(async ({ runtime, state, tab }) => {
     tab.followUpsPaused = true;
-    await handleSubmittedInput(state, runtime, "/follow-up-next retained text", testTui());
+    await handleSubmittedInput(state, runtime, "/follow-up retained text", testTui());
     tab.model.disabled = true;
-    for (const command of ["/follow-up-next", "/follow-up-next another text"]) {
+    for (const command of ["/follow-up", "/follow-up another text"]) {
       await assert.rejects(
         handleSubmittedInput(state, runtime, command, testTui()),
         /Model is disabled/,
@@ -277,5 +302,66 @@ test("both follow-up-next forms reject a disabled model without changing the pau
       assert.deepEqual(tab.pendingFollowUps, ["retained text"]);
       assert.equal(tab.followUpsPaused, true);
     }
+    // Queued local commands keep their own validation and need no enabled model.
+    await handleSubmittedInput(state, runtime, "/follow-up --batch /color red", testTui());
+    assert.deepEqual(tab.pendingFollowUps, ["retained text", "/color red"]);
+  });
+});
+
+test("--batch restores batch merging while bare text queues an exclusive round", async () => {
+  await withRuntime(async ({ runtime, state, tab }) => {
+    tab.followUpsPaused = true;
+    await handleSubmittedInput(state, runtime, "/follow-up --batch batch A", testTui());
+    await handleSubmittedInput(state, runtime, "/follow-up --batch batch B", testTui());
+    await handleSubmittedInput(state, runtime, "/follow-up exclusive C", testTui());
+    assert.deepEqual(tab.followUpQueue, [
+      { text: "batch A", kind: "batch" },
+      { text: "batch B", kind: "batch" },
+      { text: "exclusive C", kind: "next" },
+    ]);
+    // The flag selects the round kind and never reaches the queued text.
+    assert.deepEqual(tab.pendingFollowUps, ["batch A", "batch B", "exclusive C"]);
+    const preview = stripAnsi(renderQueuePreview(tab, 100).join("\n"));
+    assert.match(preview, /Round 1 · batch A/);
+    assert.match(preview, /Round 1 · batch B/);
+    assert.match(preview, /Round 2 · next · exclusive C/);
+  });
+});
+
+test("/follow-up --batch without a message reports usage and leaves the queue untouched", async () => {
+  await withRuntime(async ({ runtime, state, tab }) => {
+    tab.followUpsPaused = true;
+    await handleSubmittedInput(state, runtime, "/follow-up queued", testTui());
+    await assert.rejects(
+      handleSubmittedInput(state, runtime, "/follow-up --batch", testTui()),
+      /Error: Usage: \/follow-up \[--batch\] <message>/,
+    );
+    assert.deepEqual(tab.pendingFollowUps, ["queued"]);
+    assert.equal(tab.followUpsPaused, true);
+  });
+});
+
+test("a message that only mentions --batch later in the text stays verbatim", async () => {
+  await withRuntime(async ({ runtime, state, tab }) => {
+    tab.followUpsPaused = true;
+    await handleSubmittedInput(state, runtime, "/follow-up use --batch carefully", testTui());
+    await handleSubmittedInput(state, runtime, "/follow-up --batchfile", testTui());
+    assert.deepEqual(tab.followUpQueue, [
+      { text: "use --batch carefully", kind: "next" },
+      { text: "--batchfile", kind: "next" },
+    ]);
+  });
+});
+
+test("Ctrl+U restores a batch local command with its --batch flag", async () => {
+  await withRuntime(async ({ runtime, state, tab }) => {
+    tab.followUpsPaused = true;
+    await handleSubmittedInput(state, runtime, "/follow-up --batch /color blue", testTui());
+    assert.deepEqual(tab.followUpQueue, [{ text: "/color blue", kind: "batch", command: true }]);
+    assert.equal(
+      runtime.popPendingMessage(tab.sessionId, "followUp"),
+      "/follow-up --batch /color blue",
+    );
+    assert.deepEqual(tab.pendingFollowUps, []);
   });
 });

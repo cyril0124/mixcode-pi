@@ -69,7 +69,7 @@ Local commands execute separately on the owning tab and are not sent to the mode
 
 The script API collects requests. When MixCode applies a request, it appends the entire sequence after pending user follow-ups. Each prompt waits for the previous agent run to finish, including its tool calls. Commands use the completion rules above. Submission returns after enqueueing. Report the tasks as queued; their execution continues in the background. Later queue failures appear in the target tab without setting the startup exit code to 1.
 
-Adding a sequence leaves a paused queue paused. Final agent failure or aborting with `Esc` pauses remaining rounds; `/follow-up-next` without text resumes them. An accepted failed round is not retried automatically. Pending tasks are lost on restart.
+Adding a sequence leaves a paused queue paused. Final agent failure or aborting with `Esc` pauses remaining rounds; `/follow-up` without text resumes them. An accepted failed round is not retried automatically. Pending tasks are lost on restart.
 
 Model, thinking, and context limit apply before enqueueing. Later rounds use the session's current configuration; entries have no individual overrides. Distinct tabs run in parallel, and requests for the same title apply in order. A subsequent `prompt` can steer an active round; later configuration changes can affect pending rounds.
 

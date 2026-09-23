@@ -1,6 +1,6 @@
 import type { SessionInfo } from "@earendil-works/pi-coding-agent";
 import type { RuntimeTab } from "../agent/runtime.js";
-import { type LocalCommand, parseInput } from "../core/commands.js";
+import { type LocalCommand, FOLLOW_UP_BATCH_FLAG, parseInput } from "../core/commands.js";
 import { createSessionId, createTab, uniqueTabTitle } from "../core/defaults.js";
 import { assertModelEnabled } from "../core/models.js";
 import {
@@ -51,51 +51,47 @@ const handleFollowUp: LocalCommandHandler = async ({
   runtime,
   submitQueuedInput,
 }) => {
-  // Queue as followUp (wait until idle). Do not send "/follow-up ..." as model text.
-  const message = rawArgs.trim();
-  if (!message) {
-    throw new Error("Error: Usage: /follow-up <message>");
+  const { batch, message } = parseFollowUpArgs(rawArgs);
+  if (batch && !message) {
+    throw new Error(`Error: Usage: /follow-up [${FOLLOW_UP_BATCH_FLAG}] <message>`);
   }
-  if (parseInput(message).kind === "local-command") {
+  // Queued local commands run through their own validation, so they never need
+  // an enabled model and never enter the model queue.
+  if (message && parseInput(message).kind === "local-command") {
     if (!submitQueuedInput) throw new Error("Error: Queued commands require an input host");
     await runtime.queueFollowUpCommand(
       active!.sessionId,
       message,
       () => submitQueuedInput(message),
-      "batch",
+      batch ? "batch" : "next",
     );
     return undefined;
   }
   assertModelEnabled(active!.model);
-  await runtime.prompt(active!.sessionId, message, { streamingBehavior: "followUp" });
+  if (!message) {
+    await runtime.resumeFollowUps(active!.sessionId);
+    return undefined;
+  }
+  await runtime.prompt(active!.sessionId, message, {
+    streamingBehavior: "followUp",
+    followUpNext: !batch,
+  });
   return undefined;
 };
 
-const handleFollowUpNext: LocalCommandHandler = async ({
-  active,
-  rawArgs,
-  runtime,
-  submitQueuedInput,
-}) => {
-  const message = rawArgs.trim();
-  if (message && parseInput(message).kind === "local-command") {
-    if (!submitQueuedInput) throw new Error("Error: Queued commands require an input host");
-    await runtime.queueFollowUpCommand(active!.sessionId, message, () =>
-      submitQueuedInput(message),
-    );
-    return undefined;
-  }
-  assertModelEnabled(active!.model);
-  if (message) {
-    await runtime.prompt(active!.sessionId, message, {
-      streamingBehavior: "followUp",
-      followUpNext: true,
-    });
-  } else {
-    await runtime.resumeFollowUps(active!.sessionId);
-  }
-  return undefined;
-};
+/**
+ * Split a leading `--batch` flag from the follow-up payload. Only the first
+ * token counts: a later occurrence stays in the message, and the flag must be
+ * followed by whitespace so `--batchfile` remains message text.
+ */
+function parseFollowUpArgs(rawArgs: string): { batch: boolean; message: string } {
+  const trimmed = rawArgs.trim();
+  if (trimmed === FOLLOW_UP_BATCH_FLAG) return { batch: true, message: "" };
+  if (!trimmed.startsWith(FOLLOW_UP_BATCH_FLAG)) return { batch: false, message: trimmed };
+  const remainder = trimmed.slice(FOLLOW_UP_BATCH_FLAG.length);
+  if (!/^\s/.test(remainder)) return { batch: false, message: trimmed };
+  return { batch: true, message: remainder.trim() };
+}
 
 const handleReset: LocalCommandHandler = ({ state, active, runtime, tui }) => {
   try {
@@ -601,7 +597,6 @@ const handleCompact: LocalCommandHandler = async ({ active, args, runtime }) => 
 export const SESSION_COMMAND_HANDLERS = {
   fork: handleFork,
   "follow-up": handleFollowUp,
-  "follow-up-next": handleFollowUpNext,
   tree: handleTree,
   "close-session": handleCloseSession,
   "delete-session": handleDeleteSession,

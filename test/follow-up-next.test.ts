@@ -142,7 +142,7 @@ test("a prompt sequence appends behind existing work and retains pause and edit 
     f.runtime.queueFollowUpNextPrompts("s1", ["second", "editable", "last"]);
     assert.deepEqual(f.calls, []);
     assert.deepEqual(f.tab.pendingFollowUps, ["earlier", "second", "editable", "last"]);
-    assert.equal(f.runtime.popPendingMessage("s1", "followUp"), "/follow-up-next last");
+    assert.equal(f.runtime.popPendingMessage("s1", "followUp"), "/follow-up last");
     assert.equal(f.tab.followUpsPaused, true);
     f.runtime.queueFollowUpNextPrompts("s1", ["last"]);
     await f.runtime.resumeFollowUps("s1");
@@ -303,7 +303,7 @@ test("taking next back for editing retains its command and does not disturb stee
     await f.started.promise;
     await f.runtime.prompt("s1", "steer");
     await f.runtime.prompt("s1", "later", { streamingBehavior: "followUp", followUpNext: true });
-    assert.equal(f.runtime.popPendingMessage("s1", "followUp"), "/follow-up-next later");
+    assert.equal(f.runtime.popPendingMessage("s1", "followUp"), "/follow-up later");
     assert.deepEqual(f.tab.pendingFollowUps, []);
     assert.deepEqual(f.tab.pendingMessages, ["steer"]);
     f.blocked.resolve();

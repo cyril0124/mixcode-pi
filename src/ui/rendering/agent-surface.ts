@@ -816,7 +816,7 @@ function renderQueuePreviewInner(tab: MixCodeTabInfo, width: number): string[] {
         maxQueue,
         false,
         dualQueues ? "Ctrl+U,F->edit" : "Ctrl+U->edit",
-        tab.followUpsPaused ? "Paused · /follow-up-next to resume" : undefined,
+        tab.followUpsPaused ? "Paused · /follow-up to resume" : undefined,
       ),
     );
   }

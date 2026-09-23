@@ -25,8 +25,7 @@ Commands operate across three distinct persistence tiers:
 | `/fork` | - | Workdir | Clones current conversation branch into a new tab that owns its runtime services. Title is `{source}-fork`, or `{source}-fork-N` if taken. See [Tab titles](workspace-and-tabs.md#tab-titles). |
 | `/color` | `[name\|clear]` | Workdir | Sets the active tab color (`red`, `green`, `yellow`, `blue`, `magenta`, `cyan`, `white`, `gray`) or clears it when the argument is omitted or `clear`. Persisted per session in `mixcode_state.json`. See [Tab colors](workspace-and-tabs.md#tab-colors). |
 | `/group-colored-tabs` | - | Workdir | Reorders tabs so colored tabs lead the tab bar, aggregated by color in palette order, with uncolored tabs keeping their relative order after them. Persisted to `mixcode_state.json` and published to other instances in the workdir. See [Tab colors](workspace-and-tabs.md#tab-colors). |
-| `/follow-up` | `<text>` | Session | Adds a batch follow-up. See [queue semantics](queue-and-follow-up.md#follow-up-rounds). |
-| `/follow-up-next` | `[text]` | Session | Adds a separate follow-up round; without text, resumes queued follow-ups. See [queue semantics and resume errors](queue-and-follow-up.md). |
+| `/follow-up` | `[--batch] [text]` | Session | Adds a separate follow-up round; `--batch` groups it with adjacent batch rounds; without text, resumes queued follow-ups. See [queue semantics and resume errors](queue-and-follow-up.md). |
 | `/compact` | `[custom instructions]` | Session | Manually triggers context compaction on the current branch. |
 | `/reset` | - | Session | Resets the conversation leaf to root while retaining session file and tab title. Earlier branches stay in `/tree`. |
 | `/clear` | - | Session | Generates a fresh session file in the active tab and resets tab title. |

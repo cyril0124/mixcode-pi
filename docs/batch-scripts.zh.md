@@ -121,7 +121,7 @@ skill、prompt template、扩展命令、MixCode 本地命令和 `!shell` / `!!s
 
 `openTab` / `open_tab` 在脚本运行时收集请求。MixCode 应用请求时，将整个序列追加到已有用户 follow-up 之后，每项占一个独立轮次。batch 提交在入队后返回，agent 在后台继续执行。
 
-添加序列不会解除队列的暂停状态。agent 最终失败或用 `Esc` 中止后会暂停剩余轮次；不带文本的 `/follow-up-next` 恢复执行。已接受但失败的轮次不会自动重试。待执行任务在重启后丢失。派发、编辑和暂停行为详见[队列与 follow-up 语义](queue-and-follow-up.zh.md)。
+添加序列不会解除队列的暂停状态。agent 最终失败或用 `Esc` 中止后会暂停剩余轮次；不带文本的 `/follow-up` 恢复执行。已接受但失败的轮次不会自动重试。待执行任务在重启后丢失。派发、编辑和暂停行为详见[队列与 follow-up 语义](queue-and-follow-up.zh.md)。
 
 每条请求先应用 model、thinking 和 context limit，再入队。后续轮次使用会话当时的配置，数组各项不支持单独覆盖。不同 tab 并行执行，同名请求按顺序应用。后续 `prompt` 可 steering 当前轮次，后续配置变更也可能影响待执行轮次。
 
