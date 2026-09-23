@@ -276,3 +276,169 @@ test("H home anchor click activates MixCode Home", () => {
   assert.deepEqual(result, { consume: true });
   assert.equal(state.activeTabId, "home");
 });
+
+/** Fixed 8-column titles keep every chip exactly 12 columns wide during a sweep. */
+function uniformTabState(count: number, activeIdx: number) {
+  const state = createInitialState("/repo");
+  for (let index = 1; index <= count; index++) {
+    state.tabs.push(
+      createTab(index, `s${index}`, "/repo", { title: `T${String(index).padStart(2, "0")}xxxxx` }),
+    );
+  }
+  state.activeTabId = `s${activeIdx}`;
+  return state;
+}
+
+type TabBarReport = {
+  lines: string[];
+  /** Agent indices (1-based) visible in the bar, in render order. */
+  visible: number[];
+  hiddenLeft: number;
+  hiddenRight: number;
+};
+
+function tabBarReport(
+  state: ReturnType<typeof uniformTabState>,
+  width: number,
+  maxRows: number,
+): TabBarReport {
+  const lines = renderTabBar(state, width, undefined, maxRows).map(stripAnsi);
+  const joined = lines.join(" ");
+  return {
+    lines,
+    visible: (joined.match(/T(\d\d)/g) ?? []).map((match) => Number(match.slice(1))),
+    hiddenLeft: Number(joined.match(/\+(\d+) …/)?.[1] ?? 0),
+    hiddenRight: Number(joined.match(/… \+(\d+)/)?.[1] ?? 0),
+  };
+}
+
+test("tab bar keeps a long tab list centered on the active tab", () => {
+  const width = 80;
+  const report = tabBarReport(uniformTabState(30, 15), width, 2);
+  // Both sides overflow, with a near-even split: the window is centered on the
+  // active tab, not pinned to the leftmost tabs.
+  assert.ok(report.hiddenLeft > 0 && report.hiddenRight > 0, JSON.stringify(report));
+  assert.ok(
+    Math.abs(report.hiddenLeft - report.hiddenRight) <= 2,
+    `overflow should be near-even, got +${report.hiddenLeft}/+${report.hiddenRight}`,
+  );
+  // Tabs created after the active one stay visible: the active tab is not the
+  // last visible tab.
+  assert.ok(
+    report.visible.some((index) => index > 15),
+    `expected newer agents visible, got ${report.visible.join(",")}`,
+  );
+  assert.ok(report.visible.includes(15));
+});
+
+test("tab bar splits overflow evenly when a symmetric window fits", () => {
+  const narrow = tabBarReport(uniformTabState(16, 8), 80, 2);
+  assert.equal(narrow.hiddenLeft, 3);
+  assert.equal(narrow.hiddenRight, 3);
+  assert.deepEqual(narrow.visible, [4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+
+  // A wider bar splits the same way, one row deeper.
+  const wide = tabBarReport(uniformTabState(40, 20), 120, 2);
+  assert.equal(wide.hiddenLeft, 13);
+  assert.equal(wide.hiddenRight, 13);
+  assert.equal(wide.visible.length, 14);
+  assert.deepEqual(wide.visible, [14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27]);
+});
+
+// Lowest number of visible agent tabs the tab bar may show at each size, keyed
+// "<tabs>/<width>/<maxRows>", with the middle tab active and 8-column titles.
+// Placing the overflow window must never reduce how many tabs stay visible.
+const DENSITY_FLOOR =
+  "4/40/1:2 4/40/2:4 4/40/3:4 4/60/1:4 4/60/2:4 4/60/3:4 4/80/1:4 4/80/2:4 4/80/3:4 4/100/1:4 " +
+  "6/40/1:2 6/40/2:4 6/40/3:6 6/60/1:4 6/60/2:6 6/60/3:6 6/80/1:5 6/80/2:6 6/80/3:6 6/100/1:6 " +
+  "8/40/1:2 8/40/2:4 8/40/3:6 8/60/1:4 8/60/2:8 8/60/3:8 8/80/1:5 8/80/2:8 8/80/3:8 8/100/1:6 " +
+  "12/40/1:2 12/40/2:4 12/40/3:6 12/60/1:3 12/60/2:8 12/60/3:12 12/80/1:5 12/80/2:10 12/80/3:12 12/100/1:6 " +
+  "16/40/1:2 16/40/2:4 16/40/3:6 16/60/1:3 16/60/2:6 16/60/3:12 16/80/1:5 16/80/2:10 16/80/3:15 16/100/1:5 " +
+  "20/60/2:6 20/60/3:12 20/80/2:10 20/80/3:15 20/120/2:15 20/120/3:20 " +
+  "30/60/2:6 30/60/3:9 30/80/2:10 30/80/3:15 30/100/2:11 30/120/2:15 30/120/3:23 " +
+  "40/80/2:9 40/80/3:15 40/100/2:11 40/120/2:14 40/120/3:23";
+
+test("tab bar placement shows at least the recorded number of tabs per size", () => {
+  for (const entry of DENSITY_FLOOR.split(" ")) {
+    const [key, floorText] = entry.split(":");
+    const [countText, widthText, maxRowsText] = (key ?? "").split("/");
+    const count = Number(countText);
+    const width = Number(widthText);
+    const maxRows = Number(maxRowsText);
+    const floor = Number(floorText);
+    const report = tabBarReport(uniformTabState(count, Math.floor(count / 2)), width, maxRows);
+    assert.equal(report.visible.length + report.hiddenLeft + report.hiddenRight, count, entry);
+    assert.ok(
+      report.visible.length >= floor,
+      `${entry}: expected at least ${floor} visible tabs, got ${report.visible.length}`,
+    );
+  }
+});
+
+test("tab bar overflow stays balanced, contiguous, and within bounds across sizes", () => {
+  const widths = [40, 80, 120, 200];
+  const rowCaps = [1, 4];
+  for (let count = 1; count <= 40; count++) {
+    for (const width of widths) {
+      for (const maxRows of rowCaps) {
+        for (const activeIdx of [1, Math.ceil(count / 2), count]) {
+          const label = `${count}/${width}/${maxRows}/s${activeIdx}`;
+          const report = tabBarReport(uniformTabState(count, activeIdx), width, maxRows);
+          assert.ok(report.lines.length <= maxRows, `${label}: rows ${report.lines.length}`);
+          for (const line of report.lines) {
+            assert.ok(visibleWidth(line) <= width, `${label}: row wider than ${width}`);
+          }
+          assert.equal(
+            report.visible.length + report.hiddenLeft + report.hiddenRight,
+            count,
+            `${label}: visible + hidden must account for every tab`,
+          );
+          assert.ok(report.visible.includes(activeIdx), `${label}: active tab must stay visible`);
+          const first = report.visible[0];
+          const last = report.visible[report.visible.length - 1];
+          assert.equal(
+            last! - first! + 1,
+            report.visible.length,
+            `${label}: visible tabs must be contiguous, got ${report.visible.join(",")}`,
+          );
+        }
+      }
+    }
+  }
+});
+
+test("Home keeps its left-anchored window and the last tab keeps the right edge", () => {
+  const home = createInitialState("/repo");
+  const tabs = uniformTabState(30, 15);
+  home.tabs = tabs.tabs;
+  home.activeTabId = "home";
+  const homeReport = tabBarReport(home as ReturnType<typeof uniformTabState>, 80, 2);
+  assert.equal(homeReport.hiddenLeft, 0, "Home must not shift the window right");
+  assert.equal(homeReport.visible[0], 1);
+
+  const lastReport = tabBarReport(uniformTabState(30, 30), 80, 2);
+  assert.equal(lastReport.hiddenRight, 0, "the last tab must not push newer tabs out");
+  assert.equal(lastReport.visible[lastReport.visible.length - 1], 30);
+});
+
+test("hit regions follow the shifted window and its left overflow hint", () => {
+  const width = 80;
+  const state = uniformTabState(30, 15);
+  const report = tabBarReport(state, width, 1);
+  assert.ok(report.hiddenLeft > 0, "expected a left overflow hint for this case");
+  assert.ok(report.visible[0] !== 15, "the active tab must not be the first visible tab here");
+  const regions = tabBarHitRegions(state, width, 1);
+  const home = regions.find((region) => region.id === "home");
+  const firstAgent = regions.find((region) => region.id.startsWith("s") && (region.row ?? 0) === 0);
+  assert.ok(home && firstAgent);
+  // Home chip, one separator column, the "+N … " hint, then the gutter before
+  // the first clickable chip.
+  const hintWidth = `+${report.hiddenLeft} … `.length;
+  assert.ok(
+    firstAgent.startX >= home.endX + 2 + hintWidth,
+    `hint must not overlap the first chip (${firstAgent.startX} vs ${home.endX + 2 + hintWidth})`,
+  );
+  // Hit regions start at the status glyph, which sits two columns before the title.
+  const firstTitle = `T${String(report.visible[0]).padStart(2, "0")}`;
+  assert.equal((report.lines[0] ?? "").indexOf(firstTitle), firstAgent.startX + 2);
+});

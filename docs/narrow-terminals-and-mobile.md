@@ -23,7 +23,10 @@ When running under constrained widths (<80 columns) or short vertical heights, M
 
 1. **Tab Bar Compaction (`src/ui/rendering/chrome.ts`)**:
    - `MixCode Home` collapses to compact `" H "` when width is constrained.
-   - Long tab lists show left/right overflow indicators (`+N …` / ` … +N`).
+   - Long tab lists show left/right overflow indicators (`+N …` / ` … +N`). The visible
+     run is the contiguous window around the active tab, positioned to split the hidden
+     tabs as evenly as the row budget allows, so tabs created after the active one stay
+     on screen.
    - Active tab title preserves full visibility while inactive titles truncate with `…`.
 2. **Metadata Row Compression (`compactWorkdir`)**:
    - Compresses long working directory paths progressively (e.g. `~/w/p/m/packages/cli`).
