@@ -64,6 +64,7 @@ References:
 ## Slash Commands & Settings
 
 - Register slash commands in `LOCAL_COMMANDS` (`src/core/commands.ts`); `description` appears in the command palette and slash autocomplete.
+- Extension commands that take arguments must declare `argumentHint` (spread as `...({ argumentHint: "<hint>" } as Record<string, unknown>)`, because Pi's `RegisteredCommand` type omits it) and cover every accepted token — flags, aliases, subcommands — in `getArgumentCompletions`. Pi replaces the whole argument text with the accepted value, so each candidate must repeat the tokens already typed.
 - Persistence tiers: global (`<agentDir>/settings.json`, survives restart, shared across workdirs and Pi), workdir (`mixcode_state.json`), session (memory/`applyOverrides`, lost on reload/restart).
 - Prefix descriptions with `[global]` exactly when commands persist to Pi's global settings (e.g. `/hide-thinking`); never for workdir/session settings.
 - All user-facing command failures (dispatch, parsing, execution, invalid usage, export) must start with `Error:` whether thrown, system messages, or toasts, so TUI and `mpi ctl dump-screen` share a marker. Examples: `Error: Unknown model: <query>`, `Error: Usage: /<command> [yes]`. Internal invariants unreachable from user input retain bare messages (e.g. `Unknown tab session: <id>`). `showErrorOverlay` strips the prefix because its title is Error.
