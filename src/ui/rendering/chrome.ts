@@ -347,7 +347,11 @@ function visibleTabCount(rows: TabSegment[][]): number {
   return rows.reduce((count, row) => count + row.length, 0);
 }
 
-/** Agent-window only: more tabs, then less left overflow, then less right. */
+/**
+ * Growth walk only: more tabs, then less left overflow, then less right. The walk
+ * uses this while it extends the window one tab at a time; the final placement
+ * comes from {@link chooseWindowPlacement}.
+ */
 function isBetterAgentWindow(candidate: TabBarLayout, current: TabBarLayout): boolean {
   const cCount = visibleTabCount(candidate.rows);
   const bCount = visibleTabCount(current.rows);
@@ -359,6 +363,23 @@ function isBetterAgentWindow(candidate: TabBarLayout, current: TabBarLayout): bo
     return candidate.hiddenRight < current.hiddenRight;
   }
   return false;
+}
+
+/**
+ * Placement ordering for the final window: more tabs, then the most even
+ * overflow, then the earlier window. Even overflow keeps the window centered on
+ * the active agent, so tabs created after it stay visible instead of vanishing
+ * behind the trailing `… +N`. The `hiddenLeftAgents` comparison only breaks ties
+ * between equally even windows, which keeps the choice stable.
+ */
+function isBetterPlacedWindow(candidate: TabBarLayout, current: TabBarLayout): boolean {
+  const cCount = visibleTabCount(candidate.rows);
+  const bCount = visibleTabCount(current.rows);
+  if (cCount !== bCount) return cCount > bCount;
+  const cImbalance = Math.abs(candidate.hiddenLeftAgents - candidate.hiddenRight);
+  const bImbalance = Math.abs(current.hiddenLeftAgents - current.hiddenRight);
+  if (cImbalance !== bImbalance) return cImbalance < bImbalance;
+  return candidate.hiddenLeftAgents < current.hiddenLeftAgents;
 }
 
 /**
@@ -446,7 +467,58 @@ function growAgentWindow(
       }
     }
   }
-  return current;
+  return chooseWindowPlacement(
+    agents,
+    current,
+    width,
+    maxRows,
+    activeId,
+    activeAgentIdx,
+    homeActive,
+    homePin,
+    homeSegment,
+  );
+}
+
+/**
+ * Final placement pass for the agent window. The grow loop decides how many tabs
+ * stay visible (its window is left-anchored, which pins the active tab to the
+ * window's right edge); this pass keeps that count and picks where the window
+ * sits. It scans every start that keeps the active agent inside a window of the
+ * same count and keeps the most even one, so the overflow balance is a property
+ * of the layout rather than of the walk. Skipped when Home is active (its window
+ * is pinned to the first agent) and when no agent is hidden.
+ */
+function chooseWindowPlacement(
+  agents: TabSegment[],
+  current: TabBarLayout,
+  width: number,
+  maxRows: number,
+  activeId: string,
+  activeAgentIdx: number,
+  homeActive: boolean,
+  homePin: Exclude<HomePin, "inline">,
+  homeSegment: TabSegment,
+): TabBarLayout {
+  const count = visibleTabCount(current.rows);
+  if (homeActive || count === 0 || count >= agents.length) return current;
+  let best = current;
+  for (let lo = 0; lo + count <= agents.length; lo++) {
+    // Only windows that still show the active agent are candidates.
+    if (activeAgentIdx < lo || activeAgentIdx >= lo + count) continue;
+    const candidate = fitAgentWindow(
+      agents,
+      lo,
+      lo + count,
+      width,
+      maxRows,
+      activeId,
+      homePin,
+      homeSegment,
+    );
+    if (candidate && isBetterPlacedWindow(candidate, best)) best = candidate;
+  }
+  return best;
 }
 
 /** Full Home pin only when its chip width is ≤ {@link HOME_PIN_FULL_MAX_RATIO} of the bar. */

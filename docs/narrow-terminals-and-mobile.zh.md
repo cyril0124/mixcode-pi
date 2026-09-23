@@ -23,7 +23,7 @@ MixCode Pi 针对窄屏终端窗口、移动端终端模拟器（如 Termux、iO
 
 1. **Tab 栏自适应压缩 (`src/ui/rendering/chrome.ts`)**：
    - 宽度受限时 `MixCode Home` 收缩为 `" H "`。
-   - 超出视口的 Tab 两端显示 `+N …` / ` … +N`。
+   - 超出视口的 Tab 两端显示 `+N …` / ` … +N`。可见窗口是围绕激活 Tab 的连续区间，位置取行宽预算下左右隐藏数最接近的编排，因此激活 Tab 之后新建的 Tab 也会出现在条上。
    - 激活中的 Tab 标题优先保留完整可读性，非激活 Tab 自动以 `…` 适度截断。
 2. **状态元数据行智能压缩 (`compactWorkdir`)**：
    - 长工作区路径自动逐级压缩各级目录（如 `~/w/p/m/packages/cli`）。
