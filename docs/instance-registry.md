@@ -23,10 +23,26 @@ mpi status --workdir /path/to/project
 
 - In the table output, `A` indicates the active/focused tab marked with `*`.
 - `TAB_TITLE` shows the user-facing title of each tab.
+- `LAST` shows each tab's last activity as a compact age (`12s` / `4m` / `3h` / `2d`) and `-` when unknown; the header's `last:` is the newest activity across that instance's tabs.
 - `started` shows the instance (process) start time as local `YYYY-MM-DD HH:MM`.
 - `focus: home` appears in the header when the Home surface holds focus; a focused tab is marked with `*` instead, so a tab titled `home` never triggers the header marker.
-- In `--json`, `focus` is `"home"` / `"tab"` (omitted when unknown) and `activeTabTitle` appears only when `focus` is `"tab"`.
+- In `--json`, `focus` is `"home"` / `"tab"` (omitted when unknown), `activeTabTitle` appears only when `focus` is `"tab"`, and each tab carries `lastActivity` (ISO; omitted when unknown).
 - `--workdir <path>` filters to instances whose root workdir equals the resolved path (`~` / relative / absolute).
+
+### Last Activity
+
+`LAST`, the header `last:`, and `--json`'s `lastActivity` are **derived at read time** from the session transcript file, not stored in the snapshot:
+
+```text
+tabs[].sessionId + tabs[].workdir
+        │
+        ▼
+<agentDir>/sessions/<encoded-workdir>/<createdAt>_<sessionId>.jsonl  ── stat mtime ──> lastActivity
+```
+
+The transcript is append-only, so its mtime advances exactly when that session writes a turn, tool call, or session-info change. The snapshot's own `updatedAt` cannot serve this purpose: it is a 5s heartbeat, so an idle instance would always report "just now". A tab whose transcript has no file on this host (never persisted, deleted, or another machine's session) reports `-` instead of a guess.
+
+Because the value is derived on read, the snapshot schema and `INSTANCE_REGISTRY_VERSION` are unchanged. Callers that only need liveness (`mpi ctl`, peer tab sync) pass no activity reader and pay no extra filesystem work.
 
 ## Snapshot Schema
 
@@ -41,6 +57,8 @@ Each running instance periodically writes a heartbeat snapshot:
 | `createdAt` | string (ISO) | Instance (process) start time; fixed for the process lifetime. |
 | `updatedAt` | string (ISO) | Heartbeat timestamp (updated every 5,000 ms). |
 | `tabs` | array | List of tab snapshots (index, sessionId, title, status, workdir, waitingForInputCount). |
+
+Every displayed last-activity value is derived from the session transcript at read time; no snapshot field carries it.
 
 ## Tab Status Lifecycle
 

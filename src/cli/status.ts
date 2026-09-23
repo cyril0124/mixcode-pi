@@ -1,5 +1,6 @@
 import * as path from "node:path";
-import { expandTilde, resolveMixcodeStateDir } from "../core/paths.js";
+import { expandTilde, resolveMixcodeAgentDir, resolveMixcodeStateDir } from "../core/paths.js";
+import { createSessionActivityReader } from "../core/session-activity.js";
 import {
   formatInstanceStatusJson,
   formatInstanceStatusTable,
@@ -38,7 +39,10 @@ interface StatusCliOptions {
 /** Execute status command and write output to stdout. */
 export async function runStatusCommand(options: StatusCliOptions = {}): Promise<void> {
   const rootStateDir = resolveMixcodeStateDir();
-  const report = await loadLiveInstanceStatus(rootStateDir, { workdir: options.workdir });
+  const report = await loadLiveInstanceStatus(rootStateDir, {
+    workdir: options.workdir,
+    readActivity: createSessionActivityReader(resolveMixcodeAgentDir()),
+  });
   const output = options.json
     ? formatInstanceStatusJson(report)
     : formatInstanceStatusTable(report);

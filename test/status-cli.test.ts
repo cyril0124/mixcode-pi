@@ -127,6 +127,22 @@ test("cli entry via bun on status outputs valid json and supports workdir filter
       ],
     });
 
+    // Tab 1's session transcript exists in the isolated agent dir; tab 2 has none.
+    const transcriptDir = path.join(
+      tmpAgent,
+      "sessions",
+      `--${path
+        .resolve("/test-workdir-a")
+        .replace(/^[/\\]/, "")
+        .replace(/[/\\:]/g, "-")}--`,
+    );
+    await fsPromises.mkdir(transcriptDir, { recursive: true });
+    await fsPromises.writeFile(
+      path.join(transcriptDir, "2026-06-05T22-00-00-000Z_session-12345678.jsonl"),
+      "",
+      "utf8",
+    );
+
     const env = { ...process.env, PI_CODING_AGENT_DIR: tmpAgent };
 
     // 1. Unfiltered --json
@@ -154,6 +170,15 @@ test("cli entry via bun on status outputs valid json and supports workdir filter
       assert.equal(report.instances[0].tabs[0].state, "idle");
       assert.equal(report.instances[0].tabs[0].status, "idle");
       assert.equal(report.instances[0].tabs[0].sessionId, "session-12345678");
+      // Last activity comes from the transcript file mtime, not the snapshot.
+      const lastActivity = report.instances[0].tabs[0].lastActivity;
+      assert.equal(typeof lastActivity, "string");
+      assert.equal(Number.isFinite(Date.parse(lastActivity)), true);
+      assert.equal(
+        Date.now() - Date.parse(lastActivity) < 10 * 60_000,
+        true,
+        `stale lastActivity: ${lastActivity}`,
+      );
       // Verify internal implementation leaks are omitted
       assert.equal(report.instances[0].tabs[0].pendingDialogCount, undefined);
       assert.equal(report.instances[0].processStartTime, undefined);
@@ -230,6 +255,9 @@ test("cli entry via bun on status outputs valid json and supports workdir filter
       const report = JSON.parse(stdout);
       assert.equal(report.instances.length, 1);
       assert.equal(report.instances[0].tabs[0].tabTitle, "HomeTab");
+      // No transcript for this session under the isolated agent dir: the field is
+      // omitted rather than guessed.
+      assert.equal(report.instances[0].tabs[0].lastActivity, undefined);
     }
   } finally {
     await fsPromises.rm(tmpAgent, { recursive: true, force: true });

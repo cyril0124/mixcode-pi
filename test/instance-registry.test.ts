@@ -273,14 +273,17 @@ test("formatInstanceStatusTable renders grouped instances and active tabs", asyn
       processInfo,
     });
 
-    const table = formatInstanceStatusTable(result);
+    const table = formatInstanceStatusTable(result, new Date("2026-06-06T00:00:12.000Z"));
     assert.match(table, /PID 101/);
     assert.match(table, /workdir: \/repo/);
     assert.match(table, /started: \d{4}-\d{2}-\d{2} \d{2}:\d{2}/);
-    assert.match(table, /PID 100 {2}workdir: \/z-repo {2}started: [^\n]* {2}focus: home/);
+    assert.match(
+      table,
+      /PID 100 {2}workdir: \/z-repo {2}started: [^\n]* {2}last: [^\n]* {2}focus: home/,
+    );
     assert.doesNotMatch(table, /\*\s+idle\s+idle\s+Agent-02/);
-    assert.match(table, /TAB_TITLE\s+SESSION/);
-    assert.match(table, /\*\s+working\s+thinking\s+Active Worker\s+active-session-abcdef/);
+    assert.match(table, /TAB_TITLE\s+LAST\s+SESSION/);
+    assert.match(table, /\*\s+working\s+thinking\s+Active Worker\s+-\s+active-session-abcdef/);
     assert.match(table, /\(\* = focused tab\)/);
     assert.equal(formatInstanceStatusTable({ ...result, instances: [] }), "No live mpi instances.");
 
@@ -291,6 +294,148 @@ test("formatInstanceStatusTable renders grouped instances and active tabs", asyn
     const homeFocused = json.instances.find((i: { pid: number }) => i.pid === 100);
     assert.equal(homeFocused.focus, "home");
     assert.equal(homeFocused.activeTabTitle, undefined);
+  } finally {
+    await fsPromises.rm(root, { recursive: true, force: true });
+  }
+});
+
+test("loadLiveInstanceStatus attaches injected last activity and formats the age", async () => {
+  const root = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-instance-registry-activity-"),
+  );
+  const now = new Date("2026-06-06T00:00:12.000Z");
+  try {
+    await writeInstanceSnapshot(
+      root,
+      snapshot({
+        pid: 100,
+        activeTabId: "s1-abcdef123456",
+        tabs: [
+          {
+            index: 1,
+            sessionId: "s1-abcdef123456",
+            title: "Agent-01",
+            workdir: "/repo",
+            status: "idle",
+            unreadDone: false,
+            waitingForInputCount: 0,
+          },
+          {
+            index: 2,
+            sessionId: "s2-abcdef123456",
+            title: "Agent-02",
+            workdir: "/repo",
+            status: "idle",
+            unreadDone: false,
+            waitingForInputCount: 0,
+          },
+        ],
+      }),
+    );
+    // Only tab 1 has a transcript; tab 2 stays unknown rather than throwing.
+    const activity = new Map([
+      ["s1-abcdef123456", new Date("2026-06-06T00:00:00.000Z")],
+      ["s2-abcdef123456", undefined],
+    ]);
+    const result = await loadLiveInstanceStatus(root, {
+      now,
+      processInfo,
+      readActivity: async (sessionId) => activity.get(sessionId),
+    });
+
+    assert.equal(result.instances[0]?.tabs[0]?.lastActivity, "2026-06-06T00:00:00.000Z");
+    assert.equal(result.instances[0]?.tabs[1]?.lastActivity, undefined);
+
+    // The header reports the newest activity across tabs; the unknown tab renders "-".
+    const table = formatInstanceStatusTable(result, now);
+    assert.match(table, /last: 12s/);
+    assert.match(table, /\*\s+idle\s+idle\s+Agent-01\s+12s\s+s1-abcdef123456/);
+    assert.match(table, /\s+idle\s+idle\s+Agent-02\s+-\s+s2-abcdef123456/);
+
+    const json = JSON.parse(formatInstanceStatusJson(result));
+    assert.equal(json.instances[0].tabs[0].lastActivity, "2026-06-06T00:00:00.000Z");
+    assert.equal(json.instances[0].tabs[1].lastActivity, undefined);
+  } finally {
+    await fsPromises.rm(root, { recursive: true, force: true });
+  }
+});
+
+test("activity lookup is skipped entirely without a reader and for unreachable sessions", async () => {
+  const root = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-instance-registry-noactivity-"),
+  );
+  try {
+    await writeInstanceSnapshot(root, snapshot({ pid: 100 }));
+    let calls = 0;
+    const skipped = await loadLiveInstanceStatus(root, {
+      now: new Date("2026-06-06T00:00:12.000Z"),
+      processInfo,
+      readActivity: async () => {
+        calls += 1;
+        return undefined;
+      },
+    });
+    assert.equal(calls, 1);
+
+    const withoutReader = await loadLiveInstanceStatus(root, {
+      now: new Date("2026-06-06T00:00:12.000Z"),
+      processInfo,
+    });
+    assert.equal(calls, 1);
+    assert.equal(withoutReader.instances[0]?.tabs[0]?.lastActivity, undefined);
+    assert.equal(skipped.instances[0]?.tabs[0]?.lastActivity, undefined);
+  } finally {
+    await fsPromises.rm(root, { recursive: true, force: true });
+  }
+});
+
+test("a failing activity reader only blanks that tab's activity", async () => {
+  const root = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-instance-registry-activity-error-"),
+  );
+  try {
+    await writeInstanceSnapshot(
+      root,
+      snapshot({
+        pid: 100,
+        tabs: [
+          {
+            index: 1,
+            sessionId: "s1-abcdef123456",
+            title: "Agent-01",
+            workdir: "/repo",
+            status: "idle",
+            unreadDone: false,
+            waitingForInputCount: 0,
+          },
+          {
+            index: 2,
+            sessionId: "s2-abcdef123456",
+            title: "Agent-02",
+            workdir: "/repo",
+            status: "idle",
+            unreadDone: false,
+            waitingForInputCount: 0,
+          },
+        ],
+      }),
+    );
+    const result = await loadLiveInstanceStatus(root, {
+      now: new Date("2026-06-06T00:00:12.000Z"),
+      processInfo,
+      readActivity: async (sessionId) => {
+        if (sessionId === "s1-abcdef123456") throw new Error("EACCES: permission denied");
+        return new Date("2026-06-06T00:00:00.000Z");
+      },
+    });
+
+    // One unreadable session dir must not take the whole report (or the sibling
+    // tab) down: the failing tab renders "-" and the rest keep their activity.
+    assert.equal(result.instances[0]?.tabs[0]?.lastActivity, undefined);
+    assert.equal(result.instances[0]?.tabs[1]?.lastActivity, "2026-06-06T00:00:00.000Z");
+    const table = formatInstanceStatusTable(result, new Date("2026-06-06T00:00:12.000Z"));
+    assert.match(table, /\s+idle\s+idle\s+Agent-01\s+-\s+s1-abcdef123456/);
+    assert.match(table, /last: 12s/);
   } finally {
     await fsPromises.rm(root, { recursive: true, force: true });
   }
@@ -354,7 +499,7 @@ test("a tab titled home stays distinguishable from the Home surface", async () =
     // The focused surface is a tab (row marker), never the Home header suffix.
     const table = formatInstanceStatusTable(result);
     assert.doesNotMatch(table, /focus: home/);
-    assert.match(table, /\*\s+idle\s+idle\s+home\s+home-titled-session/);
+    assert.match(table, /\*\s+idle\s+idle\s+home\s+-\s+home-titled-session/);
 
     const json = JSON.parse(formatInstanceStatusJson(result));
     assert.equal(json.instances[0].focus, "tab");

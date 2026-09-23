@@ -38,6 +38,12 @@ export interface InstanceRegistrySnapshot {
 export interface InstanceStatusTab extends InstanceRegistryTabSnapshot {
   active: boolean;
   state: InstanceTabState;
+  /**
+   * Last activity of this tab's session (ISO), derived at read time from the
+   * session transcript file by the injected reader. Absent when no reader was
+   * provided or the transcript has no file on this host.
+   */
+  lastActivity?: string;
 }
 
 export interface InstanceStatusInstance extends Omit<InstanceRegistrySnapshot, "tabs"> {
@@ -59,6 +65,12 @@ export interface LoadInstanceStatusOptions {
   staleAfterMs?: number;
   processInfo?: (pid: number) => ProcessIdentity;
   workdir?: string;
+  /**
+   * Resolve a tab's last activity from its session id and workdir. Omit to skip
+   * the lookup entirely: callers that only need live tabs (`mpi ctl`, peer tab
+   * sync polling every 2s) must not pay for transcript stats they never print.
+   */
+  readActivity?: (sessionId: string, workdir: string) => Promise<Date | undefined>;
 }
 
 export interface CleanupInstanceRegistryResult {
@@ -166,7 +178,7 @@ export async function loadLiveInstanceStatus(
       continue;
     }
     if (!snapshotIsLive(snapshot, now, options)) continue;
-    instances.push(resolveStatusInstance(snapshot));
+    instances.push(await resolveStatusInstance(snapshot, options.readActivity));
   }
   instances.sort((a, b) => a.workdir.localeCompare(b.workdir) || a.pid - b.pid);
   return { instances, warnings };
@@ -221,6 +233,28 @@ export function formatDisplayWorkdir(workdir: string, home = os.homedir()): stri
   return workdir;
 }
 
+export function formatRelativeTime(iso: string | undefined, now = new Date()): string {
+  if (iso === undefined) return "-";
+  const time = Date.parse(iso);
+  if (!Number.isFinite(time)) return "-";
+  // Clock skew between host and transcript writer must not render "-1s ago".
+  const seconds = Math.max(0, Math.round((now.getTime() - time) / 1000));
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  if (seconds < 86_400) return `${Math.floor(seconds / 3600)}h`;
+  return `${Math.floor(seconds / 86_400)}d`;
+}
+
+/** Newest last-activity across the instance's tabs; undefined when none is known. */
+function latestActivity(instance: InstanceStatusInstance): string | undefined {
+  let latest: string | undefined;
+  for (const tab of instance.tabs) {
+    if (tab.lastActivity === undefined) continue;
+    if (latest === undefined || tab.lastActivity > latest) latest = tab.lastActivity;
+  }
+  return latest;
+}
+
 /** Which surface holds focus: "home", "tab", or undefined when unknown. */
 function instanceFocusOf(instance: InstanceStatusInstance): "home" | "tab" | undefined {
   if (instance.activeTabId === HOME_TAB_ID) return "home";
@@ -254,6 +288,7 @@ export function formatInstanceStatusJson(report: InstanceStatusReport): string {
           status: tab.status,
           tabTitle: tab.title,
           sessionId: tab.sessionId,
+          ...(tab.lastActivity !== undefined ? { lastActivity: tab.lastActivity } : {}),
         })),
       };
     }),
@@ -261,11 +296,12 @@ export function formatInstanceStatusJson(report: InstanceStatusReport): string {
   return JSON.stringify(data, null, 2);
 }
 
-export function formatInstanceStatusTable(report: InstanceStatusReport): string {
+export function formatInstanceStatusTable(report: InstanceStatusReport, now = new Date()): string {
   if (report.instances.length === 0) return "No live mpi instances.";
   const maxTitleLen = report.instances
     .flatMap((i) => i.tabs)
     .reduce((max, t) => Math.max(max, t.title.length), "TAB_TITLE".length);
+  const lastWidth = "LAST".length;
 
   const groups: string[] = [];
   for (const instance of report.instances) {
@@ -273,9 +309,9 @@ export function formatInstanceStatusTable(report: InstanceStatusReport): string 
     // the "*" row marker, so a tab titled "home" can never trigger it.
     const homeFocus = instance.activeTabId === HOME_TAB_ID ? "  focus: home" : "";
     const lines = [
-      `PID ${instance.pid}  workdir: ${formatDisplayWorkdir(instance.workdir)}  started: ${formatLocalDateTime(instance.createdAt)}${homeFocus}`,
-      `  A  STATE        STATUS     ${"TAB_TITLE".padEnd(maxTitleLen)}  SESSION`,
-      ...instance.tabs.map((tab) => formatStatusTabRow(tab, maxTitleLen)),
+      `PID ${instance.pid}  workdir: ${formatDisplayWorkdir(instance.workdir)}  started: ${formatLocalDateTime(instance.createdAt)}  last: ${formatRelativeTime(latestActivity(instance), now)}${homeFocus}`,
+      `  A  STATE        STATUS     ${"TAB_TITLE".padEnd(maxTitleLen)}  ${"LAST".padEnd(lastWidth)}  SESSION`,
+      ...instance.tabs.map((tab) => formatStatusTabRow(tab, maxTitleLen, lastWidth, now)),
     ];
     groups.push(lines.join("\n"));
   }
@@ -286,13 +322,19 @@ export function currentProcessIdentity(pid = process.pid): ProcessIdentity {
   return { alive: pidIsAlive(pid) };
 }
 
-function formatStatusTabRow(tab: InstanceStatusTab, titleWidth = 14): string {
+function formatStatusTabRow(
+  tab: InstanceStatusTab,
+  titleWidth = 14,
+  lastWidth = "LAST".length,
+  now = new Date(),
+): string {
   const active = tab.active ? "*" : " ";
   return [
     `  ${active}`,
     tab.state.padEnd(12),
     tab.status.padEnd(10),
     tab.title.padEnd(titleWidth),
+    formatRelativeTime(tab.lastActivity, now).padEnd(lastWidth),
     tab.sessionId,
   ].join(" ");
 }
@@ -305,23 +347,42 @@ function formatLocalDateTime(iso: string): string {
   return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}`;
 }
 
-function resolveStatusInstance(snapshot: InstanceRegistrySnapshot): InstanceStatusInstance {
-  const tabs = snapshot.tabs
-    .slice()
-    .sort((a, b) => a.index - b.index)
-    .map((tab) => resolveStatusTab(tab, snapshot.activeTabId));
+async function resolveStatusInstance(
+  snapshot: InstanceRegistrySnapshot,
+  readActivity?: LoadInstanceStatusOptions["readActivity"],
+): Promise<InstanceStatusInstance> {
+  const tabs = await Promise.all(
+    snapshot.tabs
+      .slice()
+      .sort((a, b) => a.index - b.index)
+      .map((tab) => resolveStatusTab(tab, snapshot.activeTabId, readActivity)),
+  );
   return { ...snapshot, tabs };
 }
 
-function resolveStatusTab(
+async function resolveStatusTab(
   tab: InstanceRegistryTabSnapshot,
   activeTabId: string,
-): InstanceStatusTab {
-  return {
+  readActivity: LoadInstanceStatusOptions["readActivity"],
+): Promise<InstanceStatusTab> {
+  const resolved: InstanceStatusTab = {
     ...tab,
     active: tab.sessionId === activeTabId,
     state: deriveTabState(tab),
   };
+  if (!readActivity) return resolved;
+  // A reader failure hides one tab's activity, never the whole report: a status
+  // run spans every live instance, and an unreadable session dir on one host must
+  // not take the other instances' rows down with it. The value renders as "-",
+  // which is also what an unknown activity means.
+  let activity: Date | undefined;
+  try {
+    activity = await readActivity(tab.sessionId, tab.workdir);
+  } catch {
+    activity = undefined;
+  }
+  if (activity) resolved.lastActivity = activity.toISOString();
+  return resolved;
 }
 
 function deriveTabState(tab: InstanceRegistryTabSnapshot): InstanceTabState {

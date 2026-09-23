@@ -23,10 +23,26 @@ mpi status --workdir /path/to/project
 
 - 表格输出中，`A` 列的 `*` 标识当前获得焦点（focused）的活跃 Tab。
 - `TAB_TITLE` 列显示各 Tab 的标题。
+- `LAST` 列以紧凑时长（`12s` / `4m` / `3h` / `2d`）显示每个 Tab 的最近活动时间，无法判定时显示 `-`；头行的 `last:` 是该实例所有 Tab 中最新的一次活动。
 - `started` 显示实例（进程）的启动时间，本地时区 `YYYY-MM-DD HH:MM` 格式。
 - Home 页聚焦时头行显示 `focus: home`；tab 聚焦仍由行内 `*` 标识，因此名为 `home` 的 tab 聚焦不会触发头行标记。
-- `--json` 中 `focus` 为 `"home"` / `"tab"`（未知时省略），`activeTabTitle` 仅在 `focus` 为 `"tab"` 时出现。
+- `--json` 中 `focus` 为 `"home"` / `"tab"`（未知时省略），`activeTabTitle` 仅在 `focus` 为 `"tab"` 时出现，每个 Tab 还可带 `lastActivity`（ISO，未知时省略）。
 - `--workdir <path>` 按实例根 workdir 精确过滤（支持 `~`、相对路径、绝对路径）。
+
+### 最近活动时间
+
+`LAST` 列、头行 `last:` 与 `--json` 的 `lastActivity` 都是**读取时推导**的，不存入快照：
+
+```text
+tabs[].sessionId + tabs[].workdir
+        │
+        ▼
+<agentDir>/sessions/<encoded-workdir>/<createdAt>_<sessionId>.jsonl  ── stat mtime ──> lastActivity
+```
+
+会话转录文件是追加写的，其 mtime 恰好在该会话写入一轮对话、工具调用或会话信息变更时推进。快照自身的 `updatedAt` 不能承担这个职责：它是 5 秒心跳，空闲实例也会永远显示“刚刚”。若本机上不存在该 Tab 的转录文件（从未落盘、已删除，或属于另一台机器），显示 `-` 而不是猜测值。
+
+由于是读取时推导，快照 Schema 与 `INSTANCE_REGISTRY_VERSION` 均未改动。只关心存活性的调用方（`mpi ctl`、peer tab sync）不传入活动时间读取器，因此不产生额外文件系统开销。
 
 ## 快照字段 Schema
 
@@ -41,6 +57,8 @@ mpi status --workdir /path/to/project
 | `createdAt` | string (ISO) | 实例（进程）启动时间；进程生命周期内固定不变。 |
 | `updatedAt` | string (ISO) | 心跳时间戳（每 5,000 ms 更新一次）。 |
 | `tabs` | array | Tab 快照列表（索引、Session ID、标题、状态、工作目录、waitingForInputCount）。 |
+
+输出中的所有最近活动时间均在读取时由会话转录文件推导，快照中没有任何字段承载它。
 
 ## Tab 运行状态推导
 
