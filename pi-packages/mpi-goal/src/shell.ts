@@ -60,6 +60,7 @@ function ensureMpiGoalWired(pi: ExtensionAPI): Promise<void> {
 }
 
 const GOAL_SUBCOMMANDS: Array<{ name: string; description: string }> = [
+  { name: "help", description: "Open the goal management overlay" },
   { name: "pause", description: "Pause the current goal" },
   { name: "resume", description: "Resume a paused goal" },
   { name: "clear", description: "Clear the current goal" },
@@ -89,6 +90,9 @@ function shellGoalCompletions(argumentPrefix: string): AutocompleteItem[] | null
 export function registerMpiGoalShell(pi: ExtensionAPI): void {
   pi.registerCommand("goal", {
     description: "Set or view the goal for a long-running task",
+    ...({
+      argumentHint: "[<objective>|pause|resume|clear|queue|tools]",
+    } as Record<string, unknown>),
     getArgumentCompletions: (argumentPrefix: string) => shellGoalCompletions(argumentPrefix),
     handler: async (args: string, ctx: ExtensionCommandContext) => {
       await ensureMpiGoalWired(pi);

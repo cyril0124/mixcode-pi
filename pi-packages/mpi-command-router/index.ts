@@ -100,6 +100,9 @@ const commandRouterExtension: ExtensionFactory = (pi) => {
 
   pi.registerCommand("command-router", {
     description: "Show command routing status; on|off [--global|--project]",
+    ...({
+      argumentHint: "[on|off|status] [--global|--project]",
+    } as Record<string, unknown>),
     getArgumentCompletions: chooseSubcommand,
     handler: async (args, ctx) => {
       const tokens = args.trim().split(/\s+/).filter(Boolean);

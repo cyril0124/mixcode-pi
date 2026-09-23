@@ -440,6 +440,7 @@ export default function toolDisplayExtension(pi: ExtensionAPI): void {
 
   pi.registerCommand("mpi-tool-display", {
     description: "[global] Configure tool call rendering; config opens settings",
+    ...({ argumentHint: "[config]" } as Record<string, unknown>),
     getArgumentCompletions: (prefix) => {
       const option = {
         value: CONFIG_SUBCOMMAND,

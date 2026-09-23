@@ -2088,6 +2088,7 @@ const extension: ExtensionFactory = (pi) => {
   pi.registerCommand("transcript", {
     description:
       "View transcript slices or configure editor and folding; N = last N turns, full = untruncated tool output",
+    ...({ argumentHint: "[target] [N] [full] | config" } as Record<string, unknown>),
     getArgumentCompletions: (prefix: string) =>
       [
         ...TARGETS.map((t) => ({ value: t.id, label: t.id, description: t.label })),

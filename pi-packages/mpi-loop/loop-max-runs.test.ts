@@ -251,3 +251,47 @@ test("max-runs completion offers tasks and leaves count entry free", async (t) =
   );
   assert.equal(await h.completions("max-runs 1 3"), null);
 });
+
+test("creation-form options complete --max-runs and the literal separator", async (t) => {
+  const h = setup(t);
+  assert.deepEqual(
+    (await h.completions("--"))?.map((item) => item.value),
+    ["--max-runs ", "-- "],
+  );
+  assert.deepEqual(
+    (await h.completions("30s --m"))?.map((item) => item.value),
+    ["30s --max-runs "],
+  );
+  assert.deepEqual(
+    (await h.completions("1m "))?.map((item) => item.value),
+    ["1m --max-runs ", "1m -- "],
+  );
+  // Once a total is set, only the literal separator remains valid.
+  assert.deepEqual(
+    (await h.completions("--max-runs 2 "))?.map((item) => item.value),
+    ["--max-runs 2 -- "],
+  );
+  // The counts stay free-typed, and a trailing word means the prompt has started.
+  assert.equal(await h.completions("--max-runs "), null);
+  assert.equal(await h.completions("30s review "), null);
+  assert.equal(await h.completions("30s review -"), null);
+});
+
+test("max-runs completion offers unlimited after the target", async (t) => {
+  const h = setup(t);
+  await h.run("10m review");
+  assert.deepEqual(
+    (await h.completions("max-runs 1 "))?.map((item) => item.value),
+    ["max-runs 1 unlimited"],
+  );
+  assert.deepEqual(
+    (await h.completions("max-runs 1 unl"))?.map((item) => item.value),
+    ["max-runs 1 unlimited"],
+  );
+  assert.equal(await h.completions("max-runs 1 unx"), null);
+});
+
+test("empty argument completions list the management overlay", async (t) => {
+  const h = setup(t);
+  assert.ok((await h.completions(""))?.some((item) => item.value === "help"));
+});

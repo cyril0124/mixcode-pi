@@ -44,6 +44,7 @@ function isMixCodeTabSession(ctx: ExtensionContext): boolean {
 export default function (pi: ExtensionAPI) {
   pi.registerCommand("prompt-history", {
     description: "Browse current session's prompt history; config edits the package config",
+    ...({ argumentHint: "[config]" } as Record<string, unknown>),
     getArgumentCompletions: (prefix: string) => {
       const items = [
         {

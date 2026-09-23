@@ -102,6 +102,7 @@ async function showGitDiff(
 const extension: ExtensionFactory = (pi) => {
   pi.registerCommand("diff", {
     description: "Show session or git file changes in the built-in diff viewer",
+    ...({ argumentHint: "[last|N|N-M|<git-ref>]" } as Record<string, unknown>),
     getArgumentCompletions: (prefix: string) => {
       const items = [
         { value: "last", label: "last", description: "Last turn (= /diff 1)" },

@@ -662,6 +662,7 @@ const autoRename: ExtensionFactory = (pi) => {
 
   pi.registerCommand("auto-rename", {
     description: "Generate a kebab-case session title; config opens the settings list",
+    ...({ argumentHint: "[config]" } as Record<string, unknown>),
     getArgumentCompletions: (prefix: string) => {
       const items = [
         {

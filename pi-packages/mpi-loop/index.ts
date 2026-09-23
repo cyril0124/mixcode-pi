@@ -334,8 +334,45 @@ export default function (pi: ExtensionAPI) {
     }
   });
 
+  /**
+   * Option area of the creation form — interval tokens and a complete
+   * "--max-runs N" — with the head to build candidates from. Null once prompt
+   * text has started or the count is still missing.
+   */
+  const optionsHead = (tokens: string[]): string | null => {
+    for (let index = 0; index < tokens.length; index++) {
+      const token = tokens[index]!;
+      if (token === "--max-runs") {
+        if (!/^\d+$/.test(tokens[index + 1] ?? "")) return null;
+        index++;
+        continue;
+      }
+      if (parseIntervalToken(token) === null) return null;
+    }
+    return tokens.length > 0 ? `${tokens.join(" ")} ` : "";
+  };
+
+  /** Creation-form options, repeated onto the head because pi replaces the whole argument text. */
+  const creationOptions = (head: string) => [
+    ...(head === "" || /^(?:\d+(?:\.\d+)?[smhd]\s+)*$/i.test(head)
+      ? [
+          {
+            label: "--max-runs <N>",
+            description: "Cap the total number of runs",
+            value: `${head}--max-runs `,
+          },
+        ]
+      : []),
+    {
+      label: "--",
+      description: "Treat the rest as the literal prompt",
+      value: `${head}-- `,
+    },
+  ];
+
   pi.registerCommand("loop", {
     description: `Run a prompt on a recurring interval. Usage: /loop [interval] [--max-runs N] <prompt> (default: ${DEFAULT_INTERVAL})`,
+    ...({ argumentHint: "[interval] [--max-runs N] <prompt>" } as Record<string, unknown>),
     getArgumentCompletions: (prefix) => {
       const trimmed = prefix.trim();
 
@@ -361,12 +398,45 @@ export default function (pi: ExtensionAPI) {
           { label: "30s <prompt>", description: "Run prompt every 30 seconds", value: "30s " },
           { label: "1m <prompt>", description: "Run prompt every 1 minute", value: "1m " },
           { label: "5m <prompt>", description: "Run prompt every 5 minutes", value: "5m " },
+          { label: "help", description: "Open the loop management overlay", value: "help" },
         ];
+      }
+
+      // A partial token starting with "-" is a creation-form option being typed.
+      const tokens = trimmed.split(/\s+/);
+      const partial = /\s$/.test(prefix) ? "" : (tokens.pop() ?? "");
+      if (partial.startsWith("-")) {
+        const head = optionsHead(tokens);
+        if (head !== null) {
+          const matched = creationOptions(head).filter((option) =>
+            option.label.startsWith(partial),
+          );
+          return matched.length > 0 ? matched : null;
+        }
+      }
+
+      // A trailing space inside the option area leaves the remaining options free
+      // to suggest; any other trailing word means the prompt has started.
+      if (/\s$/.test(prefix)) {
+        const head = optionsHead(tokens);
+        if (head !== null) return creationOptions(head);
       }
 
       if (/^max-runs(?:\s|$)/.test(trimmed)) {
         const rest = trimmed.slice("max-runs".length).trim();
-        if (/\s/.test(rest)) return null;
+        const parts = rest.split(/\s+/).filter(Boolean);
+        const [id, value] = parts;
+        // The value token accepts any positive integer, so only "unlimited" is offered.
+        if (id !== undefined && (parts.length > 1 || /\s$/.test(prefix))) {
+          if (value !== undefined && !"unlimited".startsWith(value.toLowerCase())) return null;
+          return [
+            {
+              label: "unlimited",
+              description: `No total run limit for ${id}`,
+              value: `max-runs ${id} unlimited`,
+            },
+          ];
+        }
         const query = rest.toLowerCase();
         const matched = listLoops().filter(
           (loop) => loop.id.startsWith(query) || loop.name.toLowerCase().startsWith(query),

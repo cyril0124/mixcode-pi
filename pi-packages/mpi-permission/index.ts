@@ -506,6 +506,9 @@ export default function permissionExtension(pi: ExtensionAPI) {
 
   pi.registerCommand("permission", {
     description: "Edit or inspect tool permission rules (allow / ask / deny)",
+    ...({
+      argumentHint: "[list [all|global|project|session] | probe [on|off]]",
+    } as Record<string, unknown>),
     getArgumentCompletions: permissionArgumentCompletions,
     handler: async (args, ctx) => {
       if (!ctx.hasUI) throw new Error("Error: /permission requires interactive UI");

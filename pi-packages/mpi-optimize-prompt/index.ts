@@ -190,10 +190,15 @@ function startOptimizeProgressWidget(
 
 const SUBCOMMANDS = [
   { value: "help", label: "help", description: "Usage and config docs" },
+  { value: "--help", label: "--help", description: "Usage and config docs (alias of help)" },
+  { value: "-h", label: "-h", description: "Usage and config docs (alias of help)" },
   { value: "config", label: "config", description: "Open config overlay (model/thinking/prompt)" },
   { value: "cancel", label: "cancel", description: "Abort in-flight optimize (keeps draft)" },
   { value: "undo", label: "undo", description: "Restore pre-optimize draft" },
 ] as const;
+
+/** Subcommands handled synchronously; anything else is treated as draft text to rewrite. */
+const SYNC_SUBCOMMANDS = new Set<string>(SUBCOMMANDS.map((item) => item.value));
 
 const THINKING_OPTIONS = [
   OPTIMIZE_PROMPT_INHERIT,
@@ -516,6 +521,7 @@ const optimizePrompt: ExtensionFactory = (pi: ExtensionAPI) => {
 
   pi.registerCommand("opt-prompt", {
     description: "Optimize editor draft (or args); config|help|cancel|undo",
+    ...({ argumentHint: "help|config|cancel|undo|<draft text>" } as Record<string, unknown>),
     getArgumentCompletions: (prefix: string) => {
       const filtered = SUBCOMMANDS.filter((item) => item.value.startsWith(prefix));
       return filtered.length > 0 ? filtered.map((item) => ({ ...item })) : null;
@@ -533,14 +539,7 @@ const optimizePrompt: ExtensionFactory = (pi: ExtensionAPI) => {
       // Pi awaits extension command handlers serially. Sync subcommands await;
       // the rewrite path must return immediately so cancel can run.
       const sub = args.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
-      if (
-        sub === "help" ||
-        sub === "--help" ||
-        sub === "-h" ||
-        sub === "config" ||
-        sub === "cancel" ||
-        sub === "undo"
-      ) {
+      if (SYNC_SUBCOMMANDS.has(sub)) {
         await runOptimizePrompt(shared);
         return;
       }
