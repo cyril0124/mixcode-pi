@@ -5,10 +5,10 @@
 基于 [Pi](https://pi.dev) 的**多 Tab** 终端原生 AI 编程助手，全面兼容 Pi 扩展生态。Pi 是一款开放、可扩展的终端 AI 编程助手——MixCode 原生运行其完整包生态。
 
 <p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/cyril0124/mixcode-pi" alt="License"></a>
-  <a href="package.json"><img src="https://img.shields.io/github/package-json/v/cyril0124/mixcode-pi" alt="Version"></a>
-  <a href="https://bun.sh"><img src="https://img.shields.io/badge/runtime-Bun-black" alt="Bun"></a>
-  <a href="https://pi.dev"><img src="https://img.shields.io/badge/Pi-compatible-blue" alt="Pi compatible"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/cyril0124/mixcode-pi?style=for-the-badge" alt="License"></a>
+  <a href="package.json"><img src="https://img.shields.io/github/package-json/v/cyril0124/mixcode-pi?style=for-the-badge" alt="Version"></a>
+  <a href="https://bun.sh"><img src="https://img.shields.io/badge/runtime-Bun-black?style=for-the-badge" alt="Bun"></a>
+  <a href="https://pi.dev"><img src="https://img.shields.io/badge/Pi-compatible-blue?style=for-the-badge" alt="Pi compatible"></a>
 </p>
 
 <p align="center">

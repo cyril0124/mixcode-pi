@@ -5,10 +5,10 @@
 A **multi-tab**, terminal-native AI coding agent fully compatible with the [Pi](https://pi.dev) extension ecosystem. Pi is an open, extensible terminal AI coding agent; MixCode runs its entire package ecosystem natively.
 
 <p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/cyril0124/mixcode-pi" alt="License"></a>
-  <a href="package.json"><img src="https://img.shields.io/github/package-json/v/cyril0124/mixcode-pi" alt="Version"></a>
-  <a href="https://bun.sh"><img src="https://img.shields.io/badge/runtime-Bun-black" alt="Bun"></a>
-  <a href="https://pi.dev"><img src="https://img.shields.io/badge/Pi-compatible-blue" alt="Pi compatible"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/cyril0124/mixcode-pi?style=for-the-badge" alt="License"></a>
+  <a href="package.json"><img src="https://img.shields.io/github/package-json/v/cyril0124/mixcode-pi?style=for-the-badge" alt="Version"></a>
+  <a href="https://bun.sh"><img src="https://img.shields.io/badge/runtime-Bun-black?style=for-the-badge" alt="Bun"></a>
+  <a href="https://pi.dev"><img src="https://img.shields.io/badge/Pi-compatible-blue?style=for-the-badge" alt="Pi compatible"></a>
 </p>
 
 <p align="center">
