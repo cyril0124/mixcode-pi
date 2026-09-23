@@ -28,6 +28,7 @@ import {
   renderTabBarSeparator,
   tabBarMaxRows,
   renderWorkingIndicator,
+  workingActivityPaint,
   setCurrentUiTheme,
   zenStatusMarkers,
 } from "./rendering.js";
@@ -641,7 +642,7 @@ export class MixCodeLayoutRoot implements Component {
       this.workingLoader = new Loader(
         this.tui as TuiType,
         theme.accent,
-        theme.dim,
+        workingActivityPaint(active, theme),
         workingLoaderMessage(active, new Date()),
         workingLoaderIndicator(active),
       );
@@ -666,6 +667,9 @@ function workingLoaderKey(active: MixCodeState["tabs"][number], themeName: strin
     active.sessionId,
     themeName,
     workingActivityMessage(active),
+    // The Loader captures its message paint at construction, so every input of
+    // that paint belongs in the key.
+    active.activeCompactionReason,
     active.extensionUi.workingIndicatorFrames,
     active.extensionUi.workingIndicatorIntervalMs,
   ]);

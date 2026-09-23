@@ -963,6 +963,27 @@ function layoutInputMetaLeft(
   return { text, regions, fits: true, workdirIntact };
 }
 
+/**
+ * Paint for the working-line message. A user-invoked /compact stays neutral,
+ * threshold auto-compaction is a notice, and overflow is an intervention that
+ * explains why the turn stalled; every other activity keeps the dim treatment.
+ */
+export function workingActivityPaint(
+  tab: MixCodeTabInfo,
+  theme: MixCodeTheme = activeRenderTheme,
+): (text: string) => string {
+  switch (tab.activeCompactionReason) {
+    case "manual":
+      return theme.accent;
+    case "threshold":
+      return theme.warning;
+    case "overflow":
+      return theme.error;
+    default:
+      return theme.dim;
+  }
+}
+
 export function renderWorkingIndicator(
   tab: MixCodeTabInfo,
   width: number,
@@ -993,11 +1014,12 @@ function renderWorkingIndicatorInner(
   const indicator = workingIndicatorFrame(tab, now);
   if (indicator === "") return [];
   const prefix = indicator ? `${indicator} ` : "";
-  // During auto-retry, mirror Pi's countdown status line instead of the
-  // generic working text; keep the same spinner + dim treatment.
+  // During auto-retry, mirror Pi's countdown status line instead of the generic
+  // working text. A retry is not a compaction, so workingActivityPaint leaves it dim.
   const retry = retryStatusMessage(tab, now);
   const body = retry ?? `${message} (${elapsed} • ${detail})`;
-  return [padLine(`${prefix}${activeRenderTheme.dim(body)}`, width)];
+  const paint = workingActivityPaint(tab);
+  return [padLine(`${prefix}${paint(body)}`, width)];
 }
 
 function workingIndicatorFrame(tab: MixCodeTabInfo, now: Date): string | undefined {
