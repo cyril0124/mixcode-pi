@@ -13,6 +13,7 @@ import {
   renderHome,
 } from "./helpers/mixcode.js";
 import { renderDeleteAllSessionsConfirm } from "../src/ui/app-overlays.js";
+import { DEFAULT_THEME_ID } from "../src/core/defaults.js";
 import { createSettingsPanel } from "./helpers/settings-panel.js";
 import { themeForId } from "../src/ui/themes.js";
 import { selectSettingsItemByLabel } from "./helpers/settings-panel.js";
@@ -59,14 +60,16 @@ test("workdir picker lists more than 20 dirs with overflow affordance", async ()
 
 test("theme enum opens on the effective default theme", () => {
   const state = createInitialState("/repo");
+  // Stale in-memory id: the settings file has no theme, so opening the enum must
+  // resolve the runtime default and preview it instead.
   state.theme = "claude-warm";
   const panel = createSettingsPanel(state, SettingsManager.inMemory());
 
   selectSettingsItemByLabel(panel, "Theme");
   panel.handleInput("\r");
 
-  assert.equal(state.theme, "claude-warm");
-  assert.match(stripAnsi(panel.render(80).join("\n")), /› claude-warm/);
+  assert.equal(state.theme, DEFAULT_THEME_ID);
+  assert.match(stripAnsi(panel.render(80).join("\n")), new RegExp(`› ${DEFAULT_THEME_ID}`));
 });
 
 test("theme enum browse applies live preview and Esc restores previous theme", () => {

@@ -107,7 +107,7 @@ test("createMixCodeTui theme host updates state and notifies listeners", () => {
         };
       }
     ).extensionUiHost;
-    assert.equal(host?.themes?.getTheme(), "claude-warm");
+    assert.equal(host?.themes?.getTheme(), "aurora");
     host?.themes?.setTheme("terminal");
     assert.equal(state.theme, "terminal");
     assert.deepEqual(changedThemes, ["terminal"]);

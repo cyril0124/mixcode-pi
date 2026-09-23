@@ -324,7 +324,7 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
     assert.equal((serialized.tab_titles as Record<string, string>).s2, undefined);
     assert.deepEqual(serialized.unseen_done, ["s1"]);
     const restored = deserializeState(serialized, "/fallback");
-    assert.equal(restored.theme, "claude-warm");
+    assert.equal(restored.theme, "aurora");
     assert.equal(restored.activeTabId, "home");
     assert.equal(restored.tabs[0]?.sessionId, "s1");
     assert.equal(restored.tabs[0]?.title, "Renamed Agent");
@@ -353,7 +353,7 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
       /Invalid state file/,
     );
     const invalidTheme = deserializeState({ theme: "not-a-theme" }, "/fallback");
-    assert.equal(invalidTheme.theme, "claude-warm");
+    assert.equal(invalidTheme.theme, "aurora");
     const fallback = deserializeState({ variant: "bad" }, "/fallback");
     assert.equal(fallback.workdir, "/fallback");
     assert.equal(fallback.activeTabId, "home");
@@ -403,7 +403,7 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
       },
       "/fallback",
     );
-    assert.equal(extraFields.theme, "claude-warm");
+    assert.equal(extraFields.theme, "aurora");
     assert.equal(extraFields.tabs[0]?.title, "Worker");
     assert.equal(extraFields.tabs[0]?.model.modelId, "faux-1");
     assert.equal(extraFields.tabs[0]?.thinkingLevel, "medium");

@@ -206,7 +206,7 @@ test("bootstrap ignores an unknown theme key in the state file", async () => {
       stateDir,
       modelConfigPath: path.join(dir, "missing.jsonc"),
     });
-    assert.equal(boot.state.theme, "claude-warm");
+    assert.equal(boot.state.theme, "aurora");
     await boot.tabsReady;
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });

@@ -815,7 +815,7 @@ def write_settings(path: pathlib.Path, provider: str, model: str) -> None:
         "defaultThinkingLevel": "off",
         "hideThinkingBlock": True,
         "enableSkillCommands": True,
-        "theme": "mixcode-dark",
+        "theme": "aurora",
     }
     if provider:
         data["defaultProvider"] = provider

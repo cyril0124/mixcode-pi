@@ -17,7 +17,7 @@ import {
 /** Fallback when Pi's getDefaultThinkingLevel() has no configured default. */
 export const DEFAULT_THINKING_LEVEL: ThinkingLevel = "medium";
 
-export const DEFAULT_THEME_ID = "claude-warm";
+export const DEFAULT_THEME_ID = "aurora";
 
 export const DEFAULT_MODEL_REF: MixCodeModelRef = {
   provider: "faux",
