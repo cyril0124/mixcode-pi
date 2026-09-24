@@ -1,7 +1,13 @@
 // License notices: ./THIRD_PARTY_NOTICES.md.
-// Track cleanup callbacks for reload safety
+// Track cleanup callbacks for reload safety.
+//
+// Epoch-gated disposal: resetDisposed() increments the epoch and returns it.
+// disposeAll(epoch) is a no-op when the provided epoch does not match the
+// current one, preventing a stale session_shutdown from killing callbacks that
+// were registered by a newer extension instance after resetDisposed() ran.
 let cleanupCallbacks: Array<() => void> = [];
 let disposed = false;
+let currentEpoch = 0;
 
 export function registerCleanup(callback: () => void): () => void {
   if (disposed) {
@@ -21,7 +27,9 @@ export function registerTimer(
   return registerCleanup(() => clearInterval(timer as ReturnType<typeof setInterval>));
 }
 
-export function disposeAll(): void {
+export function disposeAll(epoch?: number): void {
+  // Ignore stale shutdown calls from a previous extension instance.
+  if (epoch !== undefined && epoch !== currentEpoch) return;
   if (disposed) return;
   disposed = true;
   // Snapshot first: a callback may unregister (splice) mid-iteration.
@@ -40,7 +48,10 @@ export function disposeAll(): void {
   }
 }
 
-export function resetDisposed(): void {
+/** Advance the disposal epoch and reset state. Returns the new epoch token,
+ * which callers must pass back to disposeAll() so stale shutdowns are ignored. */
+export function resetDisposed(): number {
   disposed = false;
   cleanupCallbacks = [];
+  return ++currentEpoch;
 }

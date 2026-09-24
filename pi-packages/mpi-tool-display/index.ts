@@ -409,7 +409,7 @@ async function openToolDisplayConfig(
 export default function toolDisplayExtension(pi: ExtensionAPI): void {
   // Initialize cleanup at extension activation because MixCode may load after session_start
   // registry immediately. MixCode can load an extension after session_start.
-  resetDisposed();
+  const epoch = resetDisposed();
   const agentDir = getAgentDir();
   let runtimeConfig = loadRuntimeConfigOrThrow(agentDir);
   const writeExecutionMetaByToolCallId = new Map<string, WriteExecutionMeta>();
@@ -473,7 +473,7 @@ export default function toolDisplayExtension(pi: ExtensionAPI): void {
   });
   pi.on("session_shutdown", (event) => {
     writeExecutionMetaByToolCallId.clear();
-    if (event.reason === "reload") disposeAll();
+    if (event.reason === "reload") disposeAll(epoch);
   });
   onReloadShutdown(pi, () => installation.dispose());
   registerThinkingLabeling(pi);

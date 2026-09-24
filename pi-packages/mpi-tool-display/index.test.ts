@@ -11,7 +11,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { loadToolDisplayRuntimeConfig, writeToolDisplayRuntimeConfig } from "./config.js";
-import { disposeAll, resetDisposed } from "./disposable.js";
+import { disposeAll, registerCleanup, resetDisposed } from "./disposable.js";
 import toolDisplayExtension, { createToolDisplayRenderers } from "./index.js";
 
 type RenderResult = { render(width: number): string[] };
@@ -100,6 +100,42 @@ test("extension never registers or replaces tools", () => {
     if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
     else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
   }
+});
+
+test("reload race: stale disposeAll after resetDisposed does not kill new-epoch callbacks", () => {
+  // Simulate the reload sequence:
+  //   1. Old extension instance was active and captured its epoch.
+  //   2. New extension instance activates and calls resetDisposed(), advancing the epoch.
+  //   3. Old instance's session_shutdown fires disposeAll(staleEpoch) — must be a no-op.
+  const staleEpoch = resetDisposed(); // old instance activates
+  resetDisposed(); // new instance activates — epoch advances past staleEpoch
+
+  let staleKilled = false;
+  registerCleanup(() => {
+    staleKilled = true;
+  });
+
+  // Stale old-instance shutdown arrives with the old epoch token.
+  disposeAll(staleEpoch);
+
+  assert.equal(
+    staleKilled,
+    false,
+    "stale disposeAll must not run callbacks registered in the new epoch",
+  );
+
+  // Subsequent registerCleanup calls must queue, not execute immediately.
+  let immediatelyKilled = false;
+  registerCleanup(() => {
+    immediatelyKilled = true;
+  });
+  assert.equal(
+    immediatelyKilled,
+    false,
+    "registerCleanup after stale disposeAll must queue, not execute immediately",
+  );
+
+  disposeAll(); // proper teardown for the current epoch
 });
 
 test("bash spinner matches spinner running-state contract", () => {
