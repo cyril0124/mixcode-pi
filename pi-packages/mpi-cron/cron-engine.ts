@@ -192,20 +192,35 @@ export function describeSchedule(schedule: JobSchedule): string {
 export function formatUntil(targetMs: number, now: number): string {
   const remaining = targetMs - now;
   if (remaining <= 0) return "due";
-  if (remaining < MINUTE_MS) return `in ${Math.floor(remaining / SECOND_MS)}s`;
-  if (remaining < HOUR_MS) {
-    const minutes = Math.floor(remaining / MINUTE_MS);
-    const seconds = Math.floor(remaining / SECOND_MS) % 60;
-    return `in ${minutes}m${pad2(seconds)}s`;
+  return `in ${formatSpan(remaining)}`;
+}
+
+/**
+ * Age of a past timestamp, such as `2m ago`; `just now` for the current second.
+ * A timestamp in the future (clock skew between tabs) also reads as `just now`.
+ */
+export function formatSince(targetMs: number, now: number): string {
+  const elapsed = now - targetMs;
+  if (elapsed < SECOND_MS) return "just now";
+  return `${formatSpan(elapsed)} ago`;
+}
+
+/** Duration without direction, largest unit first and no more than two units. */
+function formatSpan(ms: number): string {
+  if (ms < MINUTE_MS) return `${Math.floor(ms / SECOND_MS)}s`;
+  if (ms < HOUR_MS) {
+    const minutes = Math.floor(ms / MINUTE_MS);
+    const seconds = Math.floor(ms / SECOND_MS) % 60;
+    return `${minutes}m${pad2(seconds)}s`;
   }
-  if (remaining < DAY_MS) {
-    const hours = Math.floor(remaining / HOUR_MS);
-    const minutes = Math.floor(remaining / MINUTE_MS) % 60;
-    return `in ${hours}h${pad2(minutes)}m`;
+  if (ms < DAY_MS) {
+    const hours = Math.floor(ms / HOUR_MS);
+    const minutes = Math.floor(ms / MINUTE_MS) % 60;
+    return `${hours}h${pad2(minutes)}m`;
   }
-  const days = Math.floor(remaining / DAY_MS);
-  const hours = Math.floor(remaining / HOUR_MS) % 24;
-  return `in ${days}d${hours}h`;
+  const days = Math.floor(ms / DAY_MS);
+  const hours = Math.floor(ms / HOUR_MS) % 24;
+  return `${days}d${hours}h`;
 }
 
 /**

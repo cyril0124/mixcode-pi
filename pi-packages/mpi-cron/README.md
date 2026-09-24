@@ -10,9 +10,11 @@ Schedule prompts from any MixCode tab. Jobs belong to a working directory, not t
 | Surface | Purpose |
 |---|---|
 | `cron` tool | Agents create, list, update, remove, enable/disable, fire, and clean up jobs. |
-| `/cron` | Management overlay: filtered job list, an inline create wizard, job detail with the prompt, pause/resume, fire now, remove, cleanup. |
+| `/cron` | Management overlay: filtered job list with schedule, run count, and last-run age; an inline create wizard; job detail with the prompt, pause/resume, fire now, remove, cleanup. |
 | Widget | `belowEditor` dock showing this directory's jobs with status, schedule, time to next run, and run count. Hidden while the directory has no jobs. |
 | Transcript marker | Every finished run appends a `scheduled_prompt` entry with the run outcome. |
+
+The widget and the list share one set of run-state glyphs: `~` running, `!` the last run failed, `*` enabled, `x` paused.
 
 ## Schedule formats
 

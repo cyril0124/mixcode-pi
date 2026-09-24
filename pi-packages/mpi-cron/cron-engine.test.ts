@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   CronParseError,
   describeSchedule,
+  formatSince,
   formatUntil,
   isValidCronExpression,
   nextRun,
@@ -409,6 +410,27 @@ describe("formatUntil", () => {
     ];
     for (const [remaining, expected] of cases) {
       expect(formatUntil(NOW + remaining, NOW)).toBe(expected);
+    }
+  });
+});
+
+describe("formatSince", () => {
+  test("formats each magnitude and collapses the current second", () => {
+    const cases: Array<[number, string]> = [
+      [0, "just now"],
+      [999, "just now"],
+      [-5_000, "just now"],
+      [1_000, "1s ago"],
+      [42_000, "42s ago"],
+      [MINUTE_MS, "1m00s ago"],
+      [3 * MINUTE_MS + 12 * SECOND_MS, "3m12s ago"],
+      [HOUR_MS, "1h00m ago"],
+      [14 * HOUR_MS + 3 * MINUTE_MS, "14h03m ago"],
+      [DAY_MS, "1d0h ago"],
+      [2 * DAY_MS + 4 * HOUR_MS, "2d4h ago"],
+    ];
+    for (const [elapsed, expected] of cases) {
+      expect(formatSince(NOW - elapsed, NOW)).toBe(expected);
     }
   });
 });

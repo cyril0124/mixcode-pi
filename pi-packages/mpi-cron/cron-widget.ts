@@ -28,8 +28,8 @@ export const WIDGET_REFRESH_MS = 30_000;
 /** Width of the run-count column, sized for `999999 runs`. */
 const RUNS_WIDTH = 11;
 
-/** Glyphs per run state; plain ASCII fallbacks keep narrow terminals readable. */
-function statusGlyph(job: CronJob): {
+/** Glyph and tone for a job's run state, shared by the widget and the job list. */
+export function statusGlyph(job: CronJob): {
   glyph: string;
   tone: "success" | "warning" | "error" | "dim";
 } {

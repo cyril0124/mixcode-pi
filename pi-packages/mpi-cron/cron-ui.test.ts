@@ -195,6 +195,18 @@ describe("CronManagementView", () => {
     expect(calls).toContain("done");
   });
 
+  test("shows how long ago each job last ran, and flags a failed last run", () => {
+    const { view } = makeView([
+      job({ id: "a", name: "recent", lastRun: Date.now() - 120_000, lastStatus: "ok" }),
+      job({ id: "b", name: "broken", lastRun: Date.now() - 120_000, lastStatus: "error" }),
+      job({ id: "c", name: "fresh" }),
+    ]);
+    const text = view.render(80).join("\n");
+    expect(text).toContain("last 2m00s ago");
+    expect(text).toContain("never run");
+    expect(text).toContain("! broken");
+  });
+
   test("filters with typed text and clears with ctrl+u", () => {
     const { view } = makeView([
       job({ id: "a", name: "alpha", nextRun: Date.now() + 1_000 }),
@@ -231,6 +243,34 @@ describe("CronManagementView", () => {
       for (const line of view.render(width)) {
         expect(visibleWidth(line)).toBeLessThanOrEqual(width);
       }
+    }
+  });
+
+  test("fills every surface to the panel width without truncating content", () => {
+    const entry = job({
+      id: "a",
+      name: "deploy check",
+      runCount: 3,
+      nextRun: Date.now() + 1_800_000,
+      lastRun: Date.now() - 7_205_000,
+      lastStatus: "ok",
+    });
+    for (const width of [60, 100]) {
+      const { view } = makeView([entry], 30);
+      const surfaces: Array<[string, string[]]> = [["list", view.render(width)]];
+      view.handleInput("\r");
+      surfaces.push(["detail", view.render(width)]);
+      view.handleInput("\u001b");
+      view.handleInput("d");
+      surfaces.push(["confirm", view.render(width)]);
+      view.handleInput("\u001b");
+      view.handleInput("n");
+      surfaces.push(["add", view.render(width)]);
+      const labeled: Array<[string, string]> = surfaces.flatMap(([label, lines]) =>
+        lines.map((line) => [label, line] as [string, string]),
+      );
+      expect(labeled.filter(([, line]) => line.includes("…"))).toEqual([]);
+      expect(labeled.filter(([, line]) => visibleWidth(line) !== width)).toEqual([]);
     }
   });
 });

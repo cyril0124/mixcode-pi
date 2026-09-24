@@ -21,10 +21,11 @@ import {
   CronParseError,
   describeSchedule,
   formatRunCount,
+  formatSince,
   formatUntil,
   parseSchedule,
 } from "./cron-engine.js";
-import { sortJobs } from "./cron-widget.js";
+import { sortJobs, statusGlyph } from "./cron-widget.js";
 import type { CronJob, CronJobInput } from "./types.js";
 
 type CronTheme = Pick<Theme, "fg" | "bg">;
@@ -405,10 +406,13 @@ export class CronManagementView implements Component {
   render(width: number): string[] {
     if (this.adding) return this.renderAdd(width);
     if (this.mode === "detail") return this.renderDetail(width);
-    const footer = this.renderFooter(width, false);
+    // Every inner helper pads to the panel's inner width: padding to the outer
+    // width would make the panel itself clip the line and append an ellipsis.
+    const innerWidth = headerWidth(width);
+    const footer = this.renderFooter(innerWidth, false);
     const bodyRows = this.availableBodyRows(footer.length);
-    const header = bodyRows >= 4 ? this.renderSearch(headerWidth(width)) : [];
-    const body = this.renderRows(width, Math.max(0, bodyRows - header.length));
+    const header = bodyRows >= 4 ? this.renderSearch(innerWidth) : [];
+    const body = this.renderRows(innerWidth, Math.max(0, bodyRows - header.length));
     return this.renderPanel([...header, ...body], footer, width, `Cron jobs (${this.jobs.length})`);
   }
 
@@ -425,9 +429,9 @@ export class CronManagementView implements Component {
       this.mode = "list";
       return this.render(width);
     }
-    const footer = this.renderFooter(width, true);
-    const bodyRows = this.availableBodyRows(footer.length);
     const innerWidth = Math.max(1, width - 2);
+    const footer = this.renderFooter(innerWidth, true);
+    const bodyRows = this.availableBodyRows(footer.length);
     const next =
       job.claim !== undefined
         ? "running now"
@@ -440,7 +444,7 @@ export class CronManagementView implements Component {
       ` State: ${job.enabled ? "enabled" : "paused"}`,
       ` Schedule: ${describeSchedule(job.schedule)}`,
       ` Next: ${next}`,
-      ` Runs: ${job.runCount}  Last: ${job.lastStatus ?? "never"}${job.lastRun !== undefined ? ` at ${new Date(job.lastRun).toLocaleString()}` : ""}`,
+      ` Runs: ${job.runCount}  Last: ${lastRunLabel(job, Date.now())}`,
       ...(job.description ? [` Notes: ${job.description}`] : []),
     ];
     const promptBoxWidth = Math.max(4, innerWidth - 2);
@@ -461,13 +465,17 @@ export class CronManagementView implements Component {
     );
     const range = `${this.promptScrollOffset + 1}-${this.promptScrollOffset + visible.length}/${promptLines.length}`;
     const title = ` Prompt ${range} `;
-    const top = `${title}${"─".repeat(Math.max(0, promptBoxWidth - visibleWidth(title)))}`;
+    // The frame sits one column inside the panel borders: its corners plus an
+    // edge of `promptBoxWidth - 2` columns fill the row exactly. Content rows
+    // repeat the right edge so the box is closed on both sides.
+    const frameInner = Math.max(0, promptBoxWidth - 2);
+    const top = `${title}${"─".repeat(Math.max(0, frameInner - visibleWidth(title)))}`;
     return this.renderPanel(
       [
         ...metadata.slice(0, Math.max(0, bodyRows - 3)),
-        this.theme.fg("border", ` ┌${top}┐`),
-        ...visible.map((line) => ` │ ${line}`),
-        this.theme.fg("border", ` └${"─".repeat(Math.max(0, promptBoxWidth - 2))}┘`),
+        this.theme.fg("border", ` ┌${top}┐ `),
+        ...visible.map((line) => ` │ ${this.pad(line, promptContentWidth)} │ `),
+        this.theme.fg("border", ` └${"─".repeat(frameInner)}┘ `),
       ],
       footer,
       width,
@@ -495,8 +503,7 @@ export class CronManagementView implements Component {
     const rows: string[] = [];
     for (const [index, job] of jobs.slice(start, start + maxVisible).entries()) {
       const selected = start + index === this.selectedIndex;
-      const glyph = job.claim !== undefined ? "~" : job.enabled ? "*" : "x";
-      const tone = job.claim !== undefined ? "warning" : job.enabled ? "success" : "dim";
+      const { glyph, tone } = statusGlyph(job);
       const label = `${selected ? "›" : " "} ${glyph} ${job.name}`;
       const right =
         job.claim !== undefined
@@ -513,7 +520,9 @@ export class CronManagementView implements Component {
       const top = `${nameText} ${rightText}`;
       rows.push(selected ? selectedBg(this.pad(top, width)) : this.pad(top, width));
       if (perItem === 2) {
-        const meta = `    ${describeSchedule(job.schedule)}  ${formatRunCount(job.runCount)}`;
+        const last =
+          job.lastRun !== undefined ? `last ${formatSince(job.lastRun, Date.now())}` : "never run";
+        const meta = `    ${describeSchedule(job.schedule)}  ${formatRunCount(job.runCount)}  ${last}`;
         const line = this.theme.fg("dim", meta);
         rows.push(selected ? selectedBg(this.pad(line, width)) : this.pad(line, width));
         // Blank separator between jobs when there is enough vertical space.
@@ -563,7 +572,7 @@ export class CronManagementView implements Component {
 
     const footer = [
       this.fitHints(
-        width,
+        innerWidth,
         "Enter confirm",
         stepIndex > 0 ? ["Esc back"] : [],
         "Ctrl+C cancel",
@@ -684,4 +693,14 @@ export class CronManagementView implements Component {
 /** Column width for headers that live inside the panel border. */
 function headerWidth(width: number): number {
   return Math.max(0, width - 2);
+}
+
+/**
+ * Detail-view last-run summary: outcome, age, and the absolute time. The age
+ * shows whether the schedule is still being honoured; the stamp is for precision.
+ */
+function lastRunLabel(job: CronJob, now: number): string {
+  if (job.lastRun === undefined) return "never";
+  const status = job.lastStatus ?? "unknown";
+  return `${status}, ${formatSince(job.lastRun, now)} (${new Date(job.lastRun).toLocaleString()})`;
 }
