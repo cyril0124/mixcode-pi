@@ -23,8 +23,8 @@ The collapsed row is always exactly one line, whatever the label length and the 
 The label is elided to fit. When the row still does not fit, `timeout Ns` and `shell <path>` are
 dropped first, then `ctrl+o`, then the whole meta.
 
-The label is the call's own `description` argument, or the elided command when the call carries
-none:
+The label is the call's own `description` argument, which `mpi-bash` asks for while this row is on,
+or the elided command when the call carries none:
 
 | Label source | Row |
 | --- | --- |
@@ -51,7 +51,7 @@ Run `/mpi-tool-display config` to open the global settings overlay. `j`/`k` or t
 }
 ```
 
-`compactBashCallRow` defaults to `true` and selects the collapsed row described above. Turning it off restores the two-row presentation: the call row shows the full command and the result row shows `↳ N lines returned • Ctrl+O to expand` (a failure keeps its `↳ command failed` header and a head preview). The settings panel writes the file; the toggle applies to calls rendered after it changes, and `/reload` rebuilds existing rows.
+`compactBashCallRow` defaults to `true` and selects the collapsed row described above. Turning it off restores the two-row presentation: the call row shows the full command and the result row shows `↳ N lines returned • Ctrl+O to expand` (a failure keeps its `↳ command failed` header and a head preview). The settings panel writes the file; the toggle applies to calls rendered after it changes, and `/reload` rebuilds existing rows. The flag also decides whether `mpi-bash` requires the `description` argument that supplies the label; see `pi-packages/mpi-bash/README.md`.
 
 `showRawToolArguments` defaults to `false`. When enabled, every tool call keeps its specialized, native, or title fallback presentation and appends `JSON.stringify(args, null, 2)`. Tool results are unchanged. Later calls in the current tab use the new value; `/reload` rebuilds existing rows. Other tabs reread the file before their next agent turn.
 

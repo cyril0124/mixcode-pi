@@ -136,6 +136,9 @@ import bashIndex from "../../pi-packages/mpi-bash/index.ts" with { type: "text" 
 import bashLogs from "../../pi-packages/mpi-bash/bash-logs.ts" with { type: "text" };
 import bashLogView from "../../pi-packages/mpi-bash/log-view.ts" with { type: "text" };
 import bashPackageJson from "../../pi-packages/mpi-bash/package.json" with { type: "text" };
+import bashToolDisplayConfig from "../../pi-packages/mpi-bash/tool-display-config.ts" with {
+  type: "text",
+};
 import bashWidget from "../../pi-packages/mpi-bash/widget.ts" with { type: "text" };
 import toolDisplayIndex from "../../pi-packages/mpi-tool-display/index.ts" with { type: "text" };
 import toolDisplayPackageJson from "../../pi-packages/mpi-tool-display/package.json" with {
@@ -650,6 +653,7 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
       "bash-logs.ts": bashLogs,
       "log-view.ts": bashLogView,
       "heartbeat.ts": bashHeartbeat,
+      "tool-display-config.ts": bashToolDisplayConfig,
       "package.json": bashPackageJson,
     },
     "mpi-tool-display": {

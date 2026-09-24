@@ -9,8 +9,10 @@ import {
   createBashToolDefinition,
   type ExtensionContext,
   type ExtensionFactory,
+  getAgentDir,
   SettingsManager,
   type ToolCallEvent,
+  type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import { BashLogs } from "./bash-logs.js";
 import {
@@ -31,6 +33,7 @@ import {
   stallCheckIntervalMs,
 } from "./heartbeat.js";
 import { openInExternalEditor, type SuspendableTui } from "./log-view.js";
+import { compactBashCallRowEnabled } from "./tool-display-config.js";
 import {
   BackgroundStatus,
   type DetachedExitDetails,
@@ -47,6 +50,39 @@ export const BASH_DETACHED_EXIT_CUSTOM_TYPE = "bash-detached-exit";
 
 /** Custom message type warning that a background command has gone silent. */
 export const BASH_STALL_CUSTOM_TYPE = "bash-detached-stall";
+
+/**
+ * Bash parameters are Pi's own plus a required `description`, which the compact call row in
+ * `mpi-tool-display` shows as the call's label. The argument documents the capital-letter convention
+ * the rows rely on. Pi's property definitions are copied so upstream types and per-argument docs
+ * stay authoritative.
+ *
+ * Applied only while that package renders the compact row: with the row off, the tool keeps Pi's own
+ * schema. A session registers the tool once, so a change applies from the next session.
+ */
+function withRequiredDescription<T extends ToolDefinition<any, any, any>>(definition: T): T {
+  const parameters = definition.parameters as {
+    properties?: Record<string, unknown>;
+    required?: string[];
+  };
+  return {
+    ...definition,
+    parameters: {
+      ...parameters,
+      properties: {
+        ...parameters.properties,
+        description: {
+          type: "string",
+          description:
+            "One-line statement of what this command does, starting with a capital letter and shown as the call's label in the transcript.",
+        },
+      },
+      required: [...(parameters.required ?? []), "description"],
+    },
+    // Pi validates calls against this schema object, and no caller inside this package reads the
+    // static parameter type, so widening it past T's own shape is sound here.
+  } as unknown as T;
+}
 
 const bashExtension: ExtensionFactory = (pi) => {
   const backgroundStatus = new BackgroundStatus();
@@ -221,50 +257,53 @@ const bashExtension: ExtensionFactory = (pi) => {
     startStallTimer(ctx);
     void pruneOldLogs();
     const settings = SettingsManager.create(ctx.cwd);
-    pi.registerTool(
-      createBashToolDefinition(ctx.cwd, {
-        commandPrefix: settings.getShellCommandPrefix(),
+    const definition = createBashToolDefinition(ctx.cwd, {
+      commandPrefix: settings.getShellCommandPrefix(),
+      shellPath: settings.getShellPath(),
+      operations: createDetachingBashOperations({
         shellPath: settings.getShellPath(),
-        operations: createDetachingBashOperations({
-          shellPath: settings.getShellPath(),
-          commandPrefix: settings.getShellCommandPrefix(),
-          foregroundSeconds: resolveForegroundSeconds(),
-          onDetached: (start) => backgroundStatus.add(start),
-          getRunningPids: () => backgroundStatus.running().map((run) => run.id),
-          onDetachedProcessExit: (run) => backgroundStatus.finish(run),
-          onDetachedExit: (run) => {
-            backgroundStatus.completeLog(run.logPath);
-            // Capture once after log flush; both model and UI retain this snapshot.
-            const runningPids = backgroundStatus.running().map((live) => live.id);
-            try {
-              // Starts a turn so the model can act on the exit code.
-              pi.sendMessage(
-                {
-                  customType: BASH_DETACHED_EXIT_CUSTOM_TYPE,
-                  content: formatCompletionNotice(run, runningPids),
-                  display: true,
-                  details: {
-                    id: run.id,
-                    runningPids,
-                    command: run.command,
-                    exitCode: run.exitCode,
-                    timedOut: run.timedOut,
-                    tail: run.tail,
-                    lineCount: run.lineCount,
-                    elapsedMs: run.elapsedMs,
-                    logPath: run.logPath,
-                    logError: run.logError,
-                  } satisfies DetachedExitDetails,
-                },
-                { triggerTurn: true, deliverAs: "steer" },
-              );
-            } catch {
-              // The session was replaced or closed while the command ran, so the
-              // notice has nowhere to land. The log file keeps the output.
-            }
-          },
-        }),
+        commandPrefix: settings.getShellCommandPrefix(),
+        foregroundSeconds: resolveForegroundSeconds(),
+        onDetached: (start) => backgroundStatus.add(start),
+        getRunningPids: () => backgroundStatus.running().map((run) => run.id),
+        onDetachedProcessExit: (run) => backgroundStatus.finish(run),
+        onDetachedExit: (run) => {
+          backgroundStatus.completeLog(run.logPath);
+          // Capture once after log flush; both model and UI retain this snapshot.
+          const runningPids = backgroundStatus.running().map((live) => live.id);
+          try {
+            // Starts a turn so the model can act on the exit code.
+            pi.sendMessage(
+              {
+                customType: BASH_DETACHED_EXIT_CUSTOM_TYPE,
+                content: formatCompletionNotice(run, runningPids),
+                display: true,
+                details: {
+                  id: run.id,
+                  runningPids,
+                  command: run.command,
+                  exitCode: run.exitCode,
+                  timedOut: run.timedOut,
+                  tail: run.tail,
+                  lineCount: run.lineCount,
+                  elapsedMs: run.elapsedMs,
+                  logPath: run.logPath,
+                  logError: run.logError,
+                } satisfies DetachedExitDetails,
+              },
+              { triggerTurn: true, deliverAs: "steer" },
+            );
+          } catch {
+            // The session was replaced or closed while the command ran, so the
+            // notice has nowhere to land. The log file keeps the output.
+          }
+        },
       }),
+    });
+    // One read per session: the schema cannot change while a session runs, so the requirement
+    // follows the display setting as of this session's start.
+    pi.registerTool(
+      compactBashCallRowEnabled(getAgentDir()) ? withRequiredDescription(definition) : definition,
     );
   });
 };
