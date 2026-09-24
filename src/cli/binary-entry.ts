@@ -208,6 +208,17 @@ import loopManagementView from "../../pi-packages/mpi-loop/loop-management-view.
   type: "text",
 };
 import loopPackageJson from "../../pi-packages/mpi-loop/package.json" with { type: "text" };
+import cronIndex from "../../pi-packages/mpi-cron/index.ts" with { type: "text" };
+import cronCronEngine from "../../pi-packages/mpi-cron/cron-engine.ts" with { type: "text" };
+import cronStorage from "../../pi-packages/mpi-cron/storage.ts" with { type: "text" };
+import cronHub from "../../pi-packages/mpi-cron/hub.ts" with { type: "text" };
+import cronTypes from "../../pi-packages/mpi-cron/types.ts" with { type: "text" };
+import cronTool from "../../pi-packages/mpi-cron/tool.ts" with { type: "text" };
+import cronCronWidget from "../../pi-packages/mpi-cron/cron-widget.ts" with { type: "text" };
+import cronCronManagementView from "../../pi-packages/mpi-cron/cron-management-view.ts" with {
+  type: "text",
+};
+import cronPackageJson from "../../pi-packages/mpi-cron/package.json" with { type: "text" };
 import skillRefsIndex from "../../pi-packages/mpi-skill-refs/index.ts" with { type: "text" };
 import skillRefsCore from "../../pi-packages/mpi-skill-refs/skill-core.ts" with { type: "text" };
 import skillRefsReadme from "../../pi-packages/mpi-skill-refs/README.md" with { type: "text" };
@@ -689,6 +700,17 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
       "loop-helpers.ts": loopHelpers,
       "loop-management-view.ts": loopManagementView,
       "package.json": loopPackageJson,
+    },
+    "mpi-cron": {
+      "index.ts": cronIndex,
+      "cron-engine.ts": cronCronEngine,
+      "storage.ts": cronStorage,
+      "hub.ts": cronHub,
+      "types.ts": cronTypes,
+      "tool.ts": cronTool,
+      "cron-widget.ts": cronCronWidget,
+      "cron-management-view.ts": cronCronManagementView,
+      "package.json": cronPackageJson,
     },
     "mpi-prompt-history": {
       "index.ts": promptHistoryIndex,

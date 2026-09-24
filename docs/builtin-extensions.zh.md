@@ -11,6 +11,7 @@ MixCode 随附位于 `pi-packages/mpi-*` 的第一方内置 Pi 包。启动时�
 | 扩展包 | 命令 / 触发方式 | 说明 |
 |---|---|---|
 | `mpi-goal` | `/goal [objective]`, `/goal tools`, `/goal pause\|resume\|clear` | 目标追踪系统，支持会话级隔离、渐进式模型工具暴露、连续执行预算控制与底部状态栏组件。 |
+| `mpi-cron` | `cron` 工具、`/cron`、`<cwd>/.pi/cron/jobs.json` | 按目录的定时提示：cron/间隔/相对时间/ISO 调度、工具与浮层管理、编辑器下方常驻组件，触发时在存储层认领，同目录的多个 tab 与多个进程每次计划只执行一次。参见[包文档](../pi-packages/mpi-cron/README.zh.md)。 |
 | `mpi-loop` | `/loop [interval] <prompt>`, `/loop stop <id\|name>`, `/loop interval <id> <time>` | 定时循环任务引擎，支持配置总执行次数、定时器冲突处理（`skip` 跳过 / `defer` 延后排队）、编辑器下方常驻状态组件及全屏管理浮层。 |
 | `mpi-optimize-prompt` | `/optimize-prompt [prompt]`, `/optimize-prompt-config` | 基于 Meta-prompt 的提示词优化器，将模糊指令细化为高清晰度、结构化可执行的 Prompt。 |
 | `mpi-auto-rename` | 可选首条消息自动触发, `/auto-rename` | 生成短横线风格会话标题；在 `<agentDir>/mpi-auto-rename.json` 将 `onFirstMessage` 设为 `true` 以启用。 |
