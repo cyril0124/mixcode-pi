@@ -35,8 +35,9 @@ label 就是调用自己的 `description` 参数（折叠行开启时 `mpi-bash`
 bash Find callers of the parser  rg -n parser src | head -30        ok · 40 lines · 0s · ctrl+o
 ```
 
-摘录在 label 被省略之前就让出列宽，因此窄终端上它先消失。label 已经带着的命令不再重复显示为摘录，
-一行里不会出现两遍同样的文字；label 退回命令文本的调用因此也不显示摘录。
+摘录只占 label 用不到的列，因此长命令最多把 label 压到摘录 12 列的底线，不会再低；label 被省略之前摘录
+先让出列宽，在窄终端上先消失。label 已经带着的命令不再重复显示为摘录，一行里不会出现两遍同样的文字；label 退回命令文本的调用
+因此也不显示摘录。
 
 运行中的调用显示 `~ <elapsed>`。已结束的调用显示 `ok`，或 `!! exit N`、`!! timed out`、
 `!! aborted`、`!! failed`，后接输出行数（`1 line`、`32 lines`），并在行内有计时时附带耗时。状态取自结果
