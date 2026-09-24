@@ -21,8 +21,19 @@ interface ToolDisplayConfigOverlayOptions {
 /** One toggle row; the label is what the panel shows, the key is what the config file holds. */
 const CONFIG_ROWS = [
   { key: "compactBashCallRow", label: "Compact bash call row" },
+  { key: "compactBashCommandHint", label: "Command excerpt" },
   { key: "showRawToolArguments", label: "Raw tool arguments" },
 ] as const satisfies ReadonlyArray<{ key: keyof ToolDisplayRuntimeConfig; label: string }>;
+
+/** Note under the selected row; `warn` marks the one that can expose data. */
+const ROW_NOTES: Record<keyof ToolDisplayRuntimeConfig, { text: string; warn?: true }> = {
+  compactBashCallRow: { text: " One row per finished bash call, with label and status meta." },
+  compactBashCommandHint: { text: " Dim command excerpt on that row, dropped first when narrow." },
+  showRawToolArguments: {
+    text: " Debug only: arguments may expose secrets.",
+    warn: true,
+  },
+};
 
 export function createToolDisplayConfigOverlay(options: ToolDisplayConfigOverlayOptions): {
   render(width: number): string[];
@@ -106,9 +117,10 @@ export function createToolDisplayConfigOverlay(options: ToolDisplayConfigOverlay
       "",
       ...CONFIG_ROWS.map((_row, index) => renderRow(index)),
       "",
-      ...(selectedRow.key === "showRawToolArguments"
-        ? [theme.fg("warning", " Debug only: arguments may expose secrets.")]
-        : [theme.fg("dim", " One row per finished bash call, with label and status meta.")]),
+      theme.fg(
+        ROW_NOTES[selectedRow.key].warn ? "warning" : "dim",
+        ROW_NOTES[selectedRow.key].text,
+      ),
       "",
       theme.fg("dim", ` ${options.configPath}`),
       theme.fg("dim", " Esc close"),

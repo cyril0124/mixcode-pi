@@ -8,7 +8,7 @@ Render-only transcript presentation for `bash`, `read`, `edit`, `write`, and Thi
 
 | Surface | Collapsed / idle | Expanded / running |
 | --- | --- | --- |
-| `bash` | One line: `bash <label>` plus right-aligned status meta; the result region is empty. A failure keeps its tail below the row. See *Collapsed bash row* | 10-frame spinner with elapsed time; live output streams uncollapsed; expanded preview is capped at 4000 lines |
+| `bash` | One line: `bash <label>`, a dim excerpt of the command, and right-aligned status meta; the result region is empty. A failure keeps its tail below the row. See *Collapsed bash row* | 10-frame spinner with elapsed time; live output streams uncollapsed; expanded preview is capped at 4000 lines |
 | `read` | `↳ loaded N lines • Ctrl+O to expand` | Expanded preview is capped at 4000 lines |
 | `read` of `SKILL.md` | `[skill] <parent directory>`; collapsed result is empty | File body |
 | `edit` | Diff capped at 24 content lines before wrapping, with a remainder hint | Pending diff preview while running; expanded diff capped at 4000 terminal rows |
@@ -19,9 +19,9 @@ Call rows use `bash <label>`, `read path[:range]`, `edit path (N lines)`, and `w
 
 ### Collapsed bash row
 
-The collapsed row is always exactly one line, whatever the label length and the terminal width.
-The label is elided to fit. When the row still does not fit, `timeout Ns` and `shell <path>` are
-dropped first, then `ctrl+o`, then the whole meta.
+The collapsed row is always exactly one line, whatever the label length and the terminal width. It
+sheds content in this order: the command excerpt, then label columns down to eight, then `timeout Ns`
+and `shell <path>`, then `ctrl+o`, then the whole meta.
 
 The label is the call's own `description` argument, which `mpi-bash` asks for while this row is on,
 or the elided command when the call carries none:
@@ -30,6 +30,17 @@ or the elided command when the call carries none:
 | --- | --- |
 | The call's `description` argument | `bash Find callers of the parser` |
 | A call without one falls back to its elided command | `bash rg -n parser src \| head -30` |
+
+While `compactBashCommandHint` is on, the row carries a dim one-line excerpt of the command beside
+the label, with runs of whitespace collapsed:
+
+```text
+bash Find callers of the parser  rg -n parser src | head -30        ok · 40 lines · 0s · ctrl+o
+```
+
+The excerpt gives up its columns before the label elides, so it disappears first on a narrow
+terminal. A command the label already carries shows no excerpt, so a row never prints the same text
+twice, which covers a call whose label falls back to its command.
 
 A running call shows `~ <elapsed>`. A finished call shows `ok`, or `!! exit N`, `!! timed out`,
 `!! aborted`, or `!! failed`, followed by the output line count (`1 line`, `32 lines`), and by its duration when the row
@@ -47,11 +58,14 @@ Run `/mpi-tool-display config` to open the global settings overlay. `j`/`k` or t
 ```json
 {
   "showRawToolArguments": false,
-  "compactBashCallRow": true
+  "compactBashCallRow": true,
+  "compactBashCommandHint": true
 }
 ```
 
 `compactBashCallRow` defaults to `true` and selects the collapsed row described above. Turning it off restores the two-row presentation: the call row shows the full command and the result row shows `↳ N lines returned • Ctrl+O to expand` (a failure keeps its `↳ command failed` header and a head preview). The settings panel writes the file; the toggle applies to calls rendered after it changes, and `/reload` rebuilds existing rows. The flag also decides whether `mpi-bash` requires the `description` argument that supplies the label; see `pi-packages/mpi-bash/README.md`.
+
+`compactBashCommandHint` defaults to `true` and adds the command excerpt to that row. It has no effect while `compactBashCallRow` is off, because there is no collapsed row to extend. The settings panel lists it as `Command excerpt`.
 
 `showRawToolArguments` defaults to `false`. When enabled, every tool call keeps its specialized, native, or title fallback presentation and appends `JSON.stringify(args, null, 2)`. Tool results are unchanged. Later calls in the current tab use the new value; `/reload` rebuilds existing rows. Other tabs reread the file before their next agent turn.
 

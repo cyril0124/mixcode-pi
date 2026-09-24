@@ -9,8 +9,12 @@ const BASH_SPINNER_INTERVAL_MS = 200;
 const BASH_SPINNER_TOOL_CALL_ID_KEY = "__mpiToolDisplayBashSpinnerToolCallId";
 /** Narrowest label worth showing next to the status meta before the meta is dropped. */
 const BASH_LABEL_MIN_WIDTH = 8;
-/** Characters of a command inspected when a call carries no `description` to show instead. */
-const BASH_LABEL_FALLBACK_CHARS = 512;
+/** Characters of a command read when a row needs its text, as a label fallback or as the excerpt. */
+const BASH_COMMAND_INSPECT_CHARS = 512;
+/** Columns the command excerpt needs before it is dropped from the row. */
+const BASH_HINT_MIN_WIDTH = 12;
+/** Spaces between the label and the command excerpt. */
+const BASH_LABEL_HINT_GAP = 2;
 
 interface BashCallArgs {
   command?: string;
@@ -223,26 +227,83 @@ function bashCallLabel(args: BashCallArgs): string {
   if (description) {
     return description;
   }
+  return collapsedCommand(args);
+}
+
+/** The call's command as one bounded line, or an empty string when it carries none. */
+function collapsedCommand(args: BashCallArgs): string {
   return stripAllEscapes(args.command ?? "")
-    .slice(0, BASH_LABEL_FALLBACK_CHARS)
+    .slice(0, BASH_COMMAND_INSPECT_CHARS)
     .replace(/\s+/g, " ")
     .trim();
 }
 
 /**
- * Collapsed bash call row: exactly one line with `bash <label>` on the left and status meta on the
- * right. The label is elided and optional meta parts are dropped, so the row never wraps.
+ * One-line excerpt of the command, shown beside the label. A command the label already carries
+ * returns nothing, so a row never prints the same text twice.
+ */
+function bashCommandHint(args: BashCallArgs, label: string): string | undefined {
+  const command = collapsedCommand(args);
+  return command && command !== label ? command : undefined;
+}
+
+/**
+ * Label and command excerpt fitted into the columns left of the meta, or nothing if the label cannot
+ * reach its floor. The label keeps the columns it needs; the excerpt lives on what is left.
+ */
+function fitBashCallBody(
+  label: string,
+  hint: string | undefined,
+  body: number,
+): { label: string; hint: string; width: number } | undefined {
+  if (body < BASH_LABEL_MIN_WIDTH) {
+    return undefined;
+  }
+  const hintText = hint ?? "";
+  const hintWidth = visibleWidth(hintText);
+  const showHint =
+    hintWidth > 0 && body - BASH_LABEL_MIN_WIDTH - BASH_LABEL_HINT_GAP >= BASH_HINT_MIN_WIDTH;
+  // The excerpt keeps its floor; the columns it does not need go back to the label.
+  const hintBudget = showHint
+    ? Math.min(
+        hintWidth,
+        Math.max(BASH_HINT_MIN_WIDTH, body - BASH_LABEL_MIN_WIDTH - BASH_LABEL_HINT_GAP),
+      )
+    : 0;
+  const labelBudget = body - (showHint ? hintBudget + BASH_LABEL_HINT_GAP : 0);
+  const shownLabel = truncateToWidth(label, labelBudget, "…");
+  const shownHint = hintBudget > 0 ? truncateToWidth(hintText, hintBudget, "…") : "";
+  return {
+    label: shownLabel,
+    hint: shownHint,
+    width:
+      visibleWidth(shownLabel) + (shownHint ? BASH_LABEL_HINT_GAP + visibleWidth(shownHint) : 0),
+  };
+}
+
+/**
+ * Collapsed bash call row: exactly one line with `bash <label>`, an optional dim excerpt of the
+ * command, and the status meta on the right. The label is elided, then the excerpt drops, then
+ * optional meta parts drop, so the row never wraps.
  */
 function buildCollapsedBashCallRow(
   args: BashCallArgs,
   theme: BashCallRenderTheme,
   width: number,
   outcome: BashCallOutcome | undefined,
-  options: { spinnerFrame?: string; elapsedMs?: number; finalElapsedMs?: number },
+  options: {
+    spinnerFrame?: string;
+    elapsedMs?: number;
+    finalElapsedMs?: number;
+    commandHint?: boolean;
+  },
 ): string {
   const label = bashCallLabel(args) || "...";
+  const hint = options.commandHint === false ? undefined : bashCommandHint(args, label);
   const spinnerPrefix = options.spinnerFrame ? `${options.spinnerFrame} ` : "";
   const prefixPlain = `${spinnerPrefix}bash `;
+  const title = theme.fg("toolTitle", theme.bold("bash"));
+  const spinnerText = options.spinnerFrame ? theme.fg("warning", spinnerPrefix) : "";
   const elapsedMs = options.elapsedMs ?? options.finalElapsedMs;
   const metaParts = buildBashCallMetaParts(args, outcome, {
     spinnerFrame: options.spinnerFrame,
@@ -252,32 +313,23 @@ function buildCollapsedBashCallRow(
   for (const parts of metaParts) {
     const metaPlain = parts.join(" · ");
     const reserved = visibleWidth(prefixPlain) + (metaPlain ? visibleWidth(` ${metaPlain}`) : 0);
-    const labelBudget = width - reserved;
-    if (labelBudget < BASH_LABEL_MIN_WIDTH) {
+    const fitted = fitBashCallBody(label, hint, width - reserved);
+    if (!fitted) {
       continue;
     }
-    const shownLabel = truncateToWidth(label, labelBudget, "…");
-    const gap = " ".repeat(
-      Math.max(
-        1,
-        width - visibleWidth(prefixPlain) - visibleWidth(shownLabel) - visibleWidth(metaPlain),
-      ),
-    );
-    const spinnerText = options.spinnerFrame ? theme.fg("warning", spinnerPrefix) : "";
+    const slack = width - visibleWidth(prefixPlain) - fitted.width - visibleWidth(metaPlain);
+    const gap = " ".repeat(Math.max(metaPlain ? 1 : 0, slack));
+    const body = `${theme.fg("accent", fitted.label)}${fitted.hint ? `  ${theme.fg("dim", fitted.hint)}` : ""}`;
     const metaText = metaPlain ? theme.fg("muted", metaPlain) : "";
-    return `${spinnerText}${theme.fg("toolTitle", theme.bold("bash"))} ${theme.fg("accent", shownLabel)}${gap}${metaText}`;
+    return `${spinnerText}${title} ${body}${gap}${metaText}`;
   }
 
-  const cleanedPrefix = options.spinnerFrame ? theme.fg("warning", spinnerPrefix) : "";
   const widthLeft = width - visibleWidth(prefixPlain);
-  if (widthLeft < 1) {
-    return truncateToWidth(
-      `${cleanedPrefix}${theme.fg("toolTitle", theme.bold("bash"))}`,
-      width,
-      "",
-    );
+  const fitted = fitBashCallBody(label, hint, widthLeft);
+  if (!fitted) {
+    return truncateToWidth(`${spinnerText}${title}`, width, "");
   }
-  return `${cleanedPrefix}${theme.fg("toolTitle", theme.bold("bash"))} ${theme.fg("accent", truncateToWidth(label, widthLeft, "…"))}`;
+  return `${spinnerText}${title} ${theme.fg("accent", fitted.label)}${fitted.hint ? `  ${theme.fg("dim", fitted.hint)}` : ""}`;
 }
 
 /** Outcome the result renderer published for this row, if the run already finished. */
@@ -311,6 +363,7 @@ class BashCallRow implements Component {
   private theme: BashCallRenderTheme;
   private context: BashCallRenderContextLike;
   private compact: boolean;
+  private commandHint: boolean;
   private spinnerFrame?: string;
   private elapsedMs?: number;
   /** Duration kept after the spinner stops, so the finished row does not keep counting. */
@@ -321,11 +374,13 @@ class BashCallRow implements Component {
     theme: BashCallRenderTheme,
     context: BashCallRenderContextLike,
     compact: boolean,
+    commandHint: boolean,
   ) {
     this.args = args;
     this.theme = theme;
     this.context = context;
     this.compact = compact;
+    this.commandHint = commandHint;
   }
 
   /** Pi reuses the component, so args, theme, render context and mode must follow every update. */
@@ -334,11 +389,13 @@ class BashCallRow implements Component {
     theme: BashCallRenderTheme,
     context: BashCallRenderContextLike,
     compact: boolean,
+    commandHint: boolean,
   ): void {
     this.args = args;
     this.theme = theme;
     this.context = context;
     this.compact = compact;
+    this.commandHint = commandHint;
   }
 
   setSpinner(spinnerFrame?: string, elapsedMs?: number, finalElapsedMs?: number): void {
@@ -371,6 +428,7 @@ class BashCallRow implements Component {
           spinnerFrame: this.spinnerFrame,
           elapsedMs: this.elapsedMs,
           finalElapsedMs: this.finalElapsedMs,
+          commandHint: this.commandHint,
         },
       ),
     ];
@@ -382,12 +440,13 @@ export function renderBashCall(
   theme: BashCallRenderTheme,
   context: BashCallRenderContextLike,
   compact = true,
+  commandHint = true,
 ): Component {
   const row =
     context.lastComponent instanceof BashCallRow
       ? context.lastComponent
-      : new BashCallRow(args, theme, context, compact);
-  row.update(args, theme, context, compact);
+      : new BashCallRow(args, theme, context, compact, commandHint);
+  row.update(args, theme, context, compact, commandHint);
   const toolCallId = getToolCallId(context);
   const spinnerState = getOrCreateSpinnerState(toolCallId);
   const shouldSpin = context.executionStarted && context.isPartial;

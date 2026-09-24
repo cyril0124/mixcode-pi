@@ -8,7 +8,7 @@
 
 | 界面 | 折叠态 / 空闲态 | 展开态 / 运行态 |
 | --- | --- | --- |
-| `bash` | 一行：`bash <label>` 加右对齐的状态 meta；结果区为空。失败时在行下方保留其尾部输出。详见「bash 折叠行」 | 10 帧 spinner + 运行耗时；实时输出不折叠；展开预览上限 4000 行 |
+| `bash` | 一行：`bash <label>`、命令的 dim 摘录，加右对齐的状态 meta；结果区为空。失败时在行下方保留其尾部输出。详见「bash 折叠行」 | 10 帧 spinner + 运行耗时；实时输出不折叠；展开预览上限 4000 行 |
 | `read` | `↳ loaded N lines • Ctrl+O to expand` | 展开预览上限 4000 行 |
 | `read` 指向 `SKILL.md` | `[skill] <父目录>`；折叠结果为空 | 文件正文 |
 | `edit` | diff 折叠上限为换行前的 24 个内容行，超出部分给出提示 | 运行中显示 pending diff；展开上限为 4000 个终端行 |
@@ -19,8 +19,8 @@
 
 ### bash 折叠行
 
-无论 label 多长、终端多窄，折叠行始终恰好一行。label 会被省略到可容纳的长度。若仍放不下，先舍弃
-`timeout Ns` 和 `shell <path>`，再舍弃 `ctrl+o`，最后舍弃整个 meta。
+无论 label 多长、终端多窄，折叠行始终恰好一行。舍弃顺序是：先命令摘录，再把 label 压缩到至少 8 列，
+然后依次舍弃 `timeout Ns` 与 `shell <path>`、`ctrl+o`，最后舍弃整个 meta。
 
 label 就是调用自己的 `description` 参数（折叠行开启时 `mpi-bash` 要求提供它），没有该参数时退回到截断后的命令：
 
@@ -28,6 +28,15 @@ label 就是调用自己的 `description` 参数（折叠行开启时 `mpi-bash`
 | --- | --- |
 | 调用自己的 `description` 参数 | `bash Find callers of the parser` |
 | 没有该参数的调用退回到截断后的命令 | `bash rg -n parser src \| head -30` |
+
+`compactBashCommandHint` 开启时，行内 label 之后还有命令的 dim 单行摘录，连续空白会折叠成一个空格：
+
+```text
+bash Find callers of the parser  rg -n parser src | head -30        ok · 40 lines · 0s · ctrl+o
+```
+
+摘录在 label 被省略之前就让出列宽，因此窄终端上它先消失。label 已经带着的命令不再重复显示为摘录，
+一行里不会出现两遍同样的文字；label 退回命令文本的调用因此也不显示摘录。
 
 运行中的调用显示 `~ <elapsed>`。已结束的调用显示 `ok`，或 `!! exit N`、`!! timed out`、
 `!! aborted`、`!! failed`，后接输出行数（`1 line`、`32 lines`），并在行内有计时时附带耗时。状态取自结果
@@ -44,11 +53,14 @@ diff 使用 bars 指示；宽度不小于 120 列时左右分栏，低于 120 �
 ```json
 {
   "showRawToolArguments": false,
-  "compactBashCallRow": true
+  "compactBashCallRow": true,
+  "compactBashCommandHint": true
 }
 ```
 
 `compactBashCallRow` 默认为 `true`，用于选择上文的折叠行。关闭后回到两行展示：调用行显示完整命令，结果行显示 `↳ N lines returned • Ctrl+O to expand`（失败时保留 `↳ command failed` 表头和头部预览）。设置面板负责写文件；切换只影响之后渲染的调用，`/reload` 会重建已有行。该开关同时决定 `mpi-bash` 是否要求提供作为 label 来源的 `description` 参数，读取时机见 `pi-packages/mpi-bash/README.md`。
+
+`compactBashCommandHint` 默认为 `true`，为上述折叠行补上命令摘录。`compactBashCallRow` 关闭时它不起作用，因为没有折叠行可扩展。设置面板里这一项叫 `Command excerpt`。
 
 `showRawToolArguments` 默认为 `false`。启用后，每个工具调用保留其专用、原生或标题 fallback 展示，并追加 `JSON.stringify(args, null, 2)`。工具结果不变。当前标签页的后续调用使用新值；`/reload` 会重建已有行。其他标签页在下一次 agent turn 前重新读取配置。
 

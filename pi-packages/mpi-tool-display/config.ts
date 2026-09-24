@@ -9,11 +9,14 @@ export interface ToolDisplayRuntimeConfig {
   showRawToolArguments: boolean;
   /** Collapse a finished bash call to one row with a label and status meta. */
   compactBashCallRow: boolean;
+  /** Append a one-line excerpt of the command to that row. */
+  compactBashCommandHint: boolean;
 }
 
 export const DEFAULT_TOOL_DISPLAY_RUNTIME_CONFIG: ToolDisplayRuntimeConfig = {
   showRawToolArguments: false,
   compactBashCallRow: true,
+  compactBashCommandHint: true,
 };
 
 export type ToolDisplayConfigLoadResult =
@@ -24,7 +27,11 @@ export type ToolDisplayConfigWriteResult =
   | { ok: true; path: string; config: ToolDisplayRuntimeConfig }
   | { ok: false; path: string; error: string };
 
-const CONFIG_KEYS = new Set(["showRawToolArguments", "compactBashCallRow"]);
+const CONFIG_KEYS = new Set([
+  "showRawToolArguments",
+  "compactBashCallRow",
+  "compactBashCommandHint",
+]);
 
 export function toolDisplayConfigPath(agentDir: string): string {
   return path.join(agentDir, TOOL_DISPLAY_CONFIG_FILENAME);
@@ -46,9 +53,15 @@ export function parseToolDisplayRuntimeConfig(raw: unknown): ToolDisplayRuntimeC
   if (compact !== undefined && typeof compact !== "boolean") {
     throw new Error(`compactBashCallRow must be a boolean, got ${JSON.stringify(compact)}`);
   }
+  const commandHint = source.compactBashCommandHint;
+  if (commandHint !== undefined && typeof commandHint !== "boolean") {
+    throw new Error(`compactBashCommandHint must be a boolean, got ${JSON.stringify(commandHint)}`);
+  }
   return {
     showRawToolArguments: value ?? DEFAULT_TOOL_DISPLAY_RUNTIME_CONFIG.showRawToolArguments,
     compactBashCallRow: compact ?? DEFAULT_TOOL_DISPLAY_RUNTIME_CONFIG.compactBashCallRow,
+    compactBashCommandHint:
+      commandHint ?? DEFAULT_TOOL_DISPLAY_RUNTIME_CONFIG.compactBashCommandHint,
   };
 }
 
