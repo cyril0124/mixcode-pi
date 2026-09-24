@@ -166,6 +166,7 @@ function validateJob(file: string, index: number, value: unknown): CronJob {
   requireOptionalFiniteNumber(file, where, "expiresAt", value.expiresAt);
   requireOptionalNonEmptyString(file, where, "description", value.description);
   requireOptionalNonEmptyString(file, where, "claim", value.claim);
+  requireOptionalNonEmptyString(file, where, "createdBy", value.createdBy);
 
   return value as unknown as CronJob;
 }
@@ -236,6 +237,7 @@ export class CronStore {
       createdAt: Date.now(),
     };
     if (input.description !== undefined) job.description = input.description;
+    if (input.createdBy !== undefined) job.createdBy = input.createdBy;
     if (input.expiresAt !== undefined) job.expiresAt = input.expiresAt;
     if (nextRun !== undefined) job.nextRun = nextRun;
 

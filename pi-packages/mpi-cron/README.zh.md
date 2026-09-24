@@ -2,7 +2,7 @@
 
 [English](README.md)
 
-在任意 MixCode tab 中安排定时提示。任务属于工作目录而不是某个 session，因此由其他 tab 创建、由 subagent 创建，或重启前创建的任务都会继续触发，并始终显示在每个 tab 的 widget 中。
+在任意 MixCode tab 中安排定时提示。任务属于工作目录而不是某个 session，因此由其他 tab 创建、由 subagent 创建，或重启前创建的任务都会继续触发。widget 显示本 tab 自己创建的任务，以及由 subagent 创建的任务；`/cron` 会列出本目录的全部任务。
 
 
 ## 入口
@@ -11,8 +11,9 @@
 |---|---|
 | `cron` 工具 | agent 创建、列出、更新、删除、启用/停用、立即触发与清理任务。 |
 | `/cron` | 管理浮层：可过滤的任务列表（调度、执行次数、距上次执行时间）、内建创建向导、含提示词的任务详情、暂停/恢复、立即触发、删除、清理。 |
-| Widget | `belowEditor` 常驻组件，显示本目录任务的状态、调度、距下次触发时间与执行次数。目录没有任务时隐藏。 |
-| 会话标记 | 每次执行结束都会追加一条 `scheduled_prompt` 记录，其中包含本次执行结果。 |
+| `/cron stop <id\|name>` | 直接按 id 或名称删除任务，无需打开浮层。Tab 补全列出当前所有任务。 |
+| Widget | `belowEditor` 常驻组件，显示本 tab 自己创建的任务与 subagent 创建的任务的状态、调度、距下次触发时间与执行次数。没有可显示的任务时隐藏。 |
+| 会话标记 | 每次执行结束都会向收到该提示词的 session 追加一条 `scheduled_prompt` 记录，其中包含本次执行结果。 |
 
 widget 与列表共用同一组状态符：`~` 运行中、`!` 上次执行失败、`*` 已启用、`x` 已暂停。
 
@@ -49,12 +50,12 @@ child ─┘         │
 
 - 提示词以 `expandPromptTemplates` 注入，因此任务内容可以包含 `/command`、`$skill` 或 prompt template，与手动输入一致。
 - agent 繁忙时提示词作为 follow-up 投递，不会丢失。
-- 投递优先选择交互 session 而不是 pi-subagents 的子会话；widget 只由交互 session 持有。
-- Pi 为每个 session 绑定一个 extension runner，因此触发时刻的提示词落在当时活跃的 session 中；认领仍保证只投递一次。
+- 投递优先选择创建该任务的 session，执行结果回到当初安排它的 tab；否则投给第一个交互 tab。subagent 的 session 不是投递目标，因为它不注册。
+- 一次执行只进入一个 session：先由存储认领取胜出进程，再由该进程按上述规则选目标。
 
 ## Subagent 会话
 
-`pi-subagents` 以 `<type>#<8 个字符>` 命名子会话。此类 session 可以创建和读取任务，任务写入父目录的存储并显示在父 tab 的 widget 中，但它不持有 timer，也不持有 widget。
+`pi-subagents` 以 `<type>#<8 个字符>` 命名子会话。此类 session 可以创建和读取任务，任务写入父目录的存储并显示在交互 tab 的 widget 中，但它不持有 timer，也不持有 widget。
 
 ## 工具动作
 

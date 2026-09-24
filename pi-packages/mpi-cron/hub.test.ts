@@ -408,6 +408,49 @@ describe("CronHub delivery", () => {
     expect(hub.pickInstance(undefined)?.isSubagent).toBe(false);
   });
 
+  test("a fired prompt goes back to the session that created the job", async () => {
+    const clock = new FakeClock();
+    const store = new FakeStore();
+    // The creating tab registered last, so registry order alone would pick the
+    // other one; only `createdBy` can send the run back to where it was set up.
+    store.seed({
+      id: "job",
+      createdBy: "creator",
+      schedule: { kind: "interval", intervalMs: 1_000, source: "1s" },
+    });
+    const hub = makeHub({ store, clock });
+    const other = makeInstance({ sessionId: "other" });
+    const creator = makeInstance({ sessionId: "creator" });
+    hub.register(other);
+    hub.register(creator);
+
+    await hub.refresh();
+    await clock.advance(1_000);
+    await Bun.sleep(0);
+
+    expect(creator.delivered).toEqual(["seeded"]);
+    expect(other.delivered).toEqual([]);
+  });
+
+  test("falls back to an interactive tab when the creating session is gone", async () => {
+    const clock = new FakeClock();
+    const store = new FakeStore();
+    store.seed({
+      id: "job",
+      createdBy: "closed-tab",
+      schedule: { kind: "interval", intervalMs: 1_000, source: "1s" },
+    });
+    const hub = makeHub({ store, clock });
+    const live = makeInstance({ sessionId: "live" });
+    hub.register(live);
+
+    await hub.refresh();
+    await clock.advance(1_000);
+    await Bun.sleep(0);
+
+    expect(live.delivered).toEqual(["seeded"]);
+  });
+
   test("a dead instance is dropped from the registry when delivery throws", async () => {
     const clock = new FakeClock();
     const store = new FakeStore();

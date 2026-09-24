@@ -2,17 +2,18 @@
  * mpi-cron: schedule prompts on a per-directory job store.
  *
  * Jobs live in `<cwd>/<CONFIG_DIR_NAME>/cron/jobs.json`, not inside a session
- * file, so a job created by a subagent or another tab appears in every tab's
- * widget and survives a restart. Firing claims the job in the store first, so
- * several tabs, or several `mpi` processes in one directory, deliver a run
- * exactly once. The surfaces are the `cron` tool for agents and `/cron` for
+ * file, so a job created by another tab or a subagent keeps firing and survives a
+ * restart. A tab's widget shows the jobs that tab created plus the jobs no tab
+ * owns: those stored before `createdBy` existed, and those a subagent created,
+ * since a subagent session hosts no widget. Firing claims the job in the store
+ * first, so several tabs, or several `mpi` processes in one directory, deliver a
+ * run exactly once. The surfaces are the `cron` tool for agents and `/cron` for
  * interactive management.
  *
- * Delivery target: Pi binds one extension runner per session, and the loader
- * caches one module instance per cwd, so this module sees every tab's context but
- * only the active runner can inject a message. A fired prompt therefore lands in
- * the session that is currently active; the store's claim keeps it from being
- * delivered twice by the other tabs.
+ * Delivery target: a fired prompt prefers the session that created the job, so a
+ * run reports back to the tab where it was set up, and falls back to the first
+ * interactive tab when that session has exited. The store's claim keeps a run
+ * from being delivered twice by the other tabs.
  */
 
 import type {
@@ -27,7 +28,7 @@ import { CRON_WIDGET_ID, renderCronWidgetRows, WIDGET_REFRESH_MS } from "./cron-
 import type { CronHub } from "./hub.js";
 import { getCronHub } from "./hub.js";
 import { CronStore } from "./storage.js";
-import { createCronTool, SCHEDULED_PROMPT_TYPE } from "./tool.js";
+import { createCronTool, findJob, SCHEDULED_PROMPT_TYPE } from "./tool.js";
 import type { CronInstance, CronJob } from "./types.js";
 
 /**
@@ -84,6 +85,30 @@ interface TabState {
   timer?: ReturnType<typeof setInterval>;
 }
 
+/** Per-session transcript writer for run markers. */
+interface MarkerWriter {
+  append: (data: ScheduledPromptData) => void;
+  /** False for subagent sessions, which never receive a run. */
+  interactive: boolean;
+}
+
+const MARKER_KEY = Symbol.for("mpi-cron.markers");
+
+/**
+ * Process-wide map of session id to transcript writer. Pi calls the extension
+ * factory once per session, so a factory-local map holds one tab only; a run
+ * delivered into another tab would have its marker written into this one. The
+ * hub uses the same `globalThis` symbol key for the same reason.
+ */
+function markerWriters(): Map<string, MarkerWriter> {
+  const registry = globalThis as unknown as Record<symbol, unknown>;
+  const existing = registry[MARKER_KEY];
+  if (existing instanceof Map) return existing as Map<string, MarkerWriter>;
+  const created = new Map<string, MarkerWriter>();
+  registry[MARKER_KEY] = created;
+  return created;
+}
+
 export default function mpiCron(pi: ExtensionAPI) {
   const tabs = new Map<string, TabState>();
   let hub: CronHub | undefined;
@@ -100,34 +125,83 @@ export default function mpiCron(pi: ExtensionAPI) {
           void tab.instance.refresh();
         }
       },
-      onRunFinished: ({ job, status, detail }) => {
-        // The hub does not track which tab received the prompt, so the marker
-        // goes to the first interactive tab.
-        const ctx = [...tabs.values()].find((tab) => !tab.instance.isSubagent)?.context;
-        if (!ctx) return;
-        try {
-          pi.appendEntry<ScheduledPromptData>(SCHEDULED_PROMPT_TYPE, {
-            job: job.id,
-            name: job.name,
-            state: status,
-            text: detail.trim() ? detail.trim().slice(0, 400) : "(no output)",
-          });
-        } catch {
-          // A session that vanished mid-run cannot record the marker; the store
-          // already holds the outcome, so this is not a failed run.
-        }
+      onRunFinished: ({ job, status, detail, sessionId }) => {
+        // The marker belongs in the session that received the prompt, so it sits
+        // next to what it reports on. When that session has exited, the first
+        // interactive tab takes it instead.
+        const writers = markerWriters();
+        const target =
+          (sessionId !== undefined ? writers.get(sessionId) : undefined) ??
+          [...writers.values()].find((writer) => writer.interactive);
+        target?.append({
+          job: job.id,
+          name: job.name,
+          state: status,
+          text: detail.trim() ? detail.trim().slice(0, 400) : "(no output)",
+        });
       },
     });
     return hub;
   };
 
-  pi.registerTool(createCronTool(() => ensureHub(storeCwd ?? process.cwd())));
+  pi.registerTool(
+    createCronTool(
+      () => ensureHub(storeCwd ?? process.cwd()),
+      // A subagent session hosts no widget, so its jobs stay unowned and show in
+      // the interactive tabs instead of disappearing from every widget.
+      (ctx) => (isSubagentSession(ctx) ? undefined : ctx.sessionManager.getSessionId()),
+    ),
+  );
 
   pi.registerCommand("cron", {
-    description: "Show and manage scheduled cron jobs. Usage: /cron",
-    handler: async (_args, ctx) => {
+    description: "Show and manage scheduled cron jobs. Usage: /cron [stop <id|name>]",
+    ...({ argumentHint: "[stop <id|name>]" } as Record<string, unknown>),
+    getArgumentCompletions: (prefix: string) => {
+      const trimmed = prefix.trim();
+      if (!trimmed) {
+        return [
+          { label: "stop <id|name>", description: "Remove a job by id or name", value: "stop " },
+        ];
+      }
+      if (trimmed.startsWith("stop")) {
+        const jobs = hub?.cachedJobs() ?? [];
+        if (jobs.length === 0) return null;
+        return jobs.map((job) => ({
+          label: `${job.id} (${job.name})`,
+          description: job.prompt.slice(0, 60),
+          value: `stop ${job.id}`,
+        }));
+      }
+      return null;
+    },
+    handler: async (args, ctx) => {
       const cronHub = ensureHub(ctx.cwd);
-      const tab = tabs.get(ctx.sessionManager.getSessionId());
+      const trimmed = args.trim();
+
+      // ── stop subcommand ──────────────────────────────────────────────────
+      if (trimmed.startsWith("stop")) {
+        const idOrName = trimmed.slice(4).trim();
+        if (!idOrName) {
+          ctx.ui.notify("Error: Usage: /cron stop <id|name>", "warning");
+          return;
+        }
+        const jobs = await cronHub.refresh();
+        const job = findJob(jobs, idOrName);
+        if (!job) {
+          ctx.ui.notify(
+            `Error: No job found: "${idOrName}". Use /cron to see all jobs.`,
+            "warning",
+          );
+          return;
+        }
+        await cronHub.remove(job.id);
+        await refreshTabs(cronHub);
+        ctx.ui.notify(`Job "${job.name}" (${job.id}) removed.`, "info");
+        return;
+      }
+
+      const sessionId = ctx.sessionManager.getSessionId();
+      const tab = tabs.get(sessionId);
       await ctx.ui.custom<void>(
         (tui, theme, _keybindings, done) =>
           new CronManagementView(
@@ -138,7 +212,8 @@ export default function mpiCron(pi: ExtensionAPI) {
             {
               getJobs: () => tab?.jobs ?? [],
               add: async (input) => {
-                const job = await cronHub.add(input);
+                const createdBy = tab?.instance.isSubagent ? undefined : sessionId;
+                const job = await cronHub.add({ ...input, createdBy });
                 if (tab) tab.jobs = await cronHub.refresh();
                 return job;
               },
@@ -202,6 +277,17 @@ export default function mpiCron(pi: ExtensionAPI) {
       },
     };
     tabs.set(sessionId, tab);
+    markerWriters().set(sessionId, {
+      append: (data) => {
+        try {
+          pi.appendEntry<ScheduledPromptData>(SCHEDULED_PROMPT_TYPE, data);
+        } catch {
+          // A context that went stale mid-run cannot take the marker; the store
+          // already holds the outcome, so swallowing this is safe.
+        }
+      },
+      interactive: !subagent,
+    });
 
     if (subagent) return;
     tab.jobs = await cronHub.refresh();
@@ -214,6 +300,7 @@ export default function mpiCron(pi: ExtensionAPI) {
     const tab = tabs.get(sessionId);
     stopWidget(tab);
     tabs.delete(sessionId);
+    markerWriters().delete(sessionId);
     // A subagent never registered, and unregister is a no-op for unknown ids.
     hub?.unregister(sessionId);
   });
@@ -240,7 +327,13 @@ function deliverIntoSession(pi: ExtensionAPI, ctx: ExtensionContext, prompt: str
 
 /** Register or refresh this tab's widget from its current job snapshot. */
 function renderWidget(tab: TabState): void {
-  const { context, jobs } = tab;
+  const { context } = tab;
+  // Show the jobs this tab created, so the widget does not appear in unrelated
+  // tabs. A job with no createdBy (stored before the field existed, or created by
+  // a subagent session, which hosts no widget) is shown in every tab.
+  const jobs = tab.jobs.filter(
+    (j) => j.createdBy === undefined || j.createdBy === tab.instance.sessionId,
+  );
   try {
     if (jobs.length === 0) {
       context.ui.setWidget(CRON_WIDGET_ID, undefined);

@@ -129,6 +129,12 @@ function summarizeJob(job: CronJob, now: number): string {
 
 export function createCronTool(
   getHub: () => CronHub,
+  /**
+   * Creator recorded on a new job: the session whose widget the job belongs to.
+   * Return undefined for a session that hosts no widget, which leaves the job
+   * unowned so every interactive tab shows it.
+   */
+  resolveCreatedBy?: (ctx: ExtensionContext) => string | undefined,
 ): ToolDefinition<typeof cronToolSchema, CronToolDetails> {
   return {
     name: "cron",
@@ -169,6 +175,9 @@ export function createCronTool(
               description: params.description,
               prompt: params.prompt,
               schedule,
+              createdBy: resolveCreatedBy
+                ? resolveCreatedBy(ctx)
+                : ctx.sessionManager.getSessionId(),
             });
             details.jobs = [job];
             details.jobId = job.id;

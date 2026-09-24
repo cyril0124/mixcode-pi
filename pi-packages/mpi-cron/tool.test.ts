@@ -41,6 +41,7 @@ function makeHub(initial: CronJob[] = []) {
           name: String(input.name),
           prompt: String(input.prompt),
           schedule: input.schedule as CronJob["schedule"],
+          createdBy: input.createdBy as string | undefined,
         });
         created.nextRun = Date.now() + 60_000;
         state.jobs.push(created);
@@ -68,14 +69,22 @@ function makeHub(initial: CronJob[] = []) {
 
 type FakeHub = ReturnType<typeof makeHub>["hub"];
 
+/** Session id the fake context reports; `add` records it as the job's creator. */
+const TEST_SESSION = "session-under-test";
+
 function context(entries: unknown[] = []): ExtensionContext {
   return {
-    sessionManager: { getEntries: () => entries },
+    sessionManager: { getEntries: () => entries, getSessionId: () => TEST_SESSION },
   } as unknown as ExtensionContext;
 }
 
-async function callTool(hub: FakeHub, params: Record<string, unknown>, entries: unknown[] = []) {
-  const tool = createCronTool(() => hub as never);
+async function callTool(
+  hub: FakeHub,
+  params: Record<string, unknown>,
+  entries: unknown[] = [],
+  resolveCreatedBy?: (ctx: ExtensionContext) => string | undefined,
+) {
+  const tool = createCronTool(() => hub as never, resolveCreatedBy);
   const result = await tool.execute(
     "call-1",
     params as never,
@@ -167,6 +176,18 @@ describe("cron tool", () => {
     expect(text).toContain("Created cron job");
     expect(text).toContain("Next run:");
     expect(state.jobs.length).toBe(1);
+    expect(state.jobs[0]?.createdBy).toBe(TEST_SESSION);
+  });
+
+  test("add leaves the job unowned when the creator session hosts no widget", async () => {
+    const { hub, state } = makeHub();
+    await callTool(
+      hub,
+      { action: "add", schedule: "every 5m", prompt: "check the deploy" },
+      [],
+      () => undefined,
+    );
+    expect(state.jobs[0]?.createdBy).toBeUndefined();
   });
 
   test("add rejects missing schedule or prompt with a readable error", async () => {

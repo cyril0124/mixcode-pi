@@ -2,7 +2,7 @@
 
 [中文文档](README.zh.md)
 
-Schedule prompts from any MixCode tab. Jobs belong to a working directory, not to a session, so a job created by another tab, by a subagent, or before a restart keeps firing and stays visible in every tab's widget.
+Schedule prompts from any MixCode tab. Jobs belong to a working directory, not to a session, so a job created by another tab, by a subagent, or before a restart keeps firing. The widget shows the jobs this tab created, plus jobs a subagent created; `/cron` lists every job in the directory.
 
 
 ## Surfaces
@@ -11,8 +11,9 @@ Schedule prompts from any MixCode tab. Jobs belong to a working directory, not t
 |---|---|
 | `cron` tool | Agents create, list, update, remove, enable/disable, fire, and clean up jobs. |
 | `/cron` | Management overlay: filtered job list with schedule, run count, and last-run age; an inline create wizard; job detail with the prompt, pause/resume, fire now, remove, cleanup. |
-| Widget | `belowEditor` dock showing this directory's jobs with status, schedule, time to next run, and run count. Hidden while the directory has no jobs. |
-| Transcript marker | Every finished run appends a `scheduled_prompt` entry with the run outcome. |
+| `/cron stop <id\|name>` | Remove a job by id or name without opening the overlay. Tab-completion lists active jobs. |
+| Widget | `belowEditor` dock showing this tab's own jobs and subagent-created jobs, with status, schedule, time to next run, and run count. Hidden while it has none to show. |
+| Transcript marker | Every finished run appends a `scheduled_prompt` entry to the session that received the prompt, with the run outcome. |
 
 The widget and the list share one set of run-state glyphs: `~` running, `!` the last run failed, `*` enabled, `x` paused.
 
@@ -49,12 +50,12 @@ child ─┘         │
 
 - The prompt is injected with `expandPromptTemplates`, so a job may hold `/command`, `$skill`, or a prompt template, exactly like typed input.
 - A busy agent receives the prompt as a follow-up instead of losing it.
-- Delivery prefers an interactive session over a pi-subagents child session; the widget is only owned by interactive sessions.
-- Pi binds one extension runner per session, so a fired prompt lands in the session that is active at that moment. The claim still guarantees a single delivery.
+- Delivery prefers the session that created the job, so a run reports back to the tab where it was set up; otherwise it goes to the first interactive tab. A subagent session is never a delivery target, because subagent sessions do not register.
+- One run reaches one session: the store claim picks the delivering process first, and that process picks the target above.
 
 ## Subagent sessions
 
-`pi-subagents` names a child session `<type>#<8 characters>`. A session with that name may create and read jobs. The job lands in the parent directory's store and appears in the parent tab's widget, but that session owns no timers and no widget.
+`pi-subagents` names a child session `<type>#<8 characters>`. A session with that name may create and read jobs. The job lands in the parent directory's store and appears in the interactive tabs' widgets, but that session owns no timers and no widget.
 
 ## Tool actions
 

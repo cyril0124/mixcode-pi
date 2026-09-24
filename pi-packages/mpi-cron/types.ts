@@ -31,6 +31,12 @@ export interface CronJob {
   /** Token of the run currently in flight; absent when the job is not claimed. */
   claim?: string;
   createdAt: number;
+  /**
+   * Session that created the job. A fired prompt prefers this session, so a job
+   * reports back to the tab it was set up in; a session that has since exited
+   * falls back to the first interactive tab.
+   */
+  createdBy?: string;
   /** Absolute epoch ms after which the job stops without being explicitly disabled. */
   expiresAt?: number;
 }
@@ -41,6 +47,7 @@ export interface CronJobInput {
   description?: string;
   prompt: string;
   schedule: JobSchedule;
+  createdBy?: string;
   expiresAt?: number;
 }
 

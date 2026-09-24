@@ -70,6 +70,7 @@ test("add then list round-trips a job and fills defaults", async () => {
     name: "nightly check",
     prompt: "review the failing tests",
     schedule: { kind: "cron", expr: "0 3 * * *", source: "0 3 * * *" },
+    createdBy: "session-1",
   });
 
   expect(added.id).toBeString();
@@ -83,6 +84,7 @@ test("add then list round-trips a job and fills defaults", async () => {
   const jobs = await store.list();
   expect(jobs).toHaveLength(1);
   expect(jobs[0]?.id).toBe(added.id);
+  expect(jobs[0]?.createdBy).toBe("session-1");
 
   assert.equal(file, path.join(cwd, ".pi", STORE_DIR_NAME, "jobs.json"));
   expect(await exists(file)).toBe(true);

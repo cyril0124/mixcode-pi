@@ -71,6 +71,8 @@ export class CronHub {
   /** Jobs currently being fired, so a tick cannot double-fire within a process. */
   private readonly running = new Set<string>();
   private pristine = true;
+  /** Last list returned by doRefresh; used for synchronous reads such as tab-completion. */
+  private lastKnownJobs: CronJob[] = [];
   /** Tail of the read queue; keeps concurrent refreshes from interleaving. */
   private inFlight: Promise<CronJob[]> | undefined;
 
@@ -141,6 +143,11 @@ export class CronHub {
     }
   }
 
+  /** Return the last refreshed job list without reading the store. */
+  cachedJobs(): CronJob[] {
+    return this.lastKnownJobs;
+  }
+
   private async doRefresh(): Promise<CronJob[]> {
     const jobs = await this.store.list();
     const live = new Set(jobs.map((job) => job.id));
@@ -163,6 +170,7 @@ export class CronHub {
       this.plan(job.id, due);
     }
     this.pristine = false;
+    this.lastKnownJobs = jobs;
     return jobs;
   }
 
@@ -298,9 +306,12 @@ export class CronHub {
     return "done";
   }
 
-  /** Deliver a prompt to a live session. Drops the instance on a stale context. */
+  /**
+   * Deliver a prompt to a live session, preferring the one that created the job.
+   * Drops the instance on a stale context.
+   */
   private deliverPrompt(job: CronJob): { delivered: boolean; sessionId?: string } {
-    const instance = this.pickInstance();
+    const instance = this.pickInstance(job.createdBy);
     if (!instance) return { delivered: false };
     try {
       return { delivered: instance.deliver(job.prompt), sessionId: instance.sessionId };
@@ -308,7 +319,7 @@ export class CronHub {
       // The tab's context is stale: drop it and try the next interactive one
       // rather than losing the run.
       this.instances.delete(instance.sessionId);
-      const fallback = this.pickInstance();
+      const fallback = this.pickInstance(job.createdBy);
       if (!fallback) return { delivered: false };
       try {
         return { delivered: fallback.deliver(job.prompt), sessionId: fallback.sessionId };
