@@ -22,6 +22,7 @@ import {
   renderTabJumpOverlay,
 } from "../src/ui/rendering/overlays.js";
 import { renderAgentSurface } from "../src/ui/rendering/agent-surface.js";
+import { startScrollableChatSelection } from "../src/core/chat-selection.js";
 import type { RuntimeTab } from "../src/agent/runtime.js";
 import { sliceByColumn } from "@earendil-works/pi-tui";
 import { PointerHover } from "../src/ui/pointer-hover.js";
@@ -360,4 +361,126 @@ test("tool-row pointer feedback covers only agent tool rows and follows the pres
   assert.deepEqual([...(tab.expandedToolCalls ?? [])], ["call-1"]);
   // That release never reached the selection handler, so no drag state may survive it.
   assert.equal(tab.chatSelection, undefined, "a click leaves no drag behind");
+});
+
+test("a tool block inside a live selection keeps the selection instead of the hover cue", () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "selection", "/repo");
+  state.tabs.push(tab);
+  state.activeTabId = tab.sessionId;
+  const toolCall = (id: string) => ({
+    role: "tool" as const,
+    title: "bash",
+    toolCallId: id,
+    status: "success" as const,
+    text: `output ${id}`,
+    args: { command: `echo ${id}` },
+  });
+  const runtimeTab = {
+    chat: [
+      { role: "user", text: "before" },
+      toolCall("t-1"),
+      toolCall("t-2"),
+      { role: "user", text: "after" },
+    ],
+  } as unknown as RuntimeTab;
+  // Styles carry both cues, so these comparisons stay on the raw lines.
+  const render = () => renderAgentSurface(tab, runtimeTab, 80, 20);
+  const plain = render();
+  const ranges = tab.chatToolRowRanges ?? [];
+  const block = ranges.find((range) => range.toolCallId === "t-1");
+  const other = ranges.find((range) => range.toolCallId === "t-2");
+  assert.ok(block && other, "the tool rows published their ranges");
+
+  tab.chatHoverRow = block.start;
+  const hovered = render();
+  assert.notDeepEqual(hovered, plain, "a hovered tool block is painted");
+
+  // A drag inside the block covers its rows, including a drag that starts and ends on one row.
+  tab.chatSelection = {
+    anchor: { row: block.start, col: 0 },
+    focus: { row: block.start, col: 5 },
+    dragging: true,
+  };
+  startScrollableChatSelection(
+    tab.chatSelection,
+    tab.lastRenderedChatLines ?? [],
+    tab.chatScrollOffset,
+  );
+  const selectedWithCue = render();
+  tab.chatHoverRow = undefined;
+  const selectedOnly = render();
+  assert.notDeepEqual(selectedOnly, plain, "the selection paints its columns");
+  assert.deepEqual(selectedWithCue, selectedOnly, "the cue yields to the selection it would hide");
+
+  // A selection elsewhere leaves the cue alone.
+  tab.chatSelection = {
+    anchor: { row: other.start, col: 0 },
+    focus: { row: other.start, col: 5 },
+    dragging: true,
+  };
+  tab.chatHoverRow = block.start;
+  const cueBesideSelection = render();
+  tab.chatHoverRow = undefined;
+  assert.notDeepEqual(
+    cueBesideSelection,
+    render(),
+    "a block outside the selection answers the pointer",
+  );
+});
+
+test("a selection keeps covering its block after a scroll, where stored rows need mapping", () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "scrolled", "/repo");
+  state.tabs.push(tab);
+  state.activeTabId = tab.sessionId;
+  const runtimeTab = {
+    chat: [
+      ...Array.from({ length: 40 }, (_, index) => ({
+        role: "user" as const,
+        text: `line ${index}`,
+      })),
+      {
+        role: "tool" as const,
+        title: "bash",
+        toolCallId: "t-last",
+        status: "success" as const,
+        text: "output",
+        args: { command: "echo last" },
+      },
+    ],
+  } as unknown as RuntimeTab;
+  const render = () => renderAgentSurface(tab, runtimeTab, 80, 12);
+  render();
+  const range = (tab.chatToolRowRanges ?? []).find((entry) => entry.toolCallId === "t-last");
+  assert.ok(range, "the trailing tool row is visible at the tail");
+  const origin = tab.chatScrollOffset;
+  tab.chatSelection = {
+    anchor: { row: range.start, col: 0 },
+    focus: { row: range.start, col: 5 },
+    dragging: true,
+  };
+  startScrollableChatSelection(tab.chatSelection, tab.lastRenderedChatLines ?? [], origin);
+  scrollChat(tab, 2);
+  render();
+  const scrolledRange = (tab.chatToolRowRanges ?? []).find(
+    (entry) => entry.toolCallId === "t-last",
+  );
+  assert.ok(scrolledRange);
+  assert.notEqual(tab.chatScrollOffset, origin, "the frame really scrolled");
+  assert.notEqual(scrolledRange.start, range.start, "the block moved with the frame");
+
+  tab.chatHoverRow = scrolledRange.start;
+  const scrolledWithCue = render();
+  tab.chatHoverRow = undefined;
+  assert.deepEqual(scrolledWithCue, render(), "the cue yields to the mapped selection");
+
+  tab.chatSelection = undefined;
+  const freeWithoutCue = render();
+  tab.chatHoverRow = scrolledRange.start;
+  assert.notDeepEqual(
+    render(),
+    freeWithoutCue,
+    "without a selection the block answers the pointer",
+  );
 });

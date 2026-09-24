@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { stripTerminalSequences as stripAnsi, visibleWidth } from "@earendil-works/pi-tui";
 import {
+  chatSelectionCoversBlock,
   highlightChatSelectionLine,
   pointInChatSurface,
   screenToChatSelectionPoint,
@@ -91,6 +92,26 @@ test("selectedChatText copies CJK graphemes at half-cell bounds", () => {
   assert.equal(selectedChatText(lines, drag(0, 3)), "你好");
   assert.equal(selectedChatText(lines, drag(1, 3)), "你好");
   assert.equal(selectedChatText(lines, drag(3, 5)), "好世");
+});
+
+test("chatSelectionCoversBlock matches every overlapping row of a block", () => {
+  const drag = (anchorRow: number, anchorCol: number, focusRow: number, focusCol: number) => ({
+    anchor: { row: anchorRow, col: anchorCol },
+    focus: { row: focusRow, col: focusCol },
+    dragging: true,
+  });
+  assert.equal(chatSelectionCoversBlock(drag(4, 0, 6, 5), 4, 3), true, "the first row");
+  assert.equal(chatSelectionCoversBlock(drag(4, 0, 6, 5), 6, 3), true, "the last row");
+  assert.equal(
+    chatSelectionCoversBlock(drag(4, 0, 6, 5), 6, 1),
+    true,
+    "a one-row block on the end row",
+  );
+  assert.equal(chatSelectionCoversBlock(drag(4, 0, 6, 5), 7, 2), false, "rows after the end");
+  assert.equal(chatSelectionCoversBlock(drag(4, 0, 6, 5), 2, 2), false, "rows before the start");
+  assert.equal(chatSelectionCoversBlock(drag(6, 5, 4, 0), 5, 1), true, "a reverse drag");
+  assert.equal(chatSelectionCoversBlock(drag(5, 0, 5, 9), 5, 1), true, "a drag inside one row");
+  assert.equal(chatSelectionCoversBlock(drag(5, 3, 5, 3), 5, 1), false, "a collapsed selection");
 });
 
 test("highlightChatSelectionLine ignores collapsed selection", () => {
