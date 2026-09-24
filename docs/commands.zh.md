@@ -55,6 +55,7 @@ MixCode 在 `src/core/commands.ts` 中注册了内置本地 Slash 命令。这�
 | `/reload` | - | Session | 重新加载模型配置、项目 Skill 并重新绑定扩展资源。 |
 | `/system-prompt` | - | Session | 在外部编辑器中检视或编辑当前组装的 System Prompt；末尾附带各分段大小与估算 token 占比的统计表。 |
 | `/system-tools` | - | Session | 检视当前激活的工具 Schema 与所有者信息；末尾附带每个工具的大小与估算 token 占比统计表，只计入真正发给模型的部分（name + description + parameter schema）。 |
+| `/context` | - | Session | 打开只读的上下文用量面板：网格 + 图例，把当前上下文拆分为 System prompt、Project context、Skills、Tool guidelines、Tool schemas、Messages，并列出剩余空间与自动压缩预留。总量为最近一次响应回传的用量加上其后消息的估算值；在尚无响应回传用量之前，总量带 `~`、百分比为 `?`。窗口取该页签的 `/context-limit` 值。会话具备的分类都会列出，包括 token 为 0 的分类；Messages 在总量已知后列出。首次请求之前，拆分取自 MixCode 组装的提示词，因此提示词各分类从一开始就有归属；扩展注入的分段要等首次请求收集后才出现。窄终端下网格降级为紧凑宽度，空间不足时只保留数字。 |
 | `/console-history` | - | - | 打开当前 `mpi` 进程最近 1000 条经桥接的 `console.log/info/debug/warn/error` 记录，每行前缀 `YYYY-MM-DD HH:MM:SS` 时间戳；若该行来自某个 tab 的工作（Agent 回合、扩展命令、Shell 执行），时间戳后还带发出该行的 tab 标题。启动阶段与后台定时器输出不带 tab 标题。依次检查项目设置、全局设置、`$VISUAL` 和 `$EDITOR`。选中的命令必须通过 1 秒 `--version` 探测。若均未设置，MixCode 依次尝试 `nvim`、`vim`。没有可用的外部编辑器时，MixCode 打开内置只读查看器。重启 `mpi` 会清空历史。 |
 | `/hotkeys` | - | - | 查看完整的全局与局部快捷键清单。 |
 | `/quit` / `/exit` | - | - | 安全保存当前状态并退出 MixCode。 |

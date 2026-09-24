@@ -1,15 +1,23 @@
 import { getConsoleHistory } from "../cli/console-tui-bridge.js";
-import { getEffectiveSystemPrompt } from "../agent/pi-session-internals.js";
+import {
+  collectContextUsage,
+  type ContextUsageSnapshot,
+  getEffectiveSystemPrompt,
+} from "../agent/pi-session-internals.js";
 import { MIXCODE_EXTENSION_KEYBINDINGS } from "../agent/runtime-extension-theme.js";
 import type { LocalCommand } from "../core/commands.js";
+import { computeContextUsage } from "../core/context-usage.js";
 import { openCommandPalette, openTabJump } from "../core/overlays.js";
 import { pushToast } from "../core/toast.js";
 import { HOME_TAB_ID, type MixCodeState } from "../core/types.js";
 import { emitMarkDone } from "../core/extension-event-bus.js";
 import { appendActiveSystemMessage } from "./app-actions.js";
 import {
+  defaultOverlayOptions,
   editTextWithTuiPaused,
+  errorMessage,
   showLinesOverlay,
+  showReadOnlyOverlay,
   showTextInPreferredViewer,
   showTextOverlay,
 } from "./app-overlays.js";
@@ -24,7 +32,13 @@ import {
 import { renderHotkeysText } from "./hotkeys.js";
 import { getConfiguredQuitOptions, quitMixCode } from "./quit.js";
 import { clearConversationCache, renderCommandPalette, renderTabJumpOverlay } from "./rendering.js";
+import { getCurrentUiTheme } from "./rendering/context.js";
 import { renderSystemToolsText } from "./system-tools.js";
+import {
+  CONTEXT_PANEL_MAX_WIDTH,
+  contextUsageOverlayWidth,
+  renderContextUsageOverlay,
+} from "./components/context-usage-panel.js";
 import { renderSystemPromptSectionStats } from "./components/system-prompt-stats.js";
 import { closeTreeSelector } from "./components/tree-selector.js";
 
@@ -226,6 +240,49 @@ const handleSystemTools: LocalCommandHandler = async ({ active, args, runtime, t
   return undefined;
 };
 
+const handleContext: LocalCommandHandler = ({ active, args, runtime, tui }) => {
+  if (args.trim()) throw new Error("Error: Usage: /context");
+  // Dispatch rejects session-scoped commands without an active tab (config-scoped
+  // commands are the exception), so `active` is present here.
+  const runtimeTab = runtime.getTab(active!.sessionId);
+  if (!runtimeTab) throw new Error(`Unknown tab session: ${active!.sessionId}`);
+  let snapshot: ContextUsageSnapshot;
+  try {
+    snapshot = collectContextUsage(runtimeTab);
+  } catch (error) {
+    // Session reads can fail on histories the estimator cannot handle or on a
+    // broken extension tool schema; report both with the user-facing prefix.
+    throw new Error(`Error: Context usage is unavailable: ${errorMessage(error)}`);
+  }
+  const breakdown = computeContextUsage(snapshot.input);
+  if (breakdown.contextWindow <= 0) {
+    throw new Error("Error: Context usage is unavailable: no model is selected for this session.");
+  }
+  // Snapshot once, then let the overlay re-render from it. The overlay is requested
+  // at exactly the box width: the host pads each line to that width, so a wider
+  // request would leave blank cells beside the box and erase the transcript there.
+  const termWidth = Math.max(20, process.stdout.columns || 80);
+  const labels = { modelName: snapshot.modelName, modelId: snapshot.modelId };
+  const panelWidth = contextUsageOverlayWidth(
+    breakdown,
+    labels,
+    getCurrentUiTheme(),
+    Math.min(CONTEXT_PANEL_MAX_WIDTH, termWidth - 2),
+  );
+  showReadOnlyOverlay(
+    tui,
+    (width) =>
+      renderContextUsageOverlay(
+        breakdown,
+        labels,
+        getCurrentUiTheme(),
+        Math.min(panelWidth, width),
+      ).split("\n"),
+    { ...defaultOverlayOptions(), width: panelWidth },
+  );
+  return undefined;
+};
+
 const handleConsoleHistory: LocalCommandHandler = async ({ args, tui }) => {
   if (args.trim()) throw new Error("Error: Usage: /console-history");
   const history = getConsoleHistory();
@@ -255,6 +312,7 @@ const handleQuit: LocalCommandHandler = async ({ runtime, tui }) => {
 
 export const UI_COMMAND_HANDLERS = {
   "system-prompt": handleSystemPrompt,
+  context: handleContext,
   "system-tools": handleSystemTools,
   "console-history": handleConsoleHistory,
   "toggle-hidden-messages": handleToggleHiddenMessages,

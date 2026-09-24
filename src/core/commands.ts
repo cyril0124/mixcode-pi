@@ -4,6 +4,7 @@ export type LocalCommand =
   | "batch"
   | "models"
   | "thinking"
+  | "context"
   | "context-limit"
   | "workdir"
   | "fork"
@@ -168,6 +169,15 @@ export const LOCAL_COMMANDS: Array<{
     palette: {
       label: "Choose Thinking Tier",
       description: "Choose the current tab thinking tier",
+      requires: "session",
+    },
+  },
+  {
+    name: "context",
+    description: "Show context usage by category",
+    palette: {
+      label: "Show Context Usage",
+      description: "Show current context usage by category",
       requires: "session",
     },
   },

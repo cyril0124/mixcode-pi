@@ -200,6 +200,42 @@ export function showTextOverlay(tui: OverlayTui, text: string): void {
   showLinesOverlay(tui, () => text.split(/\r?\n/));
 }
 
+/**
+ * Lines overlay that owns the close keys for a read-only panel.
+ *
+ * `LinesOverlay` has no input handler, so while it is focused (app overlays are
+ * capturing) the app-level key handler never sees `q` and only `Esc` closes it.
+ * Panels whose hint promises `q` need this component, which handles both keys.
+ */
+class CloseKeyedLinesOverlay implements Component {
+  constructor(
+    private readonly tui: OverlayTui,
+    private readonly renderLines: (width: number) => string[],
+  ) {}
+
+  invalidate(): void {}
+
+  render(width: number): string[] {
+    return this.renderLines(width)
+      .flatMap((line) => line.split(/\r?\n/))
+      .map((line) => padLine(line, width));
+  }
+
+  handleInput(data: string): void {
+    if (isKeyRelease(data)) return;
+    if (matchesKey(data, "escape") || matchesKey(data, "q")) closeAppOverlay(this.tui);
+  }
+}
+
+/** Show a read-only lines panel that closes on `Esc` or `q`, as its hint states. */
+export function showReadOnlyOverlay(
+  tui: OverlayTui,
+  renderLines: (width: number) => string[],
+  options: OverlayOptions = defaultOverlayOptions(),
+): void {
+  showComponentOverlay(tui, new CloseKeyedLinesOverlay(tui, renderLines), options);
+}
+
 export function showLinesOverlay(
   tui: OverlayTui,
   renderLines: (width: number) => string[],

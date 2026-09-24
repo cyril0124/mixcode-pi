@@ -818,7 +818,7 @@ function contextUsagePercent(tab: MixCodeTabInfo): number | undefined {
   return Math.min(999, Math.max(0, (tokens / limit) * 100));
 }
 
-function formatCompactTokenCount(tokens: number): string {
+export function formatCompactTokenCount(tokens: number): string {
   const value = tokens / 1_000;
   if (Number.isInteger(value)) return `${value.toFixed(0)}k`;
   return `${tokens < 10_000 ? value.toFixed(2) : value.toFixed(1)}k`;

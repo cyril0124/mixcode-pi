@@ -1,16 +1,5 @@
 import type { SystemPromptSection } from "../../core/system-prompt.js";
-
-// No tokenizer dependency ships with the project; estimates only, labeled as
-// such in the output. CJK chars tokenize at roughly one per char vs ~4 chars
-// per token for latin text, so counting them separately keeps proportions sane
-// for Chinese-heavy AGENTS.md files.
-const CJK_RE =
-  /[\u{1100}-\u{11FF}\u{3040}-\u{30FF}\u{3130}-\u{318F}\u{3400}-\u{4DBF}\u{4E00}-\u{9FFF}\u{AC00}-\u{D7AF}\u{F900}-\u{FAFF}\u{FF00}-\u{FFEF}]/gu;
-
-function estimateTokens(text: string): number {
-  const cjk = (text.match(CJK_RE) ?? []).length;
-  return Math.ceil(cjk + (text.length - cjk) / 4);
-}
+import { estimateTextTokens } from "../../core/token-estimate.js";
 
 const NAME_WIDTH = 48;
 
@@ -34,9 +23,9 @@ export function renderTokenBreakdown(
   totalText: string,
   notes: readonly string[] = [],
 ): string {
-  const totalTokens = estimateTokens(totalText);
+  const totalTokens = estimateTextTokens(totalText);
   const line = (name: string, text: string) => {
-    const tokens = estimateTokens(text);
+    const tokens = estimateTextTokens(text);
     const pct = totalTokens > 0 ? ((tokens / totalTokens) * 100).toFixed(1) : "0.0";
     const label =
       name.length > NAME_WIDTH ? `…${name.slice(-(NAME_WIDTH - 1))}` : name.padEnd(NAME_WIDTH);
