@@ -2,6 +2,7 @@ import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
 import { ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
 import type { TUI as PiTui } from "@earendil-works/pi-tui";
 import { ensureExtensionThemeInitialized } from "./runtime-extension-theme.js";
+import { toolCallExpanded, toolCallIdExpanded } from "../ui/rendering/tool-expansion.js";
 import { applyMixCodeKeybindings } from "./runtime-pi-tui-bridge.js";
 import type { ChatLine, RuntimeTab, ToolResultLike } from "./runtime-types.js";
 
@@ -108,7 +109,7 @@ export function toolExecutionToChatLine(
         options.isPartial,
       );
     }
-    component.setExpanded(runtimeTab.tab.extensionUi.toolsExpanded);
+    component.setExpanded(toolCallIdExpanded(runtimeTab.tab, options.toolCallId));
     component.setShowImages(toolShowImages(runtimeTab));
     component.setImageWidthCells(toolImageWidthCells(runtimeTab));
   } finally {
@@ -127,7 +128,7 @@ export function toolExecutionToChatLine(
     toolRenderShell: "self",
     toolExecutionComponent: component,
   };
-  let renderedExpanded = runtimeTab.tab.extensionUi.toolsExpanded;
+  let renderedExpanded = toolCallExpanded(runtimeTab.tab, line);
   let renderedShowImages = toolShowImages(runtimeTab);
   let renderedImageWidthCells = toolImageWidthCells(runtimeTab);
   let renderedWidth: number | undefined;
@@ -140,7 +141,7 @@ export function toolExecutionToChatLine(
       // changed. ToolExecutionComponent setters rebuild custom renderers even
       // when the value is identical, so calling them on every repaint creates
       // an avoidable full tool-renderer pass.
-      const expanded = runtimeTab.tab.extensionUi.toolsExpanded;
+      const expanded = toolCallExpanded(runtimeTab.tab, line);
       if (expanded !== renderedExpanded) {
         renderedExpanded = expanded;
         component.setExpanded(expanded);

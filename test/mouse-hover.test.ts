@@ -231,3 +231,133 @@ test("hover paint preserves wide cells, resets with geometry, and never alters t
   assert.equal(hover.id, undefined);
   assert.deepEqual(hover.paint(source, 20, themeForId("light")), source);
 });
+
+test("hovering and clicking a tool row act on that call only", () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "tool-click", "/repo");
+  state.tabs.push(tab);
+  state.activeTabId = tab.sessionId;
+  const runtimeTab = {
+    chat: [
+      { role: "user", text: "run the checks" },
+      { role: "tool", toolCallId: "call-1", title: "bash", text: "$ bun run check" },
+      { role: "tool", toolCallId: "call-2", title: "bash", text: "$ bun run lint" },
+      { role: "assistant", text: "done" },
+    ],
+  } as RuntimeTab;
+  tab.chatSurfaceBounds = { top: 5, left: 1, width: 79, height: 12 };
+  const render = () => renderAgentSurface(tab, runtimeTab, 80, 12);
+  const normal = render();
+  const ranges = tab.chatToolRowRanges;
+  assert.ok(
+    ranges && ranges.length === 2,
+    `both tool blocks are published: ${JSON.stringify(ranges)}`,
+  );
+  const [first, second] = ranges as Array<{ start: number; height: number; toolCallId?: string }>;
+  assert.deepEqual(
+    [first!.toolCallId, second!.toolCallId],
+    ["call-1", "call-2"],
+    "each range carries its own tool call",
+  );
+  const tui = testTui({ requestRender: () => {} });
+  // The published range has to cover rows the renderer actually painted for that block.
+  const blockRows = normal
+    .slice(first!.start, first!.start + first!.height)
+    .map(stripTerminalSequences);
+  assert.ok(
+    blockRows.some((row) => row.includes("bash")),
+    `the range covers the block's own rows: ${blockRows.join(" | ")}`,
+  );
+
+  // Hover paints the pointed row's block.
+  handleMixCodeKeyInput(state, `\x1b[<35;4;${5 + first!.start}M`, tui);
+  const hovered = render();
+  assert.notDeepEqual(hovered, normal, "the pointed block is highlighted");
+  assert.deepEqual(hovered.map(stripTerminalSequences), normal.map(stripTerminalSequences));
+  handleMixCodeKeyInput(state, `\x1b[<35;4;1M`, tui);
+  assert.deepEqual(render(), normal, "leaving the chat clears the cue");
+
+  // A click expands only the call it landed on.
+  handleMixCodeKeyInput(state, `\x1b[<0;4;${5 + first!.start}M`, tui);
+  assert.equal(tab.extensionUi.toolsExpanded, false, "the press alone changes nothing");
+  handleMixCodeKeyInput(state, `\x1b[<0;4;${5 + first!.start}m`, tui);
+  assert.deepEqual([...(tab.expandedToolCalls ?? [])], ["call-1"]);
+  assert.equal(tab.extensionUi.toolsExpanded, false, "the global toggle stays off");
+
+  // Clicking the second row expands that one too, and re-clicking the first collapses it.
+  const secondRow = 5 + second!.start;
+  handleMixCodeKeyInput(state, `\x1b[<0;4;${secondRow}M`, tui);
+  handleMixCodeKeyInput(state, `\x1b[<0;4;${secondRow}m`, tui);
+  assert.deepEqual([...(tab.expandedToolCalls ?? [])].sort(), ["call-1", "call-2"]);
+  const firstRow = 5 + first!.start;
+  handleMixCodeKeyInput(state, `\x1b[<0;4;${firstRow}M`, tui);
+  handleMixCodeKeyInput(state, `\x1b[<0;4;${firstRow}m`, tui);
+  assert.deepEqual([...(tab.expandedToolCalls ?? [])], ["call-2"]);
+
+  // A drag over a row is a text selection, not a click.
+  handleMixCodeKeyInput(state, `\x1b[<0;4;${secondRow}M`, tui);
+  handleMixCodeKeyInput(state, `\x1b[<32;9;${secondRow}M`, tui);
+  handleMixCodeKeyInput(state, `\x1b[<0;9;${secondRow}m`, tui);
+  assert.deepEqual([...(tab.expandedToolCalls ?? [])], ["call-2"], "a drag never toggles");
+
+  // A click on a row that holds no tool call leaves the state alone.
+  handleMixCodeKeyInput(state, "\x1b[<0;4;5M", tui);
+  handleMixCodeKeyInput(state, "\x1b[<0;4;5m", tui);
+  assert.deepEqual([...(tab.expandedToolCalls ?? [])], ["call-2"]);
+});
+
+test("tool-row pointer feedback covers only agent tool rows and follows the press", () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "tool-pointer", "/repo");
+  state.tabs.push(tab);
+  state.activeTabId = tab.sessionId;
+  const runtimeTab = {
+    chat: [
+      { role: "user", text: "run the checks" },
+      { role: "tool", toolCallId: "call-1", title: "bash", text: "$ bun run check" },
+      {
+        role: "tool",
+        toolCallId: "user-bash-1",
+        variant: "user-bash",
+        title: "bash",
+        text: "$ echo hi",
+      },
+      { role: "assistant", text: "done" },
+    ],
+  } as RuntimeTab;
+  tab.chatSurfaceBounds = { top: 5, left: 1, width: 79, height: 12 };
+  const render = () => renderAgentSurface(tab, runtimeTab, 80, 12);
+  render();
+  assert.equal(tab.chatHoverRow, undefined, "a fresh render carries no cue");
+
+  const ranges = tab.chatToolRowRanges ?? [];
+  assert.deepEqual(
+    ranges.map((range) => range.toolCallId),
+    ["call-1"],
+    "a command the user typed answers no pointer",
+  );
+  const row = 5 + ranges[0]!.start;
+  const tui = testTui({ requestRender: () => {} });
+
+  // The chat's own columns bound the cue, so the scrollbar column stays inert.
+  handleMixCodeKeyInput(state, mouse(1 + 79, row), tui);
+  assert.equal(tab.chatHoverRow, undefined);
+  handleMixCodeKeyInput(state, mouse(4, row), tui);
+  assert.equal(tab.chatHoverRow, ranges[0]!.start);
+
+  // A row outside a tool block and an overlay both drop the cue.
+  handleMixCodeKeyInput(state, mouse(4, 5 + 10), tui);
+  assert.equal(tab.chatHoverRow, undefined, "motion off the tool row drops the cue");
+  handleMixCodeKeyInput(state, mouse(4, row), tui);
+  const covered = testTui({ requestRender: () => {}, hasOverlay: () => true });
+  handleMixCodeKeyInput(state, mouse(4, row), covered);
+  assert.equal(tab.chatHoverRow, undefined, "an overlay owns the pointer");
+
+  // The press keeps its call, so a scroll before the release still toggles that call.
+  handleMixCodeKeyInput(state, `\x1b[<0;4;${row}M`, tui);
+  handleMixCodeKeyInput(state, "\x1b[<64;4;6M", tui);
+  handleMixCodeKeyInput(state, `\x1b[<0;4;${row}m`, tui);
+  assert.deepEqual([...(tab.expandedToolCalls ?? [])], ["call-1"]);
+  // That release never reached the selection handler, so no drag state may survive it.
+  assert.equal(tab.chatSelection, undefined, "a click leaves no drag behind");
+});

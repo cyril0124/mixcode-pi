@@ -72,6 +72,8 @@ const HIDDEN_THINKING_LABEL_PREFIX = /(^|(?:\r?\n){2})[^\S\r\n]*(?:thinking:\s*)
 
 interface RenderConversationOptions {
   blockOptions?: (line: ChatLine, index: number) => RenderChatBlockOptions | undefined;
+  /** Reports each rendered block's first row and height in the returned buffer. */
+  blockRanges?: (line: ChatLine, start: number, height: number) => void;
 }
 
 interface ChatLineRenderCacheEntry {
@@ -107,7 +109,7 @@ export function renderConversation(
   if (!chat.length) {
     return renderConversationEmptyState(width);
   }
-  return renderChatStream(chat, width, tab, options.blockOptions);
+  return renderChatStream(chat, width, tab, options.blockOptions, options.blockRanges);
 }
 
 /**
@@ -187,6 +189,7 @@ function renderChatStream(
   width: number,
   tab?: MixCodeTabInfo,
   blockOptions?: (line: ChatLine, index: number) => RenderChatBlockOptions | undefined,
+  blockRanges?: (line: ChatLine, start: number, height: number) => void,
 ): string[] {
   if (!chat.length) return [padLine(activeRenderTheme.dim("No messages yet."), width)];
 
@@ -220,6 +223,7 @@ function renderChatStream(
     if (block.length === 0) continue;
     if (seenNonEmpty) result[cursor++] = separator;
     seenNonEmpty = true;
+    blockRanges?.(ordered[i]!, cursor, block.length);
     for (let j = 0; j < block.length; j++) result[cursor++] = block[j]!;
   }
   return result;
