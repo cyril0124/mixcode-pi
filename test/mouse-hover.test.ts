@@ -22,6 +22,7 @@ import {
   renderTabJumpOverlay,
 } from "../src/ui/rendering/overlays.js";
 import { renderAgentSurface } from "../src/ui/rendering/agent-surface.js";
+import { activeRenderTheme } from "../src/ui/rendering/context.js";
 import { startScrollableChatSelection } from "../src/core/chat-selection.js";
 import type { RuntimeTab } from "../src/agent/runtime.js";
 import { sliceByColumn } from "@earendil-works/pi-tui";
@@ -105,6 +106,11 @@ for (const scope of ["command-palette", "tab-jump"] as const) {
 
 function mouse(x: number, y: number) {
   return `\x1b[<35;${x};${y}M`;
+}
+
+/** The background the cue paints a hovered tool block with; the selection shares it. */
+function cueBackground(): string {
+  return activeRenderTheme.selectedBg("\u0001").split("\u0001")[0]!;
 }
 
 test("hovering rendered tabs changes appearance without activating or repainting the same target", () => {
@@ -363,7 +369,7 @@ test("tool-row pointer feedback covers only agent tool rows and follows the pres
   assert.equal(tab.chatSelection, undefined, "a click leaves no drag behind");
 });
 
-test("a tool block inside a live selection keeps the selection instead of the hover cue", () => {
+test("a selection inside a hovered tool block is underlined and keeps the cue", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "selection", "/repo");
   state.tabs.push(tab);
@@ -389,17 +395,37 @@ test("a tool block inside a live selection keeps the selection instead of the ho
   const plain = render();
   const ranges = tab.chatToolRowRanges ?? [];
   const block = ranges.find((range) => range.toolCallId === "t-1");
-  const other = ranges.find((range) => range.toolCallId === "t-2");
-  assert.ok(block && other, "the tool rows published their ranges");
+  assert.ok(block, "the tool rows published their ranges");
+  // The block's output row: nothing there carries an underline to begin with.
+  const textRow = plain.findIndex(
+    (line, row) =>
+      row >= block.start &&
+      row < block.start + block.height &&
+      stripTerminalSequences(line).includes("output"),
+  );
+  // The block's other text row, which the drag below never reaches.
+  const commandRow = plain.findIndex(
+    (line, row) =>
+      row >= block.start &&
+      row < block.start + block.height &&
+      row !== textRow &&
+      stripTerminalSequences(line).trim().length > 0,
+  );
+  assert.ok(textRow >= block.start && commandRow >= block.start, "the block has both text rows");
+  const cells = (lines: string[]) => sliceByColumn(lines[textRow]!, 1, 6, true);
 
   tab.chatHoverRow = block.start;
   const hovered = render();
   assert.notDeepEqual(hovered, plain, "a hovered tool block is painted");
+  assert.ok(hovered[textRow]!.includes(cueBackground()), "the cue paints the pointer's block");
+  assert.ok(
+    !cells(plain).includes("\u001b[4m"),
+    "no cell of the block is underlined to begin with",
+  );
 
-  // A drag inside the block covers its rows, including a drag that starts and ends on one row.
   tab.chatSelection = {
-    anchor: { row: block.start, col: 0 },
-    focus: { row: block.start, col: 5 },
+    anchor: { row: textRow, col: 1 },
+    focus: { row: textRow, col: 7 },
     dragging: true,
   };
   startScrollableChatSelection(
@@ -407,29 +433,82 @@ test("a tool block inside a live selection keeps the selection instead of the ho
     tab.lastRenderedChatLines ?? [],
     tab.chatScrollOffset,
   );
-  const selectedWithCue = render();
-  tab.chatHoverRow = undefined;
-  const selectedOnly = render();
-  assert.notDeepEqual(selectedOnly, plain, "the selection paints its columns");
-  assert.deepEqual(selectedWithCue, selectedOnly, "the cue yields to the selection it would hide");
+  const selected = render();
+  assert.ok(cells(selected).includes("\u001b[4m"), "the selected cells are underlined");
+  // The underline run covers the selected text and stops there.
+  const open = selected[textRow]!.lastIndexOf("\u001b[4m");
+  const close = selected[textRow]!.indexOf("\u001b[24m", open);
+  assert.equal(
+    stripTerminalSequences(selected[textRow]!.slice(open, close)).trim(),
+    "output",
+    "the underline covers the selected cells only",
+  );
+  // A block row the drag never reached still answers the pointer.
+  assert.ok(
+    selected[commandRow]!.includes(cueBackground()),
+    "the cue stays on the block rows outside the selection",
+  );
 
-  // A selection elsewhere leaves the cue alone.
+  tab.chatSelection = undefined;
+  assert.ok(!cells(render()).includes("\u001b[4m"), "clearing the selection drops the underline");
+});
+
+test("a selection outside a tool block keeps the plain background", () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "plain", "/repo");
+  state.tabs.push(tab);
+  state.activeTabId = tab.sessionId;
+  const runtimeTab = {
+    chat: [
+      { role: "user", text: "a plain user line" },
+      {
+        role: "tool",
+        title: "bash",
+        toolCallId: "t-1",
+        status: "success",
+        text: "output t-1",
+        args: { command: "echo one" },
+      },
+    ],
+  } as unknown as RuntimeTab;
+  const render = () => renderAgentSurface(tab, runtimeTab, 80, 20);
+  const plain = render();
+  const block = (tab.chatToolRowRanges ?? []).find((range) => range.toolCallId === "t-1");
+  assert.ok(block);
+  const userRow = plain.findIndex((line) =>
+    stripTerminalSequences(line).includes("a plain user line"),
+  );
+  const outputRow = plain.findIndex(
+    (line, row) =>
+      row >= block.start &&
+      row < block.start + block.height &&
+      stripTerminalSequences(line).includes("output"),
+  );
+  assert.ok(userRow >= 0 && userRow < outputRow, "the user line sits above the block's output row");
+
+  // One drag from the user line into the block covers rows of both kinds.
   tab.chatSelection = {
-    anchor: { row: other.start, col: 0 },
-    focus: { row: other.start, col: 5 },
+    anchor: { row: userRow, col: 1 },
+    focus: { row: outputRow, col: 7 },
     dragging: true,
   };
-  tab.chatHoverRow = block.start;
-  const cueBesideSelection = render();
-  tab.chatHoverRow = undefined;
-  assert.notDeepEqual(
-    cueBesideSelection,
-    render(),
-    "a block outside the selection answers the pointer",
+  startScrollableChatSelection(
+    tab.chatSelection,
+    tab.lastRenderedChatLines ?? [],
+    tab.chatScrollOffset,
+  );
+  const selected = render();
+  const userCells = sliceByColumn(selected[userRow]!, 1, 12, true);
+  const outputCells = sliceByColumn(selected[outputRow]!, 1, 6, true);
+  assert.ok(userCells.includes(cueBackground()), "the selection paints the user line");
+  assert.ok(!userCells.includes("\u001b[4m"), "no underline outside a tool block");
+  assert.ok(
+    outputCells.includes("\u001b[4m"),
+    "the same drag underlines the block rows it reaches",
   );
 });
 
-test("a selection keeps covering its block after a scroll, where stored rows need mapping", () => {
+test("a scrolled frame paints the selection where the mapped rows land", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "scrolled", "/repo");
   state.tabs.push(tab);
@@ -451,36 +530,47 @@ test("a selection keeps covering its block after a scroll, where stored rows nee
     ],
   } as unknown as RuntimeTab;
   const render = () => renderAgentSurface(tab, runtimeTab, 80, 12);
-  render();
+  const first = render();
   const range = (tab.chatToolRowRanges ?? []).find((entry) => entry.toolCallId === "t-last");
   assert.ok(range, "the trailing tool row is visible at the tail");
+  const textRow = first.findIndex(
+    (line, row) =>
+      row >= range.start &&
+      row < range.start + range.height &&
+      stripTerminalSequences(line).trim().length > 0,
+  );
+  assert.ok(textRow >= range.start, "the block has a row with text");
   const origin = tab.chatScrollOffset;
   tab.chatSelection = {
-    anchor: { row: range.start, col: 0 },
-    focus: { row: range.start, col: 5 },
+    anchor: { row: textRow, col: 1 },
+    focus: { row: textRow, col: 7 },
     dragging: true,
   };
+  // The drag registered its rows in the frame it started in; scrolling moves the text under it.
   startScrollableChatSelection(tab.chatSelection, tab.lastRenderedChatLines ?? [], origin);
   scrollChat(tab, 2);
-  render();
-  const scrolledRange = (tab.chatToolRowRanges ?? []).find(
-    (entry) => entry.toolCallId === "t-last",
-  );
-  assert.ok(scrolledRange);
+  const withSelection = render();
+  const moved = (tab.chatToolRowRanges ?? []).find((entry) => entry.toolCallId === "t-last");
+  assert.ok(moved);
   assert.notEqual(tab.chatScrollOffset, origin, "the frame really scrolled");
-  assert.notEqual(scrolledRange.start, range.start, "the block moved with the frame");
-
-  tab.chatHoverRow = scrolledRange.start;
-  const scrolledWithCue = render();
-  tab.chatHoverRow = undefined;
-  assert.deepEqual(scrolledWithCue, render(), "the cue yields to the mapped selection");
-
+  assert.notEqual(moved.start, range.start, "the block moved with the frame");
+  const movedRow = withSelection.findIndex(
+    (line, row) =>
+      row >= moved.start &&
+      row < moved.start + moved.height &&
+      stripTerminalSequences(line).trim().length > 0,
+  );
+  assert.ok(movedRow >= moved.start, "the moved block has a row with text");
+  const keptSelection = tab.chatSelection;
   tab.chatSelection = undefined;
-  const freeWithoutCue = render();
-  tab.chatHoverRow = scrolledRange.start;
-  assert.notDeepEqual(
-    render(),
-    freeWithoutCue,
-    "without a selection the block answers the pointer",
+  const withoutSelection = render();
+  tab.chatSelection = keptSelection;
+  assert.ok(
+    !sliceByColumn(withoutSelection[movedRow]!, 1, 6, true).includes(cueBackground()),
+    "nothing paints those cells without a selection",
+  );
+  assert.ok(
+    sliceByColumn(withSelection[movedRow]!, 1, 6, true).includes(cueBackground()),
+    "the selection follows the block into the scrolled frame",
   );
 });

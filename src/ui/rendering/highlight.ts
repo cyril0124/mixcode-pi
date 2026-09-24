@@ -1,3 +1,5 @@
+import type { MixCodeTheme } from "../themes.js";
+
 /**
  * Split `text` into matched/unmatched runs by `positions` (indices into
  * `text`, from fuzzyMatchPositions / fuzzyMatchAllPositions /
@@ -39,4 +41,12 @@ export function highlightRanges(
   }
   if (cursor < text.length) result += styleRest(text.slice(cursor));
   return result;
+}
+
+/**
+ * Paint a selected cell of a tool block. The cue covers the whole block with the same background, so
+ * the selection adds an underline to stay visible. Calls outside a block pass the plain background.
+ */
+export function chatSelectionHighlight(theme: MixCodeTheme): (text: string) => string {
+  return (text) => theme.selectedBg(`\x1b[4m${text}\x1b[24m`);
 }

@@ -1,11 +1,10 @@
 import { compositeTuiLine, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { chatSelectionHighlight } from "./highlight.js";
 import { pointerHoverFor } from "../pointer-hover.js";
 import { chatScrollbarFor } from "../chat-scrollbar.js";
 import type { ChatLine, RuntimeTab } from "../../agent/runtime.js";
 import {
-  type ChatSelectionState,
   captureScrollableChatSelection,
-  chatSelectionCoversBlock,
   highlightChatSelectionLine,
   scrollableChatSelectionForViewport,
 } from "../../core/chat-selection.js";
@@ -585,8 +584,9 @@ function renderAgentSurfaceWindowed(
     const placeholder = renderConversationEmptyState(surfaceWidth);
     const withHeader = headerLines.length ? [...headerLines, ...placeholder] : placeholder;
     const fitted = fitScrolledLinesWithInfo(withHeader, maxHeight, surfaceWidth, 0);
-    const highlighted = highlightVisibleChatLines(fitted.lines, tab, surfaceWidth, fitted.height);
+    // The highlight reads the published ranges, so they must be current before it runs.
     publishChatToolRanges(tab, []);
+    const highlighted = highlightVisibleChatLines(fitted.lines, tab, surfaceWidth, fitted.height);
     return appendChatScrollbar({ ...fitted, lines: highlighted }, width, false, tab);
   }
 
@@ -842,20 +842,6 @@ export function publishChatToolRanges(
   if (!same) tab.chatToolRowRanges = next;
 }
 
-/**
- * Cache the rendered rows into the selection (a write, as a drag does on every frame) and return it
- * in viewport rows, which is the frame the cue and the ranges below are expressed in.
- */
-function captureAndResolveViewportSelection(
-  selection: ChatSelectionState | undefined,
-  lines: string[],
-  scrollOffset: number,
-): ChatSelectionState | undefined {
-  if (!selection) return undefined;
-  captureScrollableChatSelection(selection, lines, scrollOffset);
-  return scrollableChatSelectionForViewport(selection, scrollOffset);
-}
-
 function highlightVisibleChatLines(
   lines: string[],
   tab: MixCodeTabInfo,
@@ -865,21 +851,9 @@ function highlightVisibleChatLines(
   tab.lastRenderedChatLines = lines;
   tab.lastRenderedChatScrollOffset = tab.chatScrollOffset;
   let result = applyToastOverlay(lines, activeToast(tab), width, height, activeRenderTheme);
-  // The selection is resolved before the cue below, which needs its rows in viewport coordinates.
-  const viewportSelection = captureAndResolveViewportSelection(
-    tab.chatSelection,
-    lines,
-    tab.chatScrollOffset,
-  );
   const hovered =
     tab.chatHoverRow === undefined ? undefined : chatToolCallAtRow(tab, tab.chatHoverRow);
-  // The cue and the selection paint the same background, so a block the pointer is selecting keeps
-  // its selection visible instead of answering the pointer.
-  const cueHidden =
-    hovered !== undefined &&
-    viewportSelection !== undefined &&
-    chatSelectionCoversBlock(viewportSelection, hovered.start, hovered.height);
-  if (hovered && !cueHidden) {
+  if (hovered) {
     const painted = result.slice();
     for (let row = hovered.start; row < hovered.start + hovered.height; row++) {
       const line = painted[row];
@@ -887,9 +861,20 @@ function highlightVisibleChatLines(
     }
     result = painted;
   }
-  if (!viewportSelection) return result;
+  const selection = tab.chatSelection;
+  if (!selection) return result;
+  captureScrollableChatSelection(selection, lines, tab.chatScrollOffset);
+  const viewportSelection = scrollableChatSelectionForViewport(selection, tab.chatScrollOffset);
+  const blockHighlight = chatSelectionHighlight(activeRenderTheme);
   return result.map((line, row) =>
-    highlightChatSelectionLine(line, row, viewportSelection, activeRenderTheme.selectedBg),
+    highlightChatSelectionLine(
+      line,
+      row,
+      viewportSelection,
+      // The cue shares the selection background only inside a tool block, so only those cells add
+      // the underline.
+      chatToolCallAtRow(tab, row) ? blockHighlight : activeRenderTheme.selectedBg,
+    ),
   );
 }
 
