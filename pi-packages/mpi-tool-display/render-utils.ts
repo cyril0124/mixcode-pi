@@ -13,37 +13,6 @@ interface ToolResultLike {
   content?: unknown;
 }
 
-const QUIET_COMMAND_PREFIXES = [
-  "cd",
-  "mkdir",
-  "rmdir",
-  "rm",
-  "mv",
-  "cp",
-  "touch",
-  "chmod",
-  "chown",
-  "git add",
-  "git checkout",
-  "git switch",
-  "git restore",
-  "git reset",
-  "git clean",
-  "npm install",
-  "pnpm install",
-  "yarn install",
-  "bun install",
-  "pip install",
-  "poetry install",
-  "cargo fetch",
-  "go mod tidy",
-  "Set-Location",
-  "New-Item",
-  "Remove-Item",
-  "Move-Item",
-  "Copy-Item",
-] as const;
-
 interface CompactOutputOptions {
   expanded: boolean;
   maxCollapsedConsecutiveEmptyLines?: number;
@@ -130,35 +99,6 @@ export function compactOutputLines(lines: string[], options: CompactOutputOption
   }
 
   return collapseConsecutiveEmptyLines(trimmed, options.maxCollapsedConsecutiveEmptyLines ?? 1);
-}
-
-export function isLikelyQuietCommand(command: string | undefined): boolean {
-  if (!command) {
-    return false;
-  }
-
-  const normalized = command.trim().toLowerCase();
-  if (!normalized) {
-    return false;
-  }
-
-  const primarySegment = normalized
-    .split(/&&|\|\||;/)
-    .map((segment) => segment.trim())
-    .find((segment) => segment.length > 0);
-
-  if (!primarySegment) {
-    return false;
-  }
-
-  for (const prefix of QUIET_COMMAND_PREFIXES) {
-    const normalizedPrefix = prefix.toLowerCase();
-    if (primarySegment === normalizedPrefix || primarySegment.startsWith(`${normalizedPrefix} `)) {
-      return true;
-    }
-  }
-
-  return false;
 }
 
 export function pluralize(count: number, singular: string, plural = `${singular}s`): string {

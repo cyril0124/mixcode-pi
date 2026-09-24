@@ -5,7 +5,6 @@ import { Text } from "@earendil-works/pi-tui";
 import {
   compactOutputLines,
   extractTextOutput,
-  isLikelyQuietCommand,
   pluralize,
   previewLines,
   shortenPath,
@@ -13,7 +12,11 @@ import {
   stripAllEscapes,
   toRecord,
 } from "./render-utils.js";
-import type { ToolDisplayConfig } from "./types.js";
+import {
+  BASH_CALL_OUTCOME_STATE_KEY,
+  type BashCallOutcome,
+  type ToolDisplayConfig,
+} from "./types.js";
 import { countWriteContentLines, getWriteContentSizeBytes } from "./write-display-utils.js";
 
 export { countWriteContentLines };
@@ -192,19 +195,12 @@ function renderContentPreview(ctx: PreviewHintContext, expandedOnly = false): Te
 // bash
 // ---------------------------------------------------------------------------
 
-function formatBashNoOutputLine(command: string | undefined, theme: RenderThemeLike): string {
-  if (isLikelyQuietCommand(command)) {
-    return theme.fg("muted", "↳ command completed (no output)");
-  }
-  return theme.fg("muted", "↳ (no output)");
-}
-
 function formatBashSummary(lines: string[], theme: RenderThemeLike): string {
   const lineCount = lines.length;
   return theme.fg("muted", `↳ ${lineCount} ${pluralize(lineCount, "line")} returned`);
 }
 
-/** Configured bash output mode: live/expanded previews use previewLines. */
+/** Live/expanded bash preview budget for the partial and expanded states. */
 function getBashPreviewLineLimit(
   lines: string[],
   options: ToolRenderResultOptionsLike,
@@ -248,49 +244,101 @@ function renderBashLivePreview(
 }
 
 function renderBashErrorResult(
-  rawOutput: string,
+  lines: string[],
   options: ToolRenderResultOptionsLike,
   config: ToolDisplayConfig,
   theme: RenderThemeLike,
+  compact: boolean,
+  /** Pi's own status line is missing, so the message sits at the head of the output. */
+  headFirst: boolean,
 ): Text {
-  const lines = prepareOutputLines(rawOutput, options);
-  let text = theme.fg("error", "↳ command failed");
-
-  if (lines.length > 0) {
-    const maxLines = getBashPreviewLineLimit(lines, options, config);
-    if (options.expanded || maxLines > 0) {
-      const { shown, remaining } = previewLines(lines, maxLines);
-      text += `\n${shown.map((line) => theme.fg("error", stripAllEscapes(line))).join("\n")}`;
-      text += formatTruncationHint(remaining, options.expanded, theme);
+  if (lines.length === 0) {
+    return textResult("");
+  }
+  if (options.expanded) {
+    const maxLines = getExpandedPreviewLineLimit(lines, config);
+    const preview = lines
+      .slice(0, maxLines)
+      .map((line) => theme.fg("error", stripAllEscapes(line)))
+      .join("\n");
+    return textResult(preview + formatExpandedPreviewCapHint(lines, config, theme));
+  }
+  if (!compact) {
+    // Non-compact presentation: a header plus a head preview of the failure output.
+    if (config.previewLines === 0) {
+      return textResult(theme.fg("error", "↳ command failed"));
     }
+    const { shown, remaining } = previewLines(lines, config.previewLines);
+    const body = shown.map((line) => theme.fg("error", stripAllEscapes(line))).join("\n");
+    return textResult(
+      `${theme.fg("error", "↳ command failed")}\n${body}${formatTruncationHint(remaining, false, theme)}`,
+    );
   }
-
-  if (options.expanded && lines.length > 0) {
-    text += formatExpandedPreviewCapHint(lines, config, theme);
+  const maxLines = Math.max(0, config.bashFailureTailLines);
+  if (maxLines === 0) {
+    return textResult("");
   }
-  return textResult(text);
+  // Pi appends its failure status to the end of the output (`Command exited with code N`), so that
+  // case keeps the tail. A validation or spawn failure has its message first instead, and the
+  // arguments dump last, so that case keeps the head. The call row reports code and line count.
+  const content = lines.filter((line) => line.trim().length > 0);
+  const shown = headFirst ? content.slice(0, maxLines) : content.slice(-maxLines);
+  return textResult(shown.map((line) => theme.fg("error", stripAllEscapes(line))).join("\n"));
 }
 
-/** Bash result renderer with the output mode frozen to "summary". */
+/**
+ * Pi appends its failure status as the last output line, so only that line is trusted: a
+ * command that merely prints the same sentence must not choose the row's status.
+ */
+function parseBashFailure(
+  rawOutput: string,
+): Pick<BashCallOutcome, "exitCode" | "timedOut" | "aborted"> {
+  const lastLine =
+    rawOutput
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+      .pop() ?? "";
+  const exitMatch = /^Command exited with code (-?\d+)$/.exec(lastLine);
+  return {
+    exitCode: exitMatch ? Number(exitMatch[1]) : undefined,
+    timedOut: /^Command timed out after [\d.]+ seconds$/.test(lastLine),
+    aborted: lastLine === "Command aborted",
+  };
+}
+
+/** Publishes the compact outcome the call renderer reads on its next render. */
+function recordBashOutcome(state: unknown, outcome: BashCallOutcome): void {
+  toRecord(state)[BASH_CALL_OUTCOME_STATE_KEY] = outcome;
+}
+
+/** Bash result renderer; `compact` selects the one-row presentation of a finished call. */
 export function renderBashDisplayResult(
   result: ToolRenderInputLike,
   options: ToolRenderResultOptionsLike,
   config: ToolDisplayConfig,
   theme: RenderThemeLike,
-  context: { args?: unknown; isError?: boolean } | undefined,
+  context: { state?: unknown; isError?: boolean } | undefined,
+  compact = true,
 ): Text {
   const rawOutput = extractTextOutput(result);
 
   if (options.isPartial) {
     return renderBashLivePreview(rawOutput, options, config, theme);
   }
-  if (isToolError(result, context)) {
-    return renderBashErrorResult(rawOutput, options, config, theme);
-  }
 
   const lines = prepareOutputLines(rawOutput, options);
-  if (lines.length === 0) {
-    return textResult(formatBashNoOutputLine(getStringField(context?.args, "command"), theme));
+  const failed = isToolError(result, context);
+  const failure = parseBashFailure(rawOutput);
+  recordBashOutcome(context?.state, {
+    lineCount: lines.length,
+    failed,
+    ...failure,
+  });
+
+  if (failed) {
+    const hasStatusLine = failure.exitCode !== undefined || failure.timedOut || failure.aborted;
+    return renderBashErrorResult(lines, options, config, theme, compact, !hasStatusLine);
   }
 
   if (options.expanded) {
@@ -298,7 +346,16 @@ export function renderBashDisplayResult(
     return renderBashPreviewWithHints(lines, maxLines, config, theme, options);
   }
 
-  return textResult(formatBashSummary(lines, theme) + formatExpandHint(theme));
+  if (!compact) {
+    if (lines.length === 0) {
+      return textResult(theme.fg("muted", "↳ (no output)"));
+    }
+    return textResult(formatBashSummary(lines, theme) + formatExpandHint(theme));
+  }
+
+  // Collapsed success in compact mode: the call row carries the `<N> lines` meta, so this
+  // region is empty.
+  return textResult("");
 }
 
 // ---------------------------------------------------------------------------

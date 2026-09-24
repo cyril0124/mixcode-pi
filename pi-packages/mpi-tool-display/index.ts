@@ -2,7 +2,7 @@
 // ║  mpi-tool-display: render-only bash/read/edit/write + Thinking UI      ║
 // ╠══════════════════════════════════════════════════════════════════════╣
 // ║  ToolExecutionComponent selects the compact display profile: ║
-// ║    bash  `$ command`, spinner, `↳ N lines returned`, live preview      ║
+// ║    bash  `bash <label>` + status meta, spinner, live preview           ║
 // ║    read  `read path[:range]`, `↳ loaded N lines`                      ║
 // ║          SKILL.md → `[skill] <dir>`; collapsed result empty           ║
 // ║    edit  pending preview + bars / split / wrap result diff             ║
@@ -209,11 +209,21 @@ function captureWritePreviousContent(
 
 export function createToolDisplayRenderers(
   writeExecutionMetaByToolCallId = new Map<string, WriteExecutionMeta>(),
+  /** Read per render so the settings overlay applies to later calls in the same tab. */
+  isCompactBashCallRow: () => boolean = () => true,
 ): ToolDisplayRendererCatalog {
   const bash: ToolDisplayRenderer = {
-    renderCall: (args, theme, context) => renderBashCall(args as never, theme, context as never),
+    renderCall: (args, theme, context) =>
+      renderBashCall(args as never, theme, context as never, isCompactBashCallRow()),
     renderResult: (result, options, theme, context) =>
-      renderBashDisplayResult(result as never, options, CONFIG, theme, context),
+      renderBashDisplayResult(
+        result as never,
+        options,
+        CONFIG,
+        theme,
+        context,
+        isCompactBashCallRow(),
+      ),
   };
   const read: ToolDisplayRenderer = {
     renderCall: (args, theme) => renderReadDisplayCall(args, theme),
@@ -413,7 +423,10 @@ export default function toolDisplayExtension(pi: ExtensionAPI): void {
   const agentDir = getAgentDir();
   let runtimeConfig = loadRuntimeConfigOrThrow(agentDir);
   const writeExecutionMetaByToolCallId = new Map<string, WriteExecutionMeta>();
-  const catalog = createToolDisplayRenderers(writeExecutionMetaByToolCallId);
+  const catalog = createToolDisplayRenderers(
+    writeExecutionMetaByToolCallId,
+    () => runtimeConfig.compactBashCallRow,
+  );
   const installation = installToolExecutionAdapter(ToolExecutionComponent.prototype, {
     call: (toolName, native) =>
       wrapToolCallRenderer(

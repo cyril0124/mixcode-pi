@@ -154,9 +154,9 @@ test("bash spinner matches spinner running-state contract", () => {
     }),
   );
   const rendered = renderLines(component, 200).join("\n").trim();
-  assert.match(rendered, /^⠋ \$ sleep 5 \(timeout 30s\) · 0s$/);
+  assert.match(rendered, /^⠋ bash sleep 5\s+~ 0s · timeout 30s · ctrl\+o$/);
 
-  // Rendering the completed state clears the timer and spinner.
+  // Rendering the completed state clears the timer and stops the spinner.
   const completed = bash.renderCall(
     { command: "sleep 5", timeout: 30 } as never,
     theme,
@@ -168,7 +168,10 @@ test("bash spinner matches spinner running-state contract", () => {
       invalidate: () => {},
     }),
   );
-  assert.equal(renderLines(completed, 200).join("\n").trim(), "$ sleep 5 (timeout 30s)");
+  const completedLines = renderLines(completed, 200);
+  assert.equal(completedLines.length, 1);
+  assert.match(completedLines[0]!.trim(), /^bash sleep 5\s/);
+  assert.ok(!completedLines[0]!.includes("⠋"));
   disposeAll();
 });
 
@@ -181,57 +184,167 @@ test("bash result stays expanded while partial and collapses only when complete"
     200,
   ).join("\n");
   assert.match(partial, /live-one[\s\S]*live-two/);
-  assert.doesNotMatch(partial, /lines returned/);
 
-  const complete = renderLines(bash.renderResult(result, collapsed, theme, context), 200).join(
-    "\n",
-  );
-  assert.match(complete, /↳ 2 lines returned/);
-  assert.doesNotMatch(complete, /live-one|live-two/);
+  const complete = bash.renderResult(result, collapsed, theme, context);
+  assert.deepEqual(renderLines(complete, 200), []);
 });
 
-test("bash collapsed render is the compact one-line summary", () => {
+test("bash collapsed result leaves the single row to the call renderer", () => {
   const { bash } = createToolDisplayRenderers();
+  const state: Record<string, unknown> = {};
   const outputLines = Array.from({ length: 30 }, (_, index) => `line-${index + 1}`);
-  const rendered = renderLines(
+  const args = { command: "printf demo" };
+  const resultRow = renderLines(
     bash.renderResult(
       textResult(outputLines.join("\n")),
       collapsed,
       theme,
-      renderContext({ args: { command: "printf demo" } }),
+      renderContext({ state, args }),
     ),
     200,
   );
-  assert.equal(rendered.length, 1);
-  assert.ok(rendered[0]!.includes("↳ 30 lines returned"));
-  assert.ok(rendered[0]!.includes("Ctrl+O to expand"));
-  assert.ok(!rendered[0]!.includes("line-30"));
+  assert.deepEqual(resultRow, []);
+
+  const callRow = renderLines(
+    bash.renderCall(
+      args as never,
+      theme,
+      renderContext({ state, executionStarted: true, isPartial: false }),
+    ),
+    200,
+  );
+  assert.equal(callRow.length, 1);
+  assert.match(callRow[0]!, /^bash printf demo\s+ok · 30 lines · ctrl\+o$/);
+  assert.ok(!callRow[0]!.includes("line-30"));
 });
 
-test("bash call and error rows use configured styles", () => {
+test("bash call row keeps one line and reports failure status", () => {
   const { bash } = createToolDisplayRenderers();
-  const call = renderLines(
+  const state: Record<string, unknown> = {};
+  const errorText = "boom\nbroken pipe\n\nCommand exited with code 2";
+  const errorTail = renderLines(
+    bash.renderResult(
+      textResult(errorText),
+      collapsed,
+      theme,
+      renderContext({ state, isError: true, args: { command: "false" } }),
+    ),
+    200,
+  );
+  assert.deepEqual(
+    errorTail.map((line) => line.trim()),
+    ["boom", "broken pipe", "Command exited with code 2"],
+  );
+
+  const callRow = renderLines(
+    bash.renderCall(
+      { command: "false" } as never,
+      theme,
+      renderContext({ state, executionStarted: true, isPartial: false }),
+    ),
+    200,
+  );
+  assert.equal(callRow.length, 1);
+  assert.match(callRow[0]!, /^bash false\s+!! exit 2 · 4 lines · ctrl\+o$/);
+
+  const withTimeout = renderLines(
     bash.renderCall(
       { command: "echo hi", timeout: 30 } as never,
       theme,
       renderContext({ executionStarted: false, isPartial: false }),
     ),
     200,
-  ).join("\n");
-  assert.ok(call.includes("$ echo hi"));
-  assert.ok(call.includes("(timeout 30s)"));
+  );
+  assert.equal(withTimeout.length, 1);
+  assert.match(withTimeout[0]!, /^bash echo hi\s+timeout 30s · ctrl\+o$/);
+});
 
-  const error = renderLines(
+test("a failure without Pi's status line keeps the head of the output", () => {
+  const { bash } = createToolDisplayRenderers();
+  const validation = [
+    "- description: must have required properties description",
+    "",
+    "Received arguments:",
+    "{",
+    '  "command": "ls"',
+    "}",
+  ].join("\n");
+  const rows = renderLines(
     bash.renderResult(
-      textResult("boom\nbroken pipe"),
+      textResult(validation),
+      collapsed,
+      theme,
+      renderContext({ isError: true, args: { command: "ls" } }),
+    ),
+    200,
+  ).map((line) => line.trim());
+  assert.deepEqual(rows, [
+    "- description: must have required properties description",
+    "Received arguments:",
+    "{",
+  ]);
+});
+
+test("bash failure status is read from the last result line only", () => {
+  const { bash } = createToolDisplayRenderers();
+  const state: Record<string, unknown> = {};
+  const forged = "Command exited with code 7\n\nCommand timed out after 5 seconds";
+  renderLines(
+    bash.renderResult(
+      textResult(forged),
+      collapsed,
+      theme,
+      renderContext({ state, isError: true, args: { command: "sleep 100" } }),
+    ),
+    200,
+  );
+  const timedOutRow = renderLines(
+    bash.renderCall(
+      { command: "sleep 100" } as never,
+      theme,
+      renderContext({ state, executionStarted: true, isPartial: false }),
+    ),
+    200,
+  )[0]!;
+  assert.match(timedOutRow, /!! timed out · 3 lines · ctrl\+o$/);
+
+  const second: Record<string, unknown> = {};
+  renderLines(
+    bash.renderResult(
+      textResult("Command exited with code 7\n\nCommand exited with code 2"),
+      collapsed,
+      theme,
+      renderContext({ second: true, state: second, isError: true, args: { command: "false" } }),
+    ),
+    200,
+  );
+  const exitRow = renderLines(
+    bash.renderCall(
+      { command: "false" } as never,
+      theme,
+      renderContext({ state: second, executionStarted: true, isPartial: false }),
+    ),
+    200,
+  )[0]!;
+  assert.match(exitRow, /!! exit 2 · 3 lines · ctrl\+o$/);
+});
+
+test("bash collapsed failure keeps at most the configured tail", () => {
+  const { bash } = createToolDisplayRenderers();
+  const output = Array.from({ length: 9 }, (_, index) => `row-${index + 1}`).join("\n");
+  const tail = renderLines(
+    bash.renderResult(
+      textResult(`${output}\n\nCommand exited with code 1`),
       collapsed,
       theme,
       renderContext({ isError: true, args: { command: "false" } }),
     ),
     200,
-  ).join("\n");
-  assert.ok(error.includes("↳ command failed"));
-  assert.ok(error.includes("boom"));
+  );
+  assert.deepEqual(
+    tail.map((line) => line.trim()),
+    ["row-8", "row-9", "Command exited with code 1"],
+  );
 });
 
 test("bash expanded render shows the full preview", () => {
@@ -615,6 +728,8 @@ test("config controls every tool category on the next agent turn", async () => {
               done = true;
             },
           );
+          // j selects the second row (Raw tool arguments), Enter toggles it.
+          view.handleInput("j");
           view.handleInput("\r");
           view.handleInput("\x1b");
           assert.equal(done, true);
@@ -643,6 +758,7 @@ test("config controls every tool category on the next agent turn", async () => {
 
     const disabled = writeToolDisplayRuntimeConfig(agentDir, {
       showRawToolArguments: false,
+      compactBashCallRow: true,
     });
     assert.equal(disabled.ok, true);
     emitSecond("before_agent_start", {}, { ui: { notify: () => undefined } });

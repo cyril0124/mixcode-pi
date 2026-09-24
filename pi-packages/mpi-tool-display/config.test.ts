@@ -6,6 +6,7 @@ import { afterEach, test } from "node:test";
 import { createToolDisplayConfigOverlay } from "./config-overlay.js";
 import {
   DEFAULT_TOOL_DISPLAY_RUNTIME_CONFIG,
+  type ToolDisplayRuntimeConfig,
   loadToolDisplayRuntimeConfig,
   parseToolDisplayRuntimeConfig,
   toolDisplayConfigPath,
@@ -45,19 +46,25 @@ test("missing global config defaults raw tool arguments to off", () => {
   assert.equal(loaded.path, toolDisplayConfigPath(dir));
 });
 
-test("global config round-trips one strict boolean with private permissions", () => {
+test("global config round-trips both strict booleans with private permissions", () => {
   const dir = tempDir();
-  const written = writeToolDisplayRuntimeConfig(dir, { showRawToolArguments: true });
+  const written = writeToolDisplayRuntimeConfig(dir, {
+    showRawToolArguments: true,
+    compactBashCallRow: false,
+  });
   assert.equal(written.ok, true);
   if (!written.ok) return;
   assert.equal(fs.statSync(written.path).mode & 0o777, 0o600);
-  assert.equal(fs.readFileSync(written.path, "utf8"), '{\n  "showRawToolArguments": true\n}\n');
+  assert.equal(
+    fs.readFileSync(written.path, "utf8"),
+    '{\n  "showRawToolArguments": true,\n  "compactBashCallRow": false\n}\n',
+  );
 
   const loaded = loadToolDisplayRuntimeConfig(dir);
   assert.equal(loaded.ok, true);
   if (!loaded.ok) return;
   assert.equal(loaded.missing, false);
-  assert.deepEqual(loaded.config, { showRawToolArguments: true });
+  assert.deepEqual(loaded.config, { showRawToolArguments: true, compactBashCallRow: false });
 });
 
 test("global config rejects malformed JSON, unknown keys, and wrong values", () => {
@@ -66,6 +73,16 @@ test("global config rejects malformed JSON, unknown keys, and wrong values", () 
     () => parseToolDisplayRuntimeConfig({ showRawToolArguments: "yes" }),
     /must be a boolean/,
   );
+  assert.throws(
+    () => parseToolDisplayRuntimeConfig({ compactBashCallRow: "on" }),
+    /compactBashCallRow must be a boolean/,
+  );
+  // An absent key keeps its default instead of failing.
+  assert.deepEqual(parseToolDisplayRuntimeConfig({}), DEFAULT_TOOL_DISPLAY_RUNTIME_CONFIG);
+  assert.deepEqual(parseToolDisplayRuntimeConfig({ compactBashCallRow: false }), {
+    showRawToolArguments: false,
+    compactBashCallRow: false,
+  });
 
   const dir = tempDir();
   fs.writeFileSync(toolDisplayConfigPath(dir), "{", "utf8");
@@ -75,8 +92,8 @@ test("global config rejects malformed JSON, unknown keys, and wrong values", () 
   assert.match(loaded.error, /JSON|position|Expected property name/i);
 });
 
-test("config overlay lists the setting and toggles it in place", () => {
-  const changes: boolean[] = [];
+test("config overlay lists both settings and toggles the selected one", () => {
+  const changes: Array<Partial<ToolDisplayRuntimeConfig>> = [];
   let closed = false;
   const view = createToolDisplayConfigOverlay({
     theme: plainTheme(),
@@ -85,9 +102,9 @@ test("config overlay lists the setting and toggles it in place", () => {
       closed = true;
     },
     configPath: "/tmp/agent/mpi-tool-display.json",
-    initial: { showRawToolArguments: false },
+    initial: { showRawToolArguments: false, compactBashCallRow: true },
     persist: (config) => {
-      changes.push(config.showRawToolArguments);
+      changes.push({ ...config });
       return { ok: true, config };
     },
     onError: () => assert.fail("unexpected persistence error"),
@@ -95,15 +112,33 @@ test("config overlay lists the setting and toggles it in place", () => {
 
   const initial = stripAnsi(view.render(80).join("\n"));
   assert.match(initial, /^┌.*Tool Display.*┐$/m);
-  assert.match(initial, /Raw tool arguments/);
-  assert.match(initial, /\boff\b/);
-  assert.match(initial, /may expose secrets/);
+  assert.match(initial, /› Compact bash call row {4}on/);
+  assert.match(initial, /Raw tool arguments\s+off/);
+  assert.match(initial, /One row per finished bash call/);
   assert.match(initial, /\/tmp\/agent\/mpi-tool-display\.json/);
   assert.match(initial, /Esc close/);
 
+  // Enter toggles the selected row only.
   view.handleInput("\r");
-  assert.deepEqual(changes, [true]);
-  assert.match(stripAnsi(view.render(80).join("\n")), /\bon\b/);
+  assert.deepEqual(changes, [{ showRawToolArguments: false, compactBashCallRow: false }]);
+  assert.match(stripAnsi(view.render(80).join("\n")), /› Compact bash call row {4}off/);
+
+  // j/down moves to the next row and reveals its warning.
+  view.handleInput("j");
+  const second = stripAnsi(view.render(80).join("\n"));
+  assert.match(second, /Raw tool arguments\s+off/);
+  assert.match(second, /may expose secrets/);
+
+  view.handleInput("\r");
+  assert.equal(changes.length, 2);
+  assert.equal(changes[1]!.showRawToolArguments, true);
+  assert.equal(changes[1]!.compactBashCallRow, false, "the first toggle survives the second");
+  assert.match(stripAnsi(view.render(80).join("\n")), /Raw tool arguments\s+on/);
+
+  // Wrapping selection keeps both rows reachable.
+  view.handleInput("k");
+  view.handleInput("k");
+  assert.match(stripAnsi(view.render(80).join("\n")), /› Raw tool arguments\s+on/);
 
   view.handleInput("\x1b");
   assert.equal(closed, true);
@@ -116,7 +151,7 @@ test("config overlay restores the visible value when persistence fails", () => {
     requestRender: () => undefined,
     done: () => undefined,
     configPath: "/tmp/agent/mpi-tool-display.json",
-    initial: { showRawToolArguments: false },
+    initial: { showRawToolArguments: false, compactBashCallRow: true },
     persist: () => ({ ok: false, error: "disk full" }),
     onError: (message) => errors.push(message),
   });
