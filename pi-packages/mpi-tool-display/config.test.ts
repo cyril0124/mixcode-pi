@@ -46,25 +46,30 @@ test("missing global config defaults raw tool arguments to off", () => {
   assert.equal(loaded.path, toolDisplayConfigPath(dir));
 });
 
-test("global config round-trips both strict booleans with private permissions", () => {
+test("global config round-trips every strict boolean with private permissions", () => {
   const dir = tempDir();
   const written = writeToolDisplayRuntimeConfig(dir, {
     showRawToolArguments: true,
     compactBashCallRow: false,
+    compactBashCommandHint: false,
   });
   assert.equal(written.ok, true);
   if (!written.ok) return;
   assert.equal(fs.statSync(written.path).mode & 0o777, 0o600);
   assert.equal(
     fs.readFileSync(written.path, "utf8"),
-    '{\n  "showRawToolArguments": true,\n  "compactBashCallRow": false\n}\n',
+    '{\n  "showRawToolArguments": true,\n  "compactBashCallRow": false,\n  "compactBashCommandHint": false\n}\n',
   );
 
   const loaded = loadToolDisplayRuntimeConfig(dir);
   assert.equal(loaded.ok, true);
   if (!loaded.ok) return;
   assert.equal(loaded.missing, false);
-  assert.deepEqual(loaded.config, { showRawToolArguments: true, compactBashCallRow: false });
+  assert.deepEqual(loaded.config, {
+    showRawToolArguments: true,
+    compactBashCallRow: false,
+    compactBashCommandHint: false,
+  });
 });
 
 test("global config rejects malformed JSON, unknown keys, and wrong values", () => {
@@ -77,11 +82,16 @@ test("global config rejects malformed JSON, unknown keys, and wrong values", () 
     () => parseToolDisplayRuntimeConfig({ compactBashCallRow: "on" }),
     /compactBashCallRow must be a boolean/,
   );
+  assert.throws(
+    () => parseToolDisplayRuntimeConfig({ compactBashCommandHint: 1 }),
+    /compactBashCommandHint must be a boolean/,
+  );
   // An absent key keeps its default instead of failing.
   assert.deepEqual(parseToolDisplayRuntimeConfig({}), DEFAULT_TOOL_DISPLAY_RUNTIME_CONFIG);
   assert.deepEqual(parseToolDisplayRuntimeConfig({ compactBashCallRow: false }), {
     showRawToolArguments: false,
     compactBashCallRow: false,
+    compactBashCommandHint: true,
   });
 
   const dir = tempDir();
@@ -92,7 +102,7 @@ test("global config rejects malformed JSON, unknown keys, and wrong values", () 
   assert.match(loaded.error, /JSON|position|Expected property name/i);
 });
 
-test("config overlay lists both settings and toggles the selected one", () => {
+test("config overlay lists every setting and toggles the selected one", () => {
   const changes: Array<Partial<ToolDisplayRuntimeConfig>> = [];
   let closed = false;
   const view = createToolDisplayConfigOverlay({
@@ -102,7 +112,11 @@ test("config overlay lists both settings and toggles the selected one", () => {
       closed = true;
     },
     configPath: "/tmp/agent/mpi-tool-display.json",
-    initial: { showRawToolArguments: false, compactBashCallRow: true },
+    initial: {
+      showRawToolArguments: false,
+      compactBashCallRow: true,
+      compactBashCommandHint: true,
+    },
     persist: (config) => {
       changes.push({ ...config });
       return { ok: true, config };
@@ -113,6 +127,7 @@ test("config overlay lists both settings and toggles the selected one", () => {
   const initial = stripAnsi(view.render(80).join("\n"));
   assert.match(initial, /^┌.*Tool Display.*┐$/m);
   assert.match(initial, /› Compact bash call row {4}on/);
+  assert.match(initial, /Command excerpt\s+on/);
   assert.match(initial, /Raw tool arguments\s+off/);
   assert.match(initial, /One row per finished bash call/);
   assert.match(initial, /\/tmp\/agent\/mpi-tool-display\.json/);
@@ -120,25 +135,34 @@ test("config overlay lists both settings and toggles the selected one", () => {
 
   // Enter toggles the selected row only.
   view.handleInput("\r");
-  assert.deepEqual(changes, [{ showRawToolArguments: false, compactBashCallRow: false }]);
+  assert.deepEqual(changes, [
+    { showRawToolArguments: false, compactBashCallRow: false, compactBashCommandHint: true },
+  ]);
   assert.match(stripAnsi(view.render(80).join("\n")), /› Compact bash call row {4}off/);
 
-  // j/down moves to the next row and reveals its warning.
+  // j/down moves to the next row, which owns the excerpt note.
   view.handleInput("j");
   const second = stripAnsi(view.render(80).join("\n"));
-  assert.match(second, /Raw tool arguments\s+off/);
-  assert.match(second, /may expose secrets/);
+  assert.match(second, /› Command excerpt\s+on/);
+  assert.match(second, /Dim command excerpt on that row/);
 
   view.handleInput("\r");
   assert.equal(changes.length, 2);
-  assert.equal(changes[1]!.showRawToolArguments, true);
+  assert.equal(changes[1]!.compactBashCommandHint, false);
   assert.equal(changes[1]!.compactBashCallRow, false, "the first toggle survives the second");
-  assert.match(stripAnsi(view.render(80).join("\n")), /Raw tool arguments\s+on/);
+  assert.match(stripAnsi(view.render(80).join("\n")), /› Command excerpt\s+off/);
 
-  // Wrapping selection keeps both rows reachable.
+  // j/down reaches the debug row and reveals its warning.
+  view.handleInput("j");
+  const third = stripAnsi(view.render(80).join("\n"));
+  assert.match(third, /› Raw tool arguments\s+off/);
+  assert.match(third, /may expose secrets/);
+
+  // Wrapping selection keeps every row reachable.
   view.handleInput("k");
   view.handleInput("k");
-  assert.match(stripAnsi(view.render(80).join("\n")), /› Raw tool arguments\s+on/);
+  view.handleInput("k");
+  assert.match(stripAnsi(view.render(80).join("\n")), /› Raw tool arguments\s+off/);
 
   view.handleInput("\x1b");
   assert.equal(closed, true);
@@ -151,7 +175,11 @@ test("config overlay restores the visible value when persistence fails", () => {
     requestRender: () => undefined,
     done: () => undefined,
     configPath: "/tmp/agent/mpi-tool-display.json",
-    initial: { showRawToolArguments: false, compactBashCallRow: true },
+    initial: {
+      showRawToolArguments: false,
+      compactBashCallRow: true,
+      compactBashCommandHint: true,
+    },
     persist: () => ({ ok: false, error: "disk full" }),
     onError: (message) => errors.push(message),
   });

@@ -24,6 +24,16 @@ test("an absent display config keeps the compact row's label requirement on", ()
   });
 });
 
+test("a config the display panel wrote keeps the label requirement", () => {
+  // The panel writes every key that package accepts, so the mirror has to accept them too.
+  withAgentDir(
+    '{"showRawToolArguments": false, "compactBashCallRow": true, "compactBashCommandHint": true}\n',
+    (agentDir) => {
+      assert.equal(compactBashCallRowEnabled(agentDir), true);
+    },
+  );
+});
+
 test("the display config decides the requirement", () => {
   withAgentDir('{"compactBashCallRow": false}\n', (agentDir) => {
     assert.equal(compactBashCallRowEnabled(agentDir), false, "an explicit off drops the label");

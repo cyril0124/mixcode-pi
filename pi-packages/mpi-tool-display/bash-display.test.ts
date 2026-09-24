@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { visibleWidth } from "@earendil-works/pi-tui";
+import { DEFAULT_TOOL_DISPLAY_RUNTIME_CONFIG } from "./config.js";
 import { createToolDisplayRenderers } from "./index.js";
 import { disposeAll } from "./disposable.js";
 import { BASH_CALL_OUTCOME_STATE_KEY, type BashCallOutcome } from "./types.js";
@@ -22,9 +23,17 @@ function renderLines(component: unknown, width: number): string[] {
 
 function renderCallRow(
   args: Record<string, unknown>,
-  options: { width?: number; state?: Record<string, unknown>; expanded?: boolean } = {},
+  options: {
+    width?: number;
+    state?: Record<string, unknown>;
+    expanded?: boolean;
+    commandHint?: boolean;
+  } = {},
 ): string[] {
-  const { bash } = createToolDisplayRenderers();
+  const { bash } = createToolDisplayRenderers(new Map(), () => ({
+    ...DEFAULT_TOOL_DISPLAY_RUNTIME_CONFIG,
+    compactBashCommandHint: options.commandHint ?? true,
+  }));
   return renderLines(
     bash.renderCall(args as never, theme, {
       state: options.state ?? {},
@@ -41,25 +50,150 @@ function outcome(overrides: Partial<BashCallOutcome> = {}): BashCallOutcome {
 }
 
 test("the label is the description argument", () => {
-  const row = renderCallRow({
-    description: "Find callers of the parser",
-    command: '# Find callers of the parser\nrg -n "parser" src | head -30 && echo done',
-  })[0]!;
+  const row = renderCallRow(
+    {
+      description: "Find callers of the parser",
+      command: '# Find callers of the parser\nrg -n "parser" src | head -30 && echo done',
+    },
+    { commandHint: false },
+  )[0]!;
   assert.match(row, /^bash Find callers of the parser\s+ctrl\+o$/);
 
   // The label is the description as written, whatever the command happens to contain.
-  const commented = renderCallRow({
-    description: "Count rows in the fixture",
-    command: "# Count rows in the fixture\ncd /tmp && seq 1 40 | wc -l",
-  })[0]!;
+  const commented = renderCallRow(
+    {
+      description: "Count rows in the fixture",
+      command: "# Count rows in the fixture\ncd /tmp && seq 1 40 | wc -l",
+    },
+    { commandHint: false },
+  )[0]!;
   assert.match(commented, /^bash Count rows in the fixture\s+ctrl\+o$/);
 
   // A description is whitespace-collapsed and loses escape sequences.
-  const messy = renderCallRow({
-    description: "  Build   the suite\u001b[31m  ",
-    command: "bun run check",
-  })[0]!;
+  const messy = renderCallRow(
+    {
+      description: "  Build   the suite\u001b[31m  ",
+      command: "bun run check",
+    },
+    { commandHint: false },
+  )[0]!;
   assert.match(messy, /^bash Build the suite\s+ctrl\+o$/);
+});
+
+test("the collapsed row shows a dim one-line excerpt of the command", () => {
+  // A marker theme records which color each part asked for.
+  const markerTheme = {
+    fg: (color: string, text: string) => `${color}|${text}|`,
+    bold: (text: string) => text,
+  } as never;
+  const { bash: hinted } = createToolDisplayRenderers();
+  const { bash: quiet } = createToolDisplayRenderers(new Map(), () => ({
+    ...DEFAULT_TOOL_DISPLAY_RUNTIME_CONFIG,
+    compactBashCommandHint: false,
+  }));
+  const rowFor = (
+    renderer: typeof hinted,
+    args: Record<string, unknown>,
+    width: number,
+    withOutcome = true,
+  ): string =>
+    renderLines(
+      renderer.renderCall(args as never, markerTheme, {
+        state: withOutcome ? { [BASH_CALL_OUTCOME_STATE_KEY]: outcome() } : {},
+        expanded: false,
+        executionStarted: true,
+        isPartial: false,
+      } as never),
+      width,
+    ).join("\n");
+
+  const row = rowFor(hinted, { description: "Build the suite", command: "bun run check" }, 120);
+  assert.match(row, /accent\|Build the suite\| {2}dim\|bun run check\|/);
+  assert.match(row, /muted\|ok · 32 lines · ctrl\+o\|/, "the status meta stays muted");
+
+  // A multi-line command reaches the row as one line.
+  const multiline = rowFor(
+    hinted,
+    { description: "List the rows", command: "seq 1 40\n\t| wc -l" },
+    200,
+  );
+  assert.match(multiline, /dim\|seq 1 40 \| wc -l\|/);
+
+  // The excerpt gives up its columns before the label does.
+  const narrow = rowFor(hinted, { description: "Build the suite", command: "bun run check" }, 40);
+  assert.ok(!narrow.includes("dim|"), `the excerpt drops first: ${narrow}`);
+  assert.match(narrow, /accent\|Build the s…\|/);
+
+  // Columns the excerpt does not need go back to the label, which keeps more than its floor.
+  const labelWidth = (row: string): number => row.match(/accent\|([^|]*)\|/)?.[1]?.length ?? 0;
+  const shared = rowFor(
+    hinted,
+    { description: "Summarize detector results", command: "seq 1 12" },
+    60,
+  );
+  const alone = rowFor(
+    quiet,
+    { description: "Summarize detector results", command: "seq 1 12" },
+    60,
+  );
+  assert.ok(labelWidth(shared) > 8, `the label keeps more than its floor: ${shared}`);
+  assert.ok(
+    labelWidth(shared) < labelWidth(alone),
+    `the excerpt costs the label columns: ${shared}`,
+  );
+
+  // A description that repeats the command leaves no second copy on the row.
+  const repeated = rowFor(hinted, { description: "bun run check", command: "bun run check" }, 120);
+  assert.ok(!repeated.includes("dim|"), `the label already carries the command: ${repeated}`);
+
+  // With every meta part dropped the row still fits the width it was given. The width check needs
+  // the plain theme, because the marker theme's own markers would count as columns.
+  const plainRowFor = (args: Record<string, unknown>, width: number): string =>
+    renderLines(
+      hinted.renderCall(args as never, theme, {
+        state: { [BASH_CALL_OUTCOME_STATE_KEY]: outcome() },
+        expanded: false,
+        executionStarted: true,
+        isPartial: false,
+      } as never),
+      width,
+    )[0]!;
+  const failedRowFor = (args: Record<string, unknown>, width: number): string =>
+    renderLines(
+      hinted.renderCall(args as never, theme, {
+        state: {
+          [BASH_CALL_OUTCOME_STATE_KEY]: outcome({ failed: true, exitCode: 2, lineCount: 3 }),
+        },
+        expanded: false,
+        executionStarted: true,
+        isPartial: false,
+      } as never),
+      width,
+    )[0]!;
+  for (const width of [20, 24, 27, 30, 34]) {
+    const line = plainRowFor({ description: "Run the tests", command: "cargo test --all" }, width);
+    assert.ok(
+      visibleWidth(line) <= width,
+      `width ${width} must hold the row, got ${visibleWidth(line)}: ${line}`,
+    );
+    // A failure carries the longest meta, so this is where the last meta tier drops out.
+    const failedLine = failedRowFor({ description: "Run the tests", command: "cargo test" }, width);
+    assert.ok(
+      visibleWidth(failedLine) <= width,
+      `width ${width} must hold the failed row, got ${visibleWidth(failedLine)}: ${failedLine}`,
+    );
+  }
+
+  // A row whose label already falls back to the command text shows the command once.
+  const bare = rowFor(hinted, { command: "bun run check" }, 120, false);
+  assert.match(bare, /accent\|bun run check\|/);
+  assert.ok(!bare.includes("dim|"), `the label carries the command: ${bare}`);
+  const atControl = rowFor(
+    quiet,
+    { description: "Build the suite", command: "bun run check" },
+    120,
+  );
+  assert.ok(!atControl.includes("dim|"), `the setting drops the excerpt: ${atControl}`);
 });
 
 test("a call without a description falls back to its command text", () => {
@@ -99,7 +233,7 @@ test("collapsed call row right-aligns status meta and reports outcomes", () => {
     { description: "Build the suite", command: "bun run check" },
     { width: 80, state: { [BASH_CALL_OUTCOME_STATE_KEY]: outcome() } },
   )[0]!;
-  assert.match(row, /^bash Build the suite +ok · 32 lines · ctrl\+o$/);
+  assert.match(row, /^bash Build the suite {2}bun run check +ok · 32 lines · ctrl\+o$/);
   assert.equal(row.length, 80);
   assert.ok(row.endsWith("ctrl+o"), "meta is right-aligned to the row width");
 
@@ -112,7 +246,7 @@ test("collapsed call row right-aligns status meta and reports outcomes", () => {
       },
     },
   )[0]!;
-  assert.match(failed, /^bash Run the tests\s+!! exit 2 · 3 lines · ctrl\+o$/);
+  assert.match(failed, /^bash Run the tests {2}cargo test\s+!! exit 2 · 3 lines · ctrl\+o$/);
 
   const timedOut = renderCallRow(
     { description: "Run the slow tests", command: "pytest -k slow" },
@@ -129,7 +263,10 @@ test("collapsed call row right-aligns status meta and reports outcomes", () => {
     { description: "Make the build directory", command: "mkdir -p /tmp/x" },
     { width: 80, state: { [BASH_CALL_OUTCOME_STATE_KEY]: outcome({ lineCount: 1 }) } },
   )[0]!;
-  assert.match(silent, /^bash Make the build directory\s+ok · 1 line · ctrl\+o$/);
+  assert.match(
+    silent,
+    /^bash Make the build directory {2}mkdir -p \/tmp\/x\s+ok · 1 line · ctrl\+o$/,
+  );
 });
 
 test("remaining status variants and the shell meta render on the row", () => {
@@ -200,7 +337,7 @@ test("a reused call row follows streaming args, status and expansion", () => {
     context({ lastComponent: component, isPartial: false }),
   );
   const finished = renderLines(component, 120)[0]!.trim();
-  assert.match(finished, /^bash Find callers of the parser +ctrl\+o$/);
+  assert.match(finished, /^bash Find callers of the parser {2}.+ctrl\+o$/);
 
   // ctrl+o arrives on a later render of the same instance.
   component = bash.renderCall(
@@ -232,7 +369,10 @@ test("a finished row reports the duration the run measured", () => {
 });
 
 test("compactBashCallRow off restores the full command and the returned-lines row", () => {
-  const { bash } = createToolDisplayRenderers(new Map(), () => false);
+  const { bash } = createToolDisplayRenderers(new Map(), () => ({
+    ...DEFAULT_TOOL_DISPLAY_RUNTIME_CONFIG,
+    compactBashCallRow: false,
+  }));
   const args = { description: "Build the suite", command: "# run the checks\nbun run check" };
   const state: Record<string, unknown> = {};
 
@@ -283,7 +423,10 @@ test("compactBashCallRow off restores the full command and the returned-lines ro
 
 test("compactBashCallRow toggles on later renders of the same row", () => {
   let compact = true;
-  const { bash } = createToolDisplayRenderers(new Map(), () => compact);
+  const { bash } = createToolDisplayRenderers(new Map(), () => ({
+    ...DEFAULT_TOOL_DISPLAY_RUNTIME_CONFIG,
+    compactBashCallRow: compact,
+  }));
   const args = { description: "Build the suite", command: "bun run check" };
   const state: Record<string, unknown> = { [BASH_CALL_OUTCOME_STATE_KEY]: outcome() };
   const context = (overrides: Record<string, unknown>) =>

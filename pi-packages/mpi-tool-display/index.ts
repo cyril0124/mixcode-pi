@@ -27,6 +27,7 @@ import type {
 import { formatSize, getAgentDir, ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
 import { renderBashCall } from "./bash-display.js";
 import {
+  DEFAULT_TOOL_DISPLAY_RUNTIME_CONFIG,
   loadToolDisplayRuntimeConfig,
   type ToolDisplayRuntimeConfig,
   writeToolDisplayRuntimeConfig,
@@ -210,11 +211,19 @@ function captureWritePreviousContent(
 export function createToolDisplayRenderers(
   writeExecutionMetaByToolCallId = new Map<string, WriteExecutionMeta>(),
   /** Read per render so the settings overlay applies to later calls in the same tab. */
-  isCompactBashCallRow: () => boolean = () => true,
+  readRuntimeConfig: () => ToolDisplayRuntimeConfig = () => DEFAULT_TOOL_DISPLAY_RUNTIME_CONFIG,
 ): ToolDisplayRendererCatalog {
   const bash: ToolDisplayRenderer = {
-    renderCall: (args, theme, context) =>
-      renderBashCall(args as never, theme, context as never, isCompactBashCallRow()),
+    renderCall: (args, theme, context) => {
+      const config = readRuntimeConfig();
+      return renderBashCall(
+        args as never,
+        theme as never,
+        context as never,
+        config.compactBashCallRow,
+        config.compactBashCommandHint,
+      );
+    },
     renderResult: (result, options, theme, context) =>
       renderBashDisplayResult(
         result as never,
@@ -222,7 +231,7 @@ export function createToolDisplayRenderers(
         CONFIG,
         theme,
         context,
-        isCompactBashCallRow(),
+        readRuntimeConfig().compactBashCallRow,
       ),
   };
   const read: ToolDisplayRenderer = {
@@ -423,10 +432,7 @@ export default function toolDisplayExtension(pi: ExtensionAPI): void {
   const agentDir = getAgentDir();
   let runtimeConfig = loadRuntimeConfigOrThrow(agentDir);
   const writeExecutionMetaByToolCallId = new Map<string, WriteExecutionMeta>();
-  const catalog = createToolDisplayRenderers(
-    writeExecutionMetaByToolCallId,
-    () => runtimeConfig.compactBashCallRow,
-  );
+  const catalog = createToolDisplayRenderers(writeExecutionMetaByToolCallId, () => runtimeConfig);
   const installation = installToolExecutionAdapter(ToolExecutionComponent.prototype, {
     call: (toolName, native) =>
       wrapToolCallRenderer(

@@ -16,7 +16,11 @@ export const TOOL_DISPLAY_CONFIG_FILENAME = "mpi-tool-display.json";
 const COMPACT_BASH_CALL_ROW_KEY = "compactBashCallRow";
 
 /** Mirrors the owner's key allowlist: a file it rejects must not make bash demand a label. */
-const KNOWN_KEYS = new Set(["showRawToolArguments", COMPACT_BASH_CALL_ROW_KEY]);
+const KNOWN_KEYS = new Set([
+  "showRawToolArguments",
+  COMPACT_BASH_CALL_ROW_KEY,
+  "compactBashCommandHint",
+]);
 
 /**
  * Whether `mpi-tool-display` renders a finished bash call as one compact row. An absent file means
