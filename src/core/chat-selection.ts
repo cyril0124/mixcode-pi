@@ -116,6 +116,20 @@ export function toScrollableChatSelectionPoint(
   return { row: row + source.originOffset - scrollOffset, col: point.col };
 }
 
+/**
+ * Whether a live selection reaches any row of a chat block, which occupies `height` rows from
+ * `start`. A collapsed selection paints nothing, so it never covers a block.
+ */
+export function chatSelectionCoversBlock(
+  selection: ChatSelectionState,
+  start: number,
+  height: number,
+): boolean {
+  if (isCollapsedChatSelection(selection)) return false;
+  const normalized = normalizeChatSelection(selection);
+  return normalized.start.row <= start + height - 1 && normalized.end.row >= start;
+}
+
 export function scrollableChatSelectionForViewport(
   selection: ChatSelectionState,
   scrollOffset: number,

@@ -3,7 +3,9 @@ import { pointerHoverFor } from "../pointer-hover.js";
 import { chatScrollbarFor } from "../chat-scrollbar.js";
 import type { ChatLine, RuntimeTab } from "../../agent/runtime.js";
 import {
+  type ChatSelectionState,
   captureScrollableChatSelection,
+  chatSelectionCoversBlock,
   highlightChatSelectionLine,
   scrollableChatSelectionForViewport,
 } from "../../core/chat-selection.js";
@@ -840,6 +842,20 @@ export function publishChatToolRanges(
   if (!same) tab.chatToolRowRanges = next;
 }
 
+/**
+ * Cache the rendered rows into the selection (a write, as a drag does on every frame) and return it
+ * in viewport rows, which is the frame the cue and the ranges below are expressed in.
+ */
+function captureAndResolveViewportSelection(
+  selection: ChatSelectionState | undefined,
+  lines: string[],
+  scrollOffset: number,
+): ChatSelectionState | undefined {
+  if (!selection) return undefined;
+  captureScrollableChatSelection(selection, lines, scrollOffset);
+  return scrollableChatSelectionForViewport(selection, scrollOffset);
+}
+
 function highlightVisibleChatLines(
   lines: string[],
   tab: MixCodeTabInfo,
@@ -849,9 +865,21 @@ function highlightVisibleChatLines(
   tab.lastRenderedChatLines = lines;
   tab.lastRenderedChatScrollOffset = tab.chatScrollOffset;
   let result = applyToastOverlay(lines, activeToast(tab), width, height, activeRenderTheme);
+  // The selection is resolved before the cue below, which needs its rows in viewport coordinates.
+  const viewportSelection = captureAndResolveViewportSelection(
+    tab.chatSelection,
+    lines,
+    tab.chatScrollOffset,
+  );
   const hovered =
     tab.chatHoverRow === undefined ? undefined : chatToolCallAtRow(tab, tab.chatHoverRow);
-  if (hovered) {
+  // The cue and the selection paint the same background, so a block the pointer is selecting keeps
+  // its selection visible instead of answering the pointer.
+  const cueHidden =
+    hovered !== undefined &&
+    viewportSelection !== undefined &&
+    chatSelectionCoversBlock(viewportSelection, hovered.start, hovered.height);
+  if (hovered && !cueHidden) {
     const painted = result.slice();
     for (let row = hovered.start; row < hovered.start + hovered.height; row++) {
       const line = painted[row];
@@ -859,10 +887,7 @@ function highlightVisibleChatLines(
     }
     result = painted;
   }
-  const selection = tab.chatSelection;
-  if (!selection) return result;
-  captureScrollableChatSelection(selection, lines, tab.chatScrollOffset);
-  const viewportSelection = scrollableChatSelectionForViewport(selection, tab.chatScrollOffset);
+  if (!viewportSelection) return result;
   return result.map((line, row) =>
     highlightChatSelectionLine(line, row, viewportSelection, activeRenderTheme.selectedBg),
   );
