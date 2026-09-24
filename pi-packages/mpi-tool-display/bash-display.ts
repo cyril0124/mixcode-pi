@@ -263,16 +263,20 @@ function fitBashCallBody(
   const hintWidth = visibleWidth(hintText);
   const showHint =
     hintWidth > 0 && body - BASH_LABEL_MIN_WIDTH - BASH_LABEL_HINT_GAP >= BASH_HINT_MIN_WIDTH;
-  // The excerpt keeps its floor; the columns it does not need go back to the label.
+  // The label asks for its whole width; the excerpt takes what the label leaves, never less than its
+  // floor while it is shown, and gives unused columns back to the label.
   const hintBudget = showHint
     ? Math.min(
         hintWidth,
-        Math.max(BASH_HINT_MIN_WIDTH, body - BASH_LABEL_MIN_WIDTH - BASH_LABEL_HINT_GAP),
+        Math.max(BASH_HINT_MIN_WIDTH, body - BASH_LABEL_HINT_GAP - visibleWidth(label)),
       )
     : 0;
   const labelBudget = body - (showHint ? hintBudget + BASH_LABEL_HINT_GAP : 0);
-  const shownLabel = truncateToWidth(label, labelBudget, "…");
-  const shownHint = hintBudget > 0 ? truncateToWidth(hintText, hintBudget, "…") : "";
+  // Both parts are plain text here, so the escape `truncateToWidth` inserts around its ellipsis
+  // would end the color of whatever wraps them. Strip it before the caller styles the parts.
+  const shownLabel = stripAllEscapes(truncateToWidth(label, labelBudget, "…"));
+  const shownHint =
+    hintBudget > 0 ? stripAllEscapes(truncateToWidth(hintText, hintBudget, "…")) : "";
   return {
     label: shownLabel,
     hint: shownHint,

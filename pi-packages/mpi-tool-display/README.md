@@ -38,9 +38,11 @@ the label, with runs of whitespace collapsed:
 bash Find callers of the parser  rg -n parser src | head -30        ok · 40 lines · 0s · ctrl+o
 ```
 
-The excerpt gives up its columns before the label elides, so it disappears first on a narrow
-terminal. A command the label already carries shows no excerpt, so a row never prints the same text
-twice, which covers a call whose label falls back to its command.
+The excerpt takes only what the label leaves, so a long command cannot squeeze the label below the
+excerpt's floor of twelve columns; the excerpt gives up its columns before the label elides and
+disappears first on a narrow terminal. A
+command the label already carries shows no excerpt, so a row never prints the same text twice, which
+covers a call whose label falls back to its command.
 
 A running call shows `~ <elapsed>`. A finished call shows `ok`, or `!! exit N`, `!! timed out`,
 `!! aborted`, or `!! failed`, followed by the output line count (`1 line`, `32 lines`), and by its duration when the row

@@ -7,6 +7,15 @@ import { createToolDisplayRenderers } from "./index.js";
 import { disposeAll } from "./disposable.js";
 import { BASH_CALL_OUTCOME_STATE_KEY, type BashCallOutcome } from "./types.js";
 
+/** SGR codes for the theme colors these tests check, so a span can be located in the row. */
+const SGR_CODES: Record<string, number> = {
+  toolTitle: 1,
+  dim: 2,
+  accent: 3,
+  muted: 8,
+  warning: 5,
+};
+
 const theme = {
   fg: (_color: string, text: string) => text,
   bold: (text: string) => text,
@@ -124,6 +133,21 @@ test("the collapsed row shows a dim one-line excerpt of the command", () => {
   assert.ok(!narrow.includes("dim|"), `the excerpt drops first: ${narrow}`);
   assert.match(narrow, /accent\|Build the s…\|/);
 
+  // A long command never squeezes the label below the width the label asks for.
+  const longCommand = rowFor(
+    hinted,
+    {
+      description: "Remove the worktree and verify the final state",
+      command: `cd /repo && echo "=== worktree ===" && (cd .worktrees/${"x".repeat(80)} && git status)`,
+    },
+    170,
+  );
+  assert.match(
+    longCommand,
+    /accent\|Remove the worktree and verify the final state\| {2}dim\|cd \/repo/,
+    `the label keeps its width beside a long command: ${longCommand}`,
+  );
+
   // Columns the excerpt does not need go back to the label, which keeps more than its floor.
   const labelWidth = (row: string): number => row.match(/accent\|([^|]*)\|/)?.[1]?.length ?? 0;
   const shared = rowFor(
@@ -140,6 +164,41 @@ test("the collapsed row shows a dim one-line excerpt of the command", () => {
   assert.ok(
     labelWidth(shared) < labelWidth(alone),
     `the excerpt costs the label columns: ${shared}`,
+  );
+
+  // An elided part keeps the color of the part it belongs to, so the ellipsis stays inside the
+  // color span instead of tearing it open.
+  const sgrTheme = {
+    fg: (color: string, text: string) => `\u001b[${SGR_CODES[color] ?? 0}m${text}\u001b[0m`,
+    bold: (text: string) => text,
+  } as never;
+  const elidedRow = (
+    hinted.renderCall(
+      {
+        description: "Read the complete gate results now",
+        command: "tail -8 /tmp/logs/one.log two",
+      } as never,
+      sgrTheme,
+      {
+        state: { [BASH_CALL_OUTCOME_STATE_KEY]: outcome() },
+        expanded: false,
+        executionStarted: true,
+        isPartial: false,
+      } as never,
+    ) as { render(width: number): string[] }
+  ).render(60)[0]!;
+  const dimStart = elidedRow.indexOf(`\u001b[${SGR_CODES.dim}m`);
+  const dimEnd = elidedRow.indexOf("\u001b[0m", dimStart);
+  assert.ok(dimStart >= 0, `the excerpt is dim: ${JSON.stringify(elidedRow)}`);
+  assert.ok(
+    elidedRow.slice(dimStart, dimEnd).includes("…"),
+    `the ellipsis stays inside the dim span: ${JSON.stringify(elidedRow)}`,
+  );
+  const accentStart = elidedRow.indexOf(`\u001b[${SGR_CODES.accent}m`);
+  const accentEnd = elidedRow.indexOf("\u001b[0m", accentStart);
+  assert.ok(
+    elidedRow.slice(accentStart, accentEnd).includes("…"),
+    `the ellipsis stays inside the label span: ${JSON.stringify(elidedRow)}`,
   );
 
   // A description that repeats the command leaves no second copy on the row.
