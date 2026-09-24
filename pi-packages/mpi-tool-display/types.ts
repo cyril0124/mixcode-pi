@@ -14,6 +14,8 @@ export interface ToolDisplayConfig {
   expandedPreviewMaxLines: number;
   /** Live/expanded preview line budget for bash and read (configured `previewLines`). */
   previewLines: number;
+  /** Output lines a failed bash call keeps visible while collapsed. */
+  bashFailureTailLines: number;
 }
 
 export const DEFAULT_TOOL_DISPLAY_CONFIG: ToolDisplayConfig = {
@@ -24,4 +26,22 @@ export const DEFAULT_TOOL_DISPLAY_CONFIG: ToolDisplayConfig = {
   diffWordWrap: true,
   expandedPreviewMaxLines: 4000,
   previewLines: 8,
+  bashFailureTailLines: 3,
 };
+
+/**
+ * Key of the compact bash outcome inside Pi's per-row renderer state. The result renderer
+ * writes it; the call renderer reads it to build the one-row collapsed status.
+ */
+export const BASH_CALL_OUTCOME_STATE_KEY = "mpiToolDisplayBashOutcome";
+
+/** Status a finished bash call shows on its collapsed call row. */
+export interface BashCallOutcome {
+  /** Output lines the result carried, used for the `<N> lines` meta. */
+  lineCount: number;
+  failed: boolean;
+  /** Exit code parsed from Pi's `Command exited with code N` result text. */
+  exitCode?: number;
+  timedOut: boolean;
+  aborted: boolean;
+}

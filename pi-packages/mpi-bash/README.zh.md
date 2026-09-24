@@ -6,6 +6,18 @@ Bash 执行策略：默认超时、前台窗口、到期自动转后台、结束
 
 扩展通过 Pi 的 `createBashToolDefinition` 和自定义 `BashOperations` 注册 `bash` 工具。参数、渲染和输出截断使用 Pi 的实现，执行时采用 `commandPrefix`、`shellPath` 以及 MixCode 每次启动进程时注入的 tab 环境变量。
 
+## 工具参数
+
+注册时的定义保留 Pi 的工具描述以及 `command`、`timeout` 两个参数，并在 `mpi-tool-display` 渲染折叠行（默认开启）时新增一个参数：
+
+| 参数 | 必填 | 含义 |
+| --- | --- | --- |
+| `description` | 折叠行开启时 | 一句话说明这条命令在做什么，以大写字母开头，转写里作为该调用的 label 显示。 |
+
+`mpi-tool-display` 把这个参数作为折叠 bash 行的 label。命令本身原样传给 shell，因此执行、日志和后台通知都不受影响。没有 label 的调用退回到截断后的命令文本。
+
+是否要求该参数取决于对方的 `compactBashCallRow`：会话注册工具时读取 `<agentDir>/mpi-tool-display.json`，只有折叠行开启才要求 `description`。文件不存在说明还没有人改过显示设置，按对方的默认值（开启）处理；文件存在但读不出来或格式不对时不要求，因为那是对方负责校验并报错的配置。关掉折叠行后 bash 注册的仍是 Pi 原本的 schema。每次 `session_start` 都会重新读取该开关，因此 `/reload` 之后同一会话内的后续调用即生效；不重载的会话在下次启动时生效。
+
 ## 行为
 
 | 阶段 | 发生什么 |

@@ -221,6 +221,17 @@ export interface MixCodeTabInfo {
   inputMetaHitRegions?: InputMetaHitRegion[];
   /** Non-persisted: screen bounds for the visible Agent message surface. */
   chatSurfaceBounds?: ChatSurfaceBounds;
+  /**
+   * Tool calls expanded on their own by clicking their row. Kept on the tab rather than in
+   * `extensionUi`, which several runtime paths rebuild wholesale.
+   */
+  expandedToolCalls?: Set<string>;
+  /** Visible chat rows belonging to a tool call block, in chat-surface coordinates. */
+  chatToolRowRanges?: Array<{ start: number; height: number; toolCallId?: string }>;
+  /** First row of the block under the pointer, in chat-surface coordinates. */
+  chatHoverRow?: number;
+  /** Cell a primary press landed on, with the tool call it resolved to, for click-to-expand. */
+  chatClickCell?: { x: number; y: number; toolCallId?: string };
   /** Non-persisted: active application-level text selection in the Agent message surface. */
   chatSelection?: ChatSelectionState;
   /** Non-persisted: visible jump label bounds, zero-based within the chat surface. */
@@ -347,6 +358,7 @@ export interface WaitingForInput {
 interface ExtensionUiState {
   statuses: ExtensionStatusLine[];
   widgets: ExtensionWidgetLine[];
+  /** Expands every tool block; `ctrl+o` toggles it. */
   toolsExpanded: boolean;
   waitingForInputs: WaitingForInput[];
   workingIndicatorFrames?: string[];

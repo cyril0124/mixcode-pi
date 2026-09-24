@@ -6,6 +6,18 @@ Bash execution policy: a default timeout, a foreground window, automatic detach 
 
 The extension registers `bash` through Pi's `createBashToolDefinition` with custom `BashOperations`. It uses Pi's tool parameters, rendering, and output truncation, honors `commandPrefix` and `shellPath`, and passes MixCode's per-spawn tab environment.
 
+## Tool arguments
+
+The registered definition keeps Pi's tool description and its `command` and `timeout` arguments, and adds one argument while `mpi-tool-display` renders the compact call row (its default):
+
+| Argument | Required | Meaning |
+| --- | --- | --- |
+| `description` | while the compact row is on | One-line statement of what the command does, starting with a capital letter, shown as the call's label in the transcript. |
+
+`mpi-tool-display` shows that argument as the label of a collapsed bash row. The command reaches the shell verbatim, so execution, logs, and background notices are unaffected. A call without a label falls back to the elided command text.
+
+The requirement follows that package's `compactBashCallRow` flag: bash reads `<agentDir>/mpi-tool-display.json` when a session registers the tool, and asks for `description` only while the compact row is on. An absent file means nothing has customized the display, so `mpi-tool-display`'s own default (on) applies; an unreadable or malformed file leaves the requirement off, because that package validates and reports its own configuration. Turn the row off and bash registers Pi's schema unchanged. Bash reads the flag on every `session_start`, so `/reload` applies a toggle to later calls in the same session, and a session that never reloads picks it up at its next start.
+
 ## Behavior
 
 | Phase | What happens |

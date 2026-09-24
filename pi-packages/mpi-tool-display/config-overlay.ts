@@ -18,6 +18,12 @@ interface ToolDisplayConfigOverlayOptions {
   onError: (message: string) => void;
 }
 
+/** One toggle row; the label is what the panel shows, the key is what the config file holds. */
+const CONFIG_ROWS = [
+  { key: "compactBashCallRow", label: "Compact bash call row" },
+  { key: "showRawToolArguments", label: "Raw tool arguments" },
+] as const satisfies ReadonlyArray<{ key: keyof ToolDisplayRuntimeConfig; label: string }>;
+
 export function createToolDisplayConfigOverlay(options: ToolDisplayConfigOverlayOptions): {
   render(width: number): string[];
   invalidate(): void;
@@ -25,13 +31,11 @@ export function createToolDisplayConfigOverlay(options: ToolDisplayConfigOverlay
 } {
   const { theme, requestRender, done } = options;
   let draft: ToolDisplayRuntimeConfig = { ...options.initial };
+  let selectedIndex = 0;
 
-  function currentValueLabel(): string {
-    return draft.showRawToolArguments ? "on" : "off";
-  }
-
-  function toggle(): void {
-    const next = { showRawToolArguments: !draft.showRawToolArguments };
+  function toggleSelected(): void {
+    const row = CONFIG_ROWS[selectedIndex]!;
+    const next = { ...draft, [row.key]: !draft[row.key] };
     const persisted = options.persist(next);
     if (!persisted.ok) {
       options.onError(persisted.error);
@@ -42,13 +46,27 @@ export function createToolDisplayConfigOverlay(options: ToolDisplayConfigOverlay
     requestRender();
   }
 
+  function moveSelection(step: number): void {
+    const count = CONFIG_ROWS.length;
+    selectedIndex = (selectedIndex + step + count) % count;
+    requestRender();
+  }
+
   function handleInput(data: string): void {
     if (matchesKey(data, "escape") || matchesKey(data, "q") || matchesKey(data, "ctrl+c")) {
       done();
       return;
     }
+    if (matchesKey(data, "up") || data === "k") {
+      moveSelection(-1);
+      return;
+    }
+    if (matchesKey(data, "down") || data === "j") {
+      moveSelection(1);
+      return;
+    }
     if (matchesKey(data, "enter") || matchesKey(data, "return") || data === " ") {
-      toggle();
+      toggleSelected();
     }
   }
 
@@ -72,14 +90,25 @@ export function createToolDisplayConfigOverlay(options: ToolDisplayConfigOverlay
     ];
   }
 
+  function renderRow(index: number): string {
+    const row = CONFIG_ROWS[index]!;
+    const selected = index === selectedIndex;
+    const marker = selected ? theme.fg("accent", "› ") : "  ";
+    const label = theme.fg("accent", row.label.padEnd(24));
+    const value = draft[row.key] ? "on" : "off";
+    return `${marker}${label} ${theme.fg("accent", value)}`;
+  }
+
   function render(width: number): string[] {
-    const label = "Raw tool arguments";
-    const value = currentValueLabel();
+    const selectedRow = CONFIG_ROWS[selectedIndex]!;
     const body = [
-      theme.fg("dim", " Changes apply immediately · Enter toggle"),
-      theme.fg("warning", " Debug only: arguments may expose secrets."),
+      theme.fg("dim", " Changes apply immediately · Enter toggle · j/k select"),
       "",
-      `${theme.fg("accent", "› ")}${theme.fg("accent", label.padEnd(22))} ${theme.fg("accent", value)}`,
+      ...CONFIG_ROWS.map((_row, index) => renderRow(index)),
+      "",
+      ...(selectedRow.key === "showRawToolArguments"
+        ? [theme.fg("warning", " Debug only: arguments may expose secrets.")]
+        : [theme.fg("dim", " One row per finished bash call, with label and status meta.")]),
       "",
       theme.fg("dim", ` ${options.configPath}`),
       theme.fg("dim", " Esc close"),

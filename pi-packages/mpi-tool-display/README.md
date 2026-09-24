@@ -8,26 +8,50 @@ Render-only transcript presentation for `bash`, `read`, `edit`, `write`, and Thi
 
 | Surface | Collapsed / idle | Expanded / running |
 | --- | --- | --- |
-| `bash` | `↳ N lines returned • Ctrl+O to expand` | 10-frame spinner with elapsed time; live output remains uncollapsed; expanded preview is capped at 4000 lines |
+| `bash` | One line: `bash <label>` plus right-aligned status meta; the result region is empty. A failure keeps its tail below the row. See *Collapsed bash row* | 10-frame spinner with elapsed time; live output streams uncollapsed; expanded preview is capped at 4000 lines |
 | `read` | `↳ loaded N lines • Ctrl+O to expand` | Expanded preview is capped at 4000 lines |
 | `read` of `SKILL.md` | `[skill] <parent directory>`; collapsed result is empty | File body |
 | `edit` | Diff capped at 24 content lines before wrapping, with a remainder hint | Pending diff preview while running; expanded diff capped at 4000 terminal rows |
 | `write` | Overwrite diff against pre-execution content; new files render as additions; same diff limits as `edit` | Pending diff preview while running; expanded diff capped at 4000 terminal rows |
 | Thinking | Themed `Thinking:` prefix | Streaming updates remain labeled |
 
-Call rows use `$ command [timeout]`, `read path[:range]`, `edit path (N lines)`, and `write path (N lines • size)`.
+Call rows use `bash <label>`, `read path[:range]`, `edit path (N lines)`, and `write path (N lines • size)`, so the leading word always names the tool. Expanding a row (click or `ctrl+o`) restores the shell form: `$ <command>`.
 
-Diff presentation uses bars, split layout at widths of 120 columns or more, unified layout below 120 columns, word wrapping, and Pi syntax highlighting. The collapsed budget counts each content line once, including all its wrapped rows; a left/right pair counts once in split view. Headers and hunk/file metadata do not consume that budget. The remainder hint counts hidden content lines when collapsed and hidden terminal rows when expanded. Diff knobs live in `DEFAULT_TOOL_DISPLAY_CONFIG`. Raw argument display is configured separately.
+### Collapsed bash row
+
+The collapsed row is always exactly one line, whatever the label length and the terminal width.
+The label is elided to fit. When the row still does not fit, `timeout Ns` and `shell <path>` are
+dropped first, then `ctrl+o`, then the whole meta.
+
+The label is the call's own `description` argument, which `mpi-bash` asks for while this row is on,
+or the elided command when the call carries none:
+
+| Label source | Row |
+| --- | --- |
+| The call's `description` argument | `bash Find callers of the parser` |
+| A call without one falls back to its elided command | `bash rg -n parser src \| head -30` |
+
+A running call shows `~ <elapsed>`. A finished call shows `ok`, or `!! exit N`, `!! timed out`,
+`!! aborted`, or `!! failed`, followed by the output line count (`1 line`, `32 lines`), and by its duration when the row
+measured one. Status comes from the last line of the result, where Pi appends it. A failed call keeps
+at most `bashFailureTailLines` (3) non-empty output lines below the row, taken from the end of the
+output; a failure without a status line (a validation or spawn error) keeps the first three instead,
+because its message sits at the head. Expanding shows the full command and the full output preview.
+
+Diff presentation uses bars, split layout at widths of 120 columns or more, unified layout below 120 columns, word wrapping, and Pi syntax highlighting. The collapsed budget counts each content line once, including all its wrapped rows; a left/right pair counts once in split view. Headers and hunk/file metadata do not consume that budget. The remainder hint counts hidden content lines when collapsed and hidden terminal rows when expanded. Diff knobs and the bash failure tail (`bashFailureTailLines`) live in `DEFAULT_TOOL_DISPLAY_CONFIG`. Raw argument display is configured separately.
 
 ## Configuration
 
-Run `/mpi-tool-display config` to open the global settings overlay. Changes persist immediately to `<agentDir>/mpi-tool-display.json`, where `<agentDir>` follows `PI_CODING_AGENT_DIR` and otherwise defaults to `~/.pi/agent`.
+Run `/mpi-tool-display config` to open the global settings overlay. `j`/`k` or the arrow keys select a setting, Enter toggles it, and Esc closes. Changes persist immediately to `<agentDir>/mpi-tool-display.json`, where `<agentDir>` follows `PI_CODING_AGENT_DIR` and otherwise defaults to `~/.pi/agent`.
 
 ```json
 {
-  "showRawToolArguments": false
+  "showRawToolArguments": false,
+  "compactBashCallRow": true
 }
 ```
+
+`compactBashCallRow` defaults to `true` and selects the collapsed row described above. Turning it off restores the two-row presentation: the call row shows the full command and the result row shows `↳ N lines returned • Ctrl+O to expand` (a failure keeps its `↳ command failed` header and a head preview). The settings panel writes the file; the toggle applies to calls rendered after it changes, and `/reload` rebuilds existing rows. The flag also decides whether `mpi-bash` requires the `description` argument that supplies the label; see `pi-packages/mpi-bash/README.md`.
 
 `showRawToolArguments` defaults to `false`. When enabled, every tool call keeps its specialized, native, or title fallback presentation and appends `JSON.stringify(args, null, 2)`. Tool results are unchanged. Later calls in the current tab use the new value; `/reload` rebuilds existing rows. Other tabs reread the file before their next agent turn.
 

@@ -88,6 +88,14 @@ export class PointerHover {
   }
 }
 
+/** Background cue for a row that responds to a click. */
+export function paintRowBackground(line: string, theme: MixCodeTheme): string {
+  const marked = theme.selectedBg("\x01");
+  const open = marked.slice(0, marked.indexOf("\x01"));
+  if (!open) return line;
+  return theme.selectedBg(line.replace(/\x1b\[[0-9;:]*m/g, (sequence) => `${sequence}${open}`));
+}
+
 /** Underline distinguishes hover from selection even in monochrome themes. */
 function paintHover(text: string, theme: MixCodeTheme): string {
   const marked = theme.selectedBg("\x01");

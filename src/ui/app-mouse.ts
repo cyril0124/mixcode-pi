@@ -15,6 +15,8 @@ import { parseSgrMouseInput, type SgrMouseInput } from "../core/mouse.js";
 import { pointerHoverFor } from "./pointer-hover.js";
 import { chatScrollbarFor } from "./chat-scrollbar.js";
 import { clearScrollFreeze } from "./rendering/agent-surface-scroll.js";
+import { chatToolCallAtRow } from "./rendering/agent-surface.js";
+import { toggleToolCallExpansion } from "./rendering/tool-expansion.js";
 import {
   acceptCommandPaletteSelection,
   acceptTabJumpSelection,
@@ -377,6 +379,29 @@ export function handleChromeHoverInput(
       if (jump?.clear()) changed = true;
     }
   }
+  // The chat row under the pointer carries the hover cue; the renderer paints its block. Hover is
+  // presentation-only, so a selection drag or a stale drag flag must not block it.
+  const hoverBounds = active?.chatSurfaceBounds;
+  const pointerRow =
+    hoverBounds &&
+    mouse &&
+    mouse.x >= hoverBounds.left &&
+    mouse.x < hoverBounds.left + hoverBounds.width &&
+    mouse.y - hoverBounds.top >= 0 &&
+    mouse.y - hoverBounds.top < hoverBounds.height
+      ? mouse.y - hoverBounds.top
+      : undefined;
+  // Only a tool block answers the pointer; the block's first row identifies it, so moving inside
+  // one block neither repaints nor clears the cue, and motion over other rows stays inert. A
+  // blocked pointer drops the cue rather than keeping a row that a later layout would paint
+  // against another block.
+  const hoverRow =
+    active && pointerRow !== undefined ? chatToolCallAtRow(active, pointerRow)?.start : undefined;
+  const nextHoverRow = active && !inputTakeover && !hasAnyOverlay(tui) ? hoverRow : undefined;
+  if (active && active.chatHoverRow !== nextHoverRow) {
+    active.chatHoverRow = nextHoverRow;
+    changed = true;
+  }
   if (changed) tui.requestRender();
 }
 
@@ -467,6 +492,45 @@ function handleChromeMouse(
 ): boolean {
   // Capturing overlays own the screen; only non-capturing Notice allows chrome clicks.
   if (hasAnyOverlay(tui) && !hasActiveNotice()) return false;
+  // Pointer feedback and click-to-expand: the row under the pointer carries the hover cue, and a
+  // primary press followed by a release on the same cell toggles that tool call's own expanded
+  // view. A drag never counts, and `ctrl+o` keeps its global toggle.
+  if (active && !mouse.wheel) {
+    const bounds = active.chatSurfaceBounds;
+    const row =
+      bounds && mouse.y - bounds.top >= 0 && mouse.y - bounds.top < bounds.height
+        ? mouse.y - bounds.top
+        : undefined;
+    const overChat =
+      bounds !== undefined &&
+      row !== undefined &&
+      mouse.x >= bounds.left &&
+      mouse.x < bounds.left + bounds.width;
+    if (mouse.motion || !overChat) {
+      if (active.chatClickCell !== undefined) active.chatClickCell = undefined;
+    } else if (mouse.release) {
+      const pressed = active.chatClickCell;
+      active.chatClickCell = undefined;
+      if (pressed && pressed.x === mouse.x && pressed.y === mouse.y && mouse.button === 0) {
+        // The press resolved its row, so a scroll or a re-render between the press and this release
+        // cannot move the toggle to another call.
+        const toolCallId = pressed.toolCallId ?? chatToolCallAtRow(active, row)?.toolCallId;
+        if (toolCallId) {
+          // This release never reaches the selection handler, which would have finalized the press.
+          if (active.chatSelection?.dragging) active.chatSelection = undefined;
+          toggleToolCallExpansion(active, toolCallId);
+          tui.requestRender();
+          return true;
+        }
+      }
+    } else if (mouse.button === 0) {
+      active.chatClickCell = {
+        x: mouse.x,
+        y: mouse.y,
+        toolCallId: chatToolCallAtRow(active, row)?.toolCallId,
+      };
+    }
+  }
   // Zen hides the tab bar; ghost hit-regions must not steal clicks on the
   // separator / chat that now occupy those screen rows.
   const tabBarVisible = !(active?.zenMode === true && state.activeTabId !== HOME_TAB_ID);

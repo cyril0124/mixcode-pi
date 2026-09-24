@@ -7,10 +7,13 @@ export const TOOL_DISPLAY_CONFIG_FILENAME = "mpi-tool-display.json";
 
 export interface ToolDisplayRuntimeConfig {
   showRawToolArguments: boolean;
+  /** Collapse a finished bash call to one row with a label and status meta. */
+  compactBashCallRow: boolean;
 }
 
 export const DEFAULT_TOOL_DISPLAY_RUNTIME_CONFIG: ToolDisplayRuntimeConfig = {
   showRawToolArguments: false,
+  compactBashCallRow: true,
 };
 
 export type ToolDisplayConfigLoadResult =
@@ -21,7 +24,7 @@ export type ToolDisplayConfigWriteResult =
   | { ok: true; path: string; config: ToolDisplayRuntimeConfig }
   | { ok: false; path: string; error: string };
 
-const CONFIG_KEYS = new Set(["showRawToolArguments"]);
+const CONFIG_KEYS = new Set(["showRawToolArguments", "compactBashCallRow"]);
 
 export function toolDisplayConfigPath(agentDir: string): string {
   return path.join(agentDir, TOOL_DISPLAY_CONFIG_FILENAME);
@@ -39,8 +42,13 @@ export function parseToolDisplayRuntimeConfig(raw: unknown): ToolDisplayRuntimeC
   if (value !== undefined && typeof value !== "boolean") {
     throw new Error(`showRawToolArguments must be a boolean, got ${JSON.stringify(value)}`);
   }
+  const compact = source.compactBashCallRow;
+  if (compact !== undefined && typeof compact !== "boolean") {
+    throw new Error(`compactBashCallRow must be a boolean, got ${JSON.stringify(compact)}`);
+  }
   return {
     showRawToolArguments: value ?? DEFAULT_TOOL_DISPLAY_RUNTIME_CONFIG.showRawToolArguments,
+    compactBashCallRow: compact ?? DEFAULT_TOOL_DISPLAY_RUNTIME_CONFIG.compactBashCallRow,
   };
 }
 

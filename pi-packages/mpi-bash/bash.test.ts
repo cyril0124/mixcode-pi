@@ -4,6 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
 import { visibleWidth } from "@earendil-works/pi-tui";
+import { createBashToolDefinition } from "@earendil-works/pi-coding-agent";
 import bashExtension from "./index.js";
 import {
   BASH_EXECUTION_POLICY,
@@ -928,4 +929,91 @@ test("the registered bash tool detaches, shows the widget, and reports by starti
     if (previousWindow === undefined) delete process.env.MPI_BASH_FOREGROUND_SECONDS;
     else process.env.MPI_BASH_FOREGROUND_SECONDS = previousWindow;
   }
+});
+
+type RegisteredBash = BashTool & { description?: string; parameters?: unknown };
+
+/** Registers bash through the extension with the display config the caller wrote. */
+async function registerBash(displayConfig: string | undefined): Promise<RegisteredBash> {
+  const handlers: Record<string, Array<(event: unknown, ctx: unknown) => unknown>> = {};
+  let bash: RegisteredBash | undefined;
+  const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "mpi-bash-register-"));
+  const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+
+  bashExtension({
+    on: (event: string, handler: (event: unknown, ctx: unknown) => unknown) => {
+      handlers[event] ??= [];
+      handlers[event].push(handler);
+    },
+    registerCommand: () => {},
+    registerTool: (tool: RegisteredBash) => {
+      bash = tool;
+    },
+    registerMessageRenderer: () => {},
+    sendMessage: () => {},
+  } as never);
+
+  try {
+    if (displayConfig !== undefined) {
+      fs.writeFileSync(path.join(agentDir, "mpi-tool-display.json"), displayConfig);
+    }
+    process.env.PI_CODING_AGENT_DIR = agentDir;
+    await handlers.session_start?.[0]?.({}, { cwd: process.cwd(), ui: { setWidget: () => {} } });
+  } finally {
+    if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+    else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
+    fs.rmSync(agentDir, { recursive: true, force: true });
+  }
+  assert.ok(bash, "session_start must register the bash tool");
+  return bash;
+}
+
+type ParameterSchema = {
+  properties: Record<string, { type?: string; description?: string }>;
+  required?: string[];
+};
+
+test("session_start registers bash with a required description while the compact row is on", async () => {
+  const bash = await registerBash(undefined);
+
+  const reference = createBashToolDefinition(process.cwd(), {});
+  assert.equal(
+    bash.description,
+    reference.description,
+    "the tool description stays Pi's own; the label comes from an argument",
+  );
+
+  const parameters = bash.parameters as ParameterSchema;
+  const referenceParameters = reference.parameters as ParameterSchema;
+  assert.deepEqual(Object.keys(parameters.properties).sort(), [
+    "command",
+    "description",
+    "timeout",
+  ]);
+  assert.deepEqual(
+    parameters.required,
+    ["command", "description"],
+    "description is required, so every call carries a label",
+  );
+  assert.equal(parameters.properties.description?.type, "string");
+  assert.ok(
+    (parameters.properties.description?.description ?? "").length > 0,
+    "the argument documents what the label is for",
+  );
+  // Pi's own property definitions are copied, not redefined.
+  assert.deepEqual(parameters.properties.command, referenceParameters.properties.command);
+  assert.deepEqual(parameters.properties.timeout, referenceParameters.properties.timeout);
+});
+
+test("turning the compact row off leaves Pi's own schema alone", async () => {
+  const bash = await registerBash('{"compactBashCallRow": false}\n');
+  const reference = createBashToolDefinition(process.cwd(), {});
+  const parameters = bash.parameters as ParameterSchema;
+
+  assert.deepEqual(
+    parameters.properties,
+    (reference.parameters as ParameterSchema).properties,
+    "no label is rendered, so no description is demanded",
+  );
+  assert.deepEqual(parameters.required, ["command"]);
 });
