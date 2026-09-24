@@ -59,6 +59,7 @@ Tabs talk to each other, in the same TUI or another `mpi`, without stealing the 
 Install community extensions directly through Pi package declarations (`settings.json` `packages`, e.g. `npm:pi-web-access`), including custom tools, widgets, and themes, or use MixCode's first-party `mpi-*` tools:
 - **`mpi-goal`**: Long-running goal tracking with dynamic progressive tool loading.
 - **`mpi-diff-viewer`**: In-terminal visual diffs with line-level review comments (`/diff`).
+- **`mpi-cron`**: Per-directory scheduled prompts with an editor dock widget and a fire-time claim (`cron` tool, `/cron`).
 - **`mpi-loop`**: Recurring prompt scheduling with conflict handling (`/loop 5m /review`).
 - **`mpi-optimize-prompt`**: Metaprompt-based prompt expansion.
 - **`mpi-auto-rename`**: Context-derived session titles (`/auto-rename`).

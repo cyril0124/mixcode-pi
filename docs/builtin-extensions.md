@@ -11,6 +11,7 @@ Every package with a user-edited JSON config ships a JSON Schema next to its ext
 | Package | Command / Trigger | Description |
 |---|---|---|
 | `mpi-goal` | `/goal [objective]`, `/goal tools`, `/goal pause\|resume\|clear` | Session-scoped goal tracking with progressive dynamic tool disclosure, continuation budgets, and live status widget. |
+| `mpi-cron` | `cron` tool, `/cron`, `<cwd>/.pi/cron/jobs.json` | Per-directory scheduled prompts: cron/interval/relative/ISO schedules, tool and overlay management, editor dock widget, and a fire-time store claim so tabs and separate processes in the same directory run each job at most once. See [package reference](../pi-packages/mpi-cron/README.md). |
 | `mpi-loop` | `/loop [interval] <prompt>`, `/loop stop <id\|name>`, `/loop interval <id> <time>` | Recurring prompt execution engine with configurable total runs, timer conflict policies (`skip` / `defer`), editor dock status widget, and interactive management overlay. |
 | `mpi-optimize-prompt` | `/optimize-prompt [prompt]`, `/optimize-prompt-config` | Metaprompt-based prompt optimizer that refines vague user instructions into structured, executable prompts. |
 | `mpi-auto-rename` | Optional auto on first message, `/auto-rename` | Generates a kebab-case session title; enable `onFirstMessage` in `<agentDir>/mpi-auto-rename.json`. |

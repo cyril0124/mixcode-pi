@@ -59,6 +59,7 @@ Tab 之间可以直接对话——同一 TUI，或其他 `mpi` 进程——无�
 直接通过 Pi 包配置（`settings.json` `packages`，如 `npm:pi-web-access`）安装社区扩展——含自定义工具、挂件与主题——或直接使用 MixCode 内置工具：
 - **`mpi-goal`**：自主目标追踪引擎，支持渐进式动态工具暴露与执行预算。
 - **`mpi-diff-viewer`**：终端视觉 Diff 查看器，支持行级评审批注与结构化 Prompt 生成（`/diff`）。
+- **`mpi-cron`**：按目录的定时提示，带编辑器下方常驻组件与触发时认领（`cron` 工具、`/cron`）。
 - **`mpi-loop`**：定时循环任务调度器，支持冲突策略（`/loop 5m /review`）。
 - **`mpi-optimize-prompt`**：基于 Meta-prompt 的提示词结构化扩写与优化。
 - **`mpi-auto-rename`**：基于上下文自动生成会话标题（`/auto-rename`）。
