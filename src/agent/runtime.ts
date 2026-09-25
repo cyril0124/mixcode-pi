@@ -52,6 +52,7 @@ import {
   type ExtensionReloadResult,
 } from "../core/extension-manager.js";
 import { invalidateSessionCatalog } from "../core/session-catalog.js";
+import { moveToTrash } from "../core/session-trash.js";
 import type { SessionLockHandle } from "../core/session-lock.js";
 import {
   appendSystemMessage,
@@ -1705,11 +1706,18 @@ export class MixCodeRuntime {
     await this.shutdownRuntimeTab(runtimeTab, { type: "session_shutdown", reason: "quit" });
     const file = runtimeTab.session.getSessionFile();
     if (file) {
-      await Bun.file(file)
-        .unlink()
-        .catch((error: unknown) => {
-          if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-        });
+      await moveToTrash(file, {
+        sessionId,
+        title: runtimeTab.tab.title || sessionId,
+      }).catch(async (_trashError: unknown) => {
+        // moveToTrash failed (e.g. out of space); hard-delete so the session
+        // is removed rather than left in a half-deleted state.
+        await Bun.file(file)
+          .unlink()
+          .catch((unlinkError: unknown) => {
+            if ((unlinkError as NodeJS.ErrnoException).code !== "ENOENT") throw unlinkError;
+          });
+      });
       invalidateSessionCatalog(this.sessionsRoot);
     }
     this.sync.unregister(sessionId);
