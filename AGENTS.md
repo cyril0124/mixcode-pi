@@ -9,6 +9,7 @@
 ## Documentation Standards
 
 - Before writing, reorganizing, reviewing, or trimming repository docs, read `.agents/skills/doc-standards/SKILL.md`.
+- User-visible, demo-worthy features must land in the root `README.md` and `README.zh.md` in the same change: add a one-line entry to the Highlights list and, when the feature earns a showcase section, a numbered Key features subsection with its `assets/` GIF (record per `.agents/skills/record-tui-gif/SKILL.md`). Bug fixes, internal refactors, and `docs/`-only topics do not qualify.
 - Proactively document design decisions, architecture, workflows, API contracts, and usage. Give each fact, rule, and schema one authoritative home; link instead of duplicating.
 - Require synchronized English (`<name>.md`) and Chinese (`<name>.zh.md`) versions for docs outside `demo/` and `scripts/`, except skill instructions.
 - Documentation under `demo/` and `scripts/` uses English by default; add Chinese versions only when explicitly requested.
