@@ -2,7 +2,7 @@
 """Record MixCode README showcase GIFs using asciinema + agg.
 
 Usage:
-  ./scripts/record-readme-gifs.py                 # record all 7 shots
+  ./scripts/record-readme-gifs.py                 # record all 8 shots
   ./scripts/record-readme-gifs.py vim             # record a single shot
   ./scripts/record-readme-gifs.py vim skill       # record selected shots
 
@@ -21,6 +21,7 @@ Each shot below documents what the GIF demonstrates and how it is recorded:
 - right-widget: extension right panel widget (pi-tasks)
 - inline-widget: extension inline widget in the message flow
 - skill: $ skill-name autocomplete popup + skill run
+- batch: one /batch call opening an agent tab fleet
 """
 
 from __future__ import annotations
@@ -80,7 +81,7 @@ SOURCE_AGENT = pathlib.Path(
 ).expanduser().resolve()
 PARALLEL = os.environ.get("PARALLEL", "1") == "1"
 
-SHOTS = sys.argv[1:] or ["multi-tab", "vim", "zen", "command-palette", "right-widget", "inline-widget", "skill"]
+SHOTS = sys.argv[1:] or ["multi-tab", "vim", "zen", "command-palette", "right-widget", "inline-widget", "skill", "batch"]
 
 AGG_THEME = ("000000,d4d4d4,000000,cd3131,0dbc79,e5e510,2472c8,bc3fbc,11a8cd,"
              "e5e5e5,666666,f14c4c,23d18b,f5f543,3b8eea,d670d6,29b8db,ffffff")
@@ -314,6 +315,37 @@ def seed_tasks_file(workdir: pathlib.Path) -> pathlib.Path:
     return path
 
 
+def seed_batch_script(workdir: pathlib.Path) -> pathlib.Path:
+    """Write the demo batch script plus the package dirs its tabs open."""
+    for package in ("core", "cli"):
+        (workdir / "packages" / package).mkdir(parents=True, exist_ok=True)
+    script_dir = workdir / "examples" / "batch"
+    script_dir.mkdir(parents=True, exist_ok=True)
+    path = script_dir / "monorepo.lua"
+    path.write_text(
+        "--- Monorepo: one lint agent per package passed after `--`.\n"
+        'local packages = mixcode.args()\n'
+        'if #packages == 0 then\n'
+        '  packages = { "packages/core", "packages/cli" }\n'
+        'end\n'
+        "\n"
+        'for _, target in ipairs(packages) do\n'
+        '  local name = target:match("([^/]+)$") or target\n'
+        '  mixcode.open_tab({\n'
+        '    name = name .. "-lint",\n'
+        '    prompt = string.format(\n'
+        '      "Run lint and typecheck for the `%s` package. Fix all errors without changing behavior.",\n'
+        "      name\n"
+        "    ),\n"
+        '    workdir = target,\n'
+        '    thinking = "low",\n'
+        "  })\n"
+        "end\n",
+        encoding="utf-8",
+    )
+    return path
+
+
 # --- Shot drivers -----------------------------------------------------------
 
 # Shot workflow overview:
@@ -544,6 +576,37 @@ def drive_skill(label: str, session: str, response_dir: pathlib.Path) -> None:
     time.sleep(3.0)
 
 
+def drive_batch(label: str, session: str) -> None:
+    """One /batch call opening an agent tab fleet.
+
+    Shows: `/batch examples/batch/monorepo.lua -- packages/core packages/cli`
+    submits, the tab bar fills with core-lint / cli-lint running indicators,
+    then S-Tab lands on core-lint and its editor border shows that tab.
+
+    Recording: "/batch ..." -> Enter -> wait both new tab titles -> settle ->
+    S-Tab until the "core-lint ·" editor border is active.
+    """
+    time.sleep(1.0)
+    clear_editor(label, session)
+    send_l(label, session, "/batch examples/batch/monorepo.lua -- packages/core packages/cli")
+    time.sleep(0.7)
+    send_k(label, session, "Enter")
+    wait_pane(label, session, "core-lint", 25.0)
+    wait_pane(label, session, "cli-lint", 10.0)
+    time.sleep(0.8)
+    # Batch focuses the first new tab while opening and returns focus to the
+    # invoking tab once the fleet is up, so step backwards until core-lint is
+    # the active tab (at most one step from either starting point).
+    for _ in range(4):
+        send_k(label, session, "S-Tab")
+        time.sleep(1.0)
+        if re.search(r"core-lint ·", capture(label, session)):
+            break
+    else:
+        raise TimeoutError("Expected the core-lint editor border")
+    time.sleep(3.0)
+
+
 DRIVERS = {
     "multi-tab": drive_multi_tab,
     "vim": drive_vim,
@@ -552,6 +615,7 @@ DRIVERS = {
     "right-widget": drive_right_widget,
     "inline-widget": drive_inline_widget,
     "skill": drive_skill,
+    "batch": drive_batch,
 }
 
 
@@ -673,6 +737,8 @@ def _run_shot_isolated(name: str, say, shot_tmp: pathlib.Path, label: str,
                      agent_dir / "extensions" / "readme-recorder-observer.ts")
         extra_env = (f"MIXCODE_GIF_RESPONSE_DIR={shlex.quote(str(response_dir))} "
                      "MIXCODE_BUILTIN_EXTENSIONS_ONLY=0")
+    if name == "batch":
+        seed_batch_script(workdir)
     if name in ("right-widget", "inline-widget"):
         tasks_file = seed_tasks_file(workdir)
         extra_env += f" PI_TASKS={shlex.quote(str(tasks_file))} MIXCODE_BUILTIN_EXTENSIONS_ONLY=0"
@@ -742,6 +808,8 @@ def _run_shot_isolated(name: str, say, shot_tmp: pathlib.Path, label: str,
         focus_agent(label, session)
         time.sleep(1.0)
     elif name == "skill":
+        focus_agent(label, session)
+    elif name == "batch":
         focus_agent(label, session)
     else:
         say(f"unknown shot {name}")

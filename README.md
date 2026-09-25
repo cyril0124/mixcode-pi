@@ -25,6 +25,7 @@ A **multi-tab**, terminal-native AI coding agent fully compatible with the [Pi](
 - **Pi extension compatibility.** Runs the full Pi package catalog plus first-party `mpi-*` extensions.
 - **Zen & inline modes.** Hide chrome for a distraction-free view, or move widgets into the chat stream.
 - **Mobile & touch optimized.** Narrow terminals, split panes, and touch-friendly SSH clients (Termux, iOS Blink).
+- **Mouse & clickable surfaces.** Click tab chips and metadata badges to open pickers, drag the chat scrollbar, and drag-select transcript or draft text to copy.
 - **Terminal-first workflow.** Vim-style transcript navigation, command palette, `$skill` / `@file` / `@tab` autocomplete.
 - **Declarative batch automation.** Script multi-agent workflows in Lua or TypeScript, with dry-run validation.
 
@@ -50,27 +51,29 @@ Models and credentials use Pi's standard config: `~/.pi/agent/models.json` (mode
 ## Key features
 
 ### 1. Multi-tab workspaces & session coordination
-Run isolated agent sessions side by side. Switch with `Tab` / `Shift+Tab` or fuzzy jump via `Ctrl+T`; background tabs show live status indicators (`●` running, `✓` unread, `x` error). Each tab maintains an independent conversation tree, tool runtime, and working directory. Workspaces persist tab layouts across restarts, while atomic file locks (`open_tabs.json.lock`) coordinate tabs across multiple terminal windows or tmux panes.
+Run isolated agent sessions side by side. Switch with `Tab` / `Shift+Tab` or fuzzy jump via `Ctrl+T`; background tabs show live status indicators (`●` running, `✓` unread completion, `x` error). Each tab maintains an independent conversation tree, tool runtime, and working directory. Workspaces persist tab layouts across restarts, while atomic file locks (`open_tabs.json.lock`) coordinate tabs across multiple terminal windows or tmux panes.
 
 ### 2. Agent Tab collaboration
 Tabs talk to each other, in the same TUI or another `mpi`, without stealing the keyboard. One tab delegates a review or verification to a peer, waits, and reads the reply. The built-in `mpi-ctl` skill exposes `mpi status` / `mpi ctl` to the agent's bash tool. CLI loop: [Agent Tab Collaboration](#agent-tab-collaboration).
 
 ### 3. Full Pi ecosystem & built-in extensions
 Install community extensions directly through Pi package declarations (`settings.json` `packages`, e.g. `npm:pi-web-access`), including custom tools, widgets, and themes, or use MixCode's first-party `mpi-*` tools:
-- **`mpi-goal`**: Long-running goal tracking with dynamic progressive tool loading.
-- **`mpi-diff-viewer`**: In-terminal visual diffs with line-level review comments (`/diff`).
+- **`mpi-goal`**: Long-running goal tracking with dynamic progressive tool loading and execution budgets.
+- **`mpi-diff-viewer`**: In-terminal visual diffs with line-level review comments and structured follow-up prompts (`/diff`).
 - **`mpi-cron`**: Per-directory scheduled prompts with an editor dock widget and a fire-time claim (`cron` tool, `/cron`).
 - **`mpi-loop`**: Recurring prompt scheduling with conflict handling (`/loop 5m /review`).
 - **`mpi-optimize-prompt`**: Metaprompt-based prompt expansion.
 - **`mpi-auto-rename`**: Context-derived session titles (`/auto-rename`).
-- **`mpi-ctl`**: Multi-agent / cross-tab collaboration (`mpi status`, `mpi ctl`).
+- **`mpi-ctl-skill`**: Agent Tab cross-tab / multi-instance collaboration skill (`$mpi-ctl`, `mpi status` / `mpi ctl`).
 - **`mpi-permission`**: Fine-grained tool execution permission rules (`/permission`).
+- **`mpi-command-router`**: Routes selected external Bash command names to configured executables or scripts through per-call `PATH` wrappers.
 - **`mpi-transcript`**: View effective LLM context, chatlog, thinking, and latest replies in nvim, vim, or the in-app viewer; configure with `/transcript config`.
 - **`mpi-prompt-history`**: Prompt recall log and interactive browser (`/prompt-history`).
 - **`mpi-tool-block`**: Selectively hide tools from model context (`/tool-block`).
 - **`mpi-tool-display`**: Compact terminal transcript presentation for tools and thinking.
 - **`mpi-model-attach`**: Add or remove skills and load extra extensions for the current model (`/model-attach`).
 - **`mpi-skill-refs`**: `$skill` autocomplete and prompt expansion.
+- **`mpi-batch-skill`**: Writes, validates, and launches batch scripts (`$mpi-batch`, `/skill:mpi-batch`).
 - **`mpi-stuck-guard`**: Guards oversized recursive searches, repeated identical tool calls, stalled provider streams, and repeated parameter-validation failures. Configuration and statistics: `/stuck-guard config`, `/stuck-guard stats`.
 - **`mpi-herdr-report`**: Real-time status reporting to Herdr agent panes (`HERDR_ENV=1`).
 - **`mpi-bash`**: Default bash timeout plus a foreground window that detaches long commands to the background and reports their exit code when they finish; `/bash-logs` opens any background command's full log.
@@ -94,7 +97,7 @@ Treat the conversation transcript as a Vim buffer: scroll line-by-line (`j`/`k`)
 </p>
 
 ### 6. Zen mode & ambient status
-Hide the top tab bar for a distraction-free view (`/toggle-zen-mode`). Background agents with notable state changes (running, waiting for input, error, done) render as compact status dots (`●`) on the top border.
+Hide the top tab bar for a distraction-free view (`/toggle-zen-mode`). Background agents with notable state changes (running, waiting for input, error, done) render as compact status dots (`●`) on the top border. The dots are display-only and not clickable.
 
 <p align="center">
   <img src="assets/readme-zen.gif" alt="Zen mode" width="900">
@@ -112,6 +115,26 @@ Press `Ctrl+P` to fuzzy search and execute slash commands, model switches, and e
 
 <p align="center">
   <img src="assets/readme-command-palette.gif" alt="Command palette" width="900">
+</p>
+
+### 9. Batch automation
+Open a whole fleet of agent tabs from one Lua or TypeScript script. Each request carries its own workdir, model, thinking level, and prompt — or a `prompts` sequence of ordered rounds in one tab — and MixCode applies requests in parallel across distinct tabs. Run it in the live TUI with `/batch script.ts -- <args>`, or launch a new instance with `mpi --batch script.ts -- <args>`. Validate before anything changes: `mpi --batch script.ts --batch-dry-run` prints the plan and exits without a TUI, without bootstrapping runtime, and without state writes.
+
+```bash
+$ mpi --batch examples/batch/monorepo.ts --batch-dry-run -- packages/core packages/cli
+Batch dry-run: 3 request(s)
+1. name=core-lint thinking=low workdir=packages/core
+   prompt: Run lint and typecheck for the `core` package. Fix all errors without changing behavior.
+2. name=cli-lint thinking=low workdir=packages/cli
+   prompt: Run lint and typecheck for the `cli` package. Fix all errors without changing behavior.
+3. name=summary
+   prompt: Summarize lint results across 2 package(s) in /repo.
+```
+
+Fourteen runnable scripts live in [`examples/batch/`](examples/batch/) — monorepo lint fan-out, model comparison, prompt sequences, argument passing, and rendering helpers. Reference: [Batch Script Automation](docs/batch-scripts.md).
+
+<p align="center">
+  <img src="assets/readme-batch.gif" alt="Batch automation" width="900">
 </p>
 
 ---
@@ -169,6 +192,9 @@ mpi                             # Start in current directory
 mpi --workdir ~/project         # Start in specific directory
 mpi --builtin-extensions-only   # Disable 3rd-party packages; load only mpi-*
 mpi --batch script.ts           # Run batch automation script (.lua or .ts)
+mpi --print "..."               # Delegate to upstream pi (needs pi on PATH); no TUI
+mpi commands                    # List slash commands this workdir registers, no TUI
+mpi --list-models               # List authenticated models and thinking levels, then exit
 mpi status                      # Inspect running instances and tab states
 ```
 
@@ -201,13 +227,20 @@ Full architectural specifications, guides, and manuals are available in the [`do
 
 - [System Architecture](docs/architecture.md)
 - [TUI Components & Layout](docs/tui-components.md)
+- [Narrow & Mobile Terminal Optimizations](docs/narrow-terminals-and-mobile.md)
+- [Mouse Support & Clickable Surfaces](docs/mouse-support.md)
+- [Keybindings & Shortcuts](docs/keybindings-and-escape.md)
+- [CLI & Flags](docs/cli-and-flags.md)
 - [Multi-Tab Workspaces](docs/workspace-and-tabs.md)
 - [Model Management](docs/model-management.md)
+- [Provider Errors](docs/provider-errors.md)
 - [Steering & Follow-up Queues](docs/queue-and-follow-up.md)
 - [Zen Mode](docs/zen-mode.md)
 - [Inline Widgets Mode](docs/inline-widgets.md)
+- [Extension UI & Widgets](docs/extension-ui-and-widgets.md)
 - [Vim Mode & Navigation](docs/vim-and-navigation.md)
 - [Batch Script Automation](docs/batch-scripts.md)
+- [Built-in Extensions Overview](docs/builtin-extensions.md)
 - [Pi Extension Compatibility](docs/extension-compatibility.md)
 - [Slash Commands Reference](docs/commands.md)
 - [MixCode Settings](docs/mixcode-settings.md)

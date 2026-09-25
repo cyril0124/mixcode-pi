@@ -25,6 +25,7 @@
 - **Pi 扩展生态兼容。** 运行完整 Pi 包生态与第一方 `mpi-*` 扩展。
 - **Zen 专注与内联挂件。** 隐藏界面元素获得专注视图，或将挂件移入对话流。
 - **窄屏与移动触控优化。** 适配窄终端、分屏与移动 SSH 客户端（Termux、iOS Blink）。
+- **鼠标与可点击区域。** 点击 Tab 标签与元信息徽标打开对应选择器，拖拽对话滚动条，划选对话或输入框文本即可复制。
 - **终端优先交互流。** Vim 式对话导航、命令面板、`$skill` / `@file` / `@tab` 自动补全。
 - **声明式 Batch 自动化。** 用 Lua 或 TypeScript 脚本批量派发多 Agent 任务，支持 Dry-run 预览。
 
@@ -63,14 +64,16 @@ Tab 之间可以直接对话——同一 TUI，或其他 `mpi` 进程——无�
 - **`mpi-loop`**：定时循环任务调度器，支持冲突策略（`/loop 5m /review`）。
 - **`mpi-optimize-prompt`**：基于 Meta-prompt 的提示词结构化扩写与优化。
 - **`mpi-auto-rename`**：基于上下文自动生成会话标题（`/auto-rename`）。
-- **`mpi-ctl`**：Agent Tab 跨 Tab / 多实例协作命令行工具与技能（`mpi status` / `mpi ctl`）。
+- **`mpi-ctl-skill`**：Agent Tab 跨 Tab / 多实例协作技能（`$mpi-ctl`、`mpi status` / `mpi ctl`）。
 - **`mpi-permission`**：细粒度工具调用权限管控（`/permission`）。
+- **`mpi-command-router`**：通过每次调用的 `PATH` wrapper，把指定的 Bash 外部命令名路由到配置的命令或脚本。
 - **`mpi-transcript`**：在 nvim、vim 或内置查看器中查看 LLM 实际上下文、完整对话、Thinking 与最新回复；使用 `/transcript config` 选择编辑器。
 - **`mpi-prompt-history`**：Prompt 历史召回与交互式浏览面板（`/prompt-history`）。
 - **`mpi-tool-block`**：动态对模型屏蔽指定工具（`/tool-block`）。
 - **`mpi-tool-display`**：终端紧凑型工具调用与 Thinking 消息渲染优化。
 - **`mpi-model-attach`**：按当前模型增删 Skill，并加载额外扩展（`/model-attach`）。
 - **`mpi-skill-refs`**：`$` 触发 Skill 自动补全与内嵌展开。
+- **`mpi-batch-skill`**：编写、校验并启动 Batch 脚本（`$mpi-batch`、`/skill:mpi-batch`）。
 - **`mpi-stuck-guard`**：防护范围过大的递归搜索、相同工具调用的连续重复、Provider 流停滞和反复参数校验失败。配置与统计：`/stuck-guard config`、`/stuck-guard stats`。
 - **`mpi-herdr-report`**：向 Herdr 窗格上报 Agent 运行与就绪状态（`HERDR_ENV=1`）。
 - **`mpi-bash`**：为 Bash 工具调用注入默认超时，并在前台窗口到期后把长命令转入后台，结束时自动回报退出码；`/bash-logs` 可查看任意后台命令的完整日志。
@@ -112,6 +115,26 @@ Tab 之间可以直接对话——同一 TUI，或其他 `mpi` 进程——无�
 
 <p align="center">
   <img src="assets/readme-command-palette.gif" alt="Command Palette" width="900">
+</p>
+
+### 9. Batch 批量自动化 (Batch Automation)
+用一个 Lua 或 TypeScript 脚本一次性铺开整队 Agent Tab：每个请求可带自己的工作目录、模型、思考档位与 Prompt，也可以在一个 Tab 内排队多轮 Prompt（`prompts`），MixCode 会并行落到不同 Tab。当前 TUI 内用 `/batch script.ts -- <args>` 执行，或在新实例里用 `mpi --batch script.ts -- <args>` 启动。动手之前先校验：`mpi --batch script.ts --batch-dry-run` 只打印执行计划后退出，不启动 TUI、不初始化运行时、不写状态。
+
+```bash
+$ mpi --batch examples/batch/monorepo.ts --batch-dry-run -- packages/core packages/cli
+Batch dry-run: 3 request(s)
+1. name=core-lint thinking=low workdir=packages/core
+   prompt: Run lint and typecheck for the `core` package. Fix all errors without changing behavior.
+2. name=cli-lint thinking=low workdir=packages/cli
+   prompt: Run lint and typecheck for the `cli` package. Fix all errors without changing behavior.
+3. name=summary
+   prompt: Summarize lint results across 2 package(s) in /repo.
+```
+
+[`examples/batch/`](examples/batch/) 里有 14 个可直接运行的脚本——Monorepo lint 扇出、模型对比、Prompt 序列、参数传递与渲染辅助函数。完整规范见 [Batch 批量自动化](docs/batch-scripts.zh.md)。
+
+<p align="center">
+  <img src="assets/readme-batch.gif" alt="Batch 批量自动化" width="900">
 </p>
 
 ---
@@ -169,6 +192,9 @@ mpi                             # 在当前目录启动
 mpi --workdir ~/project         # 在指定工作区目录启动
 mpi --builtin-extensions-only   # 仅加载 mpi-* 第一方扩展，禁用第三方包
 mpi --batch script.ts           # 启动后执行批量自动化脚本（.lua 或 .ts）
+mpi --print "..."               # 委托上游 pi（需 pi 在 PATH 中）；不启动 TUI
+mpi commands                    # 列出当前工作区注册的 Slash 命令，不启动 TUI
+mpi --list-models               # 列出已鉴权模型及其思考档位后退出
 mpi status                      # 检视运行中的实例与 Tab 状态
 ```
 
@@ -201,13 +227,20 @@ mpi ctl --tab Agent-01 wait && mpi ctl --tab Agent-01 last-message
 
 - [系统架构 (System Architecture)](docs/architecture.zh.md)
 - [TUI 组件目录与布局](docs/tui-components.zh.md)
+- [窄屏与移动终端优化 (Narrow & Mobile)](docs/narrow-terminals-and-mobile.zh.md)
+- [鼠标交互与可点击区域 (Mouse Support)](docs/mouse-support.zh.md)
+- [快捷键与热键映射 (Keybindings)](docs/keybindings-and-escape.zh.md)
+- [CLI 命令行与参数 (CLI & Flags)](docs/cli-and-flags.zh.md)
 - [多标签与工作区管理](docs/workspace-and-tabs.zh.md)
 - [模型管理 (models.json)](docs/model-management.zh.md)
+- [Provider 错误诊断](docs/provider-errors.zh.md)
 - [转向与后续双队列管理](docs/queue-and-follow-up.zh.md)
 - [Zen 专注模式](docs/zen-mode.zh.md)
 - [内联挂件模式 (`[INL]`)](docs/inline-widgets.zh.md)
+- [扩展 UI 体系与组件 (Extension UI)](docs/extension-ui-and-widgets.zh.md)
 - [Vim 模式与导航](docs/vim-and-navigation.zh.md)
 - [Batch 批量自动化](docs/batch-scripts.zh.md)
+- [内置扩展总览 (Built-in Extensions)](docs/builtin-extensions.zh.md)
 - [Pi 扩展兼容性规范](docs/extension-compatibility.zh.md)
 - [Slash 命令完整手册](docs/commands.zh.md)
 - [配置管理 (`mixcode_settings.json`)](docs/mixcode-settings.zh.md)
