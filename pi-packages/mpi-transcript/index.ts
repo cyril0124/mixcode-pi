@@ -35,22 +35,20 @@ import * as path from "node:path";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type {
-  BuildSystemPromptOptions,
-  CacheMiss,
   ExtensionCommandContext,
   ExtensionFactory,
-  ModelPriceSource,
   SessionEntry,
   ToolInfo,
 } from "@earendil-works/pi-coding-agent";
 import {
-  buildSystemPrompt,
-  CACHE_TTL_MS,
-  collectCacheMisses,
   estimateTokens,
   getAgentDir,
   sessionEntryToContextMessages,
 } from "@earendil-works/pi-coding-agent";
+// `collectCacheMisses` has no root export and `./core/cache-stats` is not in the
+// package `exports` map, so it is read off the namespace. Where a host does not
+// expose it the member is `undefined` and the cache-miss annotation is skipped.
+import * as piCodingAgent from "@earendil-works/pi-coding-agent";
 import {
   DEFAULT_TRANSCRIPT_FOLD_THRESHOLD,
   loadTranscriptConfig,
@@ -60,8 +58,44 @@ import { resolveTranscriptEditor, transcriptEditorOptions } from "./editor.js";
 import { createTranscriptConfigOverlay } from "./config-overlay.js";
 import type { Component, TUI } from "@earendil-works/pi-tui";
 
-// ─── Session content types (subset of SDK AgentMessage we consume) ────────────
+// ─── Cache-miss types (structural copies of upstream's unexported shapes) ─────
 //
+// Upstream defines these in `./core/cache-stats`, which the package `exports`
+// map does not expose, so they cannot be imported. Only the members this
+// extension reads are declared.
+
+/** A counted cache miss on a single assistant message. */
+interface CacheMiss {
+  /** Prompt tokens that were in the previous turn's prompt but not cache-read. */
+  missedTokens: number;
+  /** Extra dollars paid vs. a full cache hit; 0 when pricing is unknown. */
+  missedCost: number;
+  /** Milliseconds since the previous request (which last refreshed the cache). */
+  idleMs: number;
+  /** True when the model changed relative to the previous request. */
+  modelChanged: boolean;
+}
+
+/** Minimal pricing lookup, satisfied by ModelRuntime. Cost is $/million tokens. */
+interface ModelPriceSource {
+  getModel(provider: string, modelId: string): { cost: { cacheRead: number } } | undefined;
+}
+
+/**
+ * All counted cache misses across a session, keyed by the assistant message
+ * that paid for them. Undefined when the host does not expose
+ * `collectCacheMisses`; the views then render without cache-miss notices.
+ */
+const collectCacheMisses = (
+  piCodingAgent as {
+    collectCacheMisses?: (
+      entries: SessionEntry[],
+      models: ModelPriceSource,
+    ) => Map<AssistantMessage, CacheMiss>;
+  }
+).collectCacheMisses;
+
+// ─── Session content types (subset of SDK AgentMessage we consume) ────────────
 // We read only the fields we need from getBranch() entries. The SDK's
 // AgentMessage is a union; narrowing by `role` and content `type` here keeps
 // this extension decoupled from the full type surface.
@@ -787,6 +821,14 @@ function cacheMissNotice(miss: CacheMiss): string | undefined {
   return `${label}: ${fmtTokens(miss.missedTokens)} tokens re-billed${cost}`;
 }
 
+/**
+ * Prompt-cache TTL: idle gaps longer than this attribute a miss to the gap.
+ * Upstream keeps this behind an unexported module path (see the import note
+ * above), so the value is repeated here; Anthropic's default cache TTL is five
+ * minutes and a mismatch only mislabels the idle cause, never hides a miss.
+ */
+const CACHE_TTL_MS = 5 * 60 * 1000;
+
 interface ChatlogOptions {
   turnOffset?: number;
   contextWindowFor?: ContextWindowLookup;
@@ -1127,7 +1169,8 @@ export function buildViewText(
     // which entry set the caller feeds in (full branch vs effective context).
     // Misses are computed on the unsliced entries so the first assistant
     // message in a lastTurns cut still sees its previous request.
-    const cacheMisses = priceSource ? collectCacheMisses(entries, priceSource) : undefined;
+    const cacheMisses =
+      collectCacheMisses && priceSource ? collectCacheMisses(entries, priceSource) : undefined;
     // Sized from the unsliced entries: a lastTurns cut hides rounds from the
     // reader, not from the model.
     const sizeLine =
@@ -1150,7 +1193,8 @@ export function buildViewText(
   // N/full flags are accepted but meaningless here (same as latest-*).
   if (target === "growth") {
     const points = collectContextGrowth(entries, { contextWindowFor });
-    const chartCacheMisses = priceSource ? collectCacheMisses(entries, priceSource) : undefined;
+    const chartCacheMisses =
+      collectCacheMisses && priceSource ? collectCacheMisses(entries, priceSource) : undefined;
     return formatViewText(meta.title, [
       stats,
       ...(points.length
@@ -1938,12 +1982,12 @@ const extension: ExtensionFactory = (pi) => {
   const agentDir = getAgentDir();
   // Read live rather than snapshotted at startup, so the estimate reflects the
   // tools currently enabled and the system prompt as it stands now.
-  const resolveContextPrefix = (ctx: {
-    getSystemPromptOptions(): BuildSystemPromptOptions;
-  }): ContextPrefix => {
+  const resolveContextPrefix = (ctx: { getSystemPrompt(): string }): ContextPrefix => {
     const active = new Set(pi.getActiveTools());
     return {
-      systemPrompt: buildSystemPrompt(ctx.getSystemPromptOptions()),
+      // The getter returns the prompt the model receives, including the sections
+      // the host assembler adds, which the collected options alone do not describe.
+      systemPrompt: ctx.getSystemPrompt(),
       tools: pi.getAllTools().filter((tool) => active.has(tool.name)),
     };
   };

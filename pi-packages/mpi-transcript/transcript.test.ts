@@ -1157,6 +1157,103 @@ test("buildViewText chatlog: omits cache-miss notices without a price source", (
   assert.doesNotMatch(buildViewText("chatlog", entries), /Cache miss/);
 });
 
+// The cache-miss annotation comes from a capability the host may not expose
+// (upstream keeps `collectCacheMisses` behind an unexported module path), so the
+// views must render a complete document without it. These cases pin the shape
+// that survives the capability being absent, independent of which host runs.
+
+const CACHE_MISS_ENTRIES: SessionEntry[] = [
+  userEntry("q1", "2026-09-25T10:00:00.000Z"),
+  assistantEntry([{ type: "text", text: "a1" }], {
+    cacheWrite: 150000,
+    at: "2026-09-25T10:00:30.000Z",
+  }),
+  userEntry("q2", "2026-09-25T10:20:00.000Z"),
+  assistantEntry([{ type: "text", text: "a2" }], {
+    input: 140000,
+    cacheRead: 5000,
+    at: "2026-09-25T10:20:00.000Z",
+  }),
+];
+
+/**
+ * `assistantEntry` with the assistant message timestamp stamped as well.
+ * Idle attribution reads `message.timestamp`, not the entry's `timestamp`.
+ */
+function assistantEntryAt(
+  text: string,
+  at: string,
+  usage: { input?: number; cacheRead?: number; cacheWrite?: number },
+): SessionEntry {
+  const entry = assistantEntry([{ type: "text", text }], usage) as unknown as {
+    message: { timestamp: number };
+  };
+  entry.message.timestamp = Date.parse(at);
+  return entry as unknown as SessionEntry;
+}
+
+function cacheMissPriceSource(): { getModel: () => { cost: { cacheRead: number } } } {
+  return { getModel: () => ({ cost: { cacheRead: 0.3 } }) };
+}
+
+test("buildViewText chatlog: renders a complete document when cache misses are unavailable", () => {
+  const text = buildViewText("chatlog", CACHE_MISS_ENTRIES, {
+    sessionFile: "/tmp/session.jsonl",
+    contextWindowFor: () => 200000,
+  });
+  // The annotation is the only thing lost; the document itself is intact.
+  assert.doesNotMatch(text, /Cache miss/);
+  assert.match(text, /# Chat Export/);
+  assert.match(text, /## 👤 User · #1/);
+  assert.match(text, /## 🤖 Assistant · #2/);
+  assert.match(text, /a1/);
+});
+
+test("buildViewText growth: renders the full chart when cache misses are unavailable", () => {
+  const entries: SessionEntry[] = [
+    userEntry("q1"),
+    assistantEntry([{ type: "text", text: "a1" }], { totalTokens: 40000 }),
+    userEntry("q2"),
+    assistantEntry([{ type: "text", text: "a2" }], { totalTokens: 91000 }),
+  ];
+  const text = buildViewText("growth", entries, { contextWindowFor: () => 200000 });
+  assert.doesNotMatch(text, /Cache miss/);
+  assert.match(text, /2 turns · window 200k · peak 91k/);
+  assert.match(text, /# {2}1\s+40k/);
+  assert.match(text, /# {2}2\s+91k/);
+  // The sparkline survives: only the per-row annotation is capability-gated.
+  assert.match(text, /[█░]{8,}/);
+});
+
+test("buildViewText chatlog: attributes a miss to idle time past the cache TTL", () => {
+  // 20 minutes apart: beyond the 5-minute prompt-cache TTL, so the notice
+  // names the idle gap rather than a model switch.
+  const entries: SessionEntry[] = [
+    userEntry("q1", "2026-09-25T10:00:00.000Z"),
+    assistantEntryAt("a1", "2026-09-25T10:00:30.000Z", { cacheWrite: 150000 }),
+    userEntry("q2", "2026-09-25T10:20:00.000Z"),
+    assistantEntryAt("a2", "2026-09-25T10:20:00.000Z", { input: 140000, cacheRead: 5000 }),
+  ];
+  const text = buildViewText("chatlog", entries, {
+    priceSource: cacheMissPriceSource(),
+  });
+  assert.match(text, /\*\*❗ Cache miss after 20m idle: 140k tokens re-billed\*\*/);
+});
+
+test("buildViewText growth: annotates the paying turn when cache misses are available", () => {
+  const entries: SessionEntry[] = [
+    userEntry("q1", "2026-09-25T10:00:00.000Z"),
+    assistantEntryAt("a1", "2026-09-25T10:00:30.000Z", { cacheWrite: 150000 }),
+    userEntry("q2", "2026-09-25T10:20:00.000Z"),
+    assistantEntryAt("a2", "2026-09-25T10:20:00.000Z", { input: 140000, cacheRead: 5000 }),
+  ];
+  const text = buildViewText("growth", entries, {
+    priceSource: cacheMissPriceSource(),
+    contextWindowFor: () => 200000,
+  });
+  assert.match(text, /\(!\) cache miss$/m);
+});
+
 test("buildViewText chatlog: meta line shows the elapsed time since the previous message", () => {
   const entries: SessionEntry[] = [
     userEntry("q", "2026-08-26T10:00:00.000Z"),
