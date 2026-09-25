@@ -380,6 +380,7 @@ interface MixCodeTuiDebugState {
   overlays: {
     quitConfirmOpen: boolean;
     deleteAllSessionsConfirmOpen: boolean;
+    deleteAllSessionsConfirmInput: string;
     closeAllSessionsConfirmOpen: boolean;
     sessionActionConfirm: MixCodeState["sessionActionConfirm"];
     commandPaletteOpen: boolean;
@@ -429,6 +430,7 @@ function createTuiDebugState(state: MixCodeState): MixCodeTuiDebugState {
     overlays: {
       quitConfirmOpen: state.quitConfirmOpen,
       deleteAllSessionsConfirmOpen: state.deleteAllSessionsConfirmOpen,
+      deleteAllSessionsConfirmInput: state.deleteAllSessionsConfirmInput,
       closeAllSessionsConfirmOpen: state.closeAllSessionsConfirmOpen,
       sessionActionConfirm: state.sessionActionConfirm,
       commandPaletteOpen: state.commandPaletteOpen,

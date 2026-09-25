@@ -43,6 +43,8 @@ mpi ctl --tab <title> wait --timeout 90
 #                        screen, not in the chat JSON, so answer from the tail.
 #                        an open overlay is answered with keys, never with send-prompt:
 #                        Y/N confirm  -> --tab send-keys y  (🔴 read the question first) or n
+#                        DELETE-all confirm -> --tab send-keys delete  (the panel
+#                                        ignores y; one token or d e l e t e)
 #                        picker       -> --tab send-keys Escape to leave it unchanged
 #                        question / settings -> --tab send-keys, then wait again
 # error | Not Ready   -> the command failed; read last-message / dump-screen for the cause
@@ -51,7 +53,7 @@ mpi ctl --tab <title> wait --timeout 90
 
 **Callback** (`--expect-response`, or your prompt asks for a reply): the peer pushes the result back to your tab. After the ACK, at most one short check (`wait --timeout 5`; on `wait-for-input`, unblock the peer first), then **end your turn** and say you are waiting for that tab's reply. Never sit in a long `wait` for it. The reply is a queued message injected only after your current tool call returns, so a long wait delays your own wake-up. If the peer also `wait`s on you, both tabs stall until timeout (mutual wait).
 
-**Slash commands.** Send with `send-prompt`, and prefer argument forms so no overlay opens: `/models <id>`, `/thinking <level>`, `/resume <session-id>` (no overlay, but it does take UI focus), `/close-session yes`. The `yes` argument only skips the dialog when *you* invoke the command; it cannot answer a dialog that is already open. Slash execution is asynchronous and failures surface on the tab's chat surface / toast (`Error: …`), not via ACK. After `wait`, run `dump-screen` on that tab and check the tail for `Error:`. Before `/models` or `/thinking`, read valid ids with `mpi --list-models`. Bare `/models`, bare `/resume`, `/close-all-sessions`, `/delete-all-sessions`, `/settings` and other overlays open on the target tab. Drive them with `--tab send-keys` (`down` / `up` + `Enter`; `y`/`n` for the always-confirm ones). New tab: `send-prompt '/new-session --no-focus Title'`. Full catalog: [Slash commands](#slash-commands).
+**Slash commands.** Send with `send-prompt`, and prefer argument forms so no overlay opens: `/models <id>`, `/thinking <level>`, `/resume <session-id>` (no overlay, but it does take UI focus), `/close-session yes`. The `yes` argument only skips the dialog when *you* invoke the command; it cannot answer a dialog that is already open. Slash execution is asynchronous and failures surface on the tab's chat surface / toast (`Error: …`), not via ACK. After `wait`, run `dump-screen` on that tab and check the tail for `Error:`. Before `/models` or `/thinking`, read valid ids with `mpi --list-models`. Bare `/models`, bare `/resume`, `/close-all-sessions`, `/delete-all-sessions`, `/settings` and other overlays open on the target tab. Drive them with `--tab send-keys` (`down` / `up` + `Enter`; `y`/`n` for the Y/N confirms; `delete` for `/delete-all-sessions`, whose panel ignores `y`). New tab: `send-prompt '/new-session --no-focus Title'`. Full catalog: [Slash commands](#slash-commands).
 
 **🔴 STOP. Confirm with the user before sending these.** They hit a live tab a human may be watching, and ctl cannot undo them: `/delete-session yes`, `/delete-all-sessions`, `/close-all-sessions`, and `send-keys C-q` + `y` (quits the whole TUI, every tab). Re-read the target from `mpi status --json` and get an explicit OK in the same turn. Everything else needs no confirmation: plain prompts, `/models`, `/thinking`, `wait`, all reads. Do not gate those.
 
@@ -214,7 +216,7 @@ Common MixCode session/tab commands:
 | `/close-session [yes]` | Close that tab; session file stays on disk. `yes` skips the Y/N overlay. |
 | 🔴 `/delete-session [yes]` | Delete that tab's session file and close the tab. `yes` skips the Y/N overlay. Irreversible. |
 | 🔴 `/close-all-sessions` | Close every agent tab; keep session files. Always Y/N. Answer with `--tab send-keys` `y`/`n`. |
-| 🔴 `/delete-all-sessions` | Delete every open agent session and close those tabs. Always Y/N. Answer with `--tab send-keys` `y`/`n`. Irreversible. |
+| 🔴 `/delete-all-sessions` | Delete the session files of every open agent tab and close those tabs. The panel ignores `y`: answer with `--tab send-keys delete` (`d e l e t e` works too) to confirm, or `n`/`Escape` to cancel. Refuses without deleting anything while any open tab is streaming or compacting. Irreversible. |
 | `/models [model]` | Set model directly (e.g. `/models openai/gpt-4.1`). Bare opens a picker on the target tab. |
 | `/thinking [level]` | Set thinking tier directly (e.g. `/thinking high`). Bare opens a picker. |
 | `/context-limit [value]` | Set context limit directly (e.g. `/context-limit 32k`, `/context-limit reset`). Bare opens picker. |

@@ -175,6 +175,13 @@ function promptsFromSessionEntry(entry: SessionEntry): string[] {
   return text ? [text] : [];
 }
 
+/** Why a tab cannot be deleted right now, or undefined when it can. */
+function deletionBlocker(runtimeTab: RuntimeTab): string | undefined {
+  if (runtimeTab.agentSession.isStreaming) return "the agent is streaming";
+  if (runtimeTab.agentSession.isCompacting) return "compaction is running";
+  return undefined;
+}
+
 export class MixCodeRuntime {
   private readonly sessionsRoot: string;
   private readonly agentDir: string;
@@ -1693,12 +1700,8 @@ export class MixCodeRuntime {
 
   async deleteTab(sessionId: string): Promise<void> {
     const runtimeTab = this.requireTab(sessionId);
-    if (runtimeTab.agentSession.isStreaming) {
-      throw new Error("Cannot delete a session while the agent is streaming");
-    }
-    if (runtimeTab.agentSession.isCompacting) {
-      throw new Error("Cannot delete a session while compaction is running");
-    }
+    const blocker = deletionBlocker(runtimeTab);
+    if (blocker) throw new Error(`Cannot delete a session while ${blocker}`);
     await this.shutdownRuntimeTab(runtimeTab, { type: "session_shutdown", reason: "quit" });
     const file = runtimeTab.session.getSessionFile();
     if (file) {
@@ -1715,6 +1718,18 @@ export class MixCodeRuntime {
   }
 
   async deleteAllTabs(): Promise<void> {
+    // Pre-flight every tab before unlinking anything. deleteTab() refuses a
+    // streaming/compacting tab, so deleting one by one would turn that refusal
+    // into a half-deleted set: earlier session files already gone, later ones
+    // intact, and the UI still listing the closed tabs. Report every blocker at
+    // once so the user can retry after those tabs settle.
+    const blocked = [...this.tabs.values()]
+      .map((tab) => ({ title: tab.tab.title || tab.tab.sessionId, reason: deletionBlocker(tab) }))
+      .filter((entry): entry is { title: string; reason: string } => entry.reason !== undefined);
+    if (blocked.length > 0) {
+      const detail = blocked.map((entry) => `${entry.title} (${entry.reason})`).join(", ");
+      throw new Error(`Cannot delete all sessions while ${detail}`);
+    }
     for (const sessionId of [...this.tabs.keys()]) {
       await this.deleteTab(sessionId);
     }

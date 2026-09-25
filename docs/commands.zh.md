@@ -32,7 +32,7 @@ MixCode 在 `src/core/commands.ts` 中注册了内置本地 Slash 命令。这�
 | `/close-session` | `[yes]` | Session | 关闭当前 Tab 并释放其内存运行时。加 `yes` 跳过确认框。 |
 | `/close-all-sessions`| - | Session | 用户确认后关闭所有打开的 Agent Tab。 |
 | `/delete-session` | `[yes]` | Session | 关闭当前 Tab 并永久删除其 `.jsonl` 会话文件。加 `yes` 跳过确认框。 |
-| `/delete-all-sessions` | - | Session | 永久删除当前工作目录关联的所有 `.jsonl` 会话文件。 |
+| `/delete-all-sessions` | - | Session | 永久删除当前所有已打开 Agent Tab 的会话文件并关闭它们；未打开的会话文件不受影响。确认时需输入 `DELETE`（不区分大小写，`Esc`/`N` 取消），单键不会确认。任一已打开 Tab 正在 streaming 或 compaction 时整体拒绝，不删除任何文件。 |
 | `/tree` | - | Session | 打开交互式会话分支树状查看器。 |
 | `/resume` | `[session-id \| N:<tab-name>]` | Session | 打开交互式会话选择器；`/resume <session-id>`（精确 id 或前缀，当前目录优先，其次全部根目录）直接恢复会话。`/resume N:<tab-name>` 先完整精确匹配已打开的 Tab 标题，再匹配完整精确的会话名（当前目录优先）；重名时报告全部候选 id。 |
 | `/palette` | - | - | 打开命令面板。与 `Ctrl+P` 相同。 |

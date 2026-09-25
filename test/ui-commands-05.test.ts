@@ -307,16 +307,29 @@ test("submitted input confirms a single session close/delete before touching run
   assert.deepEqual(state.tabs, []);
   assert.equal(state.activeTabId, "home");
 
-  // /delete-all-sessions keeps its existing Y/N confirmation path.
+  // /delete-all-sessions confirms on the typed word, not on `y`. The walk also
+  // covers a stray key, an out-of-order letter, and backspace, then finishes with
+  // several letters in one chunk (what a paste or an `mpi ctl send-keys` token
+  // delivers).
   await handleSubmittedInput(state, runtime, "/delete-all-sessions", tui);
   assert.deepEqual(deleted, ["s2"]);
   assert.equal(state.deleteAllSessionsConfirmOpen, true);
 
-  assert.deepEqual(handleMixCodeKeyInput(state, "y", tui, undefined, runtime), {
+  for (const key of ["y", "D", "e", "l", "e", "\x7f", "l"]) {
+    assert.deepEqual(handleMixCodeKeyInput(state, key, tui, undefined, runtime), {
+      consume: true,
+    });
+    assert.deepEqual(deleted, ["s2"], "only the completed word may delete");
+  }
+  // `y`, the backspace, and the out-of-order `l` left the buffer at "del"; this
+  // chunk completes the word.
+  assert.equal(state.deleteAllSessionsConfirmInput, "del");
+  assert.deepEqual(handleMixCodeKeyInput(state, "ete", tui, undefined, runtime), {
     consume: true,
   });
   await waitFor(async () => assert.deepEqual(deleted, ["s2", "*"]));
   assert.equal(state.deleteAllSessionsConfirmOpen, false);
+  assert.equal(state.deleteAllSessionsConfirmInput, "");
   assert.deepEqual(state.tabs, []);
   assert.equal(state.activeTabId, "home");
 });
@@ -437,102 +450,79 @@ test("single session close/delete confirmation cancel leaves tabs untouched", as
   assert.equal(state.activeTabId, "s1");
 });
 
-test("delete-all-sessions confirmation cancel (n or Escape) leaves tabs untouched", async () => {
-  const state = createInitialState("/repo");
-  state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
-  state.activeTabId = "s1";
-  const deleted: string[] = [];
-  const runtime = {
-    getTab: () => undefined,
-    deleteAllTabs: async () => deleted.push("*"),
-    getPromptHistory: () => [],
-    setExtensionUiHost: () => undefined,
-    getExtensionCommands: () => [],
-    getAllExtensionCommands: () => [],
-    onTabClosed: () => () => undefined,
-    onModelsChanged: () => () => undefined,
-    appendSystemMessage: () => undefined,
-    getSharedModelRuntime: () => undefined,
-    getExtensionTools: () => [],
-    applyExtensionAutocompleteProviders: (_sessionId: string, base: AutocompleteProvider) => base,
-  } as unknown as MixCodeRuntime;
-  // showOverlay must return a handle with `hide` so hasAnyOverlay(tui) reports
-  // true while the confirm overlay is open (needed for the Escape-key path,
-  // which routes through the shared escape dispatcher before reaching the
-  // deleteAllSessionsConfirmOpen check).
-  let overlayOpen = false;
-  const tui = {
-    requestRender: () => undefined,
-    showOverlay: () => {
-      overlayOpen = true;
-      return {
-        ...testOverlayHandle(() => (overlayOpen = false)),
-        isFocused: () => overlayOpen,
+// Both bulk confirmations share one cancel contract, so one case drives each
+// command through both cancel keys and names the command in every message.
+test("bulk confirmation cancel (n or Escape) leaves tabs untouched", async () => {
+  for (const [command, openFlag] of [
+    ["/close-all-sessions", "closeAllSessionsConfirmOpen"],
+    ["/delete-all-sessions", "deleteAllSessionsConfirmOpen"],
+  ] as const) {
+    for (const cancelKey of ["n", "\x1b"]) {
+      const label = `${command}: ${cancelKey}`;
+      const state = createInitialState("/repo");
+      state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
+      state.activeTabId = "s1";
+      const bulk: string[] = [];
+      const runtime = {
+        getTab: () => undefined,
+        closeAllTabs: async () => bulk.push("close"),
+        deleteAllTabs: async () => bulk.push("delete"),
+        getPromptHistory: () => [],
+        setExtensionUiHost: () => undefined,
+        getExtensionCommands: () => [],
+        getAllExtensionCommands: () => [],
+        onTabClosed: () => () => undefined,
+        onModelsChanged: () => () => undefined,
+        appendSystemMessage: () => undefined,
+        getSharedModelRuntime: () => undefined,
+        getExtensionTools: () => [],
+        applyExtensionAutocompleteProviders: (_sessionId: string, base: AutocompleteProvider) =>
+          base,
+      } as unknown as MixCodeRuntime;
+      // showOverlay must return a handle with `hide` so hasAnyOverlay(tui) reports
+      // true while the confirm overlay is open (needed for the Escape-key path,
+      // which routes through the shared escape dispatcher before reaching the
+      // deleteAllSessionsConfirmOpen check).
+      let overlayOpen = false;
+      const tui = {
+        requestRender: () => undefined,
+        showOverlay: () => {
+          overlayOpen = true;
+          return {
+            ...testOverlayHandle(() => (overlayOpen = false)),
+            isFocused: () => overlayOpen,
+          };
+        },
+        hasOverlay: () => overlayOpen,
       };
-    },
-    hasOverlay: () => overlayOpen,
-  };
 
-  await handleSubmittedInput(state, runtime, "/delete-all-sessions", tui);
-  assert.equal(state.deleteAllSessionsConfirmOpen, true);
+      await handleSubmittedInput(state, runtime, command, tui);
+      assert.equal(state[openFlag], true, `${label}: dialog open`);
+      if (openFlag === "deleteAllSessionsConfirmOpen") {
+        // A partial word must not cancel or confirm on its own, and cancelling
+        // clears it.
+        handleMixCodeKeyInput(state, "d", tui, undefined, runtime);
+        assert.equal(state.deleteAllSessionsConfirmInput, "d", `${label}: partial word kept`);
+        assert.equal(state[openFlag], true, `${label}: partial word does not confirm`);
+      }
 
-  assert.deepEqual(handleMixCodeKeyInput(state, "n", tui, undefined, runtime), {
-    consume: true,
-  });
-  assert.equal(state.deleteAllSessionsConfirmOpen, false);
-  assert.deepEqual(deleted, []);
-  assert.deepEqual(
-    state.tabs.map((tab) => tab.sessionId),
-    ["s1", "s2"],
-  );
-
-  await handleSubmittedInput(state, runtime, "/delete-all-sessions", tui);
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime), {
-    consume: true,
-  });
-  assert.equal(state.deleteAllSessionsConfirmOpen, false);
-  assert.deepEqual(deleted, []);
-  assert.equal(state.tabs.length, 2);
+      assert.deepEqual(
+        handleMixCodeKeyInput(state, cancelKey, tui, undefined, runtime),
+        { consume: true },
+        `${label}: cancel consumed`,
+      );
+      assert.equal(state[openFlag], false, `${label}: dialog closed`);
+      assert.equal(state.deleteAllSessionsConfirmInput, "", `${label}: typed word cleared`);
+      assert.deepEqual(bulk, [], `${label}: nothing ran`);
+      assert.deepEqual(
+        state.tabs.map((tab) => tab.sessionId),
+        ["s1", "s2"],
+        `${label}: tabs untouched`,
+      );
+      assert.equal(state.activeTabId, "s1", `${label}: focus kept`);
+    }
+  }
 });
-
-test("submitted input closes all sessions through runtime after Y/N confirmation", async () => {
-  const state = createInitialState("/repo");
-  state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
-  state.activeTabId = "s1";
-  const closedAll: string[] = [];
-  const runtime = {
-    getTab: () => undefined,
-    closeAllTabs: async () => closedAll.push("*"),
-    getPromptHistory: () => [],
-    setExtensionUiHost: () => undefined,
-    getExtensionCommands: () => [],
-    getAllExtensionCommands: () => [],
-    onTabClosed: () => () => undefined,
-    onModelsChanged: () => () => undefined,
-    appendSystemMessage: () => undefined,
-    getSharedModelRuntime: () => undefined,
-    getExtensionTools: () => [],
-    applyExtensionAutocompleteProviders: (_sessionId: string, base: AutocompleteProvider) => base,
-  } as unknown as MixCodeRuntime;
-  const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
-
-  // /close-all-sessions opens the same kind of Y/N confirmation as
-  // /delete-all-sessions, but confirming calls closeAllTabs (tabs close,
-  // session files are kept) instead of deleteAllTabs.
-  await handleSubmittedInput(state, runtime, "/close-all-sessions", tui);
-  assert.deepEqual(closedAll, []);
-  assert.equal(state.closeAllSessionsConfirmOpen, true);
-  assert.equal(state.tabs.length, 2);
-
-  assert.deepEqual(handleMixCodeKeyInput(state, "y", tui, undefined, runtime), {
-    consume: true,
-  });
-  await waitFor(async () => assert.deepEqual(closedAll, ["*"]));
-  assert.equal(state.closeAllSessionsConfirmOpen, false);
-  assert.deepEqual(state.tabs, []);
-  assert.equal(state.activeTabId, "home");
-});
-
 test("close-all-sessions clears the shared open-tab set", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-close-all-open-tabs-"));
   const filePath = openTabsFile(dir);
@@ -597,9 +587,11 @@ test("delete-all-sessions clears the shared open-tab set", async () => {
     const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
 
     await handleSubmittedInput(state, runtime, "/delete-all-sessions", tui);
-    assert.deepEqual(handleMixCodeKeyInput(state, "y", tui, undefined, runtime), {
-      consume: true,
-    });
+    for (const key of [..."delete"]) {
+      assert.deepEqual(handleMixCodeKeyInput(state, key, tui, undefined, runtime), {
+        consume: true,
+      });
+    }
     await waitFor(async () => assert.equal(state.tabs.length, 0));
 
     assert.deepEqual(readOpenTabs(filePath), []);
@@ -636,9 +628,11 @@ test("delete-all-sessions confirmation calls runtime.deleteAllTabs bound to the 
   await handleSubmittedInput(state, runtime, "/delete-all-sessions", tui);
   assert.equal(state.deleteAllSessionsConfirmOpen, true);
 
-  assert.deepEqual(handleMixCodeKeyInput(state, "y", tui, undefined, runtime), {
-    consume: true,
-  });
+  for (const key of [..."delete"]) {
+    assert.deepEqual(handleMixCodeKeyInput(state, key, tui, undefined, runtime), {
+      consume: true,
+    });
+  }
   await waitFor(async () => assert.equal(fakeRuntime.tabs.size, 0));
   assert.equal(state.deleteAllSessionsConfirmOpen, false);
   assert.deepEqual(state.tabs, []);
@@ -672,60 +666,6 @@ test("close-all-sessions confirmation calls runtime.closeAllTabs bound to the ru
   assert.equal(state.closeAllSessionsConfirmOpen, false);
   assert.deepEqual(state.tabs, []);
   assert.equal(state.activeTabId, "home");
-});
-
-test("close-all-sessions confirmation cancel (n or Escape) leaves tabs untouched", async () => {
-  const state = createInitialState("/repo");
-  state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
-  state.activeTabId = "s1";
-  const closedAll: string[] = [];
-  const runtime = {
-    getTab: () => undefined,
-    closeAllTabs: async () => closedAll.push("*"),
-    getPromptHistory: () => [],
-    setExtensionUiHost: () => undefined,
-    getExtensionCommands: () => [],
-    getAllExtensionCommands: () => [],
-    onTabClosed: () => () => undefined,
-    onModelsChanged: () => () => undefined,
-    appendSystemMessage: () => undefined,
-    getSharedModelRuntime: () => undefined,
-    getExtensionTools: () => [],
-    applyExtensionAutocompleteProviders: (_sessionId: string, base: AutocompleteProvider) => base,
-  } as unknown as MixCodeRuntime;
-  let overlayOpen = false;
-  const tui = {
-    requestRender: () => undefined,
-    showOverlay: () => {
-      overlayOpen = true;
-      return {
-        ...testOverlayHandle(() => (overlayOpen = false)),
-        isFocused: () => overlayOpen,
-      };
-    },
-    hasOverlay: () => overlayOpen,
-  };
-
-  await handleSubmittedInput(state, runtime, "/close-all-sessions", tui);
-  assert.equal(state.closeAllSessionsConfirmOpen, true);
-
-  assert.deepEqual(handleMixCodeKeyInput(state, "n", tui, undefined, runtime), {
-    consume: true,
-  });
-  assert.equal(state.closeAllSessionsConfirmOpen, false);
-  assert.deepEqual(closedAll, []);
-  assert.deepEqual(
-    state.tabs.map((tab) => tab.sessionId),
-    ["s1", "s2"],
-  );
-
-  await handleSubmittedInput(state, runtime, "/close-all-sessions", tui);
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime), {
-    consume: true,
-  });
-  assert.equal(state.closeAllSessionsConfirmOpen, false);
-  assert.deepEqual(closedAll, []);
-  assert.equal(state.tabs.length, 2);
 });
 
 test("new-session rolls back the tab and active id when runtime.createTab fails", async () => {
@@ -853,45 +793,35 @@ test("/new-session --no-focus creates a tab without switching UI focus", async (
   assert.notEqual(created.sessionId, "s1");
 });
 
-test("/new-session --no-focus Title names the tab and keeps current focus", async () => {
-  const state = createInitialState("/repo");
-  state.tabs.push(createTab(1, "s1", "/repo", { status: "done", title: "Agent-01" }));
-  state.activeTabId = "s1";
-  const renamed: Array<{ sessionId: string; title: string }> = [];
-  const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
+test("/new-session keeps focus and applies the title with either argument order", async () => {
+  for (const [input, title] of [
+    ["/new-session --no-focus API Gateway", "API Gateway"],
+    ["/new-session Worker --no-focus", "Worker"],
+  ] as const) {
+    const state = createInitialState("/repo");
+    state.tabs.push(createTab(1, "s1", "/repo", { title: "Agent-01" }));
+    state.activeTabId = "s1";
+    const renamed: Array<{ sessionId: string; title: string }> = [];
+    const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
 
-  await handleSubmittedInput(
-    state,
-    commandRuntime({
-      renameSession: (sessionId: string, title: string) => {
-        renamed.push({ sessionId, title });
-      },
-    }),
-    "/new-session --no-focus API Gateway",
-    tui,
-  );
+    await handleSubmittedInput(
+      state,
+      commandRuntime({
+        renameSession: (sessionId: string, newTitle: string) => {
+          renamed.push({ sessionId, title: newTitle });
+        },
+      }),
+      input,
+      tui,
+    );
 
-  const created = state.tabs.find((tab) => tab.sessionId !== "s1");
-  assert.ok(created, "new tab was created");
-  assert.equal(created.title, "API Gateway");
-  assert.equal(state.activeTabId, "s1");
-  assert.deepEqual(renamed, [{ sessionId: created.sessionId, title: "API Gateway" }]);
+    const created = state.tabs.find((tab) => tab.sessionId !== "s1");
+    assert.ok(created, `${input}: new tab was created`);
+    assert.equal(created.title, title, `${input}: title`);
+    assert.equal(state.activeTabId, "s1", `${input}: focus kept`);
+    assert.deepEqual(renamed, [{ sessionId: created.sessionId, title }], `${input}: rename`);
+  }
 });
-
-test("/new-session Title --no-focus names Title and keeps current focus", async () => {
-  const state = createInitialState("/repo");
-  state.tabs.push(createTab(1, "s1", "/repo", { title: "Agent-01" }));
-  state.activeTabId = "s1";
-  const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
-
-  await handleSubmittedInput(state, commandRuntime(), "/new-session Worker --no-focus", tui);
-
-  const created = state.tabs.find((tab) => tab.sessionId !== "s1");
-  assert.ok(created, "new tab was created");
-  assert.equal(created.title, "Worker");
-  assert.equal(state.activeTabId, "s1");
-});
-
 test("/new-session --focus Title focuses the new tab", async () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo", { title: "Agent-01" }));
@@ -906,41 +836,26 @@ test("/new-session --focus Title focuses the new tab", async () => {
   assert.equal(state.activeTabId, created.sessionId);
 });
 
-test("/new-session rejects --focus and --no-focus together", async () => {
-  const state = createInitialState("/repo");
-  state.tabs.push(createTab(1, "s1", "/repo", { title: "Agent-01" }));
-  state.activeTabId = "s1";
-  const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
+test("/new-session rejects invalid flags instead of using them as a title", async () => {
+  for (const input of ["/new-session --no-focus --focus Worker", "/new-session --bogus"]) {
+    const state = createInitialState("/repo");
+    state.tabs.push(createTab(1, "s1", "/repo", { title: "Agent-01" }));
+    state.activeTabId = "s1";
+    const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
 
-  await assert.rejects(
-    () =>
-      handleSubmittedInput(state, commandRuntime(), "/new-session --no-focus --focus Worker", tui),
-    /Error: Usage: \/new-session \[--focus\|--no-focus\] \[title\]/,
-  );
-  assert.deepEqual(
-    state.tabs.map((tab) => tab.sessionId),
-    ["s1"],
-  );
-  assert.equal(state.activeTabId, "s1");
+    await assert.rejects(
+      () => handleSubmittedInput(state, commandRuntime(), input, tui),
+      /Error: Usage: \/new-session \[--focus\|--no-focus\] \[title\]/,
+      `${input}: usage error`,
+    );
+    assert.deepEqual(
+      state.tabs.map((tab) => tab.sessionId),
+      ["s1"],
+      `${input}: no tab created`,
+    );
+    assert.equal(state.activeTabId, "s1", `${input}: focus kept`);
+  }
 });
-
-test("/new-session rejects an unknown -- flag instead of using it as a title", async () => {
-  const state = createInitialState("/repo");
-  state.tabs.push(createTab(1, "s1", "/repo", { title: "Agent-01" }));
-  state.activeTabId = "s1";
-  const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
-
-  await assert.rejects(
-    () => handleSubmittedInput(state, commandRuntime(), "/new-session --bogus", tui),
-    /Error: Usage: \/new-session \[--focus\|--no-focus\] \[title\]/,
-  );
-  assert.deepEqual(
-    state.tabs.map((tab) => tab.sessionId),
-    ["s1"],
-  );
-  assert.equal(state.activeTabId, "s1");
-});
-
 test("/new-session --no-focus rolls back the tab and leaves the previous active id", async () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo", { status: "done" }));

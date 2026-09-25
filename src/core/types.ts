@@ -416,6 +416,12 @@ export interface MixCodeState {
   packageUpdates: string[];
   quitConfirmOpen: boolean;
   deleteAllSessionsConfirmOpen: boolean;
+  /**
+   * Letters typed into the /delete-all-sessions confirmation so far. The panel
+   * renders this, and the command runs only once the buffer matches the
+   * confirmation word.
+   */
+  deleteAllSessionsConfirmInput: string;
   closeAllSessionsConfirmOpen: boolean;
   sessionActionConfirm: SessionActionConfirm | null;
   /** Cancel queued confirmation waiters when another overlay replaces their dialog. */

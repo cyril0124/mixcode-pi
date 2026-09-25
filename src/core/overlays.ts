@@ -300,6 +300,9 @@ export function closeActiveOverlay(state: MixCodeState): void {
   state.sessionActionConfirm = null;
   state.quitConfirmOpen = false;
   state.deleteAllSessionsConfirmOpen = false;
+  // Clearing the typed word here covers every exit path (cancel, confirm, and a
+  // replacement overlay), so the next /delete-all-sessions starts empty.
+  state.deleteAllSessionsConfirmInput = "";
   state.closeAllSessionsConfirmOpen = false;
 }
 

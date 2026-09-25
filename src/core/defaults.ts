@@ -51,6 +51,7 @@ export function createInitialState(
     packageUpdates: [],
     quitConfirmOpen: false,
     deleteAllSessionsConfirmOpen: false,
+    deleteAllSessionsConfirmInput: "",
     closeAllSessionsConfirmOpen: false,
     sessionActionConfirm: null,
     commandPaletteOpen: false,

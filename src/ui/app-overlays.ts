@@ -402,16 +402,35 @@ export function renderQuitConfirm(width: number, theme: MixCodeTheme): string[] 
   );
 }
 
-export function renderDeleteAllSessionsConfirm(width: number, theme: MixCodeTheme): string[] {
+/**
+ * Word that must be typed into the /delete-all-sessions panel before it runs.
+ * Typing it is the only confirmation path, so no single key can delete every
+ * session, whatever injected it (a stray keypress, `mpi ctl send-keys y`).
+ */
+export const DELETE_ALL_SESSIONS_CONFIRM_WORD = "delete";
+
+export function renderDeleteAllSessionsConfirm(
+  width: number,
+  theme: MixCodeTheme,
+  input: string,
+  tabCount: number,
+): string[] {
+  // The panel names the real blast radius: only the open tabs' session files
+  // are deleted, and the count is on screen before anything happens.
+  const scope =
+    tabCount === 1
+      ? "Closes 1 open tab and permanently deletes its session file."
+      : `Closes ${tabCount} open tabs and permanently deletes their session files.`;
   return renderWithTheme(theme, () =>
     overlayPanel(
       "Delete All Sessions",
       [
-        "Delete all open agent tabs and permanently delete their session files?",
+        scope,
+        "Other session files in this workspace are not touched.",
         "This cannot be undone — deleted sessions cannot be resumed.",
         "",
-        "[Y] Delete permanently    [N] Cancel",
-        "Esc: cancel",
+        `Type ${DELETE_ALL_SESSIONS_CONFIRM_WORD.toUpperCase()} to confirm: ${input}`,
+        "Esc or N: cancel",
       ],
       width,
     ),

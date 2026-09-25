@@ -72,13 +72,19 @@ async function withRuntime(
 
 const nextTurn = () => new Promise<void>((resolve) => setImmediate(resolve));
 
-for (const command of [
+// The queued-confirmation contract is one behavior per phase: queue a session
+// command, then cancel or confirm it. Only the command's handler differs, so
+// each phase runs the whole command set in one case and names the command in
+// every assertion message instead of repeating the unchanged body four times.
+const SESSION_QUEUE_COMMANDS = [
   "close-session",
   "delete-session",
   "close-all-sessions",
   "delete-all-sessions",
-]) {
-  test(`queued /${command} cancellation pauses subsequent tasks`, async () => {
+] as const;
+
+test("queued session-command cancellation pauses subsequent tasks", async () => {
+  for (const command of SESSION_QUEUE_COMMANDS) {
     await withRuntime(async ({ runtime, state, tab, other }) => {
       tab.followUpsPaused = true;
       const tui = testTui();
@@ -88,21 +94,29 @@ for (const command of [
       const resumed = runtime.resumeFollowUps(tab.sessionId);
       const rejected = assert.rejects(resumed, /Error: Queued command cancelled/);
       await nextTurn();
-      assert.equal(state.activeTabId, command.includes("all") ? other.sessionId : tab.sessionId);
+      assert.equal(
+        state.activeTabId,
+        command.includes("all") ? other.sessionId : tab.sessionId,
+        `${command}: dialog focus`,
+      );
       state.activeTabId = other.sessionId;
-      assert.equal(tab.color, undefined);
-      assert.deepEqual(tab.pendingFollowUps, ["/color blue"]);
-      assert.equal(dispatchOwnedOverlayKey(state, tab, "n", tui, runtime), true);
+      assert.equal(tab.color, undefined, `${command}: color untouched before resume`);
+      assert.deepEqual(tab.pendingFollowUps, ["/color blue"], `${command}: queue kept`);
+      assert.equal(
+        dispatchOwnedOverlayKey(state, tab, "n", tui, runtime),
+        true,
+        `${command}: cancel consumed`,
+      );
       await rejected;
-      assert.equal(tab.followUpsPaused, true);
-      assert.equal(state.tabs.includes(tab), true);
-      assert.equal(state.activeTabId, other.sessionId);
+      assert.equal(tab.followUpsPaused, true, `${command}: queue stays paused`);
+      assert.equal(state.tabs.includes(tab), true, `${command}: tab kept`);
+      assert.equal(state.activeTabId, other.sessionId, `${command}: focus kept`);
       await runtime.resumeFollowUps(tab.sessionId);
-      assert.equal(tab.color, "blue");
-      assert.equal(other.color, undefined);
+      assert.equal(tab.color, "blue", `${command}: color applied on resume`);
+      assert.equal(other.color, undefined, `${command}: other tab untouched`);
     });
-  });
-}
+  }
+});
 
 test("two queued confirmations retain the first overlay until cancellation and explicit resume", async () => {
   await withRuntime(async ({ runtime, state, tab }) => {
@@ -126,13 +140,8 @@ test("two queued confirmations retain the first overlay until cancellation and e
   });
 });
 
-for (const command of [
-  "close-session",
-  "delete-session",
-  "close-all-sessions",
-  "delete-all-sessions",
-]) {
-  test(`confirmed queued /${command} waits for persistence and drops old tasks`, async () => {
+test("confirmed queued session command waits for persistence and drops old tasks", async () => {
+  for (const command of SESSION_QUEUE_COMMANDS) {
     await withRuntime(async ({ runtime, state, tab, other, releaseGates }) => {
       const tui = testTui();
       tab.followUpsPaused = true;
@@ -144,29 +153,42 @@ for (const command of [
         settled = true;
       });
       await nextTurn();
-      assert.equal(state.activeTabId, command.includes("all") ? other.sessionId : tab.sessionId);
+      assert.equal(
+        state.activeTabId,
+        command.includes("all") ? other.sessionId : tab.sessionId,
+        `${command}: dialog focus`,
+      );
       state.activeTabId = other.sessionId;
-      assert.equal(settled, false);
+      assert.equal(settled, false, `${command}: still waiting for the dialog`);
       const persisting = Promise.withResolvers<void>();
       const persist = Promise.withResolvers<void>();
       releaseGates.push(persist.resolve);
-      dispatchOwnedOverlayKey(state, tab, "y", tui, runtime, () => {
+      // /delete-all-sessions confirms on the typed word, the others on `y`.
+      const confirmKeys = command === "delete-all-sessions" ? [..."delete"] : ["y"];
+      for (const key of confirmKeys.slice(0, -1)) {
+        dispatchOwnedOverlayKey(state, tab, key, tui, runtime);
+      }
+      dispatchOwnedOverlayKey(state, tab, confirmKeys.at(-1)!, tui, runtime, () => {
         persisting.resolve();
         return persist.promise;
       });
       await persisting.promise;
-      assert.equal(settled, false);
+      assert.equal(settled, false, `${command}: waits for persistence`);
       persist.resolve();
       await resumed;
-      assert.equal(runtime.getTab(tab.sessionId), undefined);
-      assert.equal(state.tabs.includes(tab), false);
-      assert.deepEqual(tab.pendingFollowUps, []);
-      assert.equal(tab.color, undefined);
-      assert.equal(other.color, undefined);
-      assert.equal(state.activeTabId, command.includes("all") ? "home" : other.sessionId);
+      assert.equal(runtime.getTab(tab.sessionId), undefined, `${command}: tab torn down`);
+      assert.equal(state.tabs.includes(tab), false, `${command}: tab dropped from state`);
+      assert.deepEqual(tab.pendingFollowUps, [], `${command}: old tasks dropped`);
+      assert.equal(tab.color, undefined, `${command}: old color task dropped`);
+      assert.equal(other.color, undefined, `${command}: other tab untouched`);
+      assert.equal(
+        state.activeTabId,
+        command.includes("all") ? "home" : other.sessionId,
+        `${command}: focus after the command`,
+      );
     });
-  });
-}
+  }
+});
 
 test("confirmations queued on different tabs never overwrite each other", async () => {
   await withRuntime(async ({ runtime, state, tab, other }) => {

@@ -45,6 +45,7 @@ import { applyModelSelection, applyThinkingLevel, applyWorkdirSelection } from "
 import { armPendingEscape, clearPendingEscape, isPendingEscapeActive } from "../core/escape.js";
 import {
   closeAppOverlay,
+  DELETE_ALL_SESSIONS_CONFIRM_WORD,
   dispatchAppOverlayInput,
   hasAnyOverlay,
   showErrorOverlay,
@@ -162,11 +163,13 @@ export function handleQuitConfirmKey(
   return true;
 }
 
-// Guards /delete-all-sessions (destructive, closes every tab and deletes every
-// session file) behind a Y/N step, mirroring handleQuitConfirmKey. Unlike quit,
-// the app keeps running afterward, so the confirmed deletion must also thread
+// Guards /delete-all-sessions (destructive: closes every tab and deletes every
+// session file) behind typing the confirmation word. No single key confirms, so
+// a stray `y` cannot delete every session, however it arrived. Unlike quit, the
+// app keeps running afterward, so the confirmed deletion must also thread
 // onStateChanged through to persist the now-empty tab list (see
-// workspace-overlay.ts's handleDeleteConfirmKey for the same async+persist shape).
+// workspace-overlay.ts's handleDeleteConfirmKey for the same async+persist
+// shape).
 function handleDeleteAllSessionsConfirmKey(
   state: MixCodeState,
   data: string,
@@ -176,38 +179,57 @@ function handleDeleteAllSessionsConfirmKey(
 ): boolean {
   if (matchesKey(data, "escape") || data.toLowerCase() === "n") {
     state.deleteAllSessionsConfirmOpen = false;
+    state.deleteAllSessionsConfirmInput = "";
     closeAppOverlay(tui);
     takeQueuedCommandCompletion(state)?.reject(new Error("Error: Queued command cancelled"));
     tui.requestRender();
     return true;
   }
-  if (data.toLowerCase() === "y") {
-    if (!runtime) throw new Error("Deleting all sessions requires runtime support");
-    const confirmedRuntime = runtime;
-    const completion = takeQueuedCommandCompletion(state);
-    state.deleteAllSessionsConfirmOpen = false;
-    closeAppOverlay(tui);
-    void (async () => {
-      assertConfiguredOpenTabsReadable();
-      // Call through confirmedRuntime.deleteAllTabs() (not a detached function
-      // reference) so `this` inside the real MixCodeRuntime method still
-      // resolves — deleteAllTabs reads `this.tabs` internally.
-      await confirmedRuntime.deleteAllTabs();
-      // Same bulk-close publish as /close-all-sessions so peer sync cannot reopen.
-      noteTabsReplaced([]);
-      state.tabs.length = 0;
-      state.recentAgentTabIds = [];
-      activateTab(state, HOME_TAB_ID);
-      clampHomeSelectedTabIndex(state);
-      await onStateChanged?.(state);
-      tui.requestRender();
-      completion?.resolve();
-    })().catch((error: unknown) => {
-      if (completion) completion.reject(error);
-      else showErrorOverlay(tui, error);
-    });
+  if (matchesKey(data, "backspace") || data === "\x7f") {
+    state.deleteAllSessionsConfirmInput = state.deleteAllSessionsConfirmInput.slice(0, -1);
+    tui.requestRender();
     return true;
   }
+  // Letters extend the typed word; several letters in one chunk (a paste, or an
+  // `mpi ctl send-keys` token) count as typing them at once. Only a prefix of
+  // the word is accepted, so a stray or out-of-order key cannot move the input,
+  // and every non-letter key (Enter, arrows, `y`) has no effect at all.
+  const typed = data.toLowerCase();
+  if (/^[a-z]+$/.test(typed)) {
+    const candidate = state.deleteAllSessionsConfirmInput + typed;
+    if (DELETE_ALL_SESSIONS_CONFIRM_WORD.startsWith(candidate)) {
+      state.deleteAllSessionsConfirmInput = candidate;
+    }
+  }
+  if (state.deleteAllSessionsConfirmInput !== DELETE_ALL_SESSIONS_CONFIRM_WORD) {
+    tui.requestRender();
+    return true;
+  }
+  if (!runtime) throw new Error("Deleting all sessions requires runtime support");
+  const confirmedRuntime = runtime;
+  const completion = takeQueuedCommandCompletion(state);
+  state.deleteAllSessionsConfirmOpen = false;
+  state.deleteAllSessionsConfirmInput = "";
+  closeAppOverlay(tui);
+  void (async () => {
+    assertConfiguredOpenTabsReadable();
+    // Call through confirmedRuntime.deleteAllTabs() (not a detached function
+    // reference) so `this` inside the real MixCodeRuntime method still
+    // resolves — deleteAllTabs reads `this.tabs` internally.
+    await confirmedRuntime.deleteAllTabs();
+    // Same bulk-close publish as /close-all-sessions so peer sync cannot reopen.
+    noteTabsReplaced([]);
+    state.tabs.length = 0;
+    state.recentAgentTabIds = [];
+    activateTab(state, HOME_TAB_ID);
+    clampHomeSelectedTabIndex(state);
+    await onStateChanged?.(state);
+    tui.requestRender();
+    completion?.resolve();
+  })().catch((error: unknown) => {
+    if (completion) completion.reject(error);
+    else showErrorOverlay(tui, error);
+  });
   return true;
 }
 

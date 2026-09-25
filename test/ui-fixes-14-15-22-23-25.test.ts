@@ -35,10 +35,23 @@ test("home keeps navigation hints when height is short", () => {
   assert.match(short, /↑\/↓: select|→: attach|Enter: send|Tab: cycle tabs/);
 });
 
-test("delete-all-sessions confirm names permanent session-file deletion", () => {
-  const text = stripAnsi(renderDeleteAllSessionsConfirm(80, themeForId("claude-warm")).join("\n"));
+test("delete-all-sessions confirm names its scope, the count, and the typed word", () => {
+  const text = stripAnsi(
+    renderDeleteAllSessionsConfirm(80, themeForId("claude-warm"), "", 2).join("\n"),
+  );
   assert.match(text, /Delete All Sessions/);
   assert.match(text, /permanent|cannot resume|session files/i);
+  // The panel must not overstate the blast radius: only the open tabs' files go.
+  assert.match(text, /Closes 2 open tabs/);
+  assert.match(text, /workspace are not touched/i);
+
+  // A single tab reads as a singular sentence, and the panel echoes what was
+  // typed so far.
+  const one = stripAnsi(
+    renderDeleteAllSessionsConfirm(80, themeForId("claude-warm"), "dele", 1).join("\n"),
+  );
+  assert.match(one, /Closes 1 open tab and permanently deletes its session file\./);
+  assert.match(one, /Type DELETE to confirm: dele/);
 });
 
 test("workdir picker lists more than 20 dirs with overflow affordance", async () => {

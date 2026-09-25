@@ -69,12 +69,19 @@ export function openQuitConfirm(state: MixCodeState, tui: OverlayTui): void {
 export function openDeleteAllSessionsConfirm(state: MixCodeState, tui: OverlayTui): void {
   assertQueuedConfirmationCanOpen(state);
   // Same mutual-exclusion + centered-panel mechanism as openQuitConfirm, guarding
-  // /delete-all-sessions (a destructive, hard-to-undo action) behind a Y/N step.
+  // /delete-all-sessions (a destructive, hard-to-undo action) behind typing the
+  // confirmation word (see handleDeleteAllSessionsConfirmKey).
   closeTreeSelectorIfOpen(state, tui);
   openOverlay(state, "delete-all-sessions-confirm");
   showLinesOverlay(
     tui,
-    (width) => renderDeleteAllSessionsConfirm(width, themeForId(state.theme)),
+    (width) =>
+      renderDeleteAllSessionsConfirm(
+        width,
+        themeForId(state.theme),
+        state.deleteAllSessionsConfirmInput,
+        state.tabs.length,
+      ),
     quitOverlayOptions(),
   );
 }

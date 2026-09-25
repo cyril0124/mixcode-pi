@@ -70,3 +70,51 @@ test("runtime rejects deleting a session while the agent is streaming", async ()
     await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
+
+// The idle tab is created first on purpose: deleteAllTabs() deletes in insertion
+// order, so without a pre-flight it would remove s1's session file and only then
+// hit the streaming s2, leaving a half-deleted set the UI cannot represent. Both
+// files and both runtime tabs must survive the refusal.
+test("runtime rejects deleting all tabs before removing any of them", async () => {
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-delete-all-streaming-"));
+  try {
+    const runtime = new MixCodeRuntime({ sessionsRoot: dir });
+    const idleTab = await runtime.createTab(createTab(1, "idle", process.cwd()), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+    const busyTab = await runtime.createTab(createTab(2, "busy", process.cwd()), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+    await runtime.prompt("idle", "hello");
+    const idleFile = idleTab.session.getSessionFile();
+    const busyFile = busyTab.session.getSessionFile();
+    assert.ok(idleFile, "expected a session file on disk");
+    assert.ok(busyFile, "expected a session file on disk");
+    await assert.doesNotReject(() => fsPromises.access(idleFile!));
+    const mutableSession = busyTab.agentSession as unknown as { _isAgentRunActive: boolean };
+    mutableSession._isAgentRunActive = true;
+    try {
+      await assert.rejects(
+        () => runtime.deleteAllTabs(),
+        /Cannot delete all sessions while .+ \(the agent is streaming\)/,
+      );
+    } finally {
+      mutableSession._isAgentRunActive = false;
+    }
+    assert.ok(runtime.getTab("idle"), "idle tab must survive the refusal");
+    assert.ok(runtime.getTab("busy"), "busy tab must survive the refusal");
+    await assert.doesNotReject(() => fsPromises.access(idleFile!));
+    await assert.doesNotReject(() => fsPromises.access(busyFile!));
+    // With the blocker cleared the same call deletes everything.
+    await runtime.deleteAllTabs();
+    assert.equal(runtime.getTab("idle"), undefined);
+    assert.equal(runtime.getTab("busy"), undefined);
+    await assert.rejects(() => fsPromises.access(idleFile!), /ENOENT/);
+  } finally {
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});

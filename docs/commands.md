@@ -32,7 +32,7 @@ Commands operate across three distinct persistence tiers:
 | `/close-session` | `[yes]` | Session | Closes the active tab and tears down in-memory agent runtime. `yes` skips the confirmation overlay. |
 | `/close-all-sessions`| - | Session | Closes all open agent tabs after user confirmation. |
 | `/delete-session` | `[yes]` | Session | Closes current tab and permanently deletes its `.jsonl` session file. `yes` skips the confirmation overlay. |
-| `/delete-all-sessions` | - | Session | Permanently deletes all `.jsonl` session files for the current workspace. |
+| `/delete-all-sessions` | - | Session | Permanently deletes the session files of all currently open agent tabs and closes them. Session files of tabs that are not open are untouched. Confirmation requires typing `DELETE` (case-insensitive, `Esc`/`N` cancels); a single key never confirms. Refuses the whole operation, deleting nothing, while any open tab is streaming or compacting. |
 | `/tree` | - | Session | Opens interactive session branch tree viewer. |
 | `/resume` | `[session-id \| N:<tab-name>]` | Session | Opens the interactive session selector; `/resume <session-id>` (exact id or prefix, current folder first, then all roots) resumes directly. `/resume N:<tab-name>` first matches an open tab title exactly, then an exact full session name (current folder first). Duplicate names report all candidate ids. |
 | `/palette` | - | - | Opens the command palette. Same as `Ctrl+P`. |
