@@ -521,7 +521,9 @@ function showNoticeOverlay(tui: OverlayTui, text: string, options: NoticeOptions
       tui,
       (width) => {
         const theme = getCurrentUiTheme();
-        const lines = renderNoticePanel(merged, width, theme, options);
+        const maxHeight =
+          typeof overlayOptions.maxHeight === "number" ? overlayOptions.maxHeight : undefined;
+        const lines = renderNoticePanel(merged, width, theme, options, maxHeight);
         notice.renderedLines = lines;
         if (!notice.selection) return lines;
         return lines.map((line, row) =>
@@ -552,7 +554,9 @@ function showNoticeOverlay(tui: OverlayTui, text: string, options: NoticeOptions
     // (getAppOverlayBounds), not from manual geometry here.
     (width) => {
       const theme = getCurrentUiTheme();
-      const lines = renderNoticePanel(text, width, theme, options);
+      const maxHeight =
+        typeof overlayOptions.maxHeight === "number" ? overlayOptions.maxHeight : undefined;
+      const lines = renderNoticePanel(text, width, theme, options, maxHeight);
       notice.renderedLines = lines;
       if (!notice.selection) return lines;
       return lines.map((line, row) =>
