@@ -728,8 +728,7 @@ test("config controls every tool category on the next agent turn", async () => {
               done = true;
             },
           );
-          // j walks past the two bash row settings to Raw tool arguments, Enter toggles it.
-          view.handleInput("j");
+          // j walks past the compact bash row to Raw tool arguments, Enter toggles it.
           view.handleInput("j");
           view.handleInput("\r");
           view.handleInput("\x1b");
@@ -760,7 +759,6 @@ test("config controls every tool category on the next agent turn", async () => {
     const disabled = writeToolDisplayRuntimeConfig(agentDir, {
       showRawToolArguments: false,
       compactBashCallRow: true,
-      compactBashCommandHint: true,
     });
     assert.equal(disabled.ok, true);
     emitSecond("before_agent_start", {}, { ui: { notify: () => undefined } });

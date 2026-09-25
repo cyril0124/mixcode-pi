@@ -36,12 +36,10 @@ function renderCallRow(
     width?: number;
     state?: Record<string, unknown>;
     expanded?: boolean;
-    commandHint?: boolean;
   } = {},
 ): string[] {
   const { bash } = createToolDisplayRenderers(new Map(), () => ({
     ...DEFAULT_TOOL_DISPLAY_RUNTIME_CONFIG,
-    compactBashCommandHint: options.commandHint ?? true,
   }));
   return renderLines(
     bash.renderCall(args as never, theme, {
@@ -59,34 +57,26 @@ function outcome(overrides: Partial<BashCallOutcome> = {}): BashCallOutcome {
 }
 
 test("the label is the description argument", () => {
-  const row = renderCallRow(
-    {
-      description: "Find callers of the parser",
-      command: '# Find callers of the parser\nrg -n "parser" src | head -30 && echo done',
-    },
-    { commandHint: false },
-  )[0]!;
-  assert.match(row, /^bash Find callers of the parser\s+ctrl\+o$/);
+  // The excerpt always follows the label, so the label ends where its two-space gap starts.
+  const row = renderCallRow({
+    description: "Find callers of the parser",
+    command: '# Find callers of the parser\nrg -n "parser" src | head -30 && echo done',
+  })[0]!;
+  assert.match(row, /^bash Find callers of the parser {2}/);
 
   // The label is the description as written, whatever the command happens to contain.
-  const commented = renderCallRow(
-    {
-      description: "Count rows in the fixture",
-      command: "# Count rows in the fixture\ncd /tmp && seq 1 40 | wc -l",
-    },
-    { commandHint: false },
-  )[0]!;
-  assert.match(commented, /^bash Count rows in the fixture\s+ctrl\+o$/);
+  const commented = renderCallRow({
+    description: "Count rows in the fixture",
+    command: "# Count rows in the fixture\ncd /tmp && seq 1 40 | wc -l",
+  })[0]!;
+  assert.match(commented, /^bash Count rows in the fixture {2}/);
 
   // A description is whitespace-collapsed and loses escape sequences.
-  const messy = renderCallRow(
-    {
-      description: "  Build   the suite\u001b[31m  ",
-      command: "bun run check",
-    },
-    { commandHint: false },
-  )[0]!;
-  assert.match(messy, /^bash Build the suite\s+ctrl\+o$/);
+  const messy = renderCallRow({
+    description: "  Build   the suite\u001b[31m  ",
+    command: "bun run check",
+  })[0]!;
+  assert.match(messy, /^bash Build the suite {2}/);
 });
 
 test("the collapsed row shows a dim one-line excerpt of the command", () => {
@@ -96,10 +86,6 @@ test("the collapsed row shows a dim one-line excerpt of the command", () => {
     bold: (text: string) => text,
   } as never;
   const { bash: hinted } = createToolDisplayRenderers();
-  const { bash: quiet } = createToolDisplayRenderers(new Map(), () => ({
-    ...DEFAULT_TOOL_DISPLAY_RUNTIME_CONFIG,
-    compactBashCommandHint: false,
-  }));
   const rowFor = (
     renderer: typeof hinted,
     args: Record<string, unknown>,
@@ -155,16 +141,8 @@ test("the collapsed row shows a dim one-line excerpt of the command", () => {
     { description: "Summarize detector results", command: "seq 1 12" },
     60,
   );
-  const alone = rowFor(
-    quiet,
-    { description: "Summarize detector results", command: "seq 1 12" },
-    60,
-  );
   assert.ok(labelWidth(shared) > 8, `the label keeps more than its floor: ${shared}`);
-  assert.ok(
-    labelWidth(shared) < labelWidth(alone),
-    `the excerpt costs the label columns: ${shared}`,
-  );
+  assert.ok(shared.includes("dim|seq 1 12|"), `a short excerpt is not elided: ${shared}`);
 
   // An elided part keeps the color of the part it belongs to, so the ellipsis stays inside the
   // color span instead of tearing it open.
@@ -247,12 +225,6 @@ test("the collapsed row shows a dim one-line excerpt of the command", () => {
   const bare = rowFor(hinted, { command: "bun run check" }, 120, false);
   assert.match(bare, /accent\|bun run check\|/);
   assert.ok(!bare.includes("dim|"), `the label carries the command: ${bare}`);
-  const atControl = rowFor(
-    quiet,
-    { description: "Build the suite", command: "bun run check" },
-    120,
-  );
-  assert.ok(!atControl.includes("dim|"), `the setting drops the excerpt: ${atControl}`);
 });
 
 test("a call without a description falls back to its command text", () => {

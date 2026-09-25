@@ -221,7 +221,6 @@ export function createToolDisplayRenderers(
         theme as never,
         context as never,
         config.compactBashCallRow,
-        config.compactBashCommandHint,
       );
     },
     renderResult: (result, options, theme, context) =>

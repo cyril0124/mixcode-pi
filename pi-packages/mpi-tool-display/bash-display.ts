@@ -286,9 +286,9 @@ function fitBashCallBody(
 }
 
 /**
- * Collapsed bash call row: exactly one line with `bash <label>`, an optional dim excerpt of the
- * command, and the status meta on the right. The label is elided, then the excerpt drops, then
- * optional meta parts drop, so the row never wraps.
+ * Collapsed bash call row: exactly one line with `bash <label>`, a dim excerpt of the command, and
+ * the status meta on the right. The label is elided, then the excerpt drops, then optional meta
+ * parts drop, so the row never wraps.
  */
 function buildCollapsedBashCallRow(
   args: BashCallArgs,
@@ -299,11 +299,10 @@ function buildCollapsedBashCallRow(
     spinnerFrame?: string;
     elapsedMs?: number;
     finalElapsedMs?: number;
-    commandHint?: boolean;
   },
 ): string {
   const label = bashCallLabel(args) || "...";
-  const hint = options.commandHint === false ? undefined : bashCommandHint(args, label);
+  const hint = bashCommandHint(args, label);
   const spinnerPrefix = options.spinnerFrame ? `${options.spinnerFrame} ` : "";
   const prefixPlain = `${spinnerPrefix}bash `;
   const title = theme.fg("toolTitle", theme.bold("bash"));
@@ -367,7 +366,6 @@ class BashCallRow implements Component {
   private theme: BashCallRenderTheme;
   private context: BashCallRenderContextLike;
   private compact: boolean;
-  private commandHint: boolean;
   private spinnerFrame?: string;
   private elapsedMs?: number;
   /** Duration kept after the spinner stops, so the finished row does not keep counting. */
@@ -378,13 +376,11 @@ class BashCallRow implements Component {
     theme: BashCallRenderTheme,
     context: BashCallRenderContextLike,
     compact: boolean,
-    commandHint: boolean,
   ) {
     this.args = args;
     this.theme = theme;
     this.context = context;
     this.compact = compact;
-    this.commandHint = commandHint;
   }
 
   /** Pi reuses the component, so args, theme, render context and mode must follow every update. */
@@ -393,13 +389,11 @@ class BashCallRow implements Component {
     theme: BashCallRenderTheme,
     context: BashCallRenderContextLike,
     compact: boolean,
-    commandHint: boolean,
   ): void {
     this.args = args;
     this.theme = theme;
     this.context = context;
     this.compact = compact;
-    this.commandHint = commandHint;
   }
 
   setSpinner(spinnerFrame?: string, elapsedMs?: number, finalElapsedMs?: number): void {
@@ -432,7 +426,6 @@ class BashCallRow implements Component {
           spinnerFrame: this.spinnerFrame,
           elapsedMs: this.elapsedMs,
           finalElapsedMs: this.finalElapsedMs,
-          commandHint: this.commandHint,
         },
       ),
     ];
@@ -444,13 +437,12 @@ export function renderBashCall(
   theme: BashCallRenderTheme,
   context: BashCallRenderContextLike,
   compact = true,
-  commandHint = true,
 ): Component {
   const row =
     context.lastComponent instanceof BashCallRow
       ? context.lastComponent
-      : new BashCallRow(args, theme, context, compact, commandHint);
-  row.update(args, theme, context, compact, commandHint);
+      : new BashCallRow(args, theme, context, compact);
+  row.update(args, theme, context, compact);
   const toolCallId = getToolCallId(context);
   const spinnerState = getOrCreateSpinnerState(toolCallId);
   const shouldSpin = context.executionStarted && context.isPartial;

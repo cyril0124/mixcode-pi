@@ -31,8 +31,8 @@ or the elided command when the call carries none:
 | The call's `description` argument | `bash Find callers of the parser` |
 | A call without one falls back to its elided command | `bash rg -n parser src \| head -30` |
 
-While `compactBashCommandHint` is on, the row carries a dim one-line excerpt of the command beside
-the label, with runs of whitespace collapsed:
+The row carries a dim one-line excerpt of the command beside the label, with runs of whitespace
+collapsed:
 
 ```text
 bash Find callers of the parser  rg -n parser src | head -30        ok · 40 lines · 0s · ctrl+o
@@ -60,18 +60,17 @@ Run `/mpi-tool-display config` to open the global settings overlay. `j`/`k` or t
 ```json
 {
   "showRawToolArguments": false,
-  "compactBashCallRow": true,
-  "compactBashCommandHint": true
+  "compactBashCallRow": true
 }
 ```
 
 `compactBashCallRow` defaults to `true` and selects the collapsed row described above. Turning it off restores the two-row presentation: the call row shows the full command and the result row shows `↳ N lines returned • Ctrl+O to expand` (a failure keeps its `↳ command failed` header and a head preview). The settings panel writes the file; the toggle applies to calls rendered after it changes, and `/reload` rebuilds existing rows. The flag also decides whether `mpi-bash` requires the `description` argument that supplies the label; see `pi-packages/mpi-bash/README.md`.
 
-`compactBashCommandHint` defaults to `true` and adds the command excerpt to that row. It has no effect while `compactBashCallRow` is off, because there is no collapsed row to extend. The settings panel lists it as `Command excerpt`.
+`compactBashCommandHint` is accepted and ignored, so a configuration file that still carries it loads unchanged; the excerpt itself has no setting.
 
 `showRawToolArguments` defaults to `false`. When enabled, every tool call keeps its specialized, native, or title fallback presentation and appends `JSON.stringify(args, null, 2)`. Tool results are unchanged. Later calls in the current tab use the new value; `/reload` rebuilds existing rows. Other tabs reread the file before their next agent turn.
 
-Arguments can include credentials, prompts, file contents, or large payloads. Invalid JSON, unknown keys, and non-boolean values are rejected.
+Arguments can include credentials, prompts, file contents, or large payloads. Invalid JSON, unknown keys, and non-boolean values are rejected; the ignored key above is the only exception.
 
 ## Thinking contract
 

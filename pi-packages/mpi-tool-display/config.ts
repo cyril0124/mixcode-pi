@@ -7,16 +7,13 @@ export const TOOL_DISPLAY_CONFIG_FILENAME = "mpi-tool-display.json";
 
 export interface ToolDisplayRuntimeConfig {
   showRawToolArguments: boolean;
-  /** Collapse a finished bash call to one row with a label and status meta. */
+  /** Collapse a finished bash call to one row with a label, command excerpt and status meta. */
   compactBashCallRow: boolean;
-  /** Append a one-line excerpt of the command to that row. */
-  compactBashCommandHint: boolean;
 }
 
 export const DEFAULT_TOOL_DISPLAY_RUNTIME_CONFIG: ToolDisplayRuntimeConfig = {
   showRawToolArguments: false,
   compactBashCallRow: true,
-  compactBashCommandHint: true,
 };
 
 export type ToolDisplayConfigLoadResult =
@@ -27,11 +24,13 @@ export type ToolDisplayConfigWriteResult =
   | { ok: true; path: string; config: ToolDisplayRuntimeConfig }
   | { ok: false; path: string; error: string };
 
-const CONFIG_KEYS = new Set([
-  "showRawToolArguments",
-  "compactBashCallRow",
-  "compactBashCommandHint",
-]);
+const CONFIG_KEYS = new Set(["showRawToolArguments", "compactBashCallRow"]);
+
+/**
+ * Keys the file may carry without being rejected even though no setting reads them, so a
+ * configuration file that still lists a removed setting keeps loading.
+ */
+const IGNORED_CONFIG_KEYS = new Set(["compactBashCommandHint"]);
 
 export function toolDisplayConfigPath(agentDir: string): string {
   return path.join(agentDir, TOOL_DISPLAY_CONFIG_FILENAME);
@@ -43,7 +42,9 @@ export function parseToolDisplayRuntimeConfig(raw: unknown): ToolDisplayRuntimeC
   }
   const source = raw as Record<string, unknown>;
   for (const key of Object.keys(source)) {
-    if (!CONFIG_KEYS.has(key)) throw new Error(`unknown key ${JSON.stringify(key)}`);
+    if (!CONFIG_KEYS.has(key) && !IGNORED_CONFIG_KEYS.has(key)) {
+      throw new Error(`unknown key ${JSON.stringify(key)}`);
+    }
   }
   const value = source.showRawToolArguments;
   if (value !== undefined && typeof value !== "boolean") {
@@ -53,15 +54,9 @@ export function parseToolDisplayRuntimeConfig(raw: unknown): ToolDisplayRuntimeC
   if (compact !== undefined && typeof compact !== "boolean") {
     throw new Error(`compactBashCallRow must be a boolean, got ${JSON.stringify(compact)}`);
   }
-  const commandHint = source.compactBashCommandHint;
-  if (commandHint !== undefined && typeof commandHint !== "boolean") {
-    throw new Error(`compactBashCommandHint must be a boolean, got ${JSON.stringify(commandHint)}`);
-  }
   return {
     showRawToolArguments: value ?? DEFAULT_TOOL_DISPLAY_RUNTIME_CONFIG.showRawToolArguments,
     compactBashCallRow: compact ?? DEFAULT_TOOL_DISPLAY_RUNTIME_CONFIG.compactBashCallRow,
-    compactBashCommandHint:
-      commandHint ?? DEFAULT_TOOL_DISPLAY_RUNTIME_CONFIG.compactBashCommandHint,
   };
 }
 

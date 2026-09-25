@@ -29,7 +29,7 @@ label 就是调用自己的 `description` 参数（折叠行开启时 `mpi-bash`
 | 调用自己的 `description` 参数 | `bash Find callers of the parser` |
 | 没有该参数的调用退回到截断后的命令 | `bash rg -n parser src \| head -30` |
 
-`compactBashCommandHint` 开启时，行内 label 之后还有命令的 dim 单行摘录，连续空白会折叠成一个空格：
+行内 label 之后还有命令的 dim 单行摘录，连续空白会折叠成一个空格：
 
 ```text
 bash Find callers of the parser  rg -n parser src | head -30        ok · 40 lines · 0s · ctrl+o
@@ -54,18 +54,17 @@ diff 使用 bars 指示；宽度不小于 120 列时左右分栏，低于 120 �
 ```json
 {
   "showRawToolArguments": false,
-  "compactBashCallRow": true,
-  "compactBashCommandHint": true
+  "compactBashCallRow": true
 }
 ```
 
 `compactBashCallRow` 默认为 `true`，用于选择上文的折叠行。关闭后回到两行展示：调用行显示完整命令，结果行显示 `↳ N lines returned • Ctrl+O to expand`（失败时保留 `↳ command failed` 表头和头部预览）。设置面板负责写文件；切换只影响之后渲染的调用，`/reload` 会重建已有行。该开关同时决定 `mpi-bash` 是否要求提供作为 label 来源的 `description` 参数，读取时机见 `pi-packages/mpi-bash/README.md`。
 
-`compactBashCommandHint` 默认为 `true`，为上述折叠行补上命令摘录。`compactBashCallRow` 关闭时它不起作用，因为没有折叠行可扩展。设置面板里这一项叫 `Command excerpt`。
+`compactBashCommandHint` 会被接受并忽略：仍带有该键的配置文件照常加载；摘录本身没有开关。
 
 `showRawToolArguments` 默认为 `false`。启用后，每个工具调用保留其专用、原生或标题 fallback 展示，并追加 `JSON.stringify(args, null, 2)`。工具结果不变。当前标签页的后续调用使用新值；`/reload` 会重建已有行。其他标签页在下一次 agent turn 前重新读取配置。
 
-参数可能包含凭据、prompt、文件内容或大型 payload。错误 JSON、未知字段和非布尔值会被拒绝。
+参数可能包含凭据、prompt、文件内容或大型 payload。错误 JSON、未知字段和非布尔值会被拒绝；上述被忽略的键是唯一例外。
 
 ## Thinking 契约
 

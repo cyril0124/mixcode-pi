@@ -21,14 +21,14 @@ interface ToolDisplayConfigOverlayOptions {
 /** One toggle row; the label is what the panel shows, the key is what the config file holds. */
 const CONFIG_ROWS = [
   { key: "compactBashCallRow", label: "Compact bash call row" },
-  { key: "compactBashCommandHint", label: "Command excerpt" },
   { key: "showRawToolArguments", label: "Raw tool arguments" },
 ] as const satisfies ReadonlyArray<{ key: keyof ToolDisplayRuntimeConfig; label: string }>;
 
 /** Note under the selected row; `warn` marks the one that can expose data. */
 const ROW_NOTES: Record<keyof ToolDisplayRuntimeConfig, { text: string; warn?: true }> = {
-  compactBashCallRow: { text: " One row per finished bash call, with label and status meta." },
-  compactBashCommandHint: { text: " Dim command excerpt on that row, dropped first when narrow." },
+  compactBashCallRow: {
+    text: " One row per finished bash call, with label, command excerpt and status meta.",
+  },
   showRawToolArguments: {
     text: " Debug only: arguments may expose secrets.",
     warn: true,
