@@ -38,6 +38,7 @@ export type LocalCommand =
   | "widgets"
   | "new-session"
   | "resume"
+  | "resume-trash"
   | "login"
   | "logout"
   | "help"
@@ -443,6 +444,11 @@ export const LOCAL_COMMANDS: Array<{
       "Resume a different session (optional: /resume <session-id> or /resume N:<tab-name>)",
     argumentHint: "[session-id | N:<tab-name>]",
     palette: { label: "Resume Session", scope: "both" },
+  },
+  {
+    name: "resume-trash",
+    description: "Restore a recently deleted session from the trash",
+    palette: { label: "Resume Deleted Session", scope: "both" },
   },
   {
     name: "help",

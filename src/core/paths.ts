@@ -61,3 +61,13 @@ export function mpiCtlSkillPath(env: NodeJS.ProcessEnv = process.env): string {
 export function resolveMixcodeStateDir(env: NodeJS.ProcessEnv = process.env): string {
   return path.join(resolveMixcodeAgentDir(env), "mixcode-pi");
 }
+
+/** Trash dir for soft-deleted sessions: <stateDir>/trash. */
+export function trashDir(env: NodeJS.ProcessEnv = process.env): string {
+  return path.join(resolveMixcodeStateDir(env), "trash");
+}
+
+/** JSONL index tracking soft-deleted sessions: <stateDir>/trash-index.jsonl. */
+export function trashIndexPath(env: NodeJS.ProcessEnv = process.env): string {
+  return path.join(resolveMixcodeStateDir(env), "trash-index.jsonl");
+}

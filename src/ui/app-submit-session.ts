@@ -1,3 +1,4 @@
+import * as path from "node:path";
 import type { SessionInfo } from "@earendil-works/pi-coding-agent";
 import type { RuntimeTab } from "../agent/runtime.js";
 import { type LocalCommand, FOLLOW_UP_BATCH_FLAG, parseInput } from "../core/commands.js";
@@ -44,6 +45,10 @@ import {
   resumeSelectedSession,
   type SessionSelectorRuntime,
 } from "./session-resume.js";
+import { listTrash, restoreFromTrash } from "../core/session-trash.js";
+import { listSessionsForCwd, listAllSessionsGlobal } from "../agent/runtime-session.js";
+import { trashDir } from "../core/paths.js";
+import { invalidateSessionCatalog } from "../core/session-catalog.js";
 
 const handleFollowUp: LocalCommandHandler = async ({
   active,
@@ -594,6 +599,68 @@ const handleCompact: LocalCommandHandler = async ({ active, args, runtime }) => 
   return undefined;
 };
 
+const handleResumeTrash: LocalCommandHandler = async ({
+  state,
+  active,
+  runtime,
+  tui,
+  onStateChanged,
+  authInputHost,
+}): Promise<typeof SKIP_FINALIZE> => {
+  const selectorRuntime = runtime as unknown as SessionSelectorRuntime;
+  const trashRoot = trashDir();
+
+  // Build a trashPath → sessionId map so extensionSwitchSession can restore
+  // the session before the runtime opens it.
+  const trashEntries = await listTrash();
+  const sessionIdByTrashPath = new Map(trashEntries.map((e) => [e.trashPath, e.sessionId]));
+
+  // Wrap the runtime so listSessions/listAllSessions scan the trash directory
+  // instead of the sessions root, and extensionSwitchSession restores the file
+  // before opening it.
+  const wrappedRuntime: SessionSelectorRuntime = {
+    createTab: (tab, config) => selectorRuntime.createTab(tab, config),
+    getTab: (sessionId) => selectorRuntime.getTab(sessionId),
+    closeTab: (sessionId) => selectorRuntime.closeTab(sessionId),
+    listSessions: async (cwd, signal, onProgress) =>
+      listSessionsForCwd(cwd, trashRoot, signal, onProgress),
+    listAllSessions: async (signal, onProgress) =>
+      listAllSessionsGlobal(trashRoot, signal, onProgress),
+    extensionSwitchSession: async (sessionId, trashPath) => {
+      const originalSessionId = sessionIdByTrashPath.get(trashPath) ?? sessionId;
+      let originalPath: string;
+      try {
+        const restored = await restoreFromTrash(originalSessionId);
+        originalPath = restored.originalPath;
+        invalidateSessionCatalog(path.dirname(originalPath));
+      } catch {
+        // Not in the trash index (e.g. a file placed manually); open in place.
+        originalPath = trashPath;
+      }
+      return selectorRuntime.extensionSwitchSession(sessionId, originalPath);
+    },
+  };
+
+  const runtimeTab = active ? runtime.getTab(active.sessionId) : undefined;
+  const currentSessionPath =
+    (
+      runtimeTab as { session?: { getSessionFile?: () => string | null } } | undefined
+    )?.session?.getSessionFile?.() ?? null;
+
+  await openSessionSelector(
+    state,
+    wrappedRuntime,
+    tui,
+    active?.workdir ?? state.workdir,
+    currentSessionPath,
+    onStateChanged,
+    authInputHost,
+    active?.sessionId,
+  );
+
+  return SKIP_FINALIZE;
+};
+
 export const SESSION_COMMAND_HANDLERS = {
   fork: handleFork,
   "follow-up": handleFollowUp,
@@ -608,6 +675,7 @@ export const SESSION_COMMAND_HANDLERS = {
   reset: handleReset,
   "new-session": handleNewSession,
   resume: handleResume,
+  "resume-trash": handleResumeTrash,
   rename: handleRename,
   color: handleColor,
   "group-colored-tabs": handleGroupTabs,
