@@ -118,8 +118,10 @@ export function retryStatusMessage(tab: MixCodeTabInfo, now: Date): string | und
 
 export function workingActivityMessage(tab: MixCodeTabInfo): string {
   switch (tab.activeCompactionReason) {
-    case "manual":
-      return "Compacting context...";
+    case "manual": {
+      const via = tab.activeCompactionModelRef ? ` via ${tab.activeCompactionModelRef}` : "";
+      return `Compacting context${via}...`;
+    }
     case "threshold":
       return "Auto-compacting...";
     case "overflow":

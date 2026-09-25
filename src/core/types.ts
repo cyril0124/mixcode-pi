@@ -204,6 +204,8 @@ export interface MixCodeTabInfo {
   workingStartedAt?: string;
   /** Non-persisted: reason for the active Pi compaction operation. */
   activeCompactionReason?: CompactionReason;
+  /** Non-persisted: model ref (provider/modelId) used for a manual /compact override. */
+  activeCompactionModelRef?: string;
   lastWorkedDurationSeconds?: number;
   /** ISO timestamp captured when work last ended; rendered next to the duration. */
   lastWorkedAt?: string;

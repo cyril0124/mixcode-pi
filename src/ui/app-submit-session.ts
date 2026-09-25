@@ -620,11 +620,13 @@ const handleCompact: LocalCommandHandler = async ({ active, args, runtime }) => 
   if (!runtimeTab) throw new Error(`Unknown tab session: ${sessionId}`);
   const previousModel = runtimeTab.agentSession.model;
 
+  runtimeTab.tab.activeCompactionModelRef = modelRef;
   await runtime.updateTabModel(sessionId, targetModel);
   try {
     await runtime.compactSession(sessionId, customInstructions);
   } finally {
     // Restore the original model whether compact succeeds, throws, or is cancelled.
+    runtimeTab.tab.activeCompactionModelRef = undefined;
     if (previousModel) {
       await runtime.updateTabModel(sessionId, previousModel).catch(() => undefined);
     }
