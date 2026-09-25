@@ -231,9 +231,9 @@ function createExtensionCustomEditor<T>(
   });
 }
 
-// Plugins like pi-session-recall compare raw CSI bytes (`\x1b[A`). Kitty
-// protocol and application-cursor mode send other encodings that matchesKey
-// understands but those plugins drop. Canonicalize unmodified nav keys.
+// Third-party plugins may compare raw CSI bytes (`\x1b[A`). Kitty protocol and
+// application-cursor mode send other encodings that matchesKey understands but
+// those plugins drop. Canonicalize unmodified nav keys.
 function canonicalizeCustomNavKey(data: string): string {
   // Preserve Kitty event-type metadata; a release must not become a press.
   if (isKeyRelease(data)) return data;

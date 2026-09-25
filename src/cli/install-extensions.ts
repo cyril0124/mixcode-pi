@@ -76,11 +76,6 @@ export const RECOMMENDED: RecommendedExtension[] = [
     label: "pi-tps",
     hint: "tokens-per-second footer",
   },
-  {
-    source: "npm:@ogulcancelik/pi-session-recall",
-    label: "pi-session-recall",
-    hint: "search and recall past sessions",
-  },
 ];
 
 /** `mpi install-extensions ...` argv detection, mirroring status/ctl routing. */
