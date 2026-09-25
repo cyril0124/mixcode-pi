@@ -26,7 +26,7 @@ MixCode 在 `src/core/commands.ts` 中注册了内置本地 Slash 命令。这�
 | `/color` | `[name\|clear]` | Workdir | 用 `red`、`green`、`yellow`、`blue`、`magenta`、`cyan`、`white`、`gray` 之一给当前 Tab 上色；省略参数或传 `clear` 则清除。按 session 持久化到 `mixcode_state.json`。见 [Tab 颜色](workspace-and-tabs.zh.md#tab-颜色)。 |
 | `/group-colored-tabs` | - | Workdir | 重排 Tab：已上色 Tab 按颜色（调色板顺序）聚合到 Tab 条左侧，未上色 Tab 保持相对顺序排在后面。持久化到 `mixcode_state.json` 并同步给同 workdir 的其他实例。见 [Tab 颜色](workspace-and-tabs.zh.md#tab-颜色)。 |
 | `/follow-up` | `[--batch] [text]` | Session | 添加独立后续轮次；`--batch` 与相邻批量轮次合并；不带文本时恢复排队的后续消息。见[队列语义与恢复错误](queue-and-follow-up.zh.md)。 |
-| `/compact` | `[custom instructions]` | Session | 手动触发当前分支的上下文压缩（Compaction）。 |
+| `/compact` | `[provider/modelId] [instructions]` | Session | 手动触发当前分支的上下文压缩（Compaction）。可选的首个参数 `provider/modelId` 指定执行压缩所用的模型，压缩完成后自动还原原模型；其余文本作为自定义压缩指令传入。 |
 | `/reset` | - | Session | 将会话重置回根节点，保留 Session 文件与 Tab 标题。先前分支仍在 `/tree`。 |
 | `/clear` | - | Session | 在当前 Tab 生成全新 Session 文件，重置 Tab 标题。 |
 | `/close-session` | `[yes]` | Session | 关闭当前 Tab 并释放其内存运行时。加 `yes` 跳过确认框。 |

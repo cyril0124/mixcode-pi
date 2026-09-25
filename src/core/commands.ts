@@ -381,8 +381,8 @@ export const LOCAL_COMMANDS: Array<{
   },
   {
     name: "compact",
-    description: "Compact context",
-    argumentHint: "[instructions]",
+    description: "Compact context with an optional model override",
+    argumentHint: "[provider/modelId] [instructions]",
     palette: { label: "Compact Context", requires: "session" },
   },
   {

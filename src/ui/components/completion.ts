@@ -252,6 +252,7 @@ const AUGMENTABLE_BUILTIN_COMMANDS = new Set([
   "thinking",
   "login",
   "widgets",
+  "compact",
 ]);
 
 function canAugmentBuiltInCommand(name: string): boolean {

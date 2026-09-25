@@ -298,6 +298,11 @@ export function createMixCodeTui(
           getArgumentCompletions: (prefix: string) => widgetArgumentCompletions(active, prefix),
         },
         {
+          name: "compact",
+          argumentHint: "[provider/model-id] [instructions]",
+          getArgumentCompletions: (prefix: string) => modelArgumentCompletions(state, prefix),
+        },
+        {
           name: "restore-workspace",
           argumentHint: "[name]",
           getArgumentCompletions: (prefix: string) =>

@@ -595,7 +595,40 @@ const handleSession: LocalCommandHandler = ({ state, active, runtime }) => {
 };
 
 const handleCompact: LocalCommandHandler = async ({ active, args, runtime }) => {
-  await runtime.compactSession(active!.sessionId, args);
+  const sessionId = active!.sessionId;
+  // First token matching "provider/modelId" is treated as a model ref;
+  // the remainder is passed as custom compaction instructions.
+  const firstToken = args.trimStart().split(/\s/)[0] ?? "";
+  const isModelRef = /^[^/\s]+\/[^/\s]+$/.test(firstToken);
+  const modelRef = isModelRef ? firstToken : undefined;
+  const customInstructions = isModelRef
+    ? args.trimStart().slice(firstToken.length).trimStart()
+    : args;
+
+  if (!modelRef) {
+    await runtime.compactSession(sessionId, customInstructions);
+    return undefined;
+  }
+
+  const [provider, modelId] = modelRef.split("/") as [string, string];
+  const targetModel = runtime.resolveModel(provider, modelId);
+  if (!targetModel) {
+    throw new Error(`Error: Unknown model: ${modelRef}`);
+  }
+
+  const runtimeTab = runtime.getTab(sessionId);
+  if (!runtimeTab) throw new Error(`Unknown tab session: ${sessionId}`);
+  const previousModel = runtimeTab.agentSession.model;
+
+  await runtime.updateTabModel(sessionId, targetModel);
+  try {
+    await runtime.compactSession(sessionId, customInstructions);
+  } finally {
+    // Restore the original model whether compact succeeds, throws, or is cancelled.
+    if (previousModel) {
+      await runtime.updateTabModel(sessionId, previousModel).catch(() => undefined);
+    }
+  }
   return undefined;
 };
 
