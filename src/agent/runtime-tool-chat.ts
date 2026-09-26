@@ -2,7 +2,7 @@ import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
 import { ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
 import type { TUI as PiTui } from "@earendil-works/pi-tui";
 import { ensureExtensionThemeInitialized } from "./runtime-extension-theme.js";
-import { toolCallExpanded, toolCallIdExpanded } from "../ui/rendering/tool-expansion.js";
+import { toolCallExpanded, toolCallIdExpanded } from "../ui/rendering/chat-expansion.js";
 import { applyMixCodeKeybindings } from "./runtime-pi-tui-bridge.js";
 import type { ChatLine, RuntimeTab, ToolResultLike } from "./runtime-types.js";
 

@@ -255,14 +255,18 @@ test("hovering and clicking a tool row act on that call only", () => {
   tab.chatSurfaceBounds = { top: 5, left: 1, width: 79, height: 12 };
   const render = () => renderAgentSurface(tab, runtimeTab, 80, 12);
   const normal = render();
-  const ranges = tab.chatToolRowRanges;
+  const ranges = tab.chatPointerBlockRanges;
   assert.ok(
     ranges && ranges.length === 2,
     `both tool blocks are published: ${JSON.stringify(ranges)}`,
   );
-  const [first, second] = ranges as Array<{ start: number; height: number; toolCallId?: string }>;
+  const [first, second] = ranges as Array<{
+    start: number;
+    height: number;
+    expand?: { kind: string; id: string };
+  }>;
   assert.deepEqual(
-    [first!.toolCallId, second!.toolCallId],
+    [first!.expand?.id, second!.expand?.id],
     ["call-1", "call-2"],
     "each range carries its own tool call",
   );
@@ -337,9 +341,9 @@ test("tool-row pointer feedback covers only agent tool rows and follows the pres
   render();
   assert.equal(tab.chatHoverRow, undefined, "a fresh render carries no cue");
 
-  const ranges = tab.chatToolRowRanges ?? [];
+  const ranges = tab.chatPointerBlockRanges ?? [];
   assert.deepEqual(
-    ranges.map((range) => range.toolCallId),
+    ranges.map((range) => range.expand?.id),
     ["call-1"],
     "a command the user typed answers no pointer",
   );
@@ -369,6 +373,154 @@ test("tool-row pointer feedback covers only agent tool rows and follows the pres
   assert.equal(tab.chatSelection, undefined, "a click leaves no drag behind");
 });
 
+test("a release after scrolling keeps the press target", () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "press-target", "/repo");
+  state.tabs.push(tab);
+  state.activeTabId = tab.sessionId;
+  const runtimeTab = {
+    chat: [
+      ...Array.from({ length: 40 }, (_, index) => ({
+        role: "user" as const,
+        text: `line ${index}`,
+      })),
+      {
+        role: "tool" as const,
+        title: "bash",
+        toolCallId: "t-last",
+        status: "success" as const,
+        text: "output",
+        args: { command: "echo last" },
+      },
+      { role: "user" as const, text: "tail" },
+    ],
+  } as unknown as RuntimeTab;
+  tab.chatSurfaceBounds = { top: 5, left: 1, width: 79, height: 12 };
+  const render = () => renderAgentSurface(tab, runtimeTab, 80, 12);
+  const blockRow = () =>
+    (tab.chatPointerBlockRanges ?? []).find((range) => range.expand?.id === "t-last");
+  const tui = testTui({ requestRender: () => {} });
+  render();
+  const before = blockRow();
+  assert.ok(before, "the tool block is visible");
+
+  // Press on the plain row below the block, scroll the block onto that cell, then release.
+  // The layout has to move for the row under the pointer to mean something else.
+  const pressedRow = before.start + before.height;
+  assert.ok(pressedRow < 12, `the pressed row stays inside the viewport: ${pressedRow}`);
+  handleMixCodeKeyInput(state, `\x1b[<0;4;${5 + pressedRow}M`, tui);
+  scrollChat(tab, 2);
+  render();
+  const after = blockRow();
+  assert.ok(after, "the block stays visible after the scroll");
+  assert.ok(
+    after.start <= pressedRow && pressedRow < after.start + after.height,
+    `the scroll moved the block onto the pressed cell: ${JSON.stringify([before, after, pressedRow])}`,
+  );
+  handleMixCodeKeyInput(state, `\x1b[<0;4;${5 + pressedRow}m`, tui);
+  assert.equal(
+    tab.expandedToolCalls,
+    undefined,
+    "a release after scrolling must not adopt the block that moved under it",
+  );
+});
+
+test("summary cards answer the pointer on their own", () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "summary-click", "/repo");
+  state.tabs.push(tab);
+  state.activeTabId = tab.sessionId;
+  const findings = Array.from({ length: 30 }, (_, index) => `- finding ${index}`).join("\n");
+  const branches = Array.from({ length: 30 }, (_, index) => `- branch ${index}`).join("\n");
+  const chat = [
+    { role: "user", text: "before" },
+    {
+      role: "system",
+      text: findings,
+      entryId: "entry-compaction",
+      summaryMessage: {
+        role: "compactionSummary",
+        summary: findings,
+        tokensBefore: 12345,
+        timestamp: 1,
+      },
+    },
+    { role: "tool", toolCallId: "call-1", title: "bash", text: "$ bun run check" },
+    {
+      role: "system",
+      text: branches,
+      entryId: "entry-branch",
+      summaryMessage: { role: "branchSummary", summary: branches, fromId: "parent", timestamp: 2 },
+    },
+    { role: "assistant", text: "done" },
+  ];
+  const runtimeTab = { chat } as unknown as RuntimeTab;
+  tab.chatSurfaceBounds = { top: 5, left: 1, width: 79, height: 60 };
+  const render = () => renderAgentSurface(tab, runtimeTab, 80, 60);
+  const visible = (text: string) => stripTerminalSequences(render().join("\n")).includes(text);
+  const summaryCards = () =>
+    (tab.chatPointerBlockRanges ?? []).filter((range) => range.expand?.kind === "summary");
+  const plain = render();
+  assert.ok(
+    !stripTerminalSequences(plain.join("\n")).includes("finding 0"),
+    "a collapsed card hides its summary",
+  );
+  const cards = summaryCards();
+  assert.equal(cards.length, 2, "both summary cards are published as pointer blocks");
+  assert.notEqual(cards[0]!.expand?.id, cards[1]!.expand?.id, "each card keeps its own key");
+  const compactionId = cards[0]!.expand!.id;
+  const cardRow = 5 + cards[0]!.start;
+  const tui = testTui({ requestRender: () => {} });
+
+  handleMixCodeKeyInput(state, mouse(4, cardRow), tui);
+  const hovered = render();
+  assert.notDeepEqual(hovered, plain, "hovering the card paints it");
+  assert.deepEqual(hovered.map(stripTerminalSequences), plain.map(stripTerminalSequences));
+  assert.ok(
+    hovered
+      .slice(cards[0]!.start, cards[0]!.start + cards[0]!.height)
+      .some((line) => line.includes(cueBackground())),
+    "the cue covers the card's rows",
+  );
+
+  handleMixCodeKeyInput(state, `\x1b[<0;4;${cardRow}M`, tui);
+  handleMixCodeKeyInput(state, `\x1b[<0;4;${cardRow}m`, tui);
+  assert.equal(tab.expandedSummaryCards?.size, 1, "the click expands this card alone");
+  assert.equal(tab.expandedToolCalls, undefined, "no tool call is touched");
+  assert.equal(tab.extensionUi.toolsExpanded, false, "the global toggle stays off");
+  assert.ok(visible("finding 0"), "the clicked card renders its summary");
+  assert.ok(!visible("branch 0"), "the other card stays collapsed");
+
+  // A reload rebuilds every line from its session entry, so the key cannot rely on object
+  // identity. Replacing the array also drops the renderer's cached conversation.
+  runtimeTab.chat = chat.map((line) => ({
+    ...line,
+    ...(line.summaryMessage ? { summaryMessage: { ...line.summaryMessage } } : {}),
+  })) as RuntimeTab["chat"];
+  assert.ok(visible("finding 0"), "a reload keeps the clicked card expanded");
+  assert.ok(!visible("branch 0"), "a reload leaves the other card collapsed");
+
+  handleMixCodeKeyInput(state, `\x1b[<0;4;${cardRow}M`, tui);
+  handleMixCodeKeyInput(state, `\x1b[<0;4;${cardRow}m`, tui);
+  assert.equal(tab.expandedSummaryCards?.size, 0, "a second click collapses it");
+  assert.ok(!visible("finding 0"), "the collapsed card hides its summary again");
+
+  // A card clicked while the global toggle is on keeps its own state after the toggle turns off.
+  tab.extensionUi.toolsExpanded = true;
+  render();
+  const branchCard = summaryCards().find((range) => range.expand?.id !== compactionId);
+  assert.ok(branchCard, "the branch card is published too");
+  const branchRow = 5 + branchCard.start;
+  handleMixCodeKeyInput(state, `\x1b[<0;4;${branchRow}M`, tui);
+  handleMixCodeKeyInput(state, `\x1b[<0;4;${branchRow}m`, tui);
+  tab.extensionUi.toolsExpanded = false;
+  assert.ok(
+    visible("branch 0"),
+    "the clicked card stays expanded after the global toggle turns off",
+  );
+  assert.ok(!visible("finding 0"), "an unclicked card follows the global toggle");
+});
+
 test("a selection inside a hovered tool block is underlined and keeps the cue", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "selection", "/repo");
@@ -393,8 +545,8 @@ test("a selection inside a hovered tool block is underlined and keeps the cue", 
   // Styles carry both cues, so these comparisons stay on the raw lines.
   const render = () => renderAgentSurface(tab, runtimeTab, 80, 20);
   const plain = render();
-  const ranges = tab.chatToolRowRanges ?? [];
-  const block = ranges.find((range) => range.toolCallId === "t-1");
+  const ranges = tab.chatPointerBlockRanges ?? [];
+  const block = ranges.find((range) => range.expand?.id === "t-1");
   assert.ok(block, "the tool rows published their ranges");
   // The block's output row: nothing there carries an underline to begin with.
   const textRow = plain.findIndex(
@@ -473,7 +625,7 @@ test("a selection outside a tool block keeps the plain background", () => {
   } as unknown as RuntimeTab;
   const render = () => renderAgentSurface(tab, runtimeTab, 80, 20);
   const plain = render();
-  const block = (tab.chatToolRowRanges ?? []).find((range) => range.toolCallId === "t-1");
+  const block = (tab.chatPointerBlockRanges ?? []).find((range) => range.expand?.id === "t-1");
   assert.ok(block);
   const userRow = plain.findIndex((line) =>
     stripTerminalSequences(line).includes("a plain user line"),
@@ -531,7 +683,7 @@ test("a scrolled frame paints the selection where the mapped rows land", () => {
   } as unknown as RuntimeTab;
   const render = () => renderAgentSurface(tab, runtimeTab, 80, 12);
   const first = render();
-  const range = (tab.chatToolRowRanges ?? []).find((entry) => entry.toolCallId === "t-last");
+  const range = (tab.chatPointerBlockRanges ?? []).find((entry) => entry.expand?.id === "t-last");
   assert.ok(range, "the trailing tool row is visible at the tail");
   const textRow = first.findIndex(
     (line, row) =>
@@ -550,7 +702,7 @@ test("a scrolled frame paints the selection where the mapped rows land", () => {
   startScrollableChatSelection(tab.chatSelection, tab.lastRenderedChatLines ?? [], origin);
   scrollChat(tab, 2);
   const withSelection = render();
-  const moved = (tab.chatToolRowRanges ?? []).find((entry) => entry.toolCallId === "t-last");
+  const moved = (tab.chatPointerBlockRanges ?? []).find((entry) => entry.expand?.id === "t-last");
   assert.ok(moved);
   assert.notEqual(tab.chatScrollOffset, origin, "the frame really scrolled");
   assert.notEqual(moved.start, range.start, "the block moved with the frame");

@@ -10,7 +10,7 @@ import {
 } from "../../core/chat-selection.js";
 import type { OversizedAssistantMessageSettings } from "../../core/mixcode-settings.js";
 import { activeToast } from "../../core/toast.js";
-import type { MixCodeTabInfo } from "../../core/types.js";
+import type { ChatExpandTarget, MixCodeTabInfo } from "../../core/types.js";
 import type { MixCodeTheme } from "../themes.js";
 import {
   type AgentSurfaceRenderOptions,
@@ -40,6 +40,7 @@ import {
   renderStartupBlock,
 } from "./chat.js";
 import { renderExtensionHeader, renderInlineExtensionWidgets } from "./chrome.js";
+import { chatExpandTarget } from "./chat-expansion.js";
 import { paintRowBackground } from "../pointer-hover.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
 import { renderHeaderKeyHints } from "../components/header-hints.js";
@@ -70,10 +71,10 @@ const WINDOW_OVERSCAN_LINES = 20;
 // lifecycle side effects that need to run on every frame.
 interface ConversationCache {
   lines: string[];
-  /** Tool block rows in `lines` coordinates, translated to the visible window on use. */
-  toolRanges: Array<{ start: number; height: number; toolCallId?: string }>;
-  /** Sorted tool calls expanded on their own, so a click invalidates this cache. */
-  expandedToolCalls: string;
+  /** Pointer block rows in `lines` coordinates, translated to the visible window on use. */
+  pointerRanges: Array<{ start: number; height: number; expand?: ChatExpandTarget }>;
+  /** Sorted blocks expanded on their own, so a click invalidates this cache. */
+  expandedBlocks: string;
   // Invalidation keys
   chatLength: number;
   lastChatText: string;
@@ -247,14 +248,14 @@ function renderAgentSurfaceInner(
     fitted.lines[fitted.lines.length - 1] = lines[fitted.end - 1]!;
   }
   fitted.lines = clipChatImages(lines, fitted.start, fitted.lines);
-  // Tool rows move with the header offset and then with the visible window.
-  publishChatToolRanges(
+  // Pointer blocks move with the header offset and then with the visible window.
+  publishChatPointerRanges(
     tab,
-    conversation.toolRanges
+    conversation.pointerRanges
       .map((range) => ({
         start: range.start + headerLines.length - fitted.start,
         height: range.height,
-        toolCallId: range.toolCallId,
+        expand: range.expand,
       }))
       .filter((range) => range.start < fitted.height && range.start + range.height > 0),
   );
@@ -322,7 +323,7 @@ function renderAgentSurfaceAnchored(
   const chat = runtimeTab.chat;
   const viewport = Math.max(0, Math.floor(maxHeight));
   if (viewport <= 0) {
-    publishChatToolRanges(tab, []);
+    publishChatPointerRanges(tab, []);
     return [];
   }
 
@@ -376,17 +377,15 @@ function renderAgentSurfaceAnchored(
     prefixBlocksNewestFirst.reverse(),
     chatBlockSeparator(surfaceWidth),
   );
-  const anchoredToolRanges: Array<{ start: number; height: number; toolCallId?: string }> = [];
+  const anchoredPointerRanges: Array<{ start: number; height: number; expand?: ChatExpandTarget }> =
+    [];
   {
     let cursor = 0;
     for (const span of prefixSpansNewestFirst.reverse()) {
       if (cursor > 0) cursor += 1; // separator
-      if (isPointerToolBlock(span.line)) {
-        anchoredToolRanges.push({
-          start: cursor,
-          height: span.height,
-          toolCallId: span.line.toolCallId,
-        });
+      const expand = chatExpandTarget(span.line);
+      if (expand) {
+        anchoredPointerRanges.push({ start: cursor, height: span.height, expand });
       }
       cursor += span.height;
     }
@@ -411,12 +410,9 @@ function renderAgentSurfaceAnchored(
     const spanStart = prefix.length + suffix.length;
     for (const renderedLine of block) suffix.push(renderedLine);
     suffixHasContent = true;
-    if (isPointerToolBlock(line)) {
-      anchoredToolRanges.push({
-        start: spanStart,
-        height: block.length,
-        toolCallId: line.toolCallId,
-      });
+    const expand = chatExpandTarget(line);
+    if (expand) {
+      anchoredPointerRanges.push({ start: spanStart, height: block.length, expand });
     }
   }
   const tailLines = renderChatTailLines(tab, surfaceWidth, viewport);
@@ -428,9 +424,9 @@ function renderAgentSurfaceAnchored(
   const anchorStart = prefix.length;
   const requestedStart = anchorStart - localOffset;
   const windowStart = Math.max(0, Math.min(requestedStart, Math.max(0, lines.length - viewport)));
-  publishChatToolRanges(
+  publishChatPointerRanges(
     tab,
-    anchoredToolRanges
+    anchoredPointerRanges
       .map((range) => ({ ...range, start: range.start - windowStart }))
       .filter((range) => range.start < viewport && range.start + range.height > 0),
   );
@@ -585,7 +581,7 @@ function renderAgentSurfaceWindowed(
     const withHeader = headerLines.length ? [...headerLines, ...placeholder] : placeholder;
     const fitted = fitScrolledLinesWithInfo(withHeader, maxHeight, surfaceWidth, 0);
     // The highlight reads the published ranges, so they must be current before it runs.
-    publishChatToolRanges(tab, []);
+    publishChatPointerRanges(tab, []);
     const highlighted = highlightVisibleChatLines(fitted.lines, tab, surfaceWidth, fitted.height);
     return appendChatScrollbar({ ...fitted, lines: highlighted }, width, false, tab);
   }
@@ -651,15 +647,15 @@ function renderAgentSurfaceWindowed(
     ? Math.min(tab.chatHomeOffset ?? 0, Math.max(0, lines.length - viewport))
     : Math.max(0, windowEnd - viewport);
   if (tab.chatAtHome) tab.chatHomeOffset = windowStart;
-  publishChatToolRanges(
+  publishChatPointerRanges(
     tab,
     blockLayouts
-      .filter((layout) => isPointerToolBlock(layout.line) && layout.height > 0)
-      .map((layout) => ({
-        start: layout.start - windowStart,
-        height: layout.height,
-        toolCallId: layout.line.toolCallId,
-      }))
+      .flatMap((layout) => {
+        const expand = chatExpandTarget(layout.line);
+        return expand && layout.height > 0
+          ? [{ start: layout.start - windowStart, height: layout.height, expand }]
+          : [];
+      })
       .filter((range) => range.start < viewport && range.start + range.height > 0),
   );
   let visible = lines.slice(windowStart, windowEnd);
@@ -698,7 +694,10 @@ function getCachedConversationLines(
   runtimeTab: RuntimeTab | undefined,
   width: number,
   options: AgentSurfaceRenderOptions,
-): { lines: string[]; toolRanges: Array<{ start: number; height: number; toolCallId?: string }> } {
+): {
+  lines: string[];
+  pointerRanges: Array<{ start: number; height: number; expand?: ChatExpandTarget }>;
+} {
   const chat = runtimeTab?.chat ?? [];
 
   // Skip cache when the tab is actively running or any tool is mid-execution.
@@ -706,25 +705,24 @@ function getCachedConversationLines(
   // that require re-invocation on each render frame.
   const blockOptions = (_line: ChatLine, index: number) =>
     chatBlockRenderOptions(runtimeTab, index, options);
-  const collectToolRanges = () => {
-    const ranges: Array<{ start: number; height: number; toolCallId?: string }> = [];
+  const collectPointerRanges = () => {
+    const ranges: Array<{ start: number; height: number; expand?: ChatExpandTarget }> = [];
     return {
       ranges,
       sink: (line: ChatLine, start: number, height: number) => {
-        if (isPointerToolBlock(line) && height > 0) {
-          ranges.push({ start, height, toolCallId: line.toolCallId });
-        }
+        const expand = height > 0 ? chatExpandTarget(line) : undefined;
+        if (expand) ranges.push({ start, height, expand });
       },
     };
   };
   if (tab.status === "running" || tab.status === "thinking" || hasRunningTool(chat)) {
     conversationCacheMap.delete(tab.sessionId);
-    const collected = collectToolRanges();
+    const collected = collectPointerRanges();
     const lines = renderConversation(chat, width, tab, {
       blockOptions,
       blockRanges: collected.sink,
     });
-    return { lines, toolRanges: collected.ranges };
+    return { lines, pointerRanges: collected.ranges };
   }
 
   const lastChat = chat[chat.length - 1];
@@ -737,7 +735,12 @@ function getCachedConversationLines(
   const mermaidRenderingMode = options.mermaidRenderingMode ?? "streaming";
   const showImages = options.showImages !== false;
   const imageWidthCells = options.imageWidthCells ?? 60;
-  const expandedToolCalls = [...(tab.expandedToolCalls ?? [])].sort().join(",");
+  const expandedBlocks = [
+    ...[...(tab.expandedToolCalls ?? [])].map((id) => `t:${id}`),
+    ...[...(tab.expandedSummaryCards ?? [])].map((id) => `s:${id}`),
+  ]
+    .sort()
+    .join(",");
 
   const cached = conversationCacheMap.get(tab.sessionId);
   if (
@@ -757,12 +760,12 @@ function getCachedConversationLines(
     cached.mermaidRenderingMode === mermaidRenderingMode &&
     cached.showImages === showImages &&
     cached.imageWidthCells === imageWidthCells &&
-    cached.expandedToolCalls === expandedToolCalls
+    cached.expandedBlocks === expandedBlocks
   ) {
-    return { lines: cached.lines, toolRanges: cached.toolRanges };
+    return { lines: cached.lines, pointerRanges: cached.pointerRanges };
   }
 
-  const collected = collectToolRanges();
+  const collected = collectPointerRanges();
   const lines = renderConversation(chat, width, tab, {
     blockOptions,
     blockRanges: collected.sink,
@@ -770,8 +773,8 @@ function getCachedConversationLines(
 
   conversationCacheMap.set(tab.sessionId, {
     lines,
-    toolRanges: collected.ranges,
-    expandedToolCalls,
+    pointerRanges: collected.ranges,
+    expandedBlocks,
     chatRef: chat,
     chatLength: chat.length,
     lastChatText: lastChat?.text ?? "",
@@ -789,7 +792,7 @@ function getCachedConversationLines(
     imageWidthCells,
   });
 
-  return { lines, toolRanges: collected.ranges };
+  return { lines, pointerRanges: collected.ranges };
 }
 
 /** Check if any tool chat line is currently executing (status "running" or "pending"). */
@@ -806,28 +809,23 @@ function hasRunningTool(chat: ChatLine[]): boolean {
   return false;
 }
 
-/** The tool call block covering a chat-surface row, when there is one. */
-export function chatToolCallAtRow(
+/** The pointer block covering a chat-surface row, when there is one. */
+export function chatPointerBlockAtRow(
   tab: MixCodeTabInfo,
   row: number,
-): { start: number; height: number; toolCallId?: string } | undefined {
-  return tab.chatToolRowRanges?.find(
+): { start: number; height: number; expand?: ChatExpandTarget } | undefined {
+  return tab.chatPointerBlockRanges?.find(
     (range) => row >= range.start && row < range.start + range.height,
   );
 }
 
-/** An agent tool block that answers the pointer: a `!` command row renders through its own path. */
-function isPointerToolBlock(line: ChatLine): boolean {
-  return line.role === "tool" && line.variant !== "user-bash" && line.toolCallId !== undefined;
-}
-
-/** Records the visible tool rows so a pointer click can resolve which call it hit. */
-export function publishChatToolRanges(
+/** Records the visible pointer blocks so a click can resolve which block it hit. */
+export function publishChatPointerRanges(
   tab: MixCodeTabInfo,
-  ranges: Array<{ start: number; height: number; toolCallId?: string }> | undefined,
+  ranges: Array<{ start: number; height: number; expand?: ChatExpandTarget }> | undefined,
 ): void {
   const next = ranges && ranges.length > 0 ? ranges : undefined;
-  const current = tab.chatToolRowRanges;
+  const current = tab.chatPointerBlockRanges;
   const same =
     current === next ||
     (current !== undefined &&
@@ -837,9 +835,16 @@ export function publishChatToolRanges(
         (range, index) =>
           range.start === next[index]!.start &&
           range.height === next[index]!.height &&
-          range.toolCallId === next[index]!.toolCallId,
+          sameExpandTarget(range.expand, next[index]!.expand),
       ));
-  if (!same) tab.chatToolRowRanges = next;
+  if (!same) tab.chatPointerBlockRanges = next;
+}
+
+function sameExpandTarget(
+  a: ChatExpandTarget | undefined,
+  b: ChatExpandTarget | undefined,
+): boolean {
+  return a === b || (a !== undefined && b !== undefined && a.kind === b.kind && a.id === b.id);
 }
 
 function highlightVisibleChatLines(
@@ -852,7 +857,7 @@ function highlightVisibleChatLines(
   tab.lastRenderedChatScrollOffset = tab.chatScrollOffset;
   let result = applyToastOverlay(lines, activeToast(tab), width, height, activeRenderTheme);
   const hovered =
-    tab.chatHoverRow === undefined ? undefined : chatToolCallAtRow(tab, tab.chatHoverRow);
+    tab.chatHoverRow === undefined ? undefined : chatPointerBlockAtRow(tab, tab.chatHoverRow);
   if (hovered) {
     const painted = result.slice();
     for (let row = hovered.start; row < hovered.start + hovered.height; row++) {
@@ -871,9 +876,9 @@ function highlightVisibleChatLines(
       line,
       row,
       viewportSelection,
-      // The cue shares the selection background only inside a tool block, so only those cells add
-      // the underline.
-      chatToolCallAtRow(tab, row) ? blockHighlight : activeRenderTheme.selectedBg,
+      // The cue shares the selection background only inside a pointer block, so only those cells
+      // add the underline.
+      chatPointerBlockAtRow(tab, row) ? blockHighlight : activeRenderTheme.selectedBg,
     ),
   );
 }

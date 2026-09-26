@@ -115,7 +115,7 @@ Pi 负责编辑和折行。`Editor.renderTopBorder()` 和 `renderBottomBorder()`
 
 `ChatLine.summaryMessage` 携带 Pi 所需的摘要数据。`runtime-chat.ts` 从会话条目构造它，并保留摘要文本、时间戳、分支来源和压缩 token 数。零是有效的 token 数。`ChatLine.text` 继续供宿主搜索和预览使用。会话文件沿用 Pi 的现有格式。
 
-MixCode 管理展开状态和每行渲染缓存。卡片渲染时临时应用当前主题和共享快捷键管理器，结束后恢复两者。缓存键包含展开快捷键，因此重新加载快捷键后，下一次渲染会更新提示。展开卡片保留配置的代码块缩进和 Mermaid 处理；用户参数区域保留既有 Markdown 与图片设置。
+MixCode 管理展开状态和每行渲染缓存。卡片可由全局 `ctrl+o` 开关展开，也可由指针点击自身所在行展开。`src/ui/rendering/chat-expansion.ts` 以会话条目的角色与时间戳作为被点击卡片的键，因此从会话条目重建聊天后仍保持展开；工具调用继续使用自身的 `toolCallId` 作为键。卡片渲染时临时应用当前主题和共享快捷键管理器，结束后恢复两者。缓存键包含展开快捷键，因此重新加载快捷键后，下一次渲染会更新提示。展开卡片保留配置的代码块缩进和 Mermaid 处理；用户参数区域保留既有 Markdown 与图片设置。
 
 ## 所有权边界
 

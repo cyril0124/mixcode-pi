@@ -457,6 +457,7 @@ function entryToChatLines(entry: SessionEntry, runtimeTab: RuntimeTab): ChatLine
       {
         role: "system",
         text: entry.summary,
+        entryId: entry.id,
         summaryMessage: {
           role: "compactionSummary",
           summary: entry.summary,
@@ -471,6 +472,7 @@ function entryToChatLines(entry: SessionEntry, runtimeTab: RuntimeTab): ChatLine
       {
         role: "system",
         text: entry.summary,
+        entryId: entry.id,
         summaryMessage: {
           role: "branchSummary",
           summary: entry.summary,

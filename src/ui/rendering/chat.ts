@@ -24,6 +24,7 @@ import { formatDuration } from "./chrome.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
 import { renderMarkdown } from "./markdown.js";
 import { renderSkillCard, renderSummaryCard } from "./message-cards.js";
+import { summaryCardExpanded } from "./chat-expansion.js";
 import {
   isOversizedAssistantMessageText,
   renderOversizedAssistantMessageBlock,
@@ -376,7 +377,7 @@ function renderMessageBlockUncached(
     return renderExtensionBlock(line, width);
   }
   if (line.summaryMessage) {
-    return renderSummaryCard(line.summaryMessage, width, tab?.extensionUi.toolsExpanded ?? false);
+    return renderSummaryCard(line.summaryMessage, width, summaryCardExpanded(tab, line));
   }
   return renderSystemBlock(text, width, line.variant, line.systemStatus === true);
 }
@@ -457,7 +458,8 @@ function chatLineRenderCacheKey(
   const summary = line.summaryMessage;
   if (summary) {
     const tokens = summary.role === "compactionSummary" ? summary.tokensBefore : "";
-    return `summary${KEY_SEP}${summary.role}${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${expanded ? 1 : 0}${KEY_SEP}${cardExpansionCacheKey()}${KEY_SEP}${tokens}${KEY_SEP}${summary.summary}`;
+    const ownExpansion = summaryCardExpanded(tab, line) ? 1 : 0;
+    return `summary${KEY_SEP}${summary.role}${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${expanded ? 1 : 0}${KEY_SEP}${ownExpansion}${KEY_SEP}${cardExpansionCacheKey()}${KEY_SEP}${tokens}${KEY_SEP}${summary.summary}`;
   }
   return `s${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${line.variant ?? ""}${KEY_SEP}${line.systemStatus ? 1 : 0}${KEY_SEP}${line.text}`;
 }

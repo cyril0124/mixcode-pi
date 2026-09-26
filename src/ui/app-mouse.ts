@@ -15,8 +15,8 @@ import { parseSgrMouseInput, type SgrMouseInput } from "../core/mouse.js";
 import { pointerHoverFor } from "./pointer-hover.js";
 import { chatScrollbarFor } from "./chat-scrollbar.js";
 import { clearScrollFreeze } from "./rendering/agent-surface-scroll.js";
-import { chatToolCallAtRow } from "./rendering/agent-surface.js";
-import { toggleToolCallExpansion } from "./rendering/tool-expansion.js";
+import { chatPointerBlockAtRow } from "./rendering/agent-surface.js";
+import { toggleChatExpansion } from "./rendering/chat-expansion.js";
 import {
   acceptCommandPaletteSelection,
   acceptTabJumpSelection,
@@ -396,7 +396,9 @@ export function handleChromeHoverInput(
   // blocked pointer drops the cue rather than keeping a row that a later layout would paint
   // against another block.
   const hoverRow =
-    active && pointerRow !== undefined ? chatToolCallAtRow(active, pointerRow)?.start : undefined;
+    active && pointerRow !== undefined
+      ? chatPointerBlockAtRow(active, pointerRow)?.start
+      : undefined;
   const nextHoverRow = active && !inputTakeover && !hasAnyOverlay(tui) ? hoverRow : undefined;
   if (active && active.chatHoverRow !== nextHoverRow) {
     active.chatHoverRow = nextHoverRow;
@@ -493,7 +495,7 @@ function handleChromeMouse(
   // Capturing overlays own the screen; only non-capturing Notice allows chrome clicks.
   if (hasAnyOverlay(tui) && !hasActiveNotice()) return false;
   // Pointer feedback and click-to-expand: the row under the pointer carries the hover cue, and a
-  // primary press followed by a release on the same cell toggles that tool call's own expanded
+  // primary press followed by a release on the same cell toggles that block's own expanded
   // view. A drag never counts, and `ctrl+o` keeps its global toggle.
   if (active && !mouse.wheel) {
     const bounds = active.chatSurfaceBounds;
@@ -512,13 +514,14 @@ function handleChromeMouse(
       const pressed = active.chatClickCell;
       active.chatClickCell = undefined;
       if (pressed && pressed.x === mouse.x && pressed.y === mouse.y && mouse.button === 0) {
-        // The press resolved its row, so a scroll or a re-render between the press and this release
-        // cannot move the toggle to another call.
-        const toolCallId = pressed.toolCallId ?? chatToolCallAtRow(active, row)?.toolCallId;
-        if (toolCallId) {
+        // Only the press decides the target. A wheel event skips this bookkeeping, so a release
+        // after scrolling can land on another row, and resolving the target again here would
+        // toggle a block the user never pressed.
+        const expand = pressed.expand;
+        if (expand) {
           // This release never reaches the selection handler, which would have finalized the press.
           if (active.chatSelection?.dragging) active.chatSelection = undefined;
-          toggleToolCallExpansion(active, toolCallId);
+          toggleChatExpansion(active, expand);
           tui.requestRender();
           return true;
         }
@@ -527,7 +530,7 @@ function handleChromeMouse(
       active.chatClickCell = {
         x: mouse.x,
         y: mouse.y,
-        toolCallId: chatToolCallAtRow(active, row)?.toolCallId,
+        expand: chatPointerBlockAtRow(active, row)?.expand,
       };
     }
   }

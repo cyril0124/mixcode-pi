@@ -106,6 +106,12 @@ export interface MixCodeModelRef {
   disabled?: boolean;
 }
 
+/**
+ * A chat block whose own expansion a pointer click toggles. `id` is the tool
+ * call id or the summary card key that records the block's expanded state.
+ */
+export type ChatExpandTarget = { kind: "tool" | "summary"; id: string };
+
 export interface MixCodeTabInfo {
   index: number;
   sessionId: string;
@@ -228,12 +234,14 @@ export interface MixCodeTabInfo {
    * `extensionUi`, which several runtime paths rebuild wholesale.
    */
   expandedToolCalls?: Set<string>;
-  /** Visible chat rows belonging to a tool call block, in chat-surface coordinates. */
-  chatToolRowRanges?: Array<{ start: number; height: number; toolCallId?: string }>;
+  /** Summary cards (compaction / branch) expanded on their own by clicking their row. */
+  expandedSummaryCards?: Set<string>;
+  /** Visible chat rows whose block answers the pointer, in chat-surface coordinates. */
+  chatPointerBlockRanges?: Array<{ start: number; height: number; expand?: ChatExpandTarget }>;
   /** First row of the block under the pointer, in chat-surface coordinates. */
   chatHoverRow?: number;
-  /** Cell a primary press landed on, with the tool call it resolved to, for click-to-expand. */
-  chatClickCell?: { x: number; y: number; toolCallId?: string };
+  /** Cell a primary press landed on, with the pointer block it resolved to, for click-to-expand. */
+  chatClickCell?: { x: number; y: number; expand?: ChatExpandTarget };
   /** Non-persisted: active application-level text selection in the Agent message surface. */
   chatSelection?: ChatSelectionState;
   /** Non-persisted: visible jump label bounds, zero-based within the chat surface. */

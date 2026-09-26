@@ -113,7 +113,7 @@ Pi owns editing and wrapping. Its `Editor.renderTopBorder()` and `renderBottomBo
 
 `ChatLine.summaryMessage` carries the summary data needed by Pi. `runtime-chat.ts` builds it from the session entry and preserves the summary text, timestamp, branch source, and compaction token count. Zero is a valid token count. `ChatLine.text` remains available to host search and previews. Session files keep Pi's existing format.
 
-MixCode owns expansion state and the per-line render cache. Card rendering temporarily applies the active theme and the shared keybinding manager, then restores both. Cache keys include the expansion binding, so a reloaded shortcut changes the hint on the next render. Expanded cards keep the configured code-block indentation and Mermaid handling. User argument blocks keep their existing Markdown and image settings.
+MixCode owns expansion state and the per-line render cache. A card expands from the global `ctrl+o` toggle or from a pointer click on its own row. `src/ui/rendering/chat-expansion.ts` keys a clicked card by its session entry's role and timestamp, so rebuilding the chat from session entries keeps it expanded; tool calls keep their own `toolCallId` keys. Card rendering temporarily applies the active theme and the shared keybinding manager, then restores both. Cache keys include the expansion binding, so a reloaded shortcut changes the hint on the next render. Expanded cards keep the configured code-block indentation and Mermaid handling. User argument blocks keep their existing Markdown and image settings.
 
 ## Ownership boundaries
 
