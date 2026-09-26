@@ -299,38 +299,13 @@ function resolveActiveAutocompleteProvider(
 ): AutocompleteProvider {
   const active = getActiveTab(state);
   if (!active || state.activeTabId === HOME_TAB_ID) {
-    // On the Agent (home) view, messages are sent to the selected tab, so
-    // stack that tab's extension autocomplete providers on top of the base
-    // provider before applying the home filter.
+    // On the Agent (home) view, messages are sent to the selected tab, so stack
+    // that tab's extension autocomplete providers on top of the base provider.
     const selected = state.tabs[state.homeSelectedTabIndex];
-    const withExtensions =
-      selected && runtime.getTab(selected.sessionId)
-        ? runtime.applyExtensionAutocompleteProviders(selected.sessionId, base)
-        : base;
-    return homeAutocompleteFilter(withExtensions);
+    return selected && runtime.getTab(selected.sessionId)
+      ? runtime.applyExtensionAutocompleteProviders(selected.sessionId, base)
+      : base;
   }
   if (!runtime.getTab(active.sessionId)) return base;
   return runtime.applyExtensionAutocompleteProviders(active.sessionId, base);
-}
-
-// On Agent View, only allow $ (skills) and @ (files) autocomplete; block / (commands).
-function homeAutocompleteFilter(base: AutocompleteProvider): AutocompleteProvider {
-  return {
-    get triggerCharacters() {
-      return base.triggerCharacters;
-    },
-    getSuggestions: async (lines, cursorLine, cursorCol, options) => {
-      const line = lines[cursorLine] ?? "";
-      const before = line.slice(0, cursorCol);
-      const token = before.match(/(?:^|\s)([^\s]*)$/)?.[1] ?? "";
-      if (token.startsWith("/")) return null;
-      return base.getSuggestions(lines, cursorLine, cursorCol, options);
-    },
-    applyCompletion: (lines, cursorLine, cursorCol, item, prefix) =>
-      base.applyCompletion(lines, cursorLine, cursorCol, item, prefix),
-    shouldTriggerFileCompletion: (lines, cursorLine, cursorCol) => {
-      if (!base.shouldTriggerFileCompletion) return true;
-      return base.shouldTriggerFileCompletion(lines, cursorLine, cursorCol);
-    },
-  };
 }

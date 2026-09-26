@@ -218,6 +218,42 @@ test("autocomplete prefers the active tab extension provider over the base provi
   assert.ok(withExtension.triggerCharacters?.includes("$"));
 });
 
+test("Home autocomplete completes / command tokens for the selected agent", async () => {
+  // Home Enter dispatches slash commands on the selected agent, so command
+  // completion must stay available there.
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo");
+  state.tabs.push(tab);
+  state.activeTabId = "home";
+  state.homeSelectedTabIndex = 0;
+
+  const base: AutocompleteProvider = {
+    getSuggestions: async () => ({
+      prefix: "/mar",
+      items: [{ value: "/mark-done", label: "/mark-done" }],
+    }),
+    applyCompletion: () => ({ lines: ["/mark-done"], cursorLine: 0, cursorCol: 10 }),
+  };
+
+  const home = createActiveAutocompleteProvider(
+    state,
+    {
+      getTab: () => ({}),
+      applyExtensionAutocompleteProviders: (_sessionId: string, provider: AutocompleteProvider) =>
+        provider,
+    } as never,
+    base,
+  );
+
+  const suggestions = await home.getSuggestions(["/mar"], 0, 4, {} as never);
+  assert.equal(suggestions?.items[0]?.value, "/mark-done");
+  assert.deepEqual(home.applyCompletion(["/mar"], 0, 4, {} as AutocompleteItem, "/mar"), {
+    lines: ["/mark-done"],
+    cursorLine: 0,
+    cursorCol: 10,
+  });
+});
+
 test("live autocomplete proxy keeps per-active-tab extension wrappers after rebind", async () => {
   // Production host always rebinds the multi-tab live proxy (never a single-session
   // concrete chain). Switching active tab must change which extension wrappers run.
