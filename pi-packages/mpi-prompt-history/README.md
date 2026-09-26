@@ -19,7 +19,7 @@ Files are written atomically (temp + rename) with mode `0600`; the data dir is `
 | Event | Action |
 | --- | --- |
 | `input` (`source: "interactive"`) | append the raw submitted text to `history.jsonl`, then trim to the byte budget |
-| `session_start` | once per sessions root per process: backfill the last 30 days from session JSONL (deduplicated on `session_id`+`ts`+`text`) and rebuild the index when stale |
+| `session_start` | once per sessions root per process: backfill the last 30 days from session JSONL (deduplicated on `session_id`+`ts`+`text`), rebuild a stale index, and upsert the current session record |
 | `before_agent_start` | set `systemPromptOptions.sections["mpi-prompt-history"]` to a five-line pointer block naming both file paths |
 
 A rebuild processes one session file at a time and retains only user-prompt candidates and index metadata between files. Retained strings are copied out of the file's backing storage. Parsing yields to the event loop between JSONL rows after roughly 10 ms of work; parsing an individual row remains synchronous. The 30-day cutoff is evaluated once after the scan. Both recording and backfill trim history with a linear UTF-8 byte count, preserving complete newest rows within the configured budget. Backfill serializes only the rows that survive trimming.
@@ -33,7 +33,7 @@ The pointer block contains paths only, never history content. Pi persists it wit
 | `/prompt-history` | Open the browser in **Session** scope. |
 | `/prompt-history config` | Edit the config below: pick `maxBytes` to enter a new size, or reset it to the default. |
 
-Press `/` to search with a case-insensitive JavaScript regular expression. Invalid expressions are shown in the browser. Arrow keys still move. `j`, `k`, `c`, and `q` type into the query. `Ctrl+G` switches Session and Global and keeps the query.
+Press `/` to search with a case-insensitive JavaScript regular expression. Invalid expressions are shown in the browser. Arrow keys still move. `j`, `k`, `c`, and `q` type into the query. `Ctrl+G` cycles Session, Workdir, and Global while keeping the query.
 
 | Key | Action |
 | --- | --- |
@@ -43,16 +43,17 @@ Press `/` to search with a case-insensitive JavaScript regular expression. Inval
 | `/` | Open search |
 | Enter | Insert the selected prompt |
 | `c` | Copy the selected prompt to the clipboard and close |
-| `Ctrl+G` | Toggle Session / Global |
+| `Ctrl+G` | Cycle Session / Workdir / Global |
 | Esc | Cancel search, or close |
 | `q` | Close |
 
 | Scope | Source | Notes |
 | --- | --- | --- |
 | Session | `ctx.sessionManager` entries | Current session only; never touches `history.jsonl`. |
+| Workdir | `session_index.jsonl` joined to `history.jsonl` | Sessions whose normalized `cwd` matches the current workdir exactly; excludes subdirectories and other worktrees. Distinct text at its most recent time within this scope, newest first. |
 | Global | `history.jsonl` | Every recorded prompt, one entry per distinct text at its most recent time, newest first. |
 
-Global loads on first switch, not at open, and renders a placeholder while reading — the file reaches multiple megabytes and parsing it would otherwise block a frame. The read takes no lock and never writes, so browsing cannot disturb a concurrent recording. Repeats collapse because the raw log is dominated by them (one real file held 20347 rows for 10676 distinct prompts).
+Workdir and Global load on first switch and show a loading message while reading. Each scope keeps its snapshot until the browser closes; a failed load retries when re-entered. Switching keeps the search query and selects the first result, and the Workdir title shows the current path. Both scopes read the data files only, so the browser opens no session transcript, and neither locks nor rewrites a file. The session index is refreshed when a session starts, so a new session appears in Workdir on the next open; rows missing from the index are not inferred. Matching resolves `.` / `..` and trailing separators without resolving symlinks. Repeats dominate the raw log, so both scopes collapse them to the most recent occurrence within the scope.
 
 `config` accepts plain bytes or a unit suffix (`20mb`, `512 KB`, `1048576`) and rejects anything that is not a positive whole number of bytes.
 

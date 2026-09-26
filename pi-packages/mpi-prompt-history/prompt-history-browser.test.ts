@@ -111,7 +111,9 @@ const CTRL_G = "\x07";
 
 function makeBrowser(options: {
   items?: Array<{ text: string; timestamp?: string }>;
+  loadWorkdirItems?: () => Promise<Array<{ text: string; timestamp?: string }>>;
   loadGlobalItems?: () => Promise<Array<{ text: string; timestamp?: string }>>;
+  workdir?: string;
   results?: Array<string | null>;
   renders?: { count: number };
   copy?: (text: string) => void;
@@ -126,6 +128,8 @@ function makeBrowser(options: {
     theme: theme as never,
     items: options.items ?? [{ text: "SESSION-ONLY-ITEM" }],
     done: (result) => options.results?.push(result),
+    ...(options.workdir ? { workdir: options.workdir } : {}),
+    ...(options.loadWorkdirItems ? { loadWorkdirItems: options.loadWorkdirItems } : {}),
     ...(options.loadGlobalItems ? { loadGlobalItems: options.loadGlobalItems } : {}),
     ...(options.copy ? { copy: options.copy } : {}),
   });
@@ -156,6 +160,32 @@ test("c during search types into the query instead of copying", () => {
   browser.handleInput("c");
   assert.deepEqual(copied, []);
   assert.match(browser.render(80).join("\n"), /Search: c/);
+});
+
+test("Ctrl+G cycles Session, Workdir, and Global scopes", async () => {
+  const browser = makeBrowser({
+    items: [{ text: "SESSION-ITEM" }],
+    workdir: "/repo",
+    loadWorkdirItems: async () => [{ text: "WORKDIR-ITEM" }],
+    loadGlobalItems: async () => [{ text: "GLOBAL-ITEM" }],
+  });
+
+  assert.match(browser.render(80).join("\n"), /Prompt History — Session/);
+
+  browser.handleInput(CTRL_G);
+  await new Promise((resolve) => setImmediate(resolve));
+  const workdir = browser.render(80).join("\n");
+  assert.match(workdir, /Workdir: \/repo/);
+  assert.match(workdir, /WORKDIR-ITEM/);
+
+  browser.handleInput(CTRL_G);
+  await new Promise((resolve) => setImmediate(resolve));
+  const global = browser.render(80).join("\n");
+  assert.match(global, /Prompt History — Global/);
+  assert.match(global, /GLOBAL-ITEM/);
+
+  browser.handleInput(CTRL_G);
+  assert.match(browser.render(80).join("\n"), /Prompt History — Session/);
 });
 
 test("Ctrl+G swaps the list to global items and back, keeping the query", async () => {

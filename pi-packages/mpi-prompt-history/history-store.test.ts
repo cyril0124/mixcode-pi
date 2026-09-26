@@ -11,8 +11,10 @@ import {
   ensurePromptHistoryState,
   HISTORY_LOCK_ID,
   loadGlobalPromptItems,
+  loadWorkdirPromptItems,
   promptHistoryPaths,
   readHistoryMaxBytes,
+  upsertSessionIndexRecord,
 } from "./history-store.js";
 import { acquirePidLock } from "./pid-lock.js";
 
@@ -835,6 +837,140 @@ test("loadGlobalPromptItems keeps one entry per text at its newest time, oldest 
     assert.equal(items[0]?.timestamp, new Date(200 * 1000).toISOString());
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("loadWorkdirPromptItems filters history by normalized session cwd", async () => {
+  const agentDir = await tempDir("workdir");
+  try {
+    const paths = promptHistoryPaths(agentDir);
+    await fsPromises.mkdir(paths.dataDir, { recursive: true });
+    await fsPromises.writeFile(
+      paths.sessionIndexFile,
+      [
+        {
+          id: "repo-session",
+          title: "Repo",
+          updated_at: "2026-06-20T00:00:00.000Z",
+          path: "/sessions/repo.jsonl",
+          cwd: "/repo/",
+        },
+        {
+          id: "other-session",
+          title: "Other",
+          updated_at: "2026-06-20T00:00:00.000Z",
+          path: "/sessions/other.jsonl",
+          cwd: "/other",
+        },
+        {
+          id: "second-repo-session",
+          title: "Repo 2",
+          updated_at: "2026-06-21T00:00:00.000Z",
+          path: "/sessions/repo-2.jsonl",
+          cwd: "/repo",
+        },
+      ]
+        .map((record) => JSON.stringify(record))
+        .join("\n") + "\n",
+      "utf8",
+    );
+    await fsPromises.writeFile(
+      paths.historyFile,
+      [
+        { session_id: "repo-session", ts: 10, text: "repo-only" },
+        { session_id: "other-session", ts: 20, text: "other-only" },
+        { session_id: "repo-session", ts: 30, text: "shared" },
+        { session_id: "second-repo-session", ts: 40, text: "shared" },
+      ]
+        .map((record) => JSON.stringify(record))
+        .join("\n") + "\n",
+      "utf8",
+    );
+
+    const items = await loadWorkdirPromptItems({
+      historyFile: paths.historyFile,
+      sessionIndexFile: paths.sessionIndexFile,
+      cwd: "/repo",
+    });
+
+    assert.deepEqual(items, [
+      { text: "repo-only", timestamp: new Date(10 * 1000).toISOString() },
+      { text: "shared", timestamp: new Date(40 * 1000).toISOString() },
+    ]);
+  } finally {
+    await fsPromises.rm(agentDir, { recursive: true, force: true });
+  }
+});
+
+test("workdir history uses indexed sessions and excludes unindexed sessions", async () => {
+  const agentDir = await tempDir("workdir-live");
+  try {
+    const sessionsRoot = nodePath.join(agentDir, "sessions");
+    const paths = promptHistoryPaths(agentDir);
+    const now = new Date("2026-06-20T00:00:00.000Z");
+    const makeSession = (id: string, cwd: string) =>
+      writeSessionFixture(sessionsRoot, id, [
+        { type: "session", version: 3, id, cwd, timestamp: now.toISOString() },
+        {
+          type: "message",
+          id: `${id}-u1`,
+          parentId: null,
+          timestamp: now.toISOString(),
+          message: { role: "user", content: `seed-${id}`, timestamp: now.getTime() },
+        },
+      ]);
+    await makeSession("indexed", "/repo");
+    const indexed = await ensurePromptHistoryState({ agentDir, sessionsRoot, now: () => now });
+    assert.deepEqual(indexed.warnings, []);
+    await makeSession("late", "/repo/");
+    await makeSession("neighbor", "/repo/subdir");
+    for (const [sessionId, text, timestampSeconds] of [
+      ["indexed", "same text", 100],
+      ["late", "late prompt", 200],
+      ["live", "in-memory prompt", 300],
+      ["neighbor", "same text", 400],
+      ["neighbor", "neighbor only", 500],
+    ] as const) {
+      await appendHistoryEntry(paths.historyFile, { sessionId, text, timestampSeconds }, MB);
+    }
+    const before = await fsPromises.readFile(paths.sessionIndexFile, "utf8");
+    const items = await loadWorkdirPromptItems({
+      historyFile: paths.historyFile,
+      sessionIndexFile: paths.sessionIndexFile,
+      cwd: "/repo/./",
+    });
+    assert.deepEqual(items, [
+      { text: "same text", timestamp: new Date(100_000).toISOString() },
+      { text: "seed-indexed", timestamp: now.toISOString() },
+    ]);
+    assert.equal(await fsPromises.readFile(paths.sessionIndexFile, "utf8"), before);
+  } finally {
+    await fsPromises.rm(agentDir, { recursive: true, force: true });
+  }
+});
+
+test("upsertSessionIndexRecord makes a session visible to workdir queries", async () => {
+  const agentDir = await tempDir("index-upsert");
+  try {
+    const paths = promptHistoryPaths(agentDir);
+    await upsertSessionIndexRecord(paths.sessionIndexFile, {
+      id: "new-session",
+      title: "New session",
+      updated_at: "2026-06-20T00:00:00.000Z",
+      path: "/sessions/new-session.jsonl",
+      cwd: "/repo/",
+    });
+    await appendHistoryEntry(
+      paths.historyFile,
+      { sessionId: "new-session", text: "new prompt", timestampSeconds: 10 },
+      MB,
+    );
+
+    assert.deepEqual(await loadWorkdirPromptItems({ ...paths, cwd: "/repo" }), [
+      { text: "new prompt", timestamp: new Date(10_000).toISOString() },
+    ]);
+  } finally {
+    await fsPromises.rm(agentDir, { recursive: true, force: true });
   }
 });
 

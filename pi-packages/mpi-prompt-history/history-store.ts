@@ -161,7 +161,7 @@ export async function appendHistoryEntry(
     text: entry.text,
   };
   const line = `${JSON.stringify(record)}\n`;
-  await withHistoryFileLock(historyFile, async () => {
+  await withPromptHistoryLock(historyFile, async () => {
     // Common path is a plain append: rewriting the whole file on every submit
     // costs O(file size) per prompt (~47ms at a 15MiB budget). Read-modify-write
     // happens only on the rare submit that pushes the file over budget, and
@@ -216,20 +216,48 @@ export async function ensurePromptHistoryState(options: {
   return { warnings, paths, scannedSessions };
 }
 
-/**
- * Every recorded prompt, oldest first, one entry per distinct text.
- *
- * Repeats collapse to their most recent occurrence: the raw log is dominated by
- * them (a real file held 20347 rows for 10676 distinct prompts), which makes an
- * unfiltered browser list unusable. Read-only and lock-free — this is a snapshot
- * for display, so a concurrent append simply is not in it. Oldest-first because
- * the browser reverses what it is given.
- */
+/** Every recorded prompt, one entry per distinct text, oldest first. */
 export async function loadGlobalPromptItems(
   historyFile: string,
 ): Promise<Array<{ text: string; timestamp: string }>> {
+  return loadPromptItems(historyFile);
+}
+
+/**
+ * Load prompts recorded by the sessions indexed under `cwd`. The session index
+ * joins workdir metadata to the prompt log, so this reads `sessionIndexFile` and
+ * `historyFile` only. Read-only: neither file is locked or rewritten, and no
+ * session transcript is opened.
+ */
+export async function loadWorkdirPromptItems(options: {
+  historyFile: string;
+  sessionIndexFile: string;
+  cwd: string;
+}): Promise<Array<{ text: string; timestamp: string }>> {
+  const normalizedCwd = normalizeWorkdir(options.cwd);
+  if (!normalizedCwd) return [];
+
+  const sessionIds = new Set(
+    (await readSessionIndexRecords(options.sessionIndexFile))
+      .filter((record) => normalizeWorkdir(record.cwd) === normalizedCwd)
+      .map((record) => record.id),
+  );
+  return loadPromptItems(options.historyFile, sessionIds);
+}
+
+/**
+ * Oldest first, one entry per distinct text at its newest occurrence. Repeats
+ * dominate the raw log, which makes an undeduplicated list unusable; `sessionIds`
+ * limits the snapshot to those sessions. Read-only and lock-free, so a concurrent
+ * append simply is not included.
+ */
+async function loadPromptItems(
+  historyFile: string,
+  sessionIds?: ReadonlySet<string>,
+): Promise<Array<{ text: string; timestamp: string }>> {
   const newestByText = new Map<string, number>();
   for (const record of await readHistoryRecords(historyFile)) {
+    if (sessionIds && !sessionIds.has(record.session_id)) continue;
     const seen = newestByText.get(record.text);
     if (seen === undefined || record.ts > seen) newestByText.set(record.text, record.ts);
   }
@@ -263,7 +291,7 @@ async function backfillHistory(
 ): Promise<number> {
   const additions = sessions.flatMap((session) => userHistoryRecordsFromSession(session, since));
   if (additions.length === 0) return 0;
-  return withHistoryFileLock(historyFile, async () => {
+  return withPromptHistoryLock(historyFile, async () => {
     const existing = await readHistoryRecords(historyFile);
     const seen = new Set(existing.map(historyKey));
     const uniqueAdditions = additions.filter((record) => {
@@ -283,20 +311,52 @@ async function buildSessionIndex(
   indexFile: string,
   sessions: SessionHistorySummary[],
 ): Promise<{ indexed: number }> {
-  const records = new Map<string, SessionIndexRecord>();
-  for (const session of sessions) {
-    const record = sessionIndexRecord(session);
-    const existing = records.get(record.id);
-    if (!existing || existing.updated_at < record.updated_at) records.set(record.id, record);
-  }
-  const ordered = [...records.values()].sort((left, right) =>
+  return withPromptHistoryLock(indexFile, async () => {
+    const records = new Map<string, SessionIndexRecord>();
+    for (const session of sessions) {
+      const record = sessionIndexRecord(session);
+      const existing = records.get(record.id);
+      if (!existing || existing.updated_at < record.updated_at) {
+        records.set(record.id, record);
+      }
+    }
+    await writeSessionIndexRecords(indexFile, records.values());
+    return { indexed: records.size };
+  });
+}
+
+/** Add or refresh one session in the index. */
+export async function upsertSessionIndexRecord(
+  indexFile: string,
+  record: SessionIndexRecord,
+): Promise<void> {
+  await withPromptHistoryLock(indexFile, async () => {
+    const records = new Map(
+      (await readSessionIndexRecords(indexFile)).map((existing) => [existing.id, existing]),
+    );
+    const previous = records.get(record.id);
+    // A session that has not flushed to disk reports no name or path yet, so keep
+    // whatever an earlier record established.
+    records.set(record.id, {
+      ...record,
+      title: record.title || previous?.title || record.id,
+      path: record.path || previous?.path || "",
+    });
+    await writeSessionIndexRecords(indexFile, records.values());
+  });
+}
+
+async function writeSessionIndexRecords(
+  indexFile: string,
+  records: Iterable<SessionIndexRecord>,
+): Promise<void> {
+  const ordered = [...records].sort((left, right) =>
     right.updated_at.localeCompare(left.updated_at),
   );
   await writePrivateFile(
     indexFile,
     ordered.length ? `${ordered.map((record) => JSON.stringify(record)).join("\n")}\n` : "",
   );
-  return { indexed: ordered.length };
 }
 
 async function isIndexStale(indexFile: string, latestMtime: number): Promise<boolean> {
@@ -327,6 +387,44 @@ async function readHistoryRecords(historyFile: string): Promise<RawHistoryRecord
     }
   }
   return records;
+}
+
+async function readSessionIndexRecords(indexFile: string): Promise<SessionIndexRecord[]> {
+  const records: SessionIndexRecord[] = [];
+  for (const line of (await readTextIfExists(indexFile)).split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    let raw: unknown;
+    try {
+      raw = JSON.parse(line);
+    } catch (error) {
+      if (!(error instanceof SyntaxError)) throw error;
+      // A malformed row cannot identify a workdir, so it is skipped.
+      continue;
+    }
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+    const value = raw as Partial<SessionIndexRecord>;
+    if (
+      typeof value.id === "string" &&
+      typeof value.title === "string" &&
+      typeof value.updated_at === "string" &&
+      typeof value.path === "string" &&
+      typeof value.cwd === "string"
+    ) {
+      records.push({
+        id: value.id,
+        title: value.title,
+        updated_at: value.updated_at,
+        path: value.path,
+        cwd: value.cwd,
+      });
+    }
+  }
+  return records;
+}
+
+function normalizeWorkdir(cwd: string): string {
+  const trimmed = cwd.trim();
+  return trimmed ? path.resolve(trimmed) : "";
 }
 
 function userHistoryRecordsFromSession(
@@ -556,12 +654,9 @@ async function writePrivateFile(filePath: string, text: string): Promise<void> {
   await fs.chmod(filePath, 0o600);
 }
 
-/**
- * Serialize read-modify-write cycles on history.jsonl across processes.
- * Waits out a live holder instead of failing, so concurrent submits queue.
- */
-async function withHistoryFileLock<T>(historyFile: string, run: () => Promise<T>): Promise<T> {
-  const dataDir = path.dirname(historyFile);
+/** Serialize history and index read-modify-write operations across processes. */
+async function withPromptHistoryLock<T>(stateFile: string, run: () => Promise<T>): Promise<T> {
+  const dataDir = path.dirname(stateFile);
   await ensurePrivateDir(dataDir);
   let handle: PidLockHandle | undefined;
   for (;;) {

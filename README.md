@@ -27,6 +27,7 @@ A **multi-tab**, terminal-native AI coding agent fully compatible with the [Pi](
 - **Mobile & touch optimized.** Narrow terminals, split panes, and touch-friendly SSH clients (Termux, iOS Blink).
 - **Mouse & clickable surfaces.** Click tab chips and metadata badges to open pickers, drag the chat scrollbar, and drag-select transcript or draft text to copy.
 - **Terminal-first workflow.** Vim-style transcript navigation, command palette, `$skill` / `@file` / `@tab` autocomplete.
+- **Prompt history by scope.** Recall prompts from the current session, workdir, or global log with [`/prompt-history`](pi-packages/mpi-prompt-history/README.md#commands) and `Ctrl+G`.
 - **Declarative batch automation.** Script multi-agent workflows in Lua or TypeScript, with dry-run validation.
 
 ---

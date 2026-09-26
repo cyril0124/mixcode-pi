@@ -27,6 +27,7 @@
 - **窄屏与移动触控优化。** 适配窄终端、分屏与移动 SSH 客户端（Termux、iOS Blink）。
 - **鼠标与可点击区域。** 点击 Tab 标签与元信息徽标打开对应选择器，拖拽对话滚动条，划选对话或输入框文本即可复制。
 - **终端优先交互流。** Vim 式对话导航、命令面板、`$skill` / `@file` / `@tab` 自动补全。
+- **按范围召回 Prompt。** 用 [`/prompt-history`](pi-packages/mpi-prompt-history/README.zh.md#命令) 和 `Ctrl+G` 浏览当前会话、工作目录或全局历史。
 - **声明式 Batch 自动化。** 用 Lua 或 TypeScript 脚本批量派发多 Agent 任务，支持 Dry-run 预览。
 
 ---

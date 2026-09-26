@@ -19,7 +19,7 @@ MixCode prompt 召回文件的唯一生产者,并提供 `/prompt-history` 浏览
 | 事件 | 动作 |
 | --- | --- |
 | `input`(`source: "interactive"`) | 将原始提交文本追加到 `history.jsonl`,随后按字节预算裁剪 |
-| `session_start` | 每进程每 sessions root 一次:从 session JSONL 回填最近 30 天(按 `session_id`+`ts`+`text` 去重),索引过期时重建 |
+| `session_start` | 每进程每 sessions root 一次：从 session JSONL 回填最近 30 天（按 `session_id`+`ts`+`text` 去重）、重建过期索引，并更新当前 session 记录 |
 | `before_agent_start` | 将给出两个文件路径的 5 行指针块写入 `systemPromptOptions.sections["mpi-prompt-history"]` |
 
 重建时逐个处理 session 文件，跨文件只保留用户 prompt 候选和索引元数据。保留的字符串独立复制，避免继续占用整个文件的底层存储。解析累计约 10 毫秒后，在 JSONL 行之间让出事件循环；单行解析仍同步执行。30 天回填截止时间在扫描结束后统一计算。录入和回填均使用线性的 UTF-8 字节计数裁剪历史，在配置预算内保留最新的完整记录行。回填仅序列化裁剪后需要保留的记录。
@@ -33,7 +33,7 @@ MixCode prompt 召回文件的唯一生产者,并提供 `/prompt-history` 浏览
 | `/prompt-history` | 以 **Session** 范围打开浏览器。 |
 | `/prompt-history config` | 编辑下方配置：选 `maxBytes` 输入新大小，或重置为默认值。 |
 
-按 `/` 使用大小写不敏感的 JavaScript 正则表达式搜索。非法表达式会显示在浏览器中。方向键仍可移动。`j`、`k`、`c`、`q` 会写入查询。`Ctrl+G` 切换 Session 和 Global，查询还在。
+按 `/` 使用大小写不敏感的 JavaScript 正则表达式搜索。非法表达式会显示在浏览器中。方向键仍可移动。`j`、`k`、`c`、`q` 会写入查询。`Ctrl+G` 在 Session、Workdir、Global 之间循环切换，并保留查询内容。
 
 | 按键 | 作用 |
 | --- | --- |
@@ -43,16 +43,17 @@ MixCode prompt 召回文件的唯一生产者,并提供 `/prompt-history` 浏览
 | `/` | 打开搜索 |
 | Enter | 插入当前选中的 prompt |
 | `c` | 复制当前选中的 prompt 到剪贴板并关闭 |
-| `Ctrl+G` | 切换 Session / Global |
+| `Ctrl+G` | 循环切换 Session / Workdir / Global |
 | Esc | 取消搜索，或关闭 |
 | `q` | 关闭 |
 
 | 范围 | 数据源 | 说明 |
 | --- | --- | --- |
 | Session | `ctx.sessionManager` 条目 | 仅当前会话，全程不读 `history.jsonl`。 |
+| Workdir | `session_index.jsonl` 关联 `history.jsonl` | 规范化后的 `cwd` 与当前 workdir 完全匹配的会话，不包含子目录或其他 worktree。相同文本只保留本范围内最近一次，最新在前。 |
 | Global | `history.jsonl` | 全部已录入的 prompt，相同文本只保留最近一次，最新在前。 |
 
-Global 在**首次切入时**才加载（不在打开时），读取期间显示占位提示 —— 该文件可达数 MB，同步解析会阻塞渲染帧。读取不加锁、不写入，因此浏览不会干扰正在进行的录入。去重是必需的：原始日志重复极多（真实文件曾为 20347 行对应 10676 条唯一 prompt）。
+Workdir 和 Global 在首次切入时加载，读取期间显示加载提示。各范围的快照保留到面板关闭；加载失败后，再次切入会重试。切换保留搜索词并选中首条结果，Workdir 标题显示当前目录路径。两个范围只读取数据文件，不打开 session 正文，也不加锁或改写任何文件。session 启动时会更新 session index，因此新会话在下次打开时出现在 Workdir 范围；索引中缺少的记录不会在查询时补猜。路径匹配消除 `.` / `..` 和末尾分隔符，不解析符号链接。原始日志中重复极多，两个范围都只保留同一范围内每个文本的最近一次。
 
 `config` 接受纯字节数或带单位后缀（`20mb`、`512 KB`、`1048576`），非正整数字节一律拒绝。
 

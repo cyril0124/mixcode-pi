@@ -9,18 +9,21 @@ import { runPromptHistoryConfig } from "./config-ui.js";
 import {
   appendHistoryEntry,
   buildPromptHistoryPrompt,
-  loadGlobalPromptItems,
   ensurePromptHistoryState,
+  loadGlobalPromptItems,
+  loadWorkdirPromptItems,
   promptHistoryPaths,
   readHistoryMaxBytes,
   resolveAgentDir,
+  upsertSessionIndexRecord,
 } from "./history-store.js";
 import { createPromptHistoryBrowserComponent } from "./prompt-history-browser.js";
 
 /**
  * Roots already ensured in this process. Module state is shared across every
  * session in the host process (verified: one module instance serves all tabs),
- * so the expensive scan runs at most once per sessions root per process.
+ * so the startup backfill and index rebuild run at most once per sessions root
+ * per process.
  */
 const ensuredRoots = new Set<string>();
 
@@ -43,7 +46,8 @@ function isMixCodeTabSession(ctx: ExtensionContext): boolean {
 
 export default function (pi: ExtensionAPI) {
   pi.registerCommand("prompt-history", {
-    description: "Browse current session's prompt history; config edits the package config",
+    description:
+      "Browse session, workdir, and global prompt history; config edits the package config",
     ...({ argumentHint: "[config]" } as Record<string, unknown>),
     getArgumentCompletions: (prefix: string) => {
       const items = [
@@ -87,8 +91,8 @@ export default function (pi: ExtensionAPI) {
         }
       }
 
-      // An empty session still opens: Ctrl+G reaches the global history from here.
-      const { historyFile } = promptHistoryPaths(resolveAgentDir());
+      // An empty session still opens: Ctrl+G reaches workdir and global history from here.
+      const paths = promptHistoryPaths(resolveAgentDir());
       const selected = await ctx.ui.custom<string | null>(
         (tui, theme, _keybindings, done) =>
           createPromptHistoryBrowserComponent({
@@ -102,7 +106,14 @@ export default function (pi: ExtensionAPI) {
                 (error: unknown) => ctx.ui.notify(`Copy failed: ${errorMessage(error)}`, "warning"),
               );
             },
-            loadGlobalItems: () => loadGlobalPromptItems(historyFile),
+            workdir: ctx.sessionManager.getCwd(),
+            loadWorkdirItems: () =>
+              loadWorkdirPromptItems({
+                historyFile: paths.historyFile,
+                sessionIndexFile: paths.sessionIndexFile,
+                cwd: ctx.sessionManager.getCwd(),
+              }),
+            loadGlobalItems: () => loadGlobalPromptItems(paths.historyFile),
           }),
         {
           overlay: true,
@@ -119,19 +130,29 @@ export default function (pi: ExtensionAPI) {
   // detached from session startup and at most once per root per process.
   pi.on("session_start", (_event, ctx) => {
     if (!isMixCodeTabSession(ctx)) return;
+    const agentDir = resolveAgentDir();
     const sessionsRoot = ctx.sessionManager.getSessionDir();
-    // Claim the root before awaiting: tabs start concurrently, and two scans of
-    // the same root would duplicate the work.
-    if (ensuredRoots.has(sessionsRoot)) return;
-    ensuredRoots.add(sessionsRoot);
-    // ensurePromptHistoryState reports failures as warnings rather than rejecting.
-    void ensurePromptHistoryState({ agentDir: resolveAgentDir(), sessionsRoot }).then(
-      ({ warnings }) => {
+    const paths = promptHistoryPaths(agentDir);
+    const shouldEnsureRoot = !ensuredRoots.has(sessionsRoot);
+    if (shouldEnsureRoot) ensuredRoots.add(sessionsRoot);
+
+    void (async () => {
+      if (shouldEnsureRoot) {
+        const { warnings } = await ensurePromptHistoryState({ agentDir, sessionsRoot });
         if (warnings.length > 0) {
-          ctx.ui.notify(`History warning: ${warnings.join("; ")}`, "warning");
+          ctx.ui.notify(`Error: History warning: ${warnings.join("; ")}`, "warning");
         }
-      },
-    );
+      }
+      await upsertSessionIndexRecord(paths.sessionIndexFile, {
+        id: ctx.sessionManager.getSessionId(),
+        title: ctx.sessionManager.getSessionName() ?? ctx.sessionManager.getSessionId(),
+        updated_at: new Date().toISOString(),
+        path: ctx.sessionManager.getSessionFile() ?? "",
+        cwd: ctx.sessionManager.getCwd(),
+      });
+    })().catch((error: unknown) => {
+      ctx.ui.notify(`Error: History warning: ${errorMessage(error)}`, "warning");
+    });
   });
 
   // Record submitted prompts. "interactive" excludes extension-injected messages
