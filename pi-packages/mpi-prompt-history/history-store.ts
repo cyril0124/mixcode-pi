@@ -200,7 +200,7 @@ export async function ensurePromptHistoryState(options: {
     const maxBytes = await readHistoryMaxBytes(paths.configFile);
     const historyMissing = !(await pathExists(paths.historyFile));
     const tree = await listSessionJsonlTree(options.sessionsRoot);
-    const indexStale = await isIndexStale(paths.sessionIndexFile, tree.latestMtime);
+    const indexStale = await isIndexStale(paths.sessionIndexFile, tree.files, tree.latestMtime);
     if (historyMissing || indexStale) {
       const sessions = await parseSessionFiles(tree.files);
       scannedSessions = sessions.length;
@@ -312,7 +312,11 @@ async function buildSessionIndex(
   sessions: SessionHistorySummary[],
 ): Promise<{ indexed: number }> {
   return withPromptHistoryLock(indexFile, async () => {
-    const records = new Map<string, SessionIndexRecord>();
+    // Each tab scans its own sessions directory, but the index is agent-wide.
+    // Merge under the lock to retain other workdirs and concurrent live upserts.
+    const records = new Map(
+      (await readSessionIndexRecords(indexFile)).map((record) => [record.id, record]),
+    );
     for (const session of sessions) {
       const record = sessionIndexRecord(session);
       const existing = records.get(record.id);
@@ -359,13 +363,26 @@ async function writeSessionIndexRecords(
   );
 }
 
-async function isIndexStale(indexFile: string, latestMtime: number): Promise<boolean> {
+async function isIndexStale(
+  indexFile: string,
+  sessionFiles: readonly string[],
+  latestMtime: number,
+): Promise<boolean> {
   try {
-    return latestMtime > (await fs.stat(indexFile)).mtimeMs;
+    if (latestMtime > (await fs.stat(indexFile)).mtimeMs) return true;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return true;
     throw error;
   }
+
+  // Another workdir or a live upsert can advance the shared index's mtime
+  // without indexing this root. File coverage must also be complete.
+  const indexedPaths = new Set(
+    (await readSessionIndexRecords(indexFile))
+      .filter((record) => record.path !== "")
+      .map((record) => path.resolve(record.path)),
+  );
+  return sessionFiles.some((file) => !indexedPaths.has(path.resolve(file)));
 }
 
 async function readHistoryRecords(historyFile: string): Promise<RawHistoryRecord[]> {

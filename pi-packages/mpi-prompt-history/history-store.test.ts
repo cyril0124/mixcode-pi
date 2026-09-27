@@ -808,6 +808,71 @@ test("ensurePromptHistoryState backfills once and rescans only when a session ch
   }
 });
 
+test("workdir history survives rebuilding separate session roots with a newer shared index", async () => {
+  const agentDir = await tempDir("workdir-rebuild");
+  try {
+    const paths = promptHistoryPaths(agentDir);
+    const now = new Date("2026-06-20T00:00:00.000Z");
+    const roots = {
+      repo: nodePath.join(agentDir, "sessions", "repo"),
+      other: nodePath.join(agentDir, "sessions", "other"),
+    };
+    for (const [id, sessionsRoot] of Object.entries(roots)) {
+      const file = await writeSessionFixture(sessionsRoot, id, [
+        { type: "session", id, cwd: `/${id}`, timestamp: now.toISOString() },
+        {
+          type: "message",
+          timestamp: now.toISOString(),
+          message: { role: "user", content: `${id} prompt` },
+        },
+      ]);
+      // Every transcript predates the index, as when reopening another workdir.
+      await fsPromises.utimes(file, now, now);
+    }
+
+    await upsertSessionIndexRecord(paths.sessionIndexFile, {
+      id: "live",
+      title: "Live session",
+      updated_at: now.toISOString(),
+      path: "",
+      cwd: "/repo",
+    });
+    await appendHistoryEntry(
+      paths.historyFile,
+      { sessionId: "live", text: "live prompt", timestampSeconds: now.getTime() / 1000 },
+      MB,
+    );
+
+    const ensure = async (sessionsRoot: string) => {
+      const result = await ensurePromptHistoryState({ agentDir, sessionsRoot, now: () => now });
+      assert.deepEqual(result.warnings, []);
+    };
+    const texts = async (cwd: string) =>
+      (await loadWorkdirPromptItems({ ...paths, cwd })).map((item) => item.text).sort();
+
+    await ensure(roots.repo);
+    assert.deepEqual(await texts("/repo"), ["live prompt", "repo prompt"]);
+
+    await ensure(roots.other);
+    assert.deepEqual(await texts("/other"), ["other prompt"]);
+    assert.deepEqual(await texts("/repo"), ["live prompt", "repo prompt"]);
+
+    await writeSessionFixture(roots.repo, "repo-later", [
+      { type: "session", id: "repo-later", cwd: "/repo" },
+      {
+        type: "message",
+        timestamp: now.toISOString(),
+        message: { role: "user", content: "later repo prompt" },
+      },
+    ]);
+    await ensure(roots.repo);
+    assert.deepEqual(await texts("/repo"), ["later repo prompt", "live prompt", "repo prompt"]);
+    assert.deepEqual(await texts("/other"), ["other prompt"]);
+  } finally {
+    await fsPromises.rm(agentDir, { recursive: true, force: true });
+  }
+});
+
 test("loadGlobalPromptItems keeps one entry per text at its newest time, oldest first", async () => {
   const dir = await tempDir("global");
   const file = nodePath.join(dir, "history.jsonl");

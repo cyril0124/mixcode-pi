@@ -9,7 +9,7 @@ MixCode prompt 召回文件的唯一生产者,并提供 `/prompt-history` 浏览
 | 文件 | 结构 | 写入时机 |
 | --- | --- | --- |
 | `history.jsonl` | `{"session_id": string, "ts": number(unix 秒), "text": string}` | 每次录入提交,以及回填时 |
-| `session_index.jsonl` | `{"id", "title", "updated_at", "path", "cwd"}`,按 `updated_at` 降序 | 索引缺失,或存在比索引更新的 session 文件 |
+| `session_index.jsonl` | `{"id", "title", "updated_at", "path", "cwd"}`,按 `updated_at` 降序 | 索引缺失、扫描到的 session 路径未入索引、存在比索引更新的 session 文件，或更新当前 session 记录 |
 | `.locks/prompt-history.lock` | PID 锁记录 | `history.jsonl` 的每次读-改-写期间持有 |
 
 文件以原子方式写入(temp + rename),权限 `0600`;数据目录权限 `0700`。`title` 回退链:session 名称 -> 首条用户消息 -> session id。
@@ -21,6 +21,8 @@ MixCode prompt 召回文件的唯一生产者,并提供 `/prompt-history` 浏览
 | `input`(`source: "interactive"`) | 将原始提交文本追加到 `history.jsonl`,随后按字节预算裁剪 |
 | `session_start` | 每进程每 sessions root 一次：从 session JSONL 回填最近 30 天（按 `session_id`+`ts`+`text` 去重）、重建过期索引，并更新当前 session 记录 |
 | `before_agent_start` | 将给出两个文件路径的 5 行指针块写入 `systemPromptOptions.sections["mpi-prompt-history"]` |
+
+启动时覆盖活跃 session 文件所在目录和当前 workdir 的默认 Pi session 目录，每进程对每个不同目录扫描一次。切换 workdir 后，活跃 session 文件可能仍留在原目录。索引由所有 workdir 共享。索引时间较新不代表已经覆盖当前目录：缺少 session 路径也会触发重建。重建在共享锁内按 session id 合并记录，保留最新元数据，不删除其他 workdir 或尚未落盘的活跃会话。
 
 重建时逐个处理 session 文件，跨文件只保留用户 prompt 候选和索引元数据。保留的字符串独立复制，避免继续占用整个文件的底层存储。解析累计约 10 毫秒后，在 JSONL 行之间让出事件循环；单行解析仍同步执行。30 天回填截止时间在扫描结束后统一计算。录入和回填均使用线性的 UTF-8 字节计数裁剪历史，在配置预算内保留最新的完整记录行。回填仅序列化裁剪后需要保留的记录。
 
@@ -53,7 +55,7 @@ MixCode prompt 召回文件的唯一生产者,并提供 `/prompt-history` 浏览
 | Workdir | `session_index.jsonl` 关联 `history.jsonl` | 规范化后的 `cwd` 与当前 workdir 完全匹配的会话，不包含子目录或其他 worktree。相同文本只保留本范围内最近一次，最新在前。 |
 | Global | `history.jsonl` | 全部已录入的 prompt，相同文本只保留最近一次，最新在前。 |
 
-Workdir 和 Global 在首次切入时加载，读取期间显示加载提示。各范围的快照保留到面板关闭；加载失败后，再次切入会重试。切换保留搜索词并选中首条结果，Workdir 标题显示当前目录路径。两个范围只读取数据文件，不打开 session 正文，也不加锁或改写任何文件。session 启动时会更新 session index，因此新会话在下次打开时出现在 Workdir 范围；索引中缺少的记录不会在查询时补猜。路径匹配消除 `.` / `..` 和末尾分隔符，不解析符号链接。原始日志中重复极多，两个范围都只保留同一范围内每个文本的最近一次。
+Workdir 和 Global 在首次切入时加载，读取期间显示加载提示。Workdir 会等待 session 启动时的回填和索引完成后再生成快照；使用同一目录的标签页共同等待尚未完成的扫描。各范围的快照保留到面板关闭；加载失败后，再次切入会重试。切换保留搜索词并选中首条结果，Workdir 标题显示当前目录路径。两个范围只读取数据文件，不打开 session 正文，也不加锁或改写任何文件。session 启动时会更新 session index，因此新会话在下次打开时出现在 Workdir 范围；索引中缺少的记录不会在查询时补猜。路径匹配消除 `.` / `..` 和末尾分隔符，不解析符号链接。原始日志中重复极多，两个范围都只保留同一范围内每个文本的最近一次。
 
 `config` 接受纯字节数或带单位后缀（`20mb`、`512 KB`、`1048576`），非正整数字节一律拒绝。
 

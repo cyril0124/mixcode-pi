@@ -4,7 +4,7 @@
 // |  production (record, backfill, index, system-prompt pointer).        |
 // +----------------------------------------------------------------------+
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { copyToClipboard } from "@earendil-works/pi-coding-agent";
+import { copyToClipboard, getDefaultSessionDirPath } from "@earendil-works/pi-coding-agent";
 import { runPromptHistoryConfig } from "./config-ui.js";
 import {
   appendHistoryEntry,
@@ -20,12 +20,10 @@ import {
 import { createPromptHistoryBrowserComponent } from "./prompt-history-browser.js";
 
 /**
- * Roots already ensured in this process. Module state is shared across every
- * session in the host process (verified: one module instance serves all tabs),
- * so the startup backfill and index rebuild run at most once per sessions root
- * per process.
+ * Shared startup scans, one per sessions root per process. Tabs using the same
+ * root must join its pending scan, not treat an in-flight rebuild as complete.
  */
-const ensuredRoots = new Set<string>();
+const ensuredRoots = new Map<string, Promise<void>>();
 
 /**
  * True only for a MixCode tab session in the host process.
@@ -45,6 +43,8 @@ function isMixCodeTabSession(ctx: ExtensionContext): boolean {
 }
 
 export default function (pi: ExtensionAPI) {
+  let historyReady = Promise.resolve();
+
   pi.registerCommand("prompt-history", {
     description:
       "Browse session, workdir, and global prompt history; config edits the package config",
@@ -107,12 +107,15 @@ export default function (pi: ExtensionAPI) {
               );
             },
             workdir: ctx.sessionManager.getCwd(),
-            loadWorkdirItems: () =>
-              loadWorkdirPromptItems({
+            loadWorkdirItems: async () => {
+              // Do not cache an incomplete snapshot while startup is rebuilding.
+              await historyReady;
+              return loadWorkdirPromptItems({
                 historyFile: paths.historyFile,
                 sessionIndexFile: paths.sessionIndexFile,
                 cwd: ctx.sessionManager.getCwd(),
-              }),
+              });
+            },
             loadGlobalItems: () => loadGlobalPromptItems(paths.historyFile),
           }),
         {
@@ -131,17 +134,26 @@ export default function (pi: ExtensionAPI) {
   pi.on("session_start", (_event, ctx) => {
     if (!isMixCodeTabSession(ctx)) return;
     const agentDir = resolveAgentDir();
-    const sessionsRoot = ctx.sessionManager.getSessionDir();
+    // Changing workdir can retain the session's original file directory. Scan
+    // the current workdir's Pi directory too, while supporting custom locations.
+    const roots = new Set([
+      ctx.sessionManager.getSessionDir(),
+      getDefaultSessionDirPath(ctx.sessionManager.getCwd(), agentDir),
+    ]);
     const paths = promptHistoryPaths(agentDir);
-    const shouldEnsureRoot = !ensuredRoots.has(sessionsRoot);
-    if (shouldEnsureRoot) ensuredRoots.add(sessionsRoot);
 
-    void (async () => {
-      if (shouldEnsureRoot) {
-        const { warnings } = await ensurePromptHistoryState({ agentDir, sessionsRoot });
-        if (warnings.length > 0) {
-          ctx.ui.notify(`Error: History warning: ${warnings.join("; ")}`, "warning");
+    historyReady = (async () => {
+      for (const sessionsRoot of roots) {
+        let ensureRoot = ensuredRoots.get(sessionsRoot);
+        if (!ensureRoot) {
+          ensureRoot = ensurePromptHistoryState({ agentDir, sessionsRoot }).then(({ warnings }) => {
+            if (warnings.length > 0) {
+              ctx.ui.notify(`Error: History warning: ${warnings.join("; ")}`, "warning");
+            }
+          });
+          ensuredRoots.set(sessionsRoot, ensureRoot);
         }
+        await ensureRoot;
       }
       await upsertSessionIndexRecord(paths.sessionIndexFile, {
         id: ctx.sessionManager.getSessionId(),
