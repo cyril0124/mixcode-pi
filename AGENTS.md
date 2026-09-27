@@ -30,7 +30,7 @@
 
 ## Pi Integration
 
-- Before implementing features or inventing local APIs/UI, check installed `@earendil-works/pi-*` packages and the references below. Reuse upstream selectors, editors, dialogs, markdown, keybindings, session/tree UI, etc. Implement locally only for unmet requirements or explicitly requested different behavior.
+- Before implementing a new feature or inventing local APIs/UI, first evaluate whether it can be implemented entirely under `pi-packages/` and remain usable with pure Pi; prefer that approach when possible. Also check installed `@earendil-works/pi-*` packages and the references below, reuse upstream selectors, editors, dialogs, markdown, keybindings, session/tree UI, etc., and implement locally only for unmet requirements or explicitly requested different behavior.
 - Prefer a clean upstream export patch in `patches/` for existing private/unexported components over a local duplicate. Keep `src/` events, themes, and runtime hooks aligned with Pi conventions.
 - Core uses public Pi APIs only (`clearQueue`, `steer`, `followUp`); never invoke or patch private `AgentSession` members such as `_handlePostAgentRun` or `_steeringMessages`.
 - Core fixes must be generic and Pi SDK protocol-compliant, without exceptions for named third-party extensions. Domain features (compaction, prompt optimization, external session reporting) belong in independent `pi-packages/mpi-<name>` packages, not `src/`.
