@@ -24,6 +24,21 @@ const BLACKLIST: ReadonlySet<string> = new Set([
   path.dirname(home),
 ]);
 
+/**
+ * Current account name, so that `~user` resolves for the account owning `home`.
+ * `os.userInfo()` throws a SystemError on platforms that expose no user info;
+ * an unknown name is safe because `~user` then simply stays untracked.
+ */
+function readUserName(): string | undefined {
+  try {
+    return os.userInfo().username;
+  } catch {
+    return undefined;
+  }
+}
+
+const userName = process.env.USER || process.env.LOGNAME || readUserName();
+
 /** Return true if the resolved path is in the blacklist. */
 function isBlacklisted(target: string, cwd: string): boolean {
   return BLACKLIST.has(path.resolve(cwd, expandEnvVars(expandTilde(target))));
@@ -33,6 +48,11 @@ function expandTilde(p: string): string {
   if (p === "~" || p.startsWith("~/")) {
     return home + p.slice(1);
   }
+  // `~user` names another account's home directory; only the current account is
+  // resolvable without reading the password database.
+  if (userName !== undefined && (p === `~${userName}` || p.startsWith(`~${userName}/`))) {
+    return home + p.slice(1 + userName.length);
+  }
   return p;
 }
 
@@ -41,21 +61,77 @@ function expandEnvVars(p: string): string {
   return p.replace(/\$\{HOME\}|\$HOME/g, home);
 }
 
+/** One shell command segment and how its stdin is supplied. */
+interface ShellSegment {
+  text: string;
+  /** stdin comes from an upstream pipe, so the segment does not read the cwd. */
+  pipedIn: boolean;
+}
+
 /**
  * Inspect a bash command for dangerous search invocations.
  * Returns the offending path, or null if safe.
  *
  * Handles multiline scripts by stripping heredocs and comments,
  * then splitting on shell command boundaries (newline, pipe, semicolon, &&, ||).
+ * A `cd` earlier in the script is tracked because it decides what an
+ * unqualified search root resolves to.
  */
 export function inspectBashCommand(command: string, cwd: string): string | null {
   const cleaned = stripHeredocs(command);
+  let effectiveCwd = path.resolve(cwd);
+  let cwdMoved = false;
+
   // Split on newlines, pipes, semicolons, and logical operators
   for (const segment of splitShellCommands(cleaned)) {
-    const result = checkSegment(segment, cwd);
+    // An unqualified search reads the directory the shell sits in. That directory
+    // is only known when this same command moved there via `cd`, and is only
+    // dangerous when the move landed on a high-cardinality directory, so the
+    // implicit root is checked under exactly those two conditions.
+    const implicitRoot =
+      cwdMoved && isBlacklisted(effectiveCwd, effectiveCwd) ? effectiveCwd : null;
+    const result = checkSegment(segment, effectiveCwd, implicitRoot);
     if (result) return result;
+
+    const moved = applyCd(segment.text, effectiveCwd);
+    if (moved !== effectiveCwd) {
+      effectiveCwd = moved;
+      cwdMoved = true;
+    }
   }
   return null;
+}
+
+/**
+ * Resolve the directory a `cd` segment moves the shell into.
+ * Returns `cwd` unchanged for every segment that is not a static `cd`, which
+ * includes targets that cannot be resolved statically (`$VAR`, command
+ * substitution, `cd -`). An unresolved move leaves the tracked cwd alone rather
+ * than guessing one, so it never enables the implicit-root check.
+ */
+function applyCd(segment: string, cwd: string): string {
+  const tokens = stripRedirections(tokenize(segment));
+  const cmdIndex = commandIndexOf(tokens);
+  if (cmdIndex < 0 || path.posix.basename(tokens[cmdIndex]!) !== "cd") return cwd;
+
+  const operands: string[] = [];
+  for (const arg of tokens.slice(cmdIndex + 1)) {
+    if (arg === "--") continue;
+    if (arg === "-") return cwd; // OLDPWD: not tracked
+    if (arg.startsWith("-")) continue; // -P / -L / -e
+    operands.push(arg);
+  }
+  // `cd` with no operand goes to $HOME, which is itself search-guarded.
+  const target = operands.length === 0 ? "$HOME" : operands[operands.length - 1]!;
+  const expanded = expandEnvVars(expandTilde(target));
+  // Non-literal targets stay unresolved; `~user` keeps its tilde after expandTilde.
+  if (/[$`(){}[\]*?~]/.test(expanded)) return cwd;
+  return path.resolve(cwd, expanded);
+}
+
+/** Index of the command token, skipping `VAR=value` prefixes, `sudo`, and `env`. */
+function commandIndexOf(tokens: string[]): number {
+  return tokens.findIndex((token) => !token.includes("=") && token !== "sudo" && token !== "env");
 }
 
 /**
@@ -89,18 +165,21 @@ function stripHeredocs(input: string): string {
  * alternation (`rg 'foo|bar' /`) is not cut into bogus segments.
  * Strips shell comments (# to end of line).
  */
-function splitShellCommands(input: string): string[] {
-  const segments: string[] = [];
+function splitShellCommands(input: string): ShellSegment[] {
+  const segments: ShellSegment[] = [];
   const noComments = stripComments(input);
   let cur = "";
+  // stdin of the segment being accumulated comes from an upstream `|`.
+  let pipedIn = false;
   let inSingle = false;
   let inDouble = false;
   let esc = false;
 
-  const pushSegment = () => {
+  const pushSegment = (nextPipedIn: boolean) => {
     const trimmed = cur.trim();
-    if (trimmed) segments.push(trimmed);
+    if (trimmed) segments.push({ text: trimmed, pipedIn });
     cur = "";
+    pipedIn = nextPipedIn;
   };
 
   for (let i = 0; i < noComments.length; i++) {
@@ -129,22 +208,23 @@ function splitShellCommands(input: string): string[] {
       continue;
     }
     if (ch === "\n") {
-      pushSegment();
+      pushSegment(false);
       continue;
     }
     if (ch === "&" || ch === "|") {
       // && and || split once; a doubled operator adds no empty segment.
-      if (noComments[i + 1] === ch) i++;
-      pushSegment();
+      const doubled = noComments[i + 1] === ch;
+      if (doubled) i++;
+      pushSegment(ch === "|" && !doubled);
       continue;
     }
     if (ch === ";") {
-      pushSegment();
+      pushSegment(false);
       continue;
     }
     cur += ch;
   }
-  pushSegment();
+  pushSegment(false);
   return segments;
 }
 
@@ -236,8 +316,12 @@ function isAttachedPatternFlag(arg: string): boolean {
   return (arg.startsWith("-e") || arg.startsWith("-f")) && arg.length > 2;
 }
 
-function checkSegment(segment: string, cwd: string): string | null {
-  const tokens = tokenize(segment);
+function checkSegment(
+  segment: ShellSegment,
+  cwd: string,
+  implicitRoot: string | null,
+): string | null {
+  const tokens = tokenize(segment.text);
   if (tokens.length === 0) return null;
 
   // Strip redirections (e.g. 2>/dev/null, >/tmp/out, 2>&1)
@@ -245,9 +329,7 @@ function checkSegment(segment: string, cwd: string): string | null {
   if (cleaned.length === 0) return null;
 
   // Skip leading env assignments and sudo
-  const cmdIndex = cleaned.findIndex(
-    (token) => !token.includes("=") && token !== "sudo" && token !== "env",
-  );
+  const cmdIndex = commandIndexOf(cleaned);
   const cmdToken = cmdIndex < 0 ? undefined : cleaned[cmdIndex];
   // Nothing but env assignments / sudo means there is no command to inspect.
   if (cmdToken === undefined) return null;
@@ -256,9 +338,56 @@ function checkSegment(segment: string, cwd: string): string | null {
   if (!SEARCH_CMDS.has(cmd)) return null;
 
   const args = cleaned.slice(cmdIndex + 1);
-  if (cmd === "find") return checkFindPath(args, cwd);
-  if (cmd === "fd") return checkFdPath(args, cwd);
-  return checkGrepPath(args, cwd);
+  // A search bounded to a shallow depth reads a handful of directory levels,
+  // so even a high-cardinality root cannot make it prohibitively slow.
+  if (isShallowSearch(cmd, args)) return null;
+  // A search whose input is a pipe or a file reads that, not the cwd.
+  const root =
+    segment.pipedIn || hasStdinRedirect(tokens) || !searchesCwdByDefault(cmd, args)
+      ? null
+      : implicitRoot;
+  if (cmd === "find") return checkFindPath(args, cwd, root);
+  if (cmd === "fd") return checkFdPath(args, cwd, root);
+  return checkGrepPath(args, cwd, root);
+}
+
+/** True when the segment feeds stdin from a file, here-string, or heredoc. */
+function hasStdinRedirect(tokens: string[]): boolean {
+  return tokens.some((token) => token.startsWith("<") || token.startsWith("0<"));
+}
+
+/**
+ * True when the command recurses into the current directory given no path operand.
+ * `rg`/`fd`/`ag`/`ack` do; `grep` reads stdin unless a recursive flag is present.
+ */
+function searchesCwdByDefault(cmd: string, args: string[]): boolean {
+  if (cmd !== "grep") return true;
+  return args.some((arg) => arg === "--recursive" || /^-[^-]*[rR]/.test(arg));
+}
+
+/** Depth-limit flags: `-d`/`--max-depth` (fd, rg) and `-maxdepth` (find). */
+const DEPTH_FLAGS: ReadonlySet<string> = new Set(["-d", "--max-depth", "-maxdepth"]);
+
+/** Depth at or below which a bounded search is treated as a cheap listing. */
+const SHALLOW_SEARCH_MAX_DEPTH = 2;
+
+/**
+ * True when the command bounds its recursion to a shallow depth (`fd -d 1`,
+ * `rg --max-depth 2`, `find -maxdepth 1`), which is cheap whatever the root.
+ * `grep` is excluded: its `-d` selects a directory action, not a depth.
+ */
+function isShallowSearch(cmd: string, args: string[]): boolean {
+  if (cmd === "grep") return false;
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]!;
+    let depth = DEPTH_FLAGS.has(arg) ? args[i + 1] : undefined;
+    if (depth === undefined) {
+      // Attached form: `-d1`, `-d=1`, `--max-depth=1`.
+      depth = /^(?:-d|--max-depth|-maxdepth)=?(\d+)$/.exec(arg)?.[1];
+    }
+    if (depth !== undefined && Number(depth) <= SHALLOW_SEARCH_MAX_DEPTH) return true;
+  }
+  return false;
 }
 
 /** Strip shell redirections from the token list. */
@@ -292,13 +421,16 @@ function stripRedirections(tokens: string[]): string[] {
  * Expression tokens start with -, !, or (.
  * Check ALL path positionals, not just the first.
  */
-function checkFindPath(args: string[], cwd: string): string | null {
+function checkFindPath(args: string[], cwd: string, implicitRoot: string | null): string | null {
+  let sawPath = false;
   for (const arg of args) {
     // Once we hit an expression token, stop — remaining args are expressions
     if (arg.startsWith("-") || arg === "!" || arg === "(") break;
+    sawPath = true;
     if (isBlacklisted(arg, cwd)) return arg;
   }
-  return null;
+  // No path operand: `find` operates on the current directory.
+  return sawPath ? null : implicitRoot;
 }
 
 /**
@@ -351,10 +483,11 @@ function checkPatternThenPaths(
   positionals: string[],
   patternFromFlag: boolean,
   cwd: string,
+  implicitRoot: string | null,
 ): string | null {
   let pathStart = 0;
   if (!patternFromFlag) {
-    if (positionals.length === 0) return null;
+    if (positionals.length === 0) return implicitRoot;
     if (positionals.length === 1 && isBlacklisted(positionals[0]!, cwd)) {
       return positionals[0]!;
     }
@@ -363,24 +496,25 @@ function checkPatternThenPaths(
   for (let j = pathStart; j < positionals.length; j++) {
     if (isBlacklisted(positionals[j]!, cwd)) return positionals[j]!;
   }
-  return null;
+  // No path operand: the search root is the cwd.
+  return positionals.length <= pathStart ? implicitRoot : null;
 }
 
 /** For fd: usage is `fd [pattern] [path...]`. */
-function checkFdPath(args: string[], cwd: string): string | null {
+function checkFdPath(args: string[], cwd: string, implicitRoot: string | null): string | null {
   // fd's -e is an extension filter (value flag), not a pattern flag.
   const { positionals, patternFromFlag } = collectSearchPositionals(args, {
     patternFlagsSupplyPattern: false,
   });
-  return checkPatternThenPaths(positionals, patternFromFlag, cwd);
+  return checkPatternThenPaths(positionals, patternFromFlag, cwd, implicitRoot);
 }
 
 /** For grep/rg/ag/ack: positionals after the pattern are paths. */
-function checkGrepPath(args: string[], cwd: string): string | null {
+function checkGrepPath(args: string[], cwd: string, implicitRoot: string | null): string | null {
   const { positionals, patternFromFlag } = collectSearchPositionals(args, {
     patternFlagsSupplyPattern: true,
   });
-  return checkPatternThenPaths(positionals, patternFromFlag, cwd);
+  return checkPatternThenPaths(positionals, patternFromFlag, cwd, implicitRoot);
 }
 
 /** Minimal shell tokenizer: splits on whitespace, respects single/double quotes. */

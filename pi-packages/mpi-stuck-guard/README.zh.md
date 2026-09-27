@@ -39,7 +39,7 @@ Pi 遇到扩展拦截就停止分发 `tool_call`。本防护只统计到达自�
 
 ## 搜索拦截（search guard）
 
-search guard 在执行前拦截 `bash`、`grep`、`find` 工具调用，阻止以高基数目录（`/`、`/home`、`/etc`、`/usr`、`/var`、`/tmp`、`/opt`、`/nfs`、`~` 及 home 父目录）为根的递归搜索。被拦截的调用返回原因，引导 Agent 把路径缩小到具体子目录。bash 命令解析覆盖 heredoc、注释、引号、命令切分（`;`、`&&`、`||`、管道）、`sudo`/`env` 前缀和重定向；支持 `grep`/`rg`/`find`/`fd`/`ag`/`ack` 的参数定位路径位置参数。
+search guard 在执行前拦截 `bash`、`grep`、`find` 工具调用，阻止以高基数目录（`/`、`/home`、`/etc`、`/usr`、`/var`、`/tmp`、`/opt`、`/nfs`、`~`、当前账号的 `~user` 及 home 父目录）为根的递归搜索。被拦截的调用返回原因，引导 Agent 把路径缩小到具体子目录。bash 命令解析覆盖 heredoc、注释、引号、命令切分（`;`、`&&`、`||`、管道）、`sudo`/`env` 前缀和重定向；支持 `grep`/`rg`/`find`/`fd`/`ag`/`ack` 的参数定位路径位置参数。同时会跟踪命令内的 `cd`：若 `cd` 落到黑名单目录，同一命令内不带路径的递归搜索就按该目录判定（如 `cd ~ && fd -t f pattern`）。由管道或输入重定向提供 stdin 的搜索，以及非递归的 `grep`，仍读取 stdin，不拦截。深度受限的搜索（`fd -d 1`、`rg --max-depth 2`、`find -maxdepth 1`，即不超过 2 层）不受根目录限制，因为它只读取少量目录层级。
 
 ## Provider 流 watchdog
 
