@@ -4,7 +4,7 @@ Sole producer of MixCode's prompt-recall files, plus the `/prompt-history` brows
 
 ## Files
 
-Both live in the package's own data dir, `<agentDir>/mpi-prompt-history/` (`agentDir` follows `PI_CODING_AGENT_DIR`, default `~/.pi/agent`):
+Prompt-recall data and lock files live in `<agentDir>/mpi-prompt-history/` (`agentDir` follows `PI_CODING_AGENT_DIR`, default `~/.pi/agent`):
 
 | File | Shape | Written when |
 | --- | --- | --- |
@@ -12,7 +12,7 @@ Both live in the package's own data dir, `<agentDir>/mpi-prompt-history/` (`agen
 | `session_index.jsonl` | `{"id", "title", "updated_at", "path", "cwd"}`, newest `updated_at` first | index missing, a scanned session path is absent, a session file is newer than the index, or the current session is upserted |
 | `.locks/prompt-history.lock` | PID lock record | held during every read-modify-write of `history.jsonl` |
 
-Files are written atomically (temp + rename) with mode `0600`; the data dir is `0700`. `title` falls back through session name -> first user message -> session id.
+New prompts append to `history.jsonl`. History rewrites and index updates use a temporary file and atomic rename. Data files have mode `0600`; the data directory is `0700`. `title` falls back through session name -> first user message -> session id.
 
 ## Behavior
 
@@ -20,9 +20,11 @@ Files are written atomically (temp + rename) with mode `0600`; the data dir is `
 | --- | --- |
 | `input` (`source: "interactive"`) | append the raw submitted text to `history.jsonl`, then trim to the byte budget |
 | `session_start` | once per sessions root per process: backfill the last 30 days from session JSONL (deduplicated on `session_id`+`ts`+`text`), rebuild a stale index, and upsert the current session record |
-| `before_agent_start` | set `systemPromptOptions.sections["mpi-prompt-history"]` to a five-line pointer block naming both file paths |
+| `before_agent_start` | set `systemPromptOptions.sections["mpi-prompt-history"]` to a section naming both file paths |
 
 Startup covers both the active session's file directory and the current workdir's default Pi session directory, scanning each distinct root once per process. Changing workdir can leave the active session file in its original directory. The index is shared across workdirs. A newer index timestamp does not establish coverage: missing session paths also trigger a rebuild. Rebuilds merge records by session id under the shared lock, retaining the newest metadata and preserving other workdirs and live sessions not yet flushed to disk.
+
+Background scans and prompt writes capture the originating session's identity before I/O and may finish after session replacement or reload. `session_shutdown` disables notifications for that session. Shared scans store results independently of UI contexts; each active session waiting for a scan reports its warnings.
 
 A rebuild processes one session file at a time and retains only user-prompt candidates and index metadata between files. Retained strings are copied out of the file's backing storage. Parsing yields to the event loop between JSONL rows after roughly 10 ms of work; parsing an individual row remains synchronous. The 30-day cutoff is evaluated once after the scan. Both recording and backfill trim history with a linear UTF-8 byte count, preserving complete newest rows within the configured budget. Backfill serializes only the rows that survive trimming.
 
@@ -32,7 +34,7 @@ The pointer block contains paths only, never history content. Pi persists it wit
 
 | Command | Effect |
 | --- | --- |
-| `/prompt-history` | Open the browser in **Session** scope. |
+| `/prompt-history` | Open the browser in Session scope. |
 | `/prompt-history config` | Edit the config below: pick `maxBytes` to enter a new size, or reset it to the default. |
 
 Press `/` to search with a case-insensitive JavaScript regular expression. Invalid expressions are shown in the browser. Arrow keys still move. `j`, `k`, `c`, and `q` type into the query. `Ctrl+G` cycles Session, Workdir, and Global while keeping the query.
@@ -63,13 +65,13 @@ Workdir and Global load on first switch and show a loading message while reading
 
 Recording, backfill, and injection run only when all three hold:
 
-- `MIXCODE` is set and not `0`/`false`/`off` — excludes upstream `pi`, which also loads this package;
-- `MIXCODE_PID` equals this process's pid — excludes child processes that merely inherited the env;
-- `ctx.mode === "tui"` — excludes in-process subagent sessions, which are created without a mode and therefore report `"print"`. Their `input` events also report `source: "interactive"`, so the source filter alone cannot exclude them.
+- `MIXCODE` is set and not `0`/`false`/`off`. This excludes upstream `pi`, which also loads this package.
+- `MIXCODE_PID` equals this process's PID. This excludes child processes that inherit the host environment.
+- `ctx.mode === "tui"`. In-process subagents are created without a mode and report `"print"`. Their `input` events also report `source: "interactive"`, so the source filter alone cannot exclude them.
 
-`/prompt-history` is always available, gate or no gate.
+`/prompt-history` is available regardless of these conditions.
 
-Subagent prompts are never recorded. A subagent can still *see* the pointer text when its framework composes the child system prompt from the parent's — that is the framework's inheritance, not an injection by this package.
+Subagent prompts are not recorded. Subagents can inherit the history file paths through their parent system prompt, even though this package does not inject them into subagent sessions.
 
 ## Configuration
 
@@ -87,6 +89,6 @@ Subagent prompts are never recorded. A subagent can still *see* the pointer text
 | `maxBytes` | positive integer | `15728640` (15 MiB) | Byte budget for `history.jsonl`. Oldest rows are trimmed once the file exceeds it. |
 | `$schema` | string | none | Optional editor hint; ignored at runtime. |
 
-Missing file or missing `maxBytes` uses the default. Everything else fails loud rather than reverting to the default: invalid JSON, a non-object root, an unknown key, or a `maxBytes` that is not a positive integer all throw, and the message names the offending file.
+A missing file or missing `maxBytes` uses the default. Invalid JSON, a non-object root, an unknown key, or a `maxBytes` that is not a positive integer produces an error naming the configuration file.
 
-This config is not part of `mixcode_settings.json` and does not appear in `/settings` — same convention as `mpi-tool-block.json`. Edit the file directly.
+Use `/prompt-history config` or edit the file directly. This package's configuration is separate from `mixcode_settings.json` and `/settings`.

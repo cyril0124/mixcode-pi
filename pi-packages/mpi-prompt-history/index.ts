@@ -1,8 +1,3 @@
-// +----------------------------------------------------------------------+
-// |  mpi-prompt-history                                                  |
-// |  /prompt-history browser  +  history.jsonl / session_index.jsonl     |
-// |  production (record, backfill, index, system-prompt pointer).        |
-// +----------------------------------------------------------------------+
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { copyToClipboard, getDefaultSessionDirPath } from "@earendil-works/pi-coding-agent";
 import { runPromptHistoryConfig } from "./config-ui.js";
@@ -23,7 +18,7 @@ import { createPromptHistoryBrowserComponent } from "./prompt-history-browser.js
  * Shared startup scans, one per sessions root per process. Tabs using the same
  * root must join its pending scan, not treat an in-flight rebuild as complete.
  */
-const ensuredRoots = new Map<string, Promise<void>>();
+const ensuredRoots = new Map<string, ReturnType<typeof ensurePromptHistoryState>>();
 
 /**
  * True only for a MixCode tab session in the host process.
@@ -44,6 +39,12 @@ function isMixCodeTabSession(ctx: ExtensionContext): boolean {
 
 export default function (pi: ExtensionAPI) {
   let historyReady = Promise.resolve();
+  let sessionGeneration = 0;
+
+  // Detached writes may finish after shutdown, but their UI context is retired.
+  pi.on("session_shutdown", () => {
+    sessionGeneration++;
+  });
 
   pi.registerCommand("prompt-history", {
     description:
@@ -65,7 +66,6 @@ export default function (pi: ExtensionAPI) {
         await runPromptHistoryConfig({ ctx, agentDir: resolveAgentDir() });
         return;
       }
-      // Extract user messages from session entries
       const entries = ctx.sessionManager.getEntries();
       const userMessages: Array<{ text: string; timestamp?: string }> = [];
 
@@ -132,6 +132,7 @@ export default function (pi: ExtensionAPI) {
   // Backfill + index rebuild scan every session file under the root, so they run
   // detached from session startup and at most once per root per process.
   pi.on("session_start", (_event, ctx) => {
+    const generation = ++sessionGeneration;
     if (!isMixCodeTabSession(ctx)) return;
     const agentDir = resolveAgentDir();
     // Changing workdir can retain the session's original file directory. Scan
@@ -141,55 +142,56 @@ export default function (pi: ExtensionAPI) {
       getDefaultSessionDirPath(ctx.sessionManager.getCwd(), agentDir),
     ]);
     const paths = promptHistoryPaths(agentDir);
+    // Snapshot identity before I/O: ctx getters reject after session replacement.
+    const record = {
+      id: ctx.sessionManager.getSessionId(),
+      title: ctx.sessionManager.getSessionName() ?? ctx.sessionManager.getSessionId(),
+      updated_at: new Date().toISOString(),
+      path: ctx.sessionManager.getSessionFile() ?? "",
+      cwd: ctx.sessionManager.getCwd(),
+    };
 
     historyReady = (async () => {
       for (const sessionsRoot of roots) {
         let ensureRoot = ensuredRoots.get(sessionsRoot);
         if (!ensureRoot) {
-          ensureRoot = ensurePromptHistoryState({ agentDir, sessionsRoot }).then(({ warnings }) => {
-            if (warnings.length > 0) {
-              ctx.ui.notify(`Error: History warning: ${warnings.join("; ")}`, "warning");
-            }
-          });
+          // A shared scan must not retain the UI context of its first waiter.
+          ensureRoot = ensurePromptHistoryState({ agentDir, sessionsRoot });
           ensuredRoots.set(sessionsRoot, ensureRoot);
         }
-        await ensureRoot;
+        const { warnings } = await ensureRoot;
+        if (warnings.length > 0 && generation === sessionGeneration) {
+          ctx.ui.notify(`Error: History warning: ${warnings.join("; ")}`, "warning");
+        }
       }
-      await upsertSessionIndexRecord(paths.sessionIndexFile, {
-        id: ctx.sessionManager.getSessionId(),
-        title: ctx.sessionManager.getSessionName() ?? ctx.sessionManager.getSessionId(),
-        updated_at: new Date().toISOString(),
-        path: ctx.sessionManager.getSessionFile() ?? "",
-        cwd: ctx.sessionManager.getCwd(),
-      });
+      await upsertSessionIndexRecord(paths.sessionIndexFile, record);
     })().catch((error: unknown) => {
-      ctx.ui.notify(`Error: History warning: ${errorMessage(error)}`, "warning");
+      if (generation === sessionGeneration) {
+        ctx.ui.notify(`Error: History warning: ${errorMessage(error)}`, "warning");
+      }
     });
   });
 
-  // Record submitted prompts. "interactive" excludes extension-injected messages
-  // (sendUserMessage), matching what the editor recorded before.
+  // Interactive input excludes messages injected by extensions via sendUserMessage.
   pi.on("input", (event, ctx) => {
     if (!isMixCodeTabSession(ctx) || event.source !== "interactive") return;
     const paths = promptHistoryPaths(resolveAgentDir());
+    const generation = sessionGeneration;
+    const entry = { sessionId: ctx.sessionManager.getSessionId(), text: event.text };
     void readHistoryMaxBytes(paths.configFile)
-      .then((maxBytes) =>
-        appendHistoryEntry(
-          paths.historyFile,
-          { sessionId: ctx.sessionManager.getSessionId(), text: event.text },
-          maxBytes,
-        ),
-      )
+      .then((maxBytes) => appendHistoryEntry(paths.historyFile, entry, maxBytes))
       .catch((error: unknown) => {
-        ctx.ui.notify(`History warning: ${errorMessage(error)}`, "warning");
+        if (generation === sessionGeneration) {
+          ctx.ui.notify(`History warning: ${errorMessage(error)}`, "warning");
+        }
       });
   });
 
-  // Point the agent at the two files. Paths only — no history content is injected.
+  // Expose history file paths without injecting their contents.
   pi.on("before_agent_start", (event, ctx) => {
     if (!isMixCodeTabSession(ctx)) return;
     const paths = promptHistoryPaths(resolveAgentDir());
-    // Keep this contribution composable and recorded alongside other instructions.
+    // Named sections compose with other extensions and persist in the transcript.
     event.systemPromptOptions.sections["mpi-prompt-history"] = buildPromptHistoryPrompt(paths);
   });
 }
