@@ -7,7 +7,7 @@
 ## Commands
 
 ```text
-/transcript [context|chatlog|growth|thinking|latest-agent|latest-user] [N] [full]
+/transcript [context|chatlog|growth|thinking|latest-agent|latest-user|raw] [N] [full]
 /transcript config
 ```
 
@@ -16,6 +16,8 @@
 To change the folding threshold, select `Fold threshold` and press Enter. Ctrl+U clears the input, Enter saves, and Esc cancels the edit.
 
 `N` applies to `context`, `chatlog`, and `thinking`. `full` applies to `context` and `chatlog`. Every view starts with transcript statistics, including the current session file path or `In-memory` for an unpersisted session.
+
+`/transcript raw` opens the persisted session JSONL file itself with the configured editor, read-only: the whole file as written on disk (including branches outside the current one), with no rendering and no temp copy. `N` and `full` do not apply. An unpersisted session or a file that cannot be read is reported as an error.
 
 `/transcript context` renders the effective context from Pi's canonical session projection: branch resolution, compaction, and Pi 0.87 `context_edit` entries (omitted targets disappear; replaced targets show their replacement content; retained non-contributing compaction checkpoints are dropped). Other targets render the raw branch, where edited entries keep their original content. In every chat-style view (`context`, `chatlog`), a `✏️ Context Edit` section names the target entry. The label is the target's role plus a snippet of its content, or the raw entry id when the target is outside the slice. For replacements the section also quotes the replacement text.
 
@@ -44,7 +46,7 @@ Settings are shared across workdirs that use the same `<agentDir>` and stored at
 | `vim` | Open the read-only transcript in vim with transcript navigation and styling. |
 | `builtin` | Use the in-app multi-line viewer. |
 
-`nvim` and `vim` open with `--clean`, so your init config, plugins, and colorscheme are not loaded. The transcript view brings its own styling, keybindings, and clipboard (`unnamedplus`; nvim uses OSC 52 when `$TMUX` is unset so the outer terminal receives yanks). Startup stays fast even on multi-megabyte transcripts.
+`nvim` and `vim` open the rendered transcript views with `--clean`, so your init config, plugins, and colorscheme are not loaded. `/transcript raw` is the exception: it opens the session file with your normal editor config, since it has no view styling to protect. The transcript view brings its own styling, keybindings, and clipboard (`unnamedplus`; nvim uses OSC 52 when `$TMUX` is unset so the outer terminal receives yanks). Startup stays fast even on multi-megabyte transcripts.
 
 The package reads this file when `/transcript` runs. A missing `editor` uses `auto`; a missing `foldThreshold` uses the default described below. Invalid configuration is reported as an error and the transcript does not open. If a selected external editor cannot start, the package reports the error and opens the in-app viewer.
 

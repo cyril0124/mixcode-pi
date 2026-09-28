@@ -7,7 +7,7 @@
 ## 命令
 
 ```text
-/transcript [context|chatlog|growth|thinking|latest-agent|latest-user] [N] [full]
+/transcript [context|chatlog|growth|thinking|latest-agent|latest-user|raw] [N] [full]
 /transcript config
 ```
 
@@ -16,6 +16,8 @@
 选中 `Fold threshold` 并按 Enter 编辑折叠阈值。Ctrl+U 清空输入，Enter 保存，Esc 取消编辑。
 
 `N` 适用于 `context`、`chatlog` 和 `thinking`。`full` 适用于 `context` 和 `chatlog`。每个视图顶部都会显示 transcript 统计信息，其中包含当前 session 文件路径；未持久化的 session 显示 `In-memory`。
+
+`/transcript raw` 用配置好的编辑器以只读方式打开持久化的 session JSONL 文件本身：磁盘上原样的整个文件（包含当前分支之外的其它分支），不做任何渲染，也不生成临时副本。`N` 与 `full` 不适用。未持久化的 session 或无法读取的文件会报告为错误。
 
 `/transcript context` 从 Pi 的 canonical session projection 渲染生效上下文：分支解析、compaction、以及 Pi 0.87 的 `context_edit` 条目（被省略的目标不再出现；被替换的目标显示替换后的内容；保留但不参与上下文的旧 compaction 检查点会被丢弃）。其他目标渲染原始分支，被编辑的条目保持原始内容。在所有聊天式视图（`context`、`chatlog`）中，`✏️ Context Edit` 小节会标出目标条目（角色 + 摘要片段；目标不在切片内时回退为原始 entry id），替换场景还会引用替换后的文本。
 
@@ -44,7 +46,7 @@
 | `vim` | 使用 vim 以只读方式打开 transcript，并启用 transcript 导航与样式。 |
 | `builtin` | 使用内置多行查看器。 |
 
-`nvim` 与 `vim` 以 `--clean` 启动，不加载 init 配置、插件与配色。transcript 视图自带样式、快捷键和剪贴板（`unnamedplus`；`$TMUX` 未设置时 nvim 用 OSC 52 把 yank 交给外层终端）。即使 transcript 有数 MB 也能快速打开。
+`nvim` 与 `vim` 打开渲染后的 transcript 视图时以 `--clean` 启动，不加载 init 配置、插件与配色。`/transcript raw` 是例外：它用你正常的编辑器配置打开 session 文件，因为它没有自己的视图样式需要保护。transcript 视图自带样式、快捷键和剪贴板（`unnamedplus`；`$TMUX` 未设置时 nvim 用 OSC 52 把 yank 交给外层终端）。即使 transcript 有数 MB 也能快速打开。
 
 每次执行 `/transcript` 时都会读取该文件。`editor` 缺失时使用 `auto`，`foldThreshold` 缺失时使用下文的默认值；配置无效时报告错误并停止打开 transcript。指定的外部编辑器无法启动时，先报告错误，再使用内置查看器。
 

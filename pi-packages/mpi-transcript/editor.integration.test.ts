@@ -15,6 +15,14 @@ printf '%s' "$file" >> "${marker}"
 `;
 }
 
+/** Records the editor's CLI arguments, one per line. */
+function createArgRecordingEditorScript(marker: string): string {
+  return `#!/bin/sh
+if [ "$1" = "--version" ]; then exit 0; fi
+printf '%s\\n' "$@" > "${marker}"
+`;
+}
+
 test("transcript auto mode opens nvim before vim through the command handler", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-transcript-editor-e2e-"));
   const bin = path.join(root, "bin");
@@ -133,6 +141,111 @@ test("transcript auto mode opens nvim before vim through the command handler", a
       "start",
       "render",
     ]);
+  } finally {
+    if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+    else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
+    if (previousPath === undefined) delete process.env.PATH;
+    else process.env.PATH = previousPath;
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+// The raw target hands the persisted session file itself to the editor rather
+// than a rendered buffer, and reports unpersisted or missing files.
+test("transcript raw opens the session JSONL file itself and falls back to in-app reading", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-transcript-raw-e2e-"));
+  const bin = path.join(root, "bin");
+  const agentDir = path.join(root, "agent");
+  const sessionDir = path.join(root, "sessions");
+  const sessionFile = path.join(sessionDir, "session-raw.jsonl");
+  const rawText = '{"type":"message","role":"user"}\n{"type":"message","role":"assistant"}\n';
+  await fs.mkdir(bin, { recursive: true });
+  await fs.mkdir(sessionDir, { recursive: true });
+  await fs.writeFile(sessionFile, rawText);
+  const nvimMarker = path.join(root, "nvim.marker");
+  await fs.writeFile(path.join(bin, "nvim"), createArgRecordingEditorScript(nvimMarker), {
+    mode: 0o755,
+  });
+  writeTranscriptConfig(agentDir, { editor: "auto" });
+
+  const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+  const previousPath = process.env.PATH;
+  process.env.PI_CODING_AGENT_DIR = agentDir;
+  process.env.PATH = bin;
+  try {
+    type CommandOptions = {
+      handler: (args: string, ctx: unknown) => Promise<void>;
+      getArgumentCompletions: (prefix: string) => Array<{ value: string }>;
+    };
+    let command: CommandOptions | undefined;
+    extension({
+      registerCommand: (_name: string, options: CommandOptions) => {
+        command = options;
+      },
+    } as never);
+    assert.ok(command);
+    assert.ok(command.getArgumentCompletions("json").some((item) => item.value === "jsonl"));
+
+    let sessionFileResult: string | null = sessionFile;
+    const notifications: Array<{ message: string; type?: string }> = [];
+    const inAppContent: string[] = [];
+    const ctx = {
+      hasUI: true,
+      ui: {
+        custom: <T>(
+          factory: (
+            tui: unknown,
+            theme: unknown,
+            keybindings: unknown,
+            done: (result: T) => void,
+          ) => unknown,
+        ) =>
+          new Promise<T>((resolve) => {
+            factory({ stop: () => {}, start: () => {}, requestRender: () => {} }, {}, {}, resolve);
+          }),
+        editor: async (_title: string, content: string) => {
+          inAppContent.push(content);
+        },
+        notify: (message: string, type?: string) => notifications.push({ message, type }),
+        select: async () => undefined,
+      },
+      sessionManager: {
+        getBranch: () => [],
+        getSessionFile: () => sessionFileResult,
+      },
+      modelRegistry: {},
+    };
+
+    // The editor receives the session file path verbatim, read-only.
+    await command.handler("raw", ctx);
+    const rawArgs = (await fs.readFile(nvimMarker, "utf8")).split("\n").filter(Boolean);
+    assert.deepEqual(rawArgs, ["-R", "-n", "-c", "set filetype=json", "+normal G", sessionFile]);
+    assert.equal(notifications.length, 0);
+    assert.equal(inAppContent.length, 0);
+
+    // Unsupported modifiers are rejected before any file is touched.
+    await command.handler("raw 3", ctx);
+    assert.match(notifications.at(-1)?.message ?? "", /^Error: Turn count and full/);
+    await command.handler("raw full", ctx);
+    assert.match(notifications.at(-1)?.message ?? "", /^Error: Turn count and full/);
+
+    // An unpersisted session and a missing file both surface an error.
+    sessionFileResult = null;
+    await command.handler("raw", ctx);
+    assert.match(notifications.at(-1)?.message ?? "", /^Error: Session is not persisted/);
+    sessionFileResult = path.join(sessionDir, "missing.jsonl");
+    await command.handler("raw", ctx);
+    assert.match(notifications.at(-1)?.message ?? "", /^Error: Session file is not readable/);
+
+    // The built-in viewer reads the raw file bytes without rendering them.
+    sessionFileResult = sessionFile;
+    writeTranscriptConfig(agentDir, { editor: "builtin" });
+    await command.handler("raw", ctx);
+    assert.deepEqual(inAppContent, [rawText]);
+
+    // `jsonl` is accepted as an alias for the raw target.
+    await command.handler("jsonl", ctx);
+    assert.deepEqual(inAppContent, [rawText, rawText]);
   } finally {
     if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
     else process.env.PI_CODING_AGENT_DIR = previousAgentDir;

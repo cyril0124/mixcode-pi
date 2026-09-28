@@ -21,6 +21,7 @@
 // ║    thinking      All reasoning/thinking blocks                     ║
 // ║    latest-agent  Last assistant text reply                         ║
 // ║    latest-user   Last user message                                 ║
+// ║    raw           Raw session JSONL file, no rendering              ║
 // ║                                                                    ║
 // ║  Data source is the SDK-native session branch                      ║
 // ║  (ctx.sessionManager.getBranch()), not any host-internal chat      ║
@@ -127,9 +128,17 @@ const TARGETS = [
   { id: "thinking", title: "Thinking Export", label: "Thinking" },
   { id: "latest-agent", title: "Latest Agent Reply", label: "Latest agent reply" },
   { id: "latest-user", title: "Latest User Message", label: "Latest user message" },
+  {
+    id: "raw",
+    title: "Raw Session JSONL",
+    label: "Raw session JSONL file (opened, not rendered)",
+  },
 ] as const;
 
 type TargetId = (typeof TARGETS)[number]["id"];
+
+/** Targets rendered from branch entries. `raw` opens the session file itself. */
+type ViewTargetId = Exclude<TargetId, "raw">;
 
 function normalizeTarget(raw: string): TargetId | undefined {
   const value = raw.trim().toLowerCase();
@@ -146,6 +155,9 @@ function normalizeTarget(raw: string): TargetId | undefined {
       return "latest-agent";
     case "latest-user":
       return "latest-user";
+    case "raw":
+    case "jsonl":
+      return "raw";
     default:
       return undefined;
   }
@@ -1141,9 +1153,9 @@ export interface BuildViewOptions {
   contextPrefix?: ContextPrefix;
 }
 
-/** Build the final editor text for a target from the session branch. */
+/** Build the final editor text for a rendered target from the session branch. */
 export function buildViewText(
-  target: TargetId,
+  target: ViewTargetId,
   entries: SessionEntry[],
   options: BuildViewOptions = {},
 ): string {
@@ -1896,24 +1908,33 @@ export function buildTranscriptEditorScript(editor: "nvim" | "vim", foldThreshol
   return `let g:mpi_transcript_fold_threshold = ${foldThreshold}\n${VIM_TRANSCRIPT_VIM}`;
 }
 
-// Open `content` in an external editor on the inherited tty. TUI state is
-// always restored before the result is returned to the caller.
-function openInExternalEditor(
-  ctx: {
-    ui: {
-      custom<T>(
-        factory: (
-          tui: TUI,
-          theme: unknown,
-          keybindings: unknown,
-          done: (result: T) => void,
-        ) => Component,
-      ): Promise<T>;
-    };
-  },
+/** TUI surface needed to hand the terminal over to an external editor process. */
+interface ExternalEditorUiContext {
+  ui: {
+    custom<T>(
+      factory: (
+        tui: TUI,
+        theme: unknown,
+        keybindings: unknown,
+        done: (result: T) => void,
+      ) => Component,
+    ): Promise<T>;
+  };
+}
+
+/**
+ * Run `editorCmd` on the inherited tty and restore the TUI afterwards.
+ *
+ * `prepare` receives the resolved binary name and a `register` callback for
+ * temp paths it creates; every registered path is deleted after the editor
+ * exits, on success and on failure alike. It returns the editor's extra CLI
+ * arguments (the file to open is its last one). TUI state is always restored
+ * before the result is returned to the caller.
+ */
+function runInExternalEditor(
+  ctx: ExternalEditorUiContext,
   editorCmd: string,
-  content: string,
-  foldThreshold: number,
+  prepare: (cmd: string, register: (tempPath: string) => void) => Promise<string[]>,
 ): Promise<ExternalEditorResult> {
   return ctx.ui.custom<ExternalEditorResult>((tui, _theme, _keybindings, done) => {
     const t = tui as unknown as {
@@ -1922,19 +1943,14 @@ function openInExternalEditor(
       requestRender: (f?: boolean) => void;
     };
     t.stop();
-    const tmpFile = path.join(os.tmpdir(), `transcript-${process.pid}-${Date.now()}.md`);
-    let scriptFile: string | undefined;
-    const [cmd, ...cmdArgs] = editorCmd.split(" ").filter(Boolean);
+    const tempPaths: string[] = [];
     let resumed = false;
     const resume = (result: ExternalEditorResult) => {
       if (resumed) return;
       resumed = true;
-      // node:fs — pure pi runs on Node; Bun.file is unavailable there.
-      void fs.unlink(tmpFile).catch(() => {
-        /* ENOENT: tmp already gone */
-      });
-      if (scriptFile) {
-        void fs.unlink(scriptFile).catch(() => {
+      for (const tempPath of tempPaths) {
+        // node:fs — pure pi runs on Node; Bun.file is unavailable there.
+        void fs.unlink(tempPath).catch(() => {
           /* ENOENT: tmp already gone */
         });
       }
@@ -1944,16 +1960,10 @@ function openInExternalEditor(
     };
     void (async () => {
       try {
+        const [cmd, ...cmdArgs] = editorCmd.split(" ").filter(Boolean);
         if (!cmd) throw new Error("External editor command is empty");
-        await fs.writeFile(tmpFile, `${content}\n`);
-        const base = path.basename(cmd);
-        if (base === "nvim" || base === "vim") {
-          scriptFile = tmpFile.replace(/\.md$/, base === "nvim" ? ".lua" : ".vim");
-          await fs.writeFile(scriptFile, buildTranscriptEditorScript(base, foldThreshold));
-        }
-        const child = spawn(cmd, [...cmdArgs, ...editorExtraArgs(cmd, scriptFile), tmpFile], {
-          stdio: "inherit",
-        });
+        const args = await prepare(cmd, (tempPath) => tempPaths.push(tempPath));
+        const child = spawn(cmd, [...cmdArgs, ...args], { stdio: "inherit" });
         const exit = await new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
           (resolve, reject) => {
             child.once("error", reject);
@@ -1973,6 +1983,48 @@ function openInExternalEditor(
       }
     })();
     return { render: () => [], invalidate: () => {}, handleInput: () => {} };
+  });
+}
+
+/** Render `content` into a temp markdown file (plus the view script) and open it. */
+function openInExternalEditor(
+  ctx: ExternalEditorUiContext,
+  editorCmd: string,
+  content: string,
+  foldThreshold: number,
+): Promise<ExternalEditorResult> {
+  return runInExternalEditor(ctx, editorCmd, async (cmd, register) => {
+    const tmpFile = path.join(os.tmpdir(), `transcript-${process.pid}-${Date.now()}.md`);
+    register(tmpFile);
+    await fs.writeFile(tmpFile, `${content}\n`);
+    const base = path.basename(cmd);
+    let scriptFile: string | undefined;
+    if (base === "nvim" || base === "vim") {
+      scriptFile = tmpFile.replace(/\.md$/, base === "nvim" ? ".lua" : ".vim");
+      register(scriptFile);
+      await fs.writeFile(scriptFile, buildTranscriptEditorScript(base, foldThreshold));
+    }
+    return [...editorExtraArgs(cmd, scriptFile), tmpFile];
+  });
+}
+
+/**
+ * Open the persisted session JSONL file in place: no rendering, no temp copy.
+ * The editor runs with its normal config, so the user's own highlighting and
+ * plugins apply. `.jsonl` has no default filetype, so the buffer is set to
+ * `json` (each line is a complete JSON object). Editors other than vim/nvim
+ * receive only the path.
+ */
+function openSessionFileInExternalEditor(
+  ctx: ExternalEditorUiContext,
+  editorCmd: string,
+  sessionFile: string,
+): Promise<ExternalEditorResult> {
+  return runInExternalEditor(ctx, editorCmd, async (cmd) => {
+    const base = path.basename(cmd);
+    const editorArgs =
+      base === "nvim" || base === "vim" ? ["-R", "-n", "-c", "set filetype=json", "+normal G"] : [];
+    return [...editorArgs, sessionFile];
   });
 }
 
@@ -2088,7 +2140,7 @@ const extension: ExtensionFactory = (pi) => {
   };
 
   const openView = async (
-    target: TargetId,
+    target: ViewTargetId,
     lastTurns: number | undefined,
     fullToolOutput: boolean | undefined,
     ctx: ExtensionCommandContext,
@@ -2129,6 +2181,38 @@ const extension: ExtensionFactory = (pi) => {
     await ctx.ui.editor(meta.title, content);
   };
 
+  // The raw target bypasses view rendering: it opens the persisted session
+  // JSONL file itself as written on disk (every branch, not just the current
+  // one), read-only, with no temp copy. Editor settings still apply.
+  const openRawSessionFile = async (ctx: ExtensionCommandContext): Promise<void> => {
+    const sessionFile = ctx.sessionManager.getSessionFile();
+    if (!sessionFile) {
+      ctx.ui.notify("Error: Session is not persisted; no session JSONL file to open.", "error");
+      return;
+    }
+    try {
+      await fs.access(sessionFile);
+    } catch (error) {
+      // Include the underlying cause (ENOENT, EACCES, …) in the message.
+      const reason = error instanceof Error ? error.message : String(error);
+      ctx.ui.notify(`Error: Session file is not readable: ${reason}`, "error");
+      return;
+    }
+    const meta = TARGETS.find((t) => t.id === "raw")!;
+    const loaded = loadTranscriptConfig(agentDir);
+    if (!loaded.ok) {
+      ctx.ui.notify(transcriptConfigError(loaded), "error");
+      return;
+    }
+    const editorCmd = resolveTranscriptEditor(loaded.config.editor);
+    if (editorCmd) {
+      const result = await openSessionFileInExternalEditor(ctx, editorCmd, sessionFile);
+      if (result.ok) return;
+      ctx.ui.notify(result.error, "error");
+    }
+    await ctx.ui.editor(meta.title, await fs.readFile(sessionFile, "utf8"));
+  };
+
   pi.registerCommand("transcript", {
     description:
       "View transcript slices or configure editor and folding; N = last N turns, full = untruncated tool output",
@@ -2136,6 +2220,7 @@ const extension: ExtensionFactory = (pi) => {
     getArgumentCompletions: (prefix: string) =>
       [
         ...TARGETS.map((t) => ({ value: t.id, label: t.id, description: t.label })),
+        { value: "jsonl", label: "jsonl", description: "Alias for raw" },
         {
           value: "config",
           label: "config",
@@ -2152,6 +2237,14 @@ const extension: ExtensionFactory = (pi) => {
       if (!parsed) return;
       const target = await resolveTarget(parsed.targetToken, ctx);
       if (!target) return;
+      if (target === "raw") {
+        if (parsed.lastTurns !== undefined || parsed.fullToolOutput) {
+          ctx.ui.notify("Error: Turn count and full are not supported for raw.", "error");
+          return;
+        }
+        await openRawSessionFile(ctx);
+        return;
+      }
       if (
         parsed.lastTurns !== undefined &&
         (target === "latest-agent" || target === "latest-user")
