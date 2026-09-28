@@ -6,11 +6,16 @@
 // |  Reload: session_start (startup / reload / new / resume / fork).          |
 // |  Skills: before_agent_start — update structured skill options.           |
 // |  Exts:   session_start + model_select (add-only).                         |
-// |  UI:     /model-attach — markdown panel (customMessageBg / light purple). |
+// |  UI:     /model-attach — one transient chat line (ui.notify).             |
 // +---------------------------------------------------------------------------+
-import type { ExtensionAPI, ExtensionContext, Skill } from "@earendil-works/pi-coding-agent";
-import { getAgentDir, getMarkdownTheme } from "@earendil-works/pi-coding-agent";
-import { Markdown } from "@earendil-works/pi-tui";
+import type {
+  ExtensionAPI,
+  ExtensionCommandContext,
+  ExtensionContext,
+  Skill,
+} from "@earendil-works/pi-coding-agent";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import { visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import {
   applyModelSkillRules,
   formatModelAttachHelp,
@@ -29,7 +34,6 @@ import {
 } from "./model-attach-core.js";
 import { createDynamicExtensionLoader, type DynamicLoader } from "./model-attach-loader.js";
 
-const PANEL_ENTRY_TYPE = "mpi-model-attach-panel";
 const ARGUMENT_HINT = "[help|skills on|off|extensions on|off]";
 const ROOT_SUBCOMMANDS = [
   { value: "help", label: "help", description: "Config schema and examples" },
@@ -50,13 +54,49 @@ type CachedConfig =
   | { status: "error"; path: string; error: string }
   | { status: "ok"; path: string; config: ModelAttachConfig };
 
-type PanelData = { markdown: string };
+/**
+ * Frame width bounds. The minimum keeps the box readable on narrow terminals;
+ * the maximum keeps lines scannable instead of spanning the whole terminal.
+ */
+const PANEL_MIN_WIDTH = 36;
+const PANEL_MAX_WIDTH = 100;
+/** Leading space, `│ `, and ` │` the chat renderer keeps around the frame body. */
+const PANEL_CHROME_COLUMNS = 6;
+const PANEL_TITLE = "model-attach";
 
-function showPanel(pi: ExtensionAPI, markdown: string): void {
-  pi.appendEntry<PanelData>(PANEL_ENTRY_TYPE, { markdown });
+/**
+ * Frame a report for `ui.notify`, which renders the text verbatim as a dim chat
+ * line. Wrapping happens here: the renderer re-wraps and pads every line it
+ * receives, so a box drawn wider than the terminal breaks its right border.
+ */
+function framePanel(text: string): string {
+  const columns = process.stdout.columns || 80;
+  const width = Math.min(
+    PANEL_MAX_WIDTH,
+    Math.max(PANEL_MIN_WIDTH, columns - PANEL_CHROME_COLUMNS),
+  );
+  const lines = [`┌─ ${PANEL_TITLE} ${"─".repeat(Math.max(0, width - PANEL_TITLE.length - 1))}┐`];
+  for (const source of text.split("\n")) {
+    const parts = source.trim() ? wrapTextWithAnsi(source, width) : [""];
+    for (const part of parts) {
+      lines.push(`│ ${part}${" ".repeat(Math.max(0, width - visibleWidth(part)))} │`);
+    }
+  }
+  lines.push(`└${"─".repeat(width + 2)}┘`);
+  return lines.join("\n");
 }
 
-function formatStatusMarkdown(lines: {
+/**
+ * Render one `/model-attach` report as a transient chat line.
+ *
+ * MixCode paints extension `notify(…, "info")` as a system line; pure Pi shows a
+ * status notice. Neither writes a session entry.
+ */
+function showPanel(ctx: ExtensionCommandContext, text: string): void {
+  ctx.ui.notify(framePanel(text), "info");
+}
+
+function formatStatusReport(lines: {
   configPath: string;
   statusLine: string;
   modelLine?: string;
@@ -71,25 +111,25 @@ function formatStatusMarkdown(lines: {
   hint?: boolean;
 }): string {
   const out: string[] = [
-    "# model-attach",
+    "model-attach",
     "",
-    `- **config:** \`${lines.configPath}\``,
-    `- **status:** ${lines.statusLine}`,
+    `- config: ${lines.configPath}`,
+    `- status: ${lines.statusLine}`,
   ];
-  if (lines.modelLine) out.push(`- **model:** ${lines.modelLine}`);
+  if (lines.modelLine) out.push(`- model: ${lines.modelLine}`);
 
   if (
     lines.skillsEnabled ||
     (lines.skillsRules && lines.skillsRules.length > 0) ||
     lines.skillsEffective
   ) {
-    out.push("", "## Skills");
-    if (lines.skillsEnabled) out.push("", `- **enabled:** ${lines.skillsEnabled}`);
+    out.push("", "Skills");
+    if (lines.skillsEnabled) out.push("", `- enabled: ${lines.skillsEnabled}`);
     if (lines.skillsRules && lines.skillsRules.length > 0) {
-      out.push("", "### Rules", "");
+      out.push("", "Rules", "");
       for (const r of lines.skillsRules) out.push(`- ${r}`);
     }
-    if (lines.skillsEffective) out.push("", `**effective:** ${lines.skillsEffective}`);
+    if (lines.skillsEffective) out.push("", `effective: ${lines.skillsEffective}`);
   }
 
   if (
@@ -98,22 +138,22 @@ function formatStatusMarkdown(lines: {
     lines.plannedLine ||
     lines.loadedLine
   ) {
-    out.push("", "## Extensions");
-    if (lines.extensionsEnabled) out.push("", `- **enabled:** ${lines.extensionsEnabled}`);
+    out.push("", "Extensions");
+    if (lines.extensionsEnabled) out.push("", `- enabled: ${lines.extensionsEnabled}`);
     if (lines.extensionsRules && lines.extensionsRules.length > 0) {
-      out.push("", "### Rules", "");
+      out.push("", "Rules", "");
       for (const r of lines.extensionsRules) out.push(`- ${r}`);
     }
-    if (lines.plannedLine) out.push("", `**planned:** ${lines.plannedLine}`);
-    if (lines.loadedLine) out.push(`**loaded (session):** ${lines.loadedLine}`);
+    if (lines.plannedLine) out.push("", `planned: ${lines.plannedLine}`);
+    if (lines.loadedLine) out.push(`loaded (session): ${lines.loadedLine}`);
   }
 
   if (lines.warnings && lines.warnings.length > 0) {
-    out.push("", "## Warnings", "");
+    out.push("", "Warnings", "");
     for (const w of lines.warnings) out.push(`- ${w}`);
   }
   if (lines.hint) {
-    out.push("", "Type `/model-attach help` for config docs.");
+    out.push("", "Type /model-attach help for config docs.");
   }
   return out.join("\n");
 }
@@ -126,9 +166,9 @@ function ruleLines(
   for (let i = 0; i < rules.length; i++) {
     const rule = rules[i]!;
     const hit = ruleMatches(rule.match as Parameters<typeof ruleMatches>[0], model);
-    const badge = hit ? "**MATCH**" : "skip";
+    const badge = hit ? "MATCH" : "skip";
     out.push(
-      `${badge} \`[${i}]\` match=\`${JSON.stringify(rule.match)}\` add=\`${JSON.stringify(rule.add ?? [])}\` remove=\`${JSON.stringify(rule.remove ?? [])}\``,
+      `${badge} [${i}] match=${JSON.stringify(rule.match)} add=${JSON.stringify(rule.add ?? [])} remove=${JSON.stringify(rule.remove ?? [])}`,
     );
   }
   return out;
@@ -140,13 +180,6 @@ export default function modelAttachExtension(pi: ExtensionAPI) {
     path: modelAttachConfigPath(getAgentDir()),
   };
   let loader: DynamicLoader = createDynamicExtensionLoader();
-
-  pi.registerEntryRenderer<PanelData>(PANEL_ENTRY_TYPE, (entry, _options, theme) => {
-    const markdown = entry.data?.markdown ?? "";
-    return new Markdown(markdown, 1, 1, getMarkdownTheme(), {
-      bgColor: (text) => theme.bg("customMessageBg", text),
-    });
-  });
 
   function reloadConfig(ctx?: ExtensionContext): void {
     const result = loadModelAttachConfig(getAgentDir());
@@ -266,15 +299,15 @@ export default function modelAttachExtension(pi: ExtensionAPI) {
       const flag = tokens[1]?.toLowerCase() ?? "";
 
       if (sub === "help") {
-        showPanel(pi, formatModelAttachHelp(modelAttachConfigPath(getAgentDir())));
+        showPanel(ctx, formatModelAttachHelp(modelAttachConfigPath(getAgentDir())));
         return;
       }
 
       if (sub === "skills" || sub === "extensions") {
         if (flag !== "on" && flag !== "off") {
           showPanel(
-            pi,
-            formatStatusMarkdown({
+            ctx,
+            formatStatusReport({
               configPath: modelAttachConfigPath(getAgentDir()),
               statusLine: `Error: Usage: /model-attach ${sub} on|off`,
               hint: true,
@@ -286,8 +319,8 @@ export default function modelAttachExtension(pi: ExtensionAPI) {
         const result = setSectionEnabled(getAgentDir(), sub as ConfigSectionName, enabled);
         if (!result.ok) {
           showPanel(
-            pi,
-            formatStatusMarkdown({
+            ctx,
+            formatStatusReport({
               configPath: result.path,
               statusLine: `Error: ${result.error}`,
               hint: true,
@@ -299,21 +332,17 @@ export default function modelAttachExtension(pi: ExtensionAPI) {
         const section = result.config[sub as ConfigSectionName];
         const ruleCount = section?.rules.length ?? 0;
         showPanel(
-          pi,
-          formatStatusMarkdown({
+          ctx,
+          formatStatusReport({
             configPath: result.path,
             statusLine: `ok (${ruleCount} ${sub} rule(s))`,
             skillsEnabled:
-              sub === "skills"
-                ? enabled
-                  ? "**on** (rules apply)"
-                  : "**off** (rules ignored)"
-                : undefined,
+              sub === "skills" ? (enabled ? "on (rules apply)" : "off (rules ignored)") : undefined,
             extensionsEnabled:
               sub === "extensions"
                 ? enabled
-                  ? "**on** (rules apply)"
-                  : "**off** (rules ignored)"
+                  ? "on (rules apply)"
+                  : "off (rules ignored)"
                 : undefined,
           }),
         );
@@ -322,8 +351,8 @@ export default function modelAttachExtension(pi: ExtensionAPI) {
 
       if (sub) {
         showPanel(
-          pi,
-          formatStatusMarkdown({
+          ctx,
+          formatStatusReport({
             configPath: modelAttachConfigPath(getAgentDir()),
             statusLine: `Error: Unknown subcommand: ${sub}`,
             hint: true,
@@ -337,8 +366,8 @@ export default function modelAttachExtension(pi: ExtensionAPI) {
 
       if (!snap.ok) {
         showPanel(
-          pi,
-          formatStatusMarkdown({
+          ctx,
+          formatStatusReport({
             configPath,
             statusLine: `Error: ${snap.error}`,
             hint: true,
@@ -348,16 +377,13 @@ export default function modelAttachExtension(pi: ExtensionAPI) {
       }
       if ("missing" in snap && snap.missing) {
         showPanel(
-          pi,
-          formatStatusMarkdown({
+          ctx,
+          formatStatusReport({
             configPath,
             statusLine: "missing (no rules; Pi skills and extensions as-is)",
             skillsEnabled: "on (default)",
             extensionsEnabled: "on (default)",
-            loadedLine:
-              loader.loadedPaths.size > 0
-                ? [...loader.loadedPaths].map((p) => `\`${p}\``).join(", ")
-                : "(none)",
+            loadedLine: loader.loadedPaths.size > 0 ? [...loader.loadedPaths].join(", ") : "(none)",
             hint: true,
           }),
         );
@@ -372,25 +398,19 @@ export default function modelAttachExtension(pi: ExtensionAPI) {
       const extensionsOn = isSectionEnabled(extensionsSection);
 
       const loadedLine =
-        loader.loadedPaths.size > 0
-          ? [...loader.loadedPaths].map((p) => `\`${p}\``).join(", ")
-          : "(none)";
+        loader.loadedPaths.size > 0 ? [...loader.loadedPaths].join(", ") : "(none)";
 
       if (!model) {
         showPanel(
-          pi,
-          formatStatusMarkdown({
+          ctx,
+          formatStatusReport({
             configPath,
             statusLine: `ok (skills ${skillsSection?.rules.length ?? 0}, extensions ${extensionsSection?.rules.length ?? 0} rule(s))`,
-            skillsEnabled: skillsSection
-              ? skillsOn
-                ? "on"
-                : "**off**"
-              : "on (default, no section)",
+            skillsEnabled: skillsSection ? (skillsOn ? "on" : "off") : "on (default, no section)",
             extensionsEnabled: extensionsSection
               ? extensionsOn
                 ? "on"
-                : "**off**"
+                : "off"
               : "on (default, no section)",
             modelLine: "(none selected)",
             loadedLine,
@@ -415,31 +435,28 @@ export default function modelAttachExtension(pi: ExtensionAPI) {
       ];
 
       showPanel(
-        pi,
-        formatStatusMarkdown({
+        ctx,
+        formatStatusReport({
           configPath,
           statusLine: `ok (skills ${skillsSection?.rules.length ?? 0}, extensions ${extensionsSection?.rules.length ?? 0} rule(s))`,
           skillsEnabled: skillsSection
             ? skillsOn
               ? "on"
-              : "**off** (rules ignored)"
+              : "off (rules ignored)"
             : "on (default, no section)",
           extensionsEnabled: extensionsSection
             ? extensionsOn
               ? "on"
-              : "**off** (rules ignored)"
+              : "off (rules ignored)"
             : "on (default, no section)",
-          modelLine: `\`${modelKey(model)}\` input=[\`${(model.input ?? []).join("`, `") || ""}\`]`,
+          modelLine: `${modelKey(model)} input=[${(model.input ?? []).join(", ") || ""}]`,
           skillsRules: skillsSection ? ruleLines(skillsSection.rules, model) : undefined,
           skillsEffective:
-            applied.skills.length > 0
-              ? applied.skills.map((s) => `\`${s.name}\``).join(", ")
-              : "(none)",
+            applied.skills.length > 0 ? applied.skills.map((s) => s.name).join(", ") : "(none)",
           extensionsRules: extensionsSection
             ? ruleLines(extensionsSection.rules, model)
             : undefined,
-          plannedLine:
-            plan.paths.length > 0 ? plan.paths.map((p) => `\`${p}\``).join(", ") : "(none)",
+          plannedLine: plan.paths.length > 0 ? plan.paths.join(", ") : "(none)",
           loadedLine,
           warnings,
         }),

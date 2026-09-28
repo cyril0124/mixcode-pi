@@ -16,12 +16,11 @@ import {
 } from "@earendil-works/pi-ai";
 import {
   getAgentDir,
-  getMarkdownTheme,
   type ExtensionAPI,
   type ExtensionCommandContext,
   type ExtensionFactory,
 } from "@earendil-works/pi-coding-agent";
-import { Key, Markdown, truncateToWidth } from "@earendil-works/pi-tui";
+import { Key, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import {
   loadOptimizePromptConfig,
   optimizePromptConfigPath,
@@ -45,9 +44,38 @@ import {
 } from "./core.js";
 
 const WIDGET_KEY = "mpi-optimize-prompt";
-const PANEL_ENTRY_TYPE = "mpi-optimize-prompt-panel";
 
-type PanelData = { markdown: string };
+/**
+ * Frame width bounds. The minimum keeps the box readable on narrow terminals;
+ * the maximum keeps lines scannable instead of spanning the whole terminal.
+ */
+const PANEL_MIN_WIDTH = 36;
+const PANEL_MAX_WIDTH = 100;
+/** Leading space, `│ `, and ` │` the chat renderer keeps around the frame body. */
+const PANEL_CHROME_COLUMNS = 6;
+const PANEL_TITLE = "opt-prompt";
+
+/**
+ * Frame a report for `ui.notify`, which renders the text verbatim as a dim chat
+ * line. Wrapping happens here: the renderer re-wraps and pads every line it
+ * receives, so a box drawn wider than the terminal breaks its right border.
+ */
+function framePanel(text: string): string {
+  const columns = process.stdout.columns || 80;
+  const width = Math.min(
+    PANEL_MAX_WIDTH,
+    Math.max(PANEL_MIN_WIDTH, columns - PANEL_CHROME_COLUMNS),
+  );
+  const lines = [`┌─ ${PANEL_TITLE} ${"─".repeat(Math.max(0, width - PANEL_TITLE.length - 1))}┐`];
+  for (const source of text.split("\n")) {
+    const parts = source.trim() ? wrapTextWithAnsi(source, width) : [""];
+    for (const part of parts) {
+      lines.push(`│ ${part}${" ".repeat(Math.max(0, width - visibleWidth(part)))} │`);
+    }
+  }
+  lines.push(`└${"─".repeat(width + 2)}┘`);
+  return lines.join("\n");
+}
 
 /** Per-factory cancel slot so each MixCode tab isolates in-flight optimize. */
 export type OptimizeAbortSlot = {
@@ -327,8 +355,6 @@ export async function runOptimizePrompt(options: {
   args: string;
   getThinkingLevel: () => string;
   agentDir?: string;
-  /** Render help as a chat markdown panel (factory wires appendEntry). */
-  showMarkdown?: (markdown: string) => void;
   /** Factory-scoped abort slot; omit only in single-shot tests. */
   abortSlot?: OptimizeAbortSlot;
   /** Factory-scoped pre-optimize draft stash for /opt-prompt undo. */
@@ -338,10 +364,8 @@ export async function runOptimizePrompt(options: {
   const agentDir = options.agentDir ?? getAgentDir();
   const sub = options.args.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
   if (sub === "help" || sub === "--help" || sub === "-h") {
-    const markdown = formatOptimizePromptHelp(optimizePromptConfigPath(agentDir));
-    // Prefer session markdown panel; notify is plain text and does not render MD.
-    if (options.showMarkdown) options.showMarkdown(markdown);
-    else ctx.ui.notify(markdown, "info");
+    const help = formatOptimizePromptHelp(optimizePromptConfigPath(agentDir));
+    ctx.ui.notify(framePanel(help), "info");
     return { ok: false, reason: "help" };
   }
   if (sub === "config") {
@@ -512,13 +536,6 @@ const optimizePrompt: ExtensionFactory = (pi: ExtensionAPI) => {
   const abortSlot: OptimizeAbortSlot = {};
   const draftSlot: OptimizeDraftSlot = {};
 
-  pi.registerEntryRenderer<PanelData>(PANEL_ENTRY_TYPE, (entry, _options, theme) => {
-    const markdown = entry.data?.markdown ?? "";
-    return new Markdown(markdown, 1, 1, getMarkdownTheme(), {
-      bgColor: (text) => theme.bg("customMessageBg", text),
-    });
-  });
-
   pi.registerCommand("opt-prompt", {
     description: "Optimize editor draft (or args); config|help|cancel|undo",
     ...({ argumentHint: "help|config|cancel|undo|<draft text>" } as Record<string, unknown>),
@@ -531,8 +548,6 @@ const optimizePrompt: ExtensionFactory = (pi: ExtensionAPI) => {
         ctx,
         args,
         getThinkingLevel: () => pi.getThinkingLevel(),
-        showMarkdown: (markdown: string) =>
-          pi.appendEntry<PanelData>(PANEL_ENTRY_TYPE, { markdown }),
         abortSlot,
         draftSlot,
       };

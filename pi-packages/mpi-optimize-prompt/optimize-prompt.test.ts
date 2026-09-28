@@ -225,16 +225,12 @@ describe("mpi-optimize-prompt config", () => {
 });
 
 describe("mpi-optimize-prompt command", () => {
-  it("registers opt-prompt and opt-prompt-cancel commands plus markdown panel", () => {
+  it("registers opt-prompt and opt-prompt-cancel commands", () => {
     const names: string[] = [];
-    const renderers: string[] = [];
     const shortcuts: string[] = [];
     optimizePrompt({
       registerCommand: (name: string) => {
         names.push(name);
-      },
-      registerEntryRenderer: (type: string) => {
-        renderers.push(type);
       },
       registerShortcut: (key: string) => {
         shortcuts.push(key);
@@ -242,7 +238,6 @@ describe("mpi-optimize-prompt command", () => {
       getThinkingLevel: () => "medium",
     } as never);
     assert.deepEqual(names, ["opt-prompt", "opt-prompt-cancel"]);
-    assert.deepEqual(renderers, ["mpi-optimize-prompt-panel"]);
     assert.ok(shortcuts.some((key) => /ctrl\+shift\+c/i.test(key)));
   });
 
@@ -680,8 +675,8 @@ describe("mpi-optimize-prompt command", () => {
     }
   });
 
-  it("help arg shows config docs as markdown panel without calling the model", async () => {
-    const panels: string[] = [];
+  it("help arg shows config docs as one framed chat line without calling the model", async () => {
+    const notices: string[] = [];
     let completeCalls = 0;
     const ctx = {
       model: { provider: "tab", id: "main" },
@@ -689,8 +684,8 @@ describe("mpi-optimize-prompt command", () => {
         getEditorText: () => "draft",
         setEditorText: () => undefined,
         setWidget: () => undefined,
-        notify: () => {
-          throw new Error("help must not fall back to notify when showMarkdown is set");
+        notify: (message: string) => {
+          notices.push(message);
         },
       },
     } as unknown as ExtensionCommandContext;
@@ -700,9 +695,6 @@ describe("mpi-optimize-prompt command", () => {
       args: "help",
       getThinkingLevel: () => "medium",
       agentDir: "/tmp/agent-dir",
-      showMarkdown: (markdown) => {
-        panels.push(markdown);
-      },
       complete: async () => {
         completeCalls += 1;
         return { content: [], stopReason: "stop" } as never;
@@ -712,10 +704,17 @@ describe("mpi-optimize-prompt command", () => {
     assert.equal(result.ok, false);
     assert.equal(result.reason, "help");
     assert.equal(completeCalls, 0);
-    assert.equal(panels.length, 1);
-    assert.match(panels[0] ?? "", /mpi-optimize-prompt\.json/);
-    assert.match(panels[0] ?? "", /systemPrompt/);
-    assert.match(panels[0] ?? "", /^# opt-prompt/m);
+    assert.equal(notices.length, 1);
+    const help = notices[0] ?? "";
+    assert.ok(help.startsWith("┌─ opt-prompt "), help.split("\n")[0]);
+    assert.match(help, /^│ opt-prompt +│$/m);
+    assert.ok(help.trimEnd().endsWith("┘"));
+    assert.match(help, /mpi-optimize-prompt\.json/);
+    assert.match(help, /systemPrompt/);
+    // notify renders the text verbatim, so the help must stay plain.
+    assert.ok(!help.includes("`"));
+    assert.ok(!help.includes("**"));
+    assert.ok(!help.includes("##"));
   });
 
   it("/opt-prompt-cancel aborts the registry request and keeps draft", async () => {
@@ -735,7 +734,6 @@ describe("mpi-optimize-prompt command", () => {
         ) => {
           commandHandlers.set(name, options.handler);
         },
-        registerEntryRenderer: () => undefined,
         registerShortcut: () => undefined,
         getThinkingLevel: () => "off",
       } as never);

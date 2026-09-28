@@ -74,7 +74,8 @@
 ## 命令
 
 - `/model-attach`（`[global]`）状态：配置路径、命中规则、生效技能、计划中和已加载的扩展
-- `/model-attach help` 用 markdown 给出配置 schema
+- `/model-attach help` 配置 schema、用法和规则说明
+- 两者都只显示为一个带边框的临时 chat 块（`ui.notify`），不写入 session
 - `/model-attach skills on` / `off` 写入 `skills.enabled`
 - `/model-attach extensions on` / `off` 写入 `extensions.enabled`
 - 斜杠补全提示：`[help|skills on|off|extensions on|off]`

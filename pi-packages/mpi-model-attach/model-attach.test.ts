@@ -424,19 +424,23 @@ describe("applyModelSkillRules", () => {
 });
 
 describe("formatModelAttachHelp", () => {
-  test("documents config path, both sections, and example as markdown", () => {
+  test("documents config path, both sections, and example as plain chat text", () => {
     const help = formatModelAttachHelp("/tmp/agent/mpi-model-attach.json");
-    assert.ok(help.includes("# /model-attach"));
+    assert.ok(help.includes("/model-attach"));
     assert.ok(help.includes("/model-attach help"));
-    assert.ok(help.includes("/model-attach skills on"));
-    assert.ok(help.includes("/model-attach extensions off"));
+    assert.ok(help.includes("/model-attach skills on|off"));
+    assert.ok(help.includes("/model-attach extensions on|off"));
     assert.ok(help.includes("/tmp/agent/mpi-model-attach.json"));
     assert.ok(help.includes("missingInput"));
     assert.ok(help.includes("$HOME"));
     assert.ok(help.includes("vision-proxy"));
-    assert.ok(help.includes("```json"));
+    assert.ok(help.includes('"skills"'));
     assert.ok(!help.includes("/model-skills"));
     assert.ok(!help.includes("/model-extensions"));
+    // notify renders the text verbatim, so the help must stay plain.
+    assert.ok(!help.includes("`"));
+    assert.ok(!help.includes("**"));
+    assert.ok(!help.includes("##"));
   });
 });
 

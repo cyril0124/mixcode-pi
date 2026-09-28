@@ -74,7 +74,8 @@ Friendly names only (package directory or entry basename). This drops the path f
 ## Commands
 
 - `/model-attach` (`[global]`) status: config path, matching rules, effective skills, planned and loaded extensions
-- `/model-attach help` config schema as markdown
+- `/model-attach help` config schema, usage, and rules reference
+- Both render as one transient bordered chat block (`ui.notify`); no session entry is written
 - `/model-attach skills on` / `off` writes `skills.enabled`
 - `/model-attach extensions on` / `off` writes `extensions.enabled`
 - Slash autocomplete hint: `[help|skills on|off|extensions on|off]`
