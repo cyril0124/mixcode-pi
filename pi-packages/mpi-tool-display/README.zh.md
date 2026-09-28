@@ -19,8 +19,10 @@
 
 ### bash 折叠行
 
-无论 label 多长、终端多窄，折叠行始终恰好一行。舍弃顺序是：先命令摘录，再把 label 压缩到至少 8 列，
-然后依次舍弃 `timeout Ns` 与 `shell <path>`、`ctrl+o`，最后舍弃整个 meta。
+无论 label 多长、终端多窄，折叠行始终恰好一行。label 优先级最高：只要还有 meta 部分能与它同行，label
+就不会少一列；只有其他部分全部舍弃之后，label 才开始被省略。meta 逐项舍弃，顺序是：`ctrl+o`，然后
+`timeout Ns` 与 `shell <path>`，然后输出行数，然后耗时，最后舍弃整个状态。命令摘录优先级最低，只占
+label 和 meta 剩下的列。
 
 label 就是调用自己的 `description` 参数（折叠行开启时 `mpi-bash` 要求提供它），没有该参数时退回到截断后的命令：
 
@@ -32,15 +34,15 @@ label 就是调用自己的 `description` 参数（折叠行开启时 `mpi-bash`
 行内 label 之后还有命令的 dim 单行摘录，连续空白会折叠成一个空格：
 
 ```text
-bash Find callers of the parser  rg -n parser src | head -30        ok · 40 lines · 0s · ctrl+o
+bash Find callers of the parser  rg -n parser src | head -30        ok · 0s · 40 lines · ctrl+o
 ```
 
-摘录只占 label 用不到的列，因此长命令最多把 label 压到摘录 12 列的底线，不会再低；label 被省略之前摘录
-先让出列宽，在窄终端上先消失。label 已经带着的命令不再重复显示为摘录，一行里不会出现两遍同样的文字；label 退回命令文本的调用
-因此也不显示摘录。
+摘录只占 label 和 meta 剩下的列，因此既不会挤压 label，也不会挤掉任何状态项。它的底线是本身 12 列宽度，
+加上与 label 之间的两列间隔；行内腾不出这些列时，摘录整体消失。label 已经带着的命令不再重复显示为摘录，
+一行里不会出现两遍同样的文字，label 退回命令文本的调用也因此不显示摘录。
 
 运行中的调用显示 `~ <elapsed>`。已结束的调用显示 `ok`，或 `!! exit N`、`!! timed out`、
-`!! aborted`、`!! failed`，后接输出行数（`1 line`、`32 lines`），并在行内有计时时附带耗时。状态取自结果
+`!! aborted`、`!! failed`，后接行内测得的耗时，再后接输出行数（`1 line`、`32 lines`）。状态取自结果
 的最后一行，Pi 把状态追加在那里。失败调用在行下方保留至多 `bashFailureTailLines`（3）行非空输出，取自
 输出的末尾；没有状态行的失败（参数校验或启动失败）改取开头三行，因为它的信息在开头。展开后显示
 完整命令与完整输出预览。

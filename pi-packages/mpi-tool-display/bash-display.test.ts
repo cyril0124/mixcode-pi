@@ -114,10 +114,11 @@ test("the collapsed row shows a dim one-line excerpt of the command", () => {
   );
   assert.match(multiline, /dim\|seq 1 40 \| wc -l\|/);
 
-  // The excerpt gives up its columns before the label does.
+  // Meta parts give up their columns before the label loses one.
   const narrow = rowFor(hinted, { description: "Build the suite", command: "bun run check" }, 40);
   assert.ok(!narrow.includes("dim|"), `the excerpt drops first: ${narrow}`);
-  assert.match(narrow, /accent\|Build the s…\|/);
+  assert.match(narrow, /accent\|Build the suite\|/);
+  assert.match(narrow, /muted\|ok · 32 lines\|/, `the meta sheds ctrl+o next: ${narrow}`);
 
   // A long command never squeezes the label below the width the label asks for.
   const longCommand = rowFor(
@@ -134,14 +135,11 @@ test("the collapsed row shows a dim one-line excerpt of the command", () => {
     `the label keeps its width beside a long command: ${longCommand}`,
   );
 
-  // Columns the excerpt does not need go back to the label, which keeps more than its floor.
+  // The label is never elided while a meta part still fits beside it, and the excerpt takes only
+  // the columns the label and that meta leave over.
   const labelWidth = (row: string): number => row.match(/accent\|([^|]*)\|/)?.[1]?.length ?? 0;
-  const shared = rowFor(
-    hinted,
-    { description: "Summarize detector results", command: "seq 1 12" },
-    60,
-  );
-  assert.ok(labelWidth(shared) > 8, `the label keeps more than its floor: ${shared}`);
+  const shared = rowFor(hinted, { description: "Summarize rows", command: "seq 1 12" }, 60);
+  assert.equal(labelWidth(shared), "Summarize rows".length, `the label keeps its width: ${shared}`);
   assert.ok(shared.includes("dim|seq 1 12|"), `a short excerpt is not elided: ${shared}`);
 
   // An elided part keeps the color of the part it belongs to, so the ellipsis stays inside the
@@ -150,21 +148,19 @@ test("the collapsed row shows a dim one-line excerpt of the command", () => {
     fg: (color: string, text: string) => `\u001b[${SGR_CODES[color] ?? 0}m${text}\u001b[0m`,
     bold: (text: string) => text,
   } as never;
-  const elidedRow = (
-    hinted.renderCall(
-      {
-        description: "Read the complete gate results now",
-        command: "tail -8 /tmp/logs/one.log two",
-      } as never,
-      sgrTheme,
-      {
+  const sgrRowFor = (args: Record<string, unknown>, width: number): string =>
+    (
+      hinted.renderCall(args as never, sgrTheme, {
         state: { [BASH_CALL_OUTCOME_STATE_KEY]: outcome() },
         expanded: false,
         executionStarted: true,
         isPartial: false,
-      } as never,
-    ) as { render(width: number): string[] }
-  ).render(60)[0]!;
+      } as never) as { render(width: number): string[] }
+    ).render(width)[0]!;
+  const elidedRow = sgrRowFor(
+    { description: "Read the gate results", command: "tail -8 /tmp/logs/one.log two" },
+    64,
+  );
   const dimStart = elidedRow.indexOf(`\u001b[${SGR_CODES.dim}m`);
   const dimEnd = elidedRow.indexOf("\u001b[0m", dimStart);
   assert.ok(dimStart >= 0, `the excerpt is dim: ${JSON.stringify(elidedRow)}`);
@@ -172,11 +168,21 @@ test("the collapsed row shows a dim one-line excerpt of the command", () => {
     elidedRow.slice(dimStart, dimEnd).includes("…"),
     `the ellipsis stays inside the dim span: ${JSON.stringify(elidedRow)}`,
   );
-  const accentStart = elidedRow.indexOf(`\u001b[${SGR_CODES.accent}m`);
-  const accentEnd = elidedRow.indexOf("\u001b[0m", accentStart);
+
+  // The label elides only when no meta part can share the row with it.
+  const elidedLabel = sgrRowFor(
+    { description: "Read the complete gate results now", command: "tail -8 /tmp/logs/one.log two" },
+    30,
+  );
+  const accentStart = elidedLabel.indexOf(`\u001b[${SGR_CODES.accent}m`);
+  const accentEnd = elidedLabel.indexOf("\u001b[0m", accentStart);
   assert.ok(
-    elidedRow.slice(accentStart, accentEnd).includes("…"),
-    `the ellipsis stays inside the label span: ${JSON.stringify(elidedRow)}`,
+    elidedLabel.slice(accentStart, accentEnd).includes("…"),
+    `the ellipsis stays inside the label span: ${JSON.stringify(elidedLabel)}`,
+  );
+  assert.ok(
+    !elidedLabel.includes(`\u001b[${SGR_CODES.muted}m`),
+    `an elided label drops the meta: ${JSON.stringify(elidedLabel)}`,
   );
 
   // A description that repeats the command leaves no second copy on the row.
@@ -395,7 +401,7 @@ test("a finished row reports the duration the run measured", () => {
     theme,
     context({ lastComponent: running, isPartial: false }),
   );
-  assert.match(renderLines(finished, 120)[0]!.trim(), /ok · 32 lines · 0s · ctrl\+o$/);
+  assert.match(renderLines(finished, 120)[0]!.trim(), /ok · 0s · 32 lines · ctrl\+o$/);
   disposeAll();
 });
 

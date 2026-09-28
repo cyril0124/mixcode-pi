@@ -7,7 +7,7 @@ import { BASH_CALL_OUTCOME_STATE_KEY, type BashCallOutcome } from "./types.js";
 const BASH_SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const;
 const BASH_SPINNER_INTERVAL_MS = 200;
 const BASH_SPINNER_TOOL_CALL_ID_KEY = "__mpiToolDisplayBashSpinnerToolCallId";
-/** Narrowest label worth showing next to the status meta before the meta is dropped. */
+/** Narrowest label the row keeps before it falls back to the bare tool name. */
 const BASH_LABEL_MIN_WIDTH = 8;
 /** Characters of a command read when a row needs its text, as a label fallback or as the excerpt. */
 const BASH_COMMAND_INSPECT_CHARS = 512;
@@ -15,6 +15,8 @@ const BASH_COMMAND_INSPECT_CHARS = 512;
 const BASH_HINT_MIN_WIDTH = 12;
 /** Spaces between the label and the command excerpt. */
 const BASH_LABEL_HINT_GAP = 2;
+/** Space between the label (or its excerpt) and the right-aligned meta. */
+const BASH_META_GAP = 1;
 
 interface BashCallArgs {
   command?: string;
@@ -170,50 +172,76 @@ function buildBashCallText(
   return `${spinnerPrefix}${theme.fg("toolTitle", theme.bold("$"))} ${theme.fg("accent", commandDisplay)}${shellSuffix}${timeoutSuffix}${elapsedSuffix}`;
 }
 
-/** Right-aligned status parts for the collapsed row, most informative first. */
-function buildBashCallMetaParts(
+/** Status of a finished call: the one meta part the row keeps longest. */
+function bashStatusText(outcome: BashCallOutcome): string {
+  if (!outcome.failed) {
+    return "ok";
+  }
+  if (outcome.exitCode !== undefined) {
+    return `!! exit ${outcome.exitCode}`;
+  }
+  if (outcome.timedOut) {
+    return "!! timed out";
+  }
+  if (outcome.aborted) {
+    return "!! aborted";
+  }
+  return "!! failed";
+}
+
+/**
+ * Right-aligned meta parts for the collapsed row, grouped by priority, highest first. Each group
+ * drops as one unit, so a narrowing row sheds `ctrl+o`, then `timeout`/`shell`, then the output line
+ * count, then the duration, and only then the status.
+ */
+function buildBashCallMetaGroups(
   args: BashCallArgs,
   outcome: BashCallOutcome | undefined,
   options: { spinnerFrame?: string; elapsedMs?: number },
 ): string[][] {
-  const required: string[] = [];
-  const optional: string[] = [];
+  const groups: string[][] = [];
 
   if (options.spinnerFrame !== undefined) {
-    required.push(`~ ${options.elapsedMs === undefined ? "0s" : formatElapsed(options.elapsedMs)}`);
+    groups.push([`~ ${options.elapsedMs === undefined ? "0s" : formatElapsed(options.elapsedMs)}`]);
   } else if (outcome) {
-    if (outcome.failed) {
-      const status =
-        outcome.exitCode !== undefined
-          ? `!! exit ${outcome.exitCode}`
-          : outcome.timedOut
-            ? "!! timed out"
-            : outcome.aborted
-              ? "!! aborted"
-              : "!! failed";
-      required.push(status);
-    } else {
-      required.push("ok");
-    }
-    required.push(`${outcome.lineCount} ${outcome.lineCount === 1 ? "line" : "lines"}`);
+    groups.push([bashStatusText(outcome)]);
     if (options.elapsedMs !== undefined) {
-      required.push(formatElapsed(options.elapsedMs));
+      groups.push([formatElapsed(options.elapsedMs)]);
     }
+    groups.push([`${outcome.lineCount} ${outcome.lineCount === 1 ? "line" : "lines"}`]);
   }
 
+  const callArguments: string[] = [];
   if (args.timeout) {
-    optional.push(`timeout ${args.timeout}s`);
+    callArguments.push(`timeout ${args.timeout}s`);
   }
   if (
     typeof args.shellPath === "string" &&
     args.shellPath.trim().length > 0 &&
     !isDefaultShellPath(args.shellPath)
   ) {
-    optional.push(`shell ${stripAllEscapes(args.shellPath)}`);
+    callArguments.push(`shell ${stripAllEscapes(args.shellPath)}`);
   }
-  optional.push("ctrl+o");
+  if (callArguments.length > 0) {
+    groups.push(callArguments);
+  }
 
-  return [[...required, ...optional], [...required, "ctrl+o"], [...required], []];
+  groups.push(["ctrl+o"]);
+  return groups;
+}
+
+/** Meta text for the row, richest first and empty last: one tier per dropped priority group. */
+function buildBashCallMetaTiers(
+  args: BashCallArgs,
+  outcome: BashCallOutcome | undefined,
+  options: { spinnerFrame?: string; elapsedMs?: number },
+): string[] {
+  const groups = buildBashCallMetaGroups(args, outcome, options);
+  const tiers: string[] = [];
+  for (let kept = groups.length; kept >= 0; kept -= 1) {
+    tiers.push(groups.slice(0, kept).flat().join(" · "));
+  }
+  return tiers;
 }
 
 /**
@@ -248,47 +276,9 @@ function bashCommandHint(args: BashCallArgs, label: string): string | undefined 
 }
 
 /**
- * Label and command excerpt fitted into the columns left of the meta, or nothing if the label cannot
- * reach its floor. The label keeps the columns it needs; the excerpt lives on what is left.
- */
-function fitBashCallBody(
-  label: string,
-  hint: string | undefined,
-  body: number,
-): { label: string; hint: string; width: number } | undefined {
-  if (body < BASH_LABEL_MIN_WIDTH) {
-    return undefined;
-  }
-  const hintText = hint ?? "";
-  const hintWidth = visibleWidth(hintText);
-  const showHint =
-    hintWidth > 0 && body - BASH_LABEL_MIN_WIDTH - BASH_LABEL_HINT_GAP >= BASH_HINT_MIN_WIDTH;
-  // The label asks for its whole width; the excerpt takes what the label leaves, never less than its
-  // floor while it is shown, and gives unused columns back to the label.
-  const hintBudget = showHint
-    ? Math.min(
-        hintWidth,
-        Math.max(BASH_HINT_MIN_WIDTH, body - BASH_LABEL_HINT_GAP - visibleWidth(label)),
-      )
-    : 0;
-  const labelBudget = body - (showHint ? hintBudget + BASH_LABEL_HINT_GAP : 0);
-  // Both parts are plain text here, so the escape `truncateToWidth` inserts around its ellipsis
-  // would end the color of whatever wraps them. Strip it before the caller styles the parts.
-  const shownLabel = stripAllEscapes(truncateToWidth(label, labelBudget, "…"));
-  const shownHint =
-    hintBudget > 0 ? stripAllEscapes(truncateToWidth(hintText, hintBudget, "…")) : "";
-  return {
-    label: shownLabel,
-    hint: shownHint,
-    width:
-      visibleWidth(shownLabel) + (shownHint ? BASH_LABEL_HINT_GAP + visibleWidth(shownHint) : 0),
-  };
-}
-
-/**
  * Collapsed bash call row: exactly one line with `bash <label>`, a dim excerpt of the command, and
- * the status meta on the right. The label is elided, then the excerpt drops, then optional meta
- * parts drop, so the row never wraps.
+ * the status meta on the right. The label keeps its columns first, the meta then keeps the parts
+ * that still fit, and the excerpt lives on what is left, so the row never wraps.
  */
 function buildCollapsedBashCallRow(
   args: BashCallArgs,
@@ -305,34 +295,57 @@ function buildCollapsedBashCallRow(
   const hint = bashCommandHint(args, label);
   const spinnerPrefix = options.spinnerFrame ? `${options.spinnerFrame} ` : "";
   const prefixPlain = `${spinnerPrefix}bash `;
+  const prefixWidth = visibleWidth(prefixPlain);
   const title = theme.fg("toolTitle", theme.bold("bash"));
   const spinnerText = options.spinnerFrame ? theme.fg("warning", spinnerPrefix) : "";
   const elapsedMs = options.elapsedMs ?? options.finalElapsedMs;
-  const metaParts = buildBashCallMetaParts(args, outcome, {
+  const widthLeft = width - prefixWidth;
+  if (widthLeft < BASH_LABEL_MIN_WIDTH) {
+    return truncateToWidth(`${spinnerText}${title}`, width, "");
+  }
+
+  // The label is measured first, so the first tier that fits is the richest meta the label can
+  // share the row with; only a label that overflows on its own elides, and it then drops the meta.
+  const labelWidth = visibleWidth(label);
+  const tiers = buildBashCallMetaTiers(args, outcome, {
     spinnerFrame: options.spinnerFrame,
     elapsedMs,
   });
+  const meta = tiers.find((tier) => labelWidth + metaTierWidth(tier) <= widthLeft);
+  // Both parts are plain text here, so the escape `truncateToWidth` inserts around its ellipsis
+  // would end the color of whatever wraps them. Strip it before the caller styles the parts.
+  const shownLabel =
+    meta === undefined ? stripAllEscapes(truncateToWidth(label, widthLeft, "…")) : label;
+  const shownMeta = meta ?? "";
+  const metaWidth = visibleWidth(shownMeta);
+  const metaGap = metaWidth > 0 ? BASH_META_GAP : 0;
 
-  for (const parts of metaParts) {
-    const metaPlain = parts.join(" · ");
-    const reserved = visibleWidth(prefixPlain) + (metaPlain ? visibleWidth(` ${metaPlain}`) : 0);
-    const fitted = fitBashCallBody(label, hint, width - reserved);
-    if (!fitted) {
-      continue;
-    }
-    const slack = width - visibleWidth(prefixPlain) - fitted.width - visibleWidth(metaPlain);
-    const gap = " ".repeat(Math.max(metaPlain ? 1 : 0, slack));
-    const body = `${theme.fg("accent", fitted.label)}${fitted.hint ? `  ${theme.fg("dim", fitted.hint)}` : ""}`;
-    const metaText = metaPlain ? theme.fg("muted", metaPlain) : "";
-    return `${spinnerText}${title} ${body}${gap}${metaText}`;
-  }
+  // The excerpt is the lowest priority, so it takes only the columns the label and its meta leave
+  // over, and needs its gap plus its own floor before the row shows it at all.
+  const free = width - prefixWidth - visibleWidth(shownLabel) - metaWidth;
+  const hintText = hint ?? "";
+  const hintFits = hintText !== "" && free - metaGap >= BASH_LABEL_HINT_GAP + BASH_HINT_MIN_WIDTH;
+  const hintBudget = hintFits
+    ? Math.min(visibleWidth(hintText), free - metaGap - BASH_LABEL_HINT_GAP)
+    : 0;
+  const shownHint =
+    hintBudget > 0 ? stripAllEscapes(truncateToWidth(hintText, hintBudget, "…")) : "";
 
-  const widthLeft = width - visibleWidth(prefixPlain);
-  const fitted = fitBashCallBody(label, hint, widthLeft);
-  if (!fitted) {
-    return truncateToWidth(`${spinnerText}${title}`, width, "");
-  }
-  return `${spinnerText}${title} ${theme.fg("accent", fitted.label)}${fitted.hint ? `  ${theme.fg("dim", fitted.hint)}` : ""}`;
+  const hintBlockWidth = shownHint ? BASH_LABEL_HINT_GAP + visibleWidth(shownHint) : 0;
+  const hintBlock = shownHint
+    ? `${" ".repeat(BASH_LABEL_HINT_GAP)}${theme.fg("dim", shownHint)}`
+    : "";
+  const body = `${theme.fg("accent", shownLabel)}${hintBlock}`;
+  const gapWidth = width - prefixWidth - visibleWidth(shownLabel) - hintBlockWidth - metaWidth;
+  const gap = " ".repeat(Math.max(metaGap, gapWidth));
+  const metaText = metaWidth > 0 ? theme.fg("muted", shownMeta) : "";
+  return `${spinnerText}${title} ${body}${gap}${metaText}`;
+}
+
+/** Columns a meta tier occupies on the row, including its gap; an empty tier occupies none. */
+function metaTierWidth(tier: string): number {
+  const tierWidth = visibleWidth(tier);
+  return tierWidth > 0 ? BASH_META_GAP + tierWidth : 0;
 }
 
 /** Outcome the result renderer published for this row, if the run already finished. */

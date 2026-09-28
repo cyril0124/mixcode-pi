@@ -19,9 +19,12 @@ Call rows use `bash <label>`, `read path[:range]`, `edit path (N lines)`, and `w
 
 ### Collapsed bash row
 
-The collapsed row is always exactly one line, whatever the label length and the terminal width. It
-sheds content in this order: the command excerpt, then label columns down to eight, then `timeout Ns`
-and `shell <path>`, then `ctrl+o`, then the whole meta.
+The collapsed row is always exactly one line, whatever the label length and the terminal width. The
+label ranks highest: it keeps its columns while any meta part can still fit beside it, and elides
+only once nothing else is left to shed. The meta sheds one part at a time, in this order: `ctrl+o`,
+then `timeout Ns` and `shell <path>`, then the output line count, then the duration, then the whole
+status. The command excerpt ranks lowest and takes only the columns the label and its meta leave
+over.
 
 The label is the call's own `description` argument, which `mpi-bash` asks for while this row is on,
 or the elided command when the call carries none:
@@ -35,21 +38,21 @@ The row carries a dim one-line excerpt of the command beside the label, with run
 collapsed:
 
 ```text
-bash Find callers of the parser  rg -n parser src | head -30        ok · 40 lines · 0s · ctrl+o
+bash Find callers of the parser  rg -n parser src | head -30        ok · 0s · 40 lines · ctrl+o
 ```
 
-The excerpt takes only what the label leaves, so a long command cannot squeeze the label below the
-excerpt's floor of twelve columns; the excerpt gives up its columns before the label elides and
-disappears first on a narrow terminal. A
-command the label already carries shows no excerpt, so a row never prints the same text twice, which
-covers a call whose label falls back to its command.
+The excerpt takes only what the label and its meta leave, so it can neither squeeze the label nor
+push out a status part: it needs twelve columns plus its two-column gap, and disappears when the row
+cannot spare them. A command the label already carries shows no excerpt, so a row never prints the
+same text twice, which covers a call whose label falls back to its command.
 
 A running call shows `~ <elapsed>`. A finished call shows `ok`, or `!! exit N`, `!! timed out`,
-`!! aborted`, or `!! failed`, followed by the output line count (`1 line`, `32 lines`), and by its duration when the row
-measured one. Status comes from the last line of the result, where Pi appends it. A failed call keeps
-at most `bashFailureTailLines` (3) non-empty output lines below the row, taken from the end of the
-output; a failure without a status line (a validation or spawn error) keeps the first three instead,
-because its message sits at the head. Expanding shows the full command and the full output preview.
+`!! aborted`, or `!! failed`, followed by its duration when the row measured one, then by the output
+line count (`1 line`, `32 lines`). Status comes from the last line of the result, where Pi appends
+it. A failed call keeps at most `bashFailureTailLines` (3) non-empty output lines below the row,
+taken from the end of the output; a failure without a status line (a validation or spawn error)
+keeps the first three instead, because its message sits at the head. Expanding shows the full
+command and the full output preview.
 
 Diff presentation uses bars, split layout at widths of 120 columns or more, unified layout below 120 columns, word wrapping, and Pi syntax highlighting. The collapsed budget counts each content line once, including all its wrapped rows; a left/right pair counts once in split view. Headers and hunk/file metadata do not consume that budget. The remainder hint counts hidden content lines when collapsed and hidden terminal rows when expanded. Diff knobs and the bash failure tail (`bashFailureTailLines`) live in `DEFAULT_TOOL_DISPLAY_CONFIG`. Raw argument display is configured separately.
 
