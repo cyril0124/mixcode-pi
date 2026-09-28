@@ -22,6 +22,7 @@
 // ║    latest-agent  Last assistant text reply                         ║
 // ║    latest-user   Last user message                                 ║
 // ║    raw           Raw session JSONL file, no rendering              ║
+// ║    raw-edit      Editable session JSONL file (writable)            ║
 // ║                                                                    ║
 // ║  Data source is the SDK-native session branch                      ║
 // ║  (ctx.sessionManager.getBranch()), not any host-internal chat      ║
@@ -131,14 +132,19 @@ const TARGETS = [
   {
     id: "raw",
     title: "Raw Session JSONL",
-    label: "Raw session JSONL file (opened, not rendered)",
+    label: "Raw session JSONL file (read-only)",
+  },
+  {
+    id: "raw-edit",
+    title: "Editable Session JSONL",
+    label: "Raw session JSONL file (editable)",
   },
 ] as const;
 
 type TargetId = (typeof TARGETS)[number]["id"];
 
-/** Targets rendered from branch entries. `raw` opens the session file itself. */
-type ViewTargetId = Exclude<TargetId, "raw">;
+/** Targets rendered from branch entries. The raw targets open the session file itself. */
+type ViewTargetId = Exclude<TargetId, "raw" | "raw-edit">;
 
 function normalizeTarget(raw: string): TargetId | undefined {
   const value = raw.trim().toLowerCase();
@@ -158,6 +164,8 @@ function normalizeTarget(raw: string): TargetId | undefined {
     case "raw":
     case "jsonl":
       return "raw";
+    case "raw-edit":
+      return "raw-edit";
     default:
       return undefined;
   }
@@ -2010,20 +2018,25 @@ function openInExternalEditor(
 
 /**
  * Open the persisted session JSONL file in place: no rendering, no temp copy.
- * The editor runs with its normal config, so the user's own highlighting and
- * plugins apply. `.jsonl` has no default filetype, so the buffer is set to
- * `json` (each line is a complete JSON object). Editors other than vim/nvim
- * receive only the path.
+ * A writable buffer changes the session file itself on save; a read-only one
+ * cannot. The editor runs with its normal config, so the user's own
+ * highlighting and plugins apply. `.jsonl` has no default filetype, so the
+ * buffer is set to `json` (each line is a complete JSON object). Swap files
+ * stay off (`-n`). Editors other than vim/nvim receive only the path.
  */
 function openSessionFileInExternalEditor(
   ctx: ExternalEditorUiContext,
   editorCmd: string,
   sessionFile: string,
+  writable: boolean,
 ): Promise<ExternalEditorResult> {
   return runInExternalEditor(ctx, editorCmd, async (cmd) => {
     const base = path.basename(cmd);
+    const readonlyArgs = writable ? [] : ["-R"];
     const editorArgs =
-      base === "nvim" || base === "vim" ? ["-R", "-n", "-c", "set filetype=json", "+normal G"] : [];
+      base === "nvim" || base === "vim"
+        ? [...readonlyArgs, "-n", "-c", "set filetype=json", "+normal G"]
+        : [];
     return [...editorArgs, sessionFile];
   });
 }
@@ -2181,10 +2194,13 @@ const extension: ExtensionFactory = (pi) => {
     await ctx.ui.editor(meta.title, content);
   };
 
-  // The raw target bypasses view rendering: it opens the persisted session
-  // JSONL file itself as written on disk (every branch, not just the current
-  // one), read-only, with no temp copy. Editor settings still apply.
-  const openRawSessionFile = async (ctx: ExtensionCommandContext): Promise<void> => {
+  // The raw targets bypass view rendering and open the persisted session JSONL
+  // file itself as written on disk (every branch, not just the current one),
+  // with no temp copy. `raw` opens it read-only, `raw-edit` writable.
+  const openRawSessionFile = async (
+    ctx: ExtensionCommandContext,
+    target: "raw" | "raw-edit",
+  ): Promise<void> => {
     const sessionFile = ctx.sessionManager.getSessionFile();
     if (!sessionFile) {
       ctx.ui.notify("Error: Session is not persisted; no session JSONL file to open.", "error");
@@ -2198,7 +2214,7 @@ const extension: ExtensionFactory = (pi) => {
       ctx.ui.notify(`Error: Session file is not readable: ${reason}`, "error");
       return;
     }
-    const meta = TARGETS.find((t) => t.id === "raw")!;
+    const meta = TARGETS.find((t) => t.id === target)!;
     const loaded = loadTranscriptConfig(agentDir);
     if (!loaded.ok) {
       ctx.ui.notify(transcriptConfigError(loaded), "error");
@@ -2206,7 +2222,12 @@ const extension: ExtensionFactory = (pi) => {
     }
     const editorCmd = resolveTranscriptEditor(loaded.config.editor);
     if (editorCmd) {
-      const result = await openSessionFileInExternalEditor(ctx, editorCmd, sessionFile);
+      const result = await openSessionFileInExternalEditor(
+        ctx,
+        editorCmd,
+        sessionFile,
+        target === "raw-edit",
+      );
       if (result.ok) return;
       ctx.ui.notify(result.error, "error");
     }
@@ -2237,12 +2258,12 @@ const extension: ExtensionFactory = (pi) => {
       if (!parsed) return;
       const target = await resolveTarget(parsed.targetToken, ctx);
       if (!target) return;
-      if (target === "raw") {
+      if (target === "raw" || target === "raw-edit") {
         if (parsed.lastTurns !== undefined || parsed.fullToolOutput) {
-          ctx.ui.notify("Error: Turn count and full are not supported for raw.", "error");
+          ctx.ui.notify(`Error: Turn count and full are not supported for ${target}.`, "error");
           return;
         }
-        await openRawSessionFile(ctx);
+        await openRawSessionFile(ctx, target);
         return;
       }
       if (

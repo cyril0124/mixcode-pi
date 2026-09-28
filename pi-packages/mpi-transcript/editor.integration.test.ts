@@ -150,8 +150,8 @@ test("transcript auto mode opens nvim before vim through the command handler", a
   }
 });
 
-// The raw target hands the persisted session file itself to the editor rather
-// than a rendered buffer, and reports unpersisted or missing files.
+// The raw targets hand the persisted session file itself to the editor rather
+// than a rendered buffer, and report unpersisted or missing files.
 test("transcript raw opens the session JSONL file itself and falls back to in-app reading", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-transcript-raw-e2e-"));
   const bin = path.join(root, "bin");
@@ -216,17 +216,34 @@ test("transcript raw opens the session JSONL file itself and falls back to in-ap
       modelRegistry: {},
     };
 
-    // The editor receives the session file path verbatim, read-only.
+    // The editor receives the session file path verbatim: read-only for `raw`,
+    // writable for `raw-edit`.
     await command.handler("raw", ctx);
-    const rawArgs = (await fs.readFile(nvimMarker, "utf8")).split("\n").filter(Boolean);
-    assert.deepEqual(rawArgs, ["-R", "-n", "-c", "set filetype=json", "+normal G", sessionFile]);
+    const readonlyArgs = (await fs.readFile(nvimMarker, "utf8")).split("\n").filter(Boolean);
+    assert.deepEqual(readonlyArgs, [
+      "-R",
+      "-n",
+      "-c",
+      "set filetype=json",
+      "+normal G",
+      sessionFile,
+    ]);
+    await command.handler("raw-edit", ctx);
+    const writableArgs = (await fs.readFile(nvimMarker, "utf8")).split("\n").filter(Boolean);
+    assert.deepEqual(writableArgs, ["-n", "-c", "set filetype=json", "+normal G", sessionFile]);
     assert.equal(notifications.length, 0);
     assert.equal(inAppContent.length, 0);
+
+    // Both raw targets are offered as completions.
+    assert.deepEqual(
+      command.getArgumentCompletions("raw").map((item) => item.value),
+      ["raw", "raw-edit"],
+    );
 
     // Unsupported modifiers are rejected before any file is touched.
     await command.handler("raw 3", ctx);
     assert.match(notifications.at(-1)?.message ?? "", /^Error: Turn count and full/);
-    await command.handler("raw full", ctx);
+    await command.handler("raw-edit full", ctx);
     assert.match(notifications.at(-1)?.message ?? "", /^Error: Turn count and full/);
 
     // An unpersisted session and a missing file both surface an error.
@@ -243,9 +260,10 @@ test("transcript raw opens the session JSONL file itself and falls back to in-ap
     await command.handler("raw", ctx);
     assert.deepEqual(inAppContent, [rawText]);
 
-    // `jsonl` is accepted as an alias for the raw target.
+    // `jsonl` is accepted as an alias for the read-only raw target.
     await command.handler("jsonl", ctx);
-    assert.deepEqual(inAppContent, [rawText, rawText]);
+    await command.handler("raw-edit", ctx);
+    assert.deepEqual(inAppContent, [rawText, rawText, rawText]);
   } finally {
     if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
     else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
