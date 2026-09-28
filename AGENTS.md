@@ -49,12 +49,18 @@ References:
 ## Built-in Extensions
 
 - Packages live in `pi-packages/<name>/` with a `package.json` `pi` field. Runtime packages declare `pi.extensions` and default-export an `ExtensionFactory`. Packages with `pi.skills` expose their installed `skills/` root through public `resources_discover`, since built-ins use `<agentDir>/extensions/`, not Pi package settings.
-- Packages with a user-edited JSON config must ship a config cookbook at `skills/<name>/SKILL.md`, marked `disable-model-invocation: true`, so the user can have an agent write the config.
 - First-party directory, package name, and `binary-entry.ts` `builtinPackages` key must match and start with `mpi-`. Vendored packages keep upstream names. Do not prefix protocol strings (commands, `customType`, keymap actions).
 - At startup, `ensurePackageExtensions` (`src/core/ensure-package-extensions.ts`) copies valid packages to `<agentDir>/extensions/`; `agentDir` is `PI_CODING_AGENT_DIR` or `~/.pi/agent`. Pi discovers entries there; `resources_discover` supplies skill roots to MixCode and independent subagent ResourceLoaders. Never copy package skills to `<agentDir>/skills`.
 - `binary-entry.ts` embeds package files with `import ... with { type: "text" }` and passes `builtinPackages` to `materializeBinaryRuntimeAssets`, which writes `runtimeDir/packages/` before `ensurePackageExtensions`. New built-ins require `pi-packages/mpi-<name>/package.json`, declared extension/skill resources, and matching binary text imports.
 - Packages must not import or depend on one another. They run under pure upstream `pi` (Node + jiti) as well as `mpi`: use `node:*`, never `Bun.*`, `bun:*`, or Bun Shell. The Bun preferences below apply outside `pi-packages/`.
 - MixCode sets `MIXCODE=1` after declining upstream delegation. Packages that must not activate under pure Pi should gate on it; unset, `0`, `false`, and `off` mean off.
+
+### Package Commands & Config
+
+- A package command that takes arguments must answer `<command> help` (also `--help` and `-h`) with its usage and config docs.
+- A package command backed by a user-edited JSON config must answer `<command> config` and list `config` among its argument completions.
+- A user-edited JSON config must ship a config cookbook at `skills/<name>/SKILL.md`, marked `disable-model-invocation: true`, so the user can have an agent write the config.
+- Package commands must follow Slash Commands & Settings for `argumentHint` and argument completions.
 
 ### Third-party Loading in Compiled `mpi`
 
