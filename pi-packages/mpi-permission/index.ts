@@ -292,13 +292,14 @@ export default function permissionExtension(pi: ExtensionAPI) {
 
   // Session rules live in this closure and drop when the extension instance
   // is rebuilt (restart, /reload, new tab).
-  pi.on("session_start", (event, ctx) => {
+  pi.on("session_start", (_event, ctx) => {
     reload(ctx.cwd);
-    if (event.reason === "startup") {
-      const active = pi.getActiveTools();
-      const next = active.filter((name) => name !== PERMISSION_PROBE_NAME);
-      if (next.length !== active.length) pi.setActiveTools(next);
-    }
+    // registerTool() marks the probe active on every load, so every start drops
+    // it again: startup, new tab, fork, resume and /reload all expect an inactive
+    // probe until `/permission probe` asks for it.
+    const active = pi.getActiveTools();
+    const next = active.filter((name) => name !== PERMISSION_PROBE_NAME);
+    if (next.length !== active.length) pi.setActiveTools(next);
   });
   pi.on("before_agent_start", (_event, ctx) => reload(ctx.cwd));
 

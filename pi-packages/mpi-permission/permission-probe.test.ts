@@ -102,3 +102,48 @@ test("permission_probe stays inactive until enabled and never executes targets",
     else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
   }
 });
+
+// Every way a session can start must leave the probe out of the active set:
+// registerTool() auto-activates the tool, and only this handler removes it.
+for (const reason of ["startup", "new", "fork", "resume", "reload"]) {
+  test(`permission_probe stays inactive after a ${reason} session start`, () => {
+    const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+    process.env.PI_CODING_AGENT_DIR = "/nonexistent-mpi-permission-agent-dir";
+    try {
+      const tools = new Map<string, { name: string }>();
+      const active = ["read", "permission_probe"];
+      const events = new Map<string, (...args: never[]) => void>();
+      const pi = {
+        registerTool(tool: { name: string }) {
+          tools.set(tool.name, tool);
+          active.push(tool.name);
+        },
+        getAllTools: () => [...tools.values()],
+        getActiveTools: () => active.slice(),
+        on(name: string, handler: (...args: never[]) => void) {
+          events.set(name, handler);
+        },
+        registerCommand() {},
+        setActiveTools(names: string[]) {
+          active.splice(0, active.length, ...names);
+        },
+      };
+      permissionExtension(pi as never);
+      assert.ok(
+        active.includes("permission_probe"),
+        "registerTool activates the probe before session start",
+      );
+      events.get("session_start")!(
+        { reason } as never,
+        {
+          cwd: "/nonexistent-mpi-permission-work-dir",
+          isProjectTrusted: () => false,
+        } as never,
+      );
+      assert.deepEqual(active, ["read"], `reason=${reason} must drop the probe`);
+    } finally {
+      if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+      else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
+    }
+  });
+}
