@@ -29,6 +29,7 @@ Every package with a user-edited JSON config ships a JSON Schema next to its ext
 | `mpi-herdr-report` | `HERDR_ENV=1` | Notifies Herdr terminal multiplexer panes of agent status (working / idle / waiting). |
 | `mpi-batch-skill` | `$mpi-batch`, `/skill:mpi-batch` (manual only) | Write, validate, and launch batch scripts. See [package reference](../pi-packages/mpi-batch-skill/README.md). |
 | `mpi-ctl-skill` | `$mpi-ctl`, `mpi status` / `mpi ctl` | Agent Tab collaboration skill: locate tabs via `MIXCODE_*` and prompt/wait/read peers with `mpi status` / `mpi ctl`. |
+| `mpi-working-timer` | Automatic while a run is in flight | Footer entry with the elapsed time of the current run (`⏱ 12s`), switching to the settled duration and local finish time (`✔ done 12s at 2026-10-03 15:39:00`) when it ends. Works under bare Pi too. See [package reference](../pi-packages/mpi-working-timer/README.md). |
 
 ## Built-in Package Loading Lifecycle
 

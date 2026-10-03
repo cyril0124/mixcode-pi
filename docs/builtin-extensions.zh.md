@@ -29,6 +29,7 @@ MixCode 随附位于 `pi-packages/mpi-*` 的第一方内置 Pi 包。启动时�
 | `mpi-herdr-report` | `HERDR_ENV=1` 环境生效 | 将 Agent 的运行状态（working / idle / waiting）同步上报至 Herdr 终端复用器窗格。 |
 | `mpi-batch-skill` | `$mpi-batch`、`/skill:mpi-batch`（仅手动调用） | 编写、验证和启动 batch 脚本。详见 [包文档](../pi-packages/mpi-batch-skill/README.zh.md)。 |
 | `mpi-ctl-skill` | `$mpi-ctl`，`mpi status` / `mpi ctl` | Agent Tab 协作 skill：用 `MIXCODE_*` 定位 tab，再用 `mpi status` / `mpi ctl` 向同伴发 Prompt / 等待 / 读结果。 |
+| `mpi-working-timer` | 运行期间自动生效 | 用 footer 条目显示当前这轮已耗时（`⏱ 12s`），结束后切换为本轮总耗时与本地结束时刻（`✔ done 12s at 2026-10-03 15:39:00`）。裸 Pi 下同样生效。详见[包文档](../pi-packages/mpi-working-timer/README.zh.md)。 |
 
 ## 内置包加载生命周期
 

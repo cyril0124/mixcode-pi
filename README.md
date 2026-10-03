@@ -29,6 +29,7 @@ A **multi-tab**, terminal-native AI coding agent fully compatible with the [Pi](
 - **Terminal-first workflow.** Vim-style transcript navigation, command palette, `$skill` / `@file` / `@tab` autocomplete.
 - **Prompt history by scope.** Recall prompts from the current session, workdir, or global log with [`/prompt-history`](pi-packages/mpi-prompt-history/README.md#commands) and `Ctrl+G`.
 - **Declarative batch automation.** Script multi-agent workflows in Lua or TypeScript, with dry-run validation.
+- **Run duration in the footer.** See how long the current run has been working (`⏱ 12s`), and its total duration plus finish time once it settles (`✔ done 12s at 2026-10-03 15:39:00`), in MixCode and bare Pi.
 
 ---
 
@@ -78,6 +79,7 @@ Install community extensions directly through Pi package declarations (`settings
 - **`mpi-stuck-guard`**: Guards oversized recursive searches, repeated identical tool calls, stalled provider streams, and repeated parameter-validation failures. Configuration and statistics: `/stuck-guard config`, `/stuck-guard stats`.
 - **`mpi-herdr-report`**: Real-time status reporting to Herdr agent panes (`HERDR_ENV=1`).
 - **`mpi-bash`**: Default bash timeout plus a foreground window that detaches long commands to the background and reports their exit code when they finish; `/bash-logs` opens any background command's full log.
+- **`mpi-working-timer`**: Footer entry with the elapsed time of the current run (`⏱ 12s`), switching to the settled total and local finish time (`✔ done 12s at 2026-10-03 15:39:00`) when it ends; also active under bare Pi.
 
 <p align="center">
   <img src="assets/readme-right-widget.gif" alt="Extension side panel" width="900">

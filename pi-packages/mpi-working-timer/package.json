@@ -1,0 +1,11 @@
+{
+  "name": "mpi-working-timer",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Footer status entry showing how long the current agent run has been working, with the settled duration after it ends (Pi and MixCode)",
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

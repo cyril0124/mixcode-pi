@@ -511,6 +511,10 @@ import toolBlockSchemaJson from "../../pi-packages/mpi-tool-block/mpi-tool-block
 import toolBlockSkillMd from "../../pi-packages/mpi-tool-block/skills/mpi-tool-block/SKILL.md" with {
   type: "text",
 };
+import workingTimerIndex from "../../pi-packages/mpi-working-timer/index.ts" with { type: "text" };
+import workingTimerPackageJson from "../../pi-packages/mpi-working-timer/package.json" with {
+  type: "text",
+};
 // Documentation embedded for the system-prompt pointers; the binary has no
 // package tree on disk, so these are installed to <agentDir>/mixcode-docs.
 import mixcodeDoc_README_md from "../../docs/README.md" with { type: "text" };
@@ -845,6 +849,10 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
       "package.json": toolBlockPackageJson,
       "mpi-tool-block.schema.json": toolBlockSchemaJson,
       "skills/mpi-tool-block/SKILL.md": toolBlockSkillMd,
+    },
+    "mpi-working-timer": {
+      "index.ts": workingTimerIndex,
+      "package.json": workingTimerPackageJson,
     },
   },
 });
