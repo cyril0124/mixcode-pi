@@ -79,6 +79,18 @@ test("canceling the message dialog leaves the config unchanged", async () => {
   assert.deepEqual(state.persisted, []);
 });
 
+test("similar call count can be edited without changing the action or message", async () => {
+  const state = makeOverlay({
+    initial: { ...DEFAULT_STUCK_GUARD_CONFIG, doomLoop: { action: "ask", message: "hint" } },
+    answers: ["8"],
+  });
+  await press(state.overlay, downs(8) + "\r");
+  assert.deepEqual(state.inputs, [{ id: "similarCallThreshold", prefill: "5" }]);
+  assert.equal(state.persisted[0]!.similarCallThreshold, 8);
+  assert.deepEqual(state.persisted[0]!.doomLoop, { action: "ask", message: "hint" });
+  assert.match(state.overlay.render(100).join("\n"), /Similar call threshold: 8/);
+});
+
 test("number rows keep the JSON input path and report invalid JSON", async () => {
   const state = makeOverlay({ answers: ["450", "abc"] });
   await press(state.overlay, downs(2) + "\r");

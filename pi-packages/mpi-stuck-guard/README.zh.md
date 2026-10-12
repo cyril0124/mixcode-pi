@@ -1,6 +1,6 @@
 # mpi-stuck-guard
 
-`mpi-stuck-guard` 拦截范围过大的递归搜索，检测相同工具调用的连续重复，中止卡住的 Provider 流并交给宿主重试，同时在反复参数校验失败后提示模型纠正参数。
+`mpi-stuck-guard` 拦截范围过大的递归搜索，检测相同或相似工具调用的连续重复，中止卡住的 Provider 流并交给宿主重试，同时在反复参数校验失败后提示模型纠正参数。
 
 ## Doom loop
 
@@ -11,23 +11,32 @@
   "doomLoop": {
     "action": "deny",
     "message": "请修改输入后再重试。"
-  }
+  },
+  "similarCallThreshold": 5
 }
 ```
 
-阈值固定为 3：同一工具以字节相同的 `JSON.stringify(input)` 连续调用时，从第三次起应用此动作。成功和失败的调用都计数。更换工具或输入重置为 1，用户消息和模型回复不改变计数。
+相同调用会先递归排序 JSON 对象键；数组顺序和字符串内容仍参与比较。同一工具以规范化后相同的参数连续调用时，从第三次起应用动作。成功和失败的调用都计数。
 
-`session_start` 清空计数。配置在 `session_start` 和 `before_agent_start` 重载；关闭后重新启用从头计数。
+相似调用检查最近 `similarCallThreshold` 次连续同工具调用（默认 5，整数 2–64）。规范化参数的相邻字符二元组 Dice 平均相似度达到 85% 时，发送可见的 steer 提醒。相似检测不拦截调用，也不弹出审批对话框。窗口内的 `read` 调用读取不同文件路径时不提醒；同文件分页可能提醒，但仍允许执行。
+
+后续滑动窗口持续符合条件时，只在上次提醒次数的两倍处再次提醒，并在 64 次上限处额外提醒一次。默认阈值对应 5、10、20、40、64 次。更换工具、窗口相似度低于 85%，或窗口内读取不同文件时，清空相似重复计数和提醒状态。
+
+完全相同的调用连续被拦截 3 次后，结果带上 `terminate: true` 和 `run stopped`。当前工具批次的所有结果都请求终止时，宿主结束自动工具续跑。混合批次中的其他允许调用可能让批次继续运行。Allow once 清空连续拒绝计数，但保留重复历史。
+
+相似度衡量参数，不判断任务是否推进。参数接近的合法批量操作可能触发提醒。只有完全相同的调用应用 `doomLoop.action`；更换工具或改变参数内容会打断完全重复计数。
+
+`session_start` 清空全部计数。配置在 `session_start` 和 `before_agent_start` 重载；更改动作或相似调用次数后从头计数。用户消息和模型文本本身不改变计数。
 
 | 动作 | 结果 |
 |---|---|
 | `allow` | 关闭防护。 |
-| `ask` | 提供 Allow once / Reject。Allow once 不改变计数，下次相同调用仍需审批。Esc、取消、对话框失败或没有 UI 时拦截。 |
-| `deny` | 从第三次起拦截，原因包含 `stuck-guard: doom_loop`，可选 `message` 换行追加。未配置 `doomLoop` 时的默认值。 |
+| `ask` | 从第 3 次完全相同的调用起，提供 Allow once / Reject。Esc、取消、对话框失败或没有 UI 时拦截。 |
+| `deny` | 从第 3 次起自动拦截完全相同的调用，可选 `message` 换行追加。未配置 `doomLoop` 时的默认值。 |
 
 `action` 为必填项。可选 `message` 是原样输出的字符串，允许空字符串和换行。未知字段和非法类型属于配置错误。提示会保存，但只在自动 `deny` 时显示；`allow`、`ask` 和用户拒绝时不显示。
 
-在 `/stuck-guard config` 的 Doom loop 区域分两行编辑：Doom loop action 回车在 `allow` → `ask` → `deny` 间循环并立即保存；Doom loop message 编辑可选的拒绝提示文本，输入为空即移除该字段。保存后，下一轮 Agent 对话时生效。页面无法设置空字符串 message；需要时直接编辑 `mpi-stuck-guard.json`。
+在 `/stuck-guard config` 的 Doom loop 区域可以编辑动作、可选拒绝提示和相似调用次数。动作回车在 `allow` → `ask` → `deny` 间循环并立即保存；提示输入为空即移除该字段。保存后，下一轮 Agent 对话时生效。页面无法设置空字符串 message；需要时直接编辑 `mpi-stuck-guard.json`。
 
 Pi 遇到扩展拦截就停止分发 `tool_call`。本防护只统计到达自身的调用，不包括此前的参数校验失败或扩展拦截。权限探针与其他工具一样参与计数，但其结果只涵盖[权限规则](../mpi-permission/README.zh.md#探针工具)，不预测本防护。
 
@@ -130,6 +139,7 @@ timeout 会调用请求级 `AbortController`，并在发出错误前调用 `iter
   "streamRetryStartTimeoutSeconds": 300,
   "knownTimeoutCooldownSeconds": 60,
   "doomLoop": { "action": "deny" },
+  "similarCallThreshold": 5,
   "schemaHintFailureThreshold": 2
 }
 ```
@@ -137,6 +147,7 @@ timeout 会调用请求级 `AbortController`，并在发出错误前调用 `iter
 | 键 | 类型 | 默认 | 含义 |
 |---|---|---:|---|
 | `doomLoop` | object | `{ "action": "deny" }` | 重复调用动作与可选拒绝提示，见 [Doom loop](#doom-loop) |
+| `similarCallThreshold` | 整数 2–64 | `5` | 相似提醒的同工具调用窗口；相似调用只提醒，不拦截 |
 | `streamWatchdogEnabled` | boolean | `true` | 启用 Provider 流首事件和 idle timeout |
 | `providerIds` | string[] | `[]` | 要包装的 Provider；空数组表示所有已配置 Provider |
 | `streamStartTimeoutSeconds` | 整数 >= 0 | `300` | 首个 Provider 事件最大等待秒数；`0` 关闭 |
@@ -167,7 +178,7 @@ timeout 会调用请求级 `AbortController`，并在发出错误前调用 `iter
 /stuck-guard stats    # 打开当前 session 统计
 ```
 
-`/stuck-guard config` 会在 Editor 区域打开配置页面。除 `config` 和 `stats` 外的参数都会被拒绝。页面可以切换 watchdog 设置、循环 Doom loop action、编辑 Doom loop message 与参数提示阈值，并通过可搜索的多选列表选择 Provider ID。
+`/stuck-guard config` 会在 Editor 区域打开配置页面。除 `config` 和 `stats` 外的参数都会被拒绝。页面可以切换 watchdog 设置、循环 Doom loop action、编辑 Doom loop message、相似调用次数与参数提示阈值，并通过可搜索的多选列表选择 Provider ID。
 
 `/stuck-guard stats` 会在 Editor 区域打开只读页面，显示当前 session 的 Provider 请求、完成、start timeout、idle timeout、Provider 错误、用户 abort 和 retry cooldown 事件次数。统计保存在内存中，session 启动时清零，不写入 `mpi-stuck-guard.json`。
 

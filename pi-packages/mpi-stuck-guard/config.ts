@@ -21,6 +21,8 @@ export interface StuckGuardConfig {
   streamRetryStartTimeoutSeconds: number;
   knownTimeoutCooldownSeconds: number;
   schemaHintFailureThreshold: number;
+  /** Consecutive same-tool calls checked for similarity; bounded to keep memory finite. */
+  similarCallThreshold: number;
 }
 
 export const DEFAULT_STUCK_GUARD_CONFIG: StuckGuardConfig = {
@@ -32,6 +34,7 @@ export const DEFAULT_STUCK_GUARD_CONFIG: StuckGuardConfig = {
   streamRetryStartTimeoutSeconds: 300,
   knownTimeoutCooldownSeconds: 60,
   schemaHintFailureThreshold: 2,
+  similarCallThreshold: 5,
 };
 
 export type StuckGuardConfigLoad =
@@ -50,6 +53,7 @@ const ALLOWED_ROOT_KEYS = new Set<string>([
   "streamWatchdogEnabled",
   "providerIds",
   "schemaHintFailureThreshold",
+  "similarCallThreshold",
   "doomLoop",
   "$schema",
 ]);
@@ -123,6 +127,13 @@ export function parseStuckGuardConfig(
       return { ok: false, error: "schemaHintFailureThreshold must be an integer >= 1" };
     }
     config.schemaHintFailureThreshold = value;
+  }
+  if (root.similarCallThreshold !== undefined) {
+    const value = root.similarCallThreshold;
+    if (typeof value !== "number" || !Number.isInteger(value) || value < 2 || value > 64) {
+      return { ok: false, error: "similarCallThreshold must be an integer between 2 and 64" };
+    }
+    config.similarCallThreshold = value;
   }
   return { ok: true, config };
 }

@@ -123,7 +123,8 @@ const SECTIONS: readonly { title: string; rows: readonly ConfigRow[] }[] = [
       {
         id: "doomLoop.action",
         label: "Doom loop action",
-        description: "What happens on the third identical consecutive call; allow disables.",
+        description:
+          "Action for identical calls; similar calls only warn. Allow disables both detectors.",
         kind: "cycle",
         values: ["allow", "ask", "deny"],
         read: (config) => config.doomLoop.action,
@@ -146,6 +147,15 @@ const SECTIONS: readonly { title: string; rows: readonly ConfigRow[] }[] = [
               ? { action: config.doomLoop.action }
               : { ...config.doomLoop, message: value },
         }),
+      },
+      {
+        id: "similarCallThreshold",
+        label: "Similar call threshold",
+        description:
+          "Same-tool calls before an advisory similarity reminder (2-64); never blocks calls.",
+        kind: "number",
+        read: (config) => config.similarCallThreshold,
+        apply: (config, value) => ({ ...config, similarCallThreshold: value }),
       },
     ],
   },

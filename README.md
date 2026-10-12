@@ -29,6 +29,7 @@ A **multi-tab**, terminal-native AI coding agent fully compatible with the [Pi](
 - **Terminal-first workflow.** Vim-style transcript navigation, command palette, `$skill` / `@file` / `@tab` autocomplete.
 - **Prompt history by scope.** Recall prompts from the current session, workdir, or global log with [`/prompt-history`](pi-packages/mpi-prompt-history/README.md#commands) and `Ctrl+G`.
 - **Declarative batch automation.** Script multi-agent workflows in Lua or TypeScript, with dry-run validation.
+- **Tool-call loop protection.** Warn on similar calls without blocking them and apply approval or denial to identical repeated calls; see [loop protection](pi-packages/mpi-stuck-guard/README.md#doom-loop) for automatic continuation stop conditions.
 - **Run duration in the footer.** See how long the current run has been working (`⏱ 12s`), and its total duration plus finish time once it settles (`✔ done 12s at 2026-10-03 15:39:00`), in MixCode and bare Pi.
 
 ---

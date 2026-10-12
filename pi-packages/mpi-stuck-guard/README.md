@@ -1,6 +1,6 @@
 # mpi-stuck-guard
 
-`mpi-stuck-guard` blocks oversized recursive searches, detects repeated identical tool calls, aborts stalled provider streams through the host retry path, and steers the model after repeated parameter-validation failures.
+`mpi-stuck-guard` blocks oversized recursive searches, detects identical and similar tool-call repetition, aborts stalled provider streams through the host retry path, and steers the model after repeated parameter-validation failures.
 
 ## Doom loop
 
@@ -11,23 +11,32 @@
   "doomLoop": {
     "action": "deny",
     "message": "Change the input before retrying."
-  }
+  },
+  "similarCallThreshold": 5
 }
 ```
 
-The threshold is fixed at 3: the action applies to the third and each subsequent consecutive call with the same tool name and byte-identical `JSON.stringify(input)`. Successful and failed calls both count. A different tool or input resets the count to 1; user messages and model replies leave it unchanged.
+Identical calls use recursively sorted JSON object keys; array order and literal string contents remain significant. The action applies from the third consecutive call with the same tool and canonical arguments. Successful and failed calls both count.
 
-`session_start` clears the counter. Settings reload on `session_start` and `before_agent_start`; disabling and re-enabling starts a new count.
+Similar calls use the last `similarCallThreshold` consecutive same-tool calls (default 5, integer 2–64). When mean adjacent character-bigram Dice similarity over canonical arguments reaches 85%, a visible steering reminder is sent. Similarity never blocks calls or opens approval dialogs. A window of `read` calls targeting distinct file paths stays silent; same-file pagination may warn but remains allowed.
+
+While each rolling window continues to qualify, reminders repeat only at doubled counts and once at the 64-call ceiling. With the default threshold, reminders occur at 5, 10, 20, 40 and 64 calls. A different tool, a window below 85%, or a distinct-file read window resets the similarity episode and reminder gate.
+
+After 3 consecutive blocked identical calls, the result includes `terminate: true` and `run stopped`. The host ends automatic tool continuation when every result in the current batch requests termination. Other allowed calls in a mixed batch can keep that batch running. Allow-once resets the blocked-call count but preserves repetition history.
+
+Similarity measures arguments, not task progress. Legitimate batches with near-identical parameters may warn. Only identical calls use `doomLoop.action`; changing tools or argument contents breaks the identical streak.
+
+`session_start` clears all counters. Settings reload on `session_start` and `before_agent_start`; changing the action or similarity count starts fresh counters. User messages and model text alone leave counters unchanged.
 
 | Action | Result |
 |---|---|
 | `allow` | Disabled. |
-| `ask` | Offer Allow once / Reject. Allow once leaves the count unchanged, so the next identical call asks again. Esc, cancellation, dialog failure, or missing UI blocks the call. |
-| `deny` | Block from the third call with a `stuck-guard: doom_loop` reason. Append optional `message` on a new line. Default when `doomLoop` is absent. |
+| `ask` | Offer Allow once / Reject from the third identical call. Esc, cancellation, dialog failure, or missing UI blocks the call. |
+| `deny` | Block identical calls automatically from the third call. Append optional `message` on a new line. Default when `doomLoop` is absent. |
 
 `action` is required. Optional `message` is a literal string that accepts empty text and newlines. Unknown fields and invalid types are configuration errors. Messages are saved but displayed only for automatic `deny`, not for `allow`, `ask`, or user rejection.
 
-In `/stuck-guard config`, the Doom loop section has two rows: Doom loop action cycles `allow` → `ask` → `deny` on Enter and saves immediately; Doom loop message edits the optional denial text and an empty answer removes it. Saved changes apply on the next agent turn. The page cannot set an empty-string message; edit `mpi-stuck-guard.json` directly for that.
+In `/stuck-guard config`, the Doom loop section edits the action, optional denial message, and similar-call count. Action cycles `allow` → `ask` → `deny` on Enter and saves immediately; an empty message answer removes that field. Saved changes apply on the next agent turn. The page cannot set an empty-string message; edit `mpi-stuck-guard.json` directly for that.
 
 Pi stops dispatching `tool_call` after an extension blocks it. This guard counts only calls that reach it, excluding earlier validation failures and extension blocks. Permission probes count like any other tool, but their results cover [permission rules](../mpi-permission/README.md#permission-probe), not this guard.
 
@@ -130,6 +139,7 @@ Config lives at `<agentDir>/mpi-stuck-guard.json`. Missing keys use defaults. Un
   "streamRetryStartTimeoutSeconds": 300,
   "knownTimeoutCooldownSeconds": 60,
   "doomLoop": { "action": "deny" },
+  "similarCallThreshold": 5,
   "schemaHintFailureThreshold": 2
 }
 ```
@@ -137,6 +147,7 @@ Config lives at `<agentDir>/mpi-stuck-guard.json`. Missing keys use defaults. Un
 | Key | Type | Default | Meaning |
 |---|---|---:|---|
 | `doomLoop` | object | `{ "action": "deny" }` | Repeated-call action and optional denial message; see [Doom loop](#doom-loop) |
+| `similarCallThreshold` | integer 2–64 | `5` | Same-tool call window for advisory similarity reminders; similar calls are never blocked |
 | `streamWatchdogEnabled` | boolean | `true` | Enables provider stream start and idle timeouts |
 | `providerIds` | string[] | `[]` | Providers to wrap; empty means all configured providers |
 | `streamStartTimeoutSeconds` | integer >= 0 | `300` | Maximum wait for the first provider event; `0` disables it |
@@ -167,7 +178,7 @@ Use these forms:
 /stuck-guard stats    # open current-session statistics
 ```
 
-`/stuck-guard config` opens the configuration page in the Editor area. Arguments other than `config` and `stats` are rejected. The page lets you toggle watchdog settings, cycle the Doom loop action, edit the Doom loop message and the schema-hint threshold, and select Provider IDs through a searchable multi-select list.
+`/stuck-guard config` opens the configuration page in the Editor area. Arguments other than `config` and `stats` are rejected. The page lets you toggle watchdog settings, cycle the Doom loop action, edit the Doom loop message, similar-call count and schema-hint threshold, and select Provider IDs through a searchable multi-select list.
 
 `/stuck-guard stats` opens a read-only Editor page. It shows current-session counts for provider attempts, completed streams, start timeouts, idle timeouts, provider errors, user aborts, and retry cooldown events. Statistics are kept in memory and reset when the session starts; they are not written to `mpi-stuck-guard.json`.
 
