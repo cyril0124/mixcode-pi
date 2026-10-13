@@ -424,6 +424,67 @@ test("extension registers /auto-rename, cancel, config completions, and first-me
   assert.equal(hasConfigCompletion, true);
 });
 
+test("first-message hook ignores custom starts and still names the first user prompt", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-auto-rename-custom-start-"));
+  const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+  try {
+    process.env.PI_CODING_AGENT_DIR = dir;
+    writeAutoRenameConfig(dir, { onFirstMessage: true });
+    const { ctx } = firstMessageCtx([]);
+    let modelCalls = 0;
+    const { registry } = await createAuxModelRegistry({
+      models: [ctx.model!],
+      complete: async () => {
+        modelCalls += 1;
+        return {
+          role: "assistant",
+          content: [{ type: "text", text: "fix-login-button" }],
+          stopReason: "stop",
+        } as never;
+      },
+    });
+    ctx.modelRegistry = registry;
+    ctx.model = registry.find("test", "model");
+    const handlers = new Map<string, (event: unknown, context: unknown) => unknown>();
+    const { promise: renamed, resolve: markRenamed } = Promise.withResolvers<string>();
+    autoRename({
+      on: (name: string, handler: (event: unknown, context: unknown) => unknown) => {
+        handlers.set(name, handler);
+      },
+      registerCommand: () => undefined,
+      setSessionName: markRenamed,
+      getThinkingLevel: () => "off",
+    } as unknown as ExtensionAPI);
+    const start = handlers.get("before_agent_start")!;
+    start(
+      {
+        type: "before_agent_start",
+        messageType: "custom",
+        message: {
+          role: "custom",
+          customType: "bash-detached-exit",
+          content: "Process finished",
+          display: true,
+          timestamp: 1,
+        },
+      },
+      ctx,
+    );
+    assert.equal(modelCalls, 0);
+
+    start(
+      { type: "before_agent_start", messageType: "user", prompt: "fix the login button race" },
+      ctx,
+    );
+    assert.equal(await renamed, "fix-login-button");
+    assert.equal(modelCalls, 1);
+  } finally {
+    if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+    else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("resolveAutoRenameTarget inherits session unless config overrides", () => {
   const active = { provider: "a", modelId: "m1", thinkingLevel: "medium" };
   assert.deepEqual(resolveAutoRenameTarget(active), active);

@@ -74,7 +74,12 @@ async function emitBeforeAgentStart(
   const handler = fake.handlers.get("before_agent_start");
   assert.ok(handler, "before_agent_start handler registered");
   return (await handler(
-    { type: "before_agent_start", prompt, systemPromptOptions: { cwd: "/p", skills } },
+    {
+      type: "before_agent_start",
+      messageType: "user",
+      prompt,
+      systemPromptOptions: { cwd: "/p", skills },
+    },
     fake.ctx,
   )) as { message?: { customType: string; content: string; display: boolean } } | undefined;
 }
@@ -229,6 +234,35 @@ test("before_agent_start: injects hidden custom message for $refs", async () => 
   assert.equal(result.message.display, false);
   assert.match(result.message.content, /<skill name="review">/);
   assert.match(result.message.content, /<location>\/skills\/review\/SKILL\.md<\/location>/);
+});
+
+test("before_agent_start: custom starts refresh skills without interpreting notification refs", async () => {
+  const fake = createFakePi();
+  skillRefsExtension(fake.pi as never);
+  await emitBeforeAgentStart(fake, "warm up", [authoritativeSkill("old-skill")]);
+  const result = await fake.handlers.get("before_agent_start")!(
+    {
+      type: "before_agent_start",
+      messageType: "custom",
+      message: {
+        role: "custom",
+        customType: "bash-detached-exit",
+        content: "Completed $new-skill",
+        display: true,
+        timestamp: 1,
+      },
+      systemPromptOptions: { cwd: "/p", skills: [authoritativeSkill("new-skill")] },
+    },
+    fake.ctx,
+  );
+  assert.equal(result, undefined);
+  assert.deepEqual(fake.sent, []);
+
+  const projected = await projectContext(fake, [userMessage("$old-skill $new-skill")]);
+  const block = projected[1];
+  assert.ok(block?.role === "custom");
+  assert.match(String(block.content), /<skill name="new-skill">/);
+  assert.doesNotMatch(String(block.content), /old-skill/);
 });
 
 test("before_agent_start: returns nothing when prompt has no refs", async () => {

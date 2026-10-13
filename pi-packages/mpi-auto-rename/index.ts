@@ -651,6 +651,8 @@ const autoRename: ExtensionFactory = (pi) => {
   const abortSlot: AutoRenameAbortSlot = {};
 
   pi.on("before_agent_start", (event, ctx) => {
+    // Older Pi versions omit messageType; their startup events always carry a user prompt.
+    if ("messageType" in event && event.messageType !== "user") return;
     void tryAutoRenameOnFirstMessage({
       prompt: event.prompt,
       ctx,

@@ -95,6 +95,8 @@ export default function (pi: ExtensionAPI) {
         ]),
       );
     }
+    // Older Pi versions omit messageType; their startup events always carry a user prompt.
+    if ("messageType" in event && event.messageType !== "user") return;
     const resolved = resolveRefs(event.prompt);
     if (resolved.length === 0) return;
     return {
