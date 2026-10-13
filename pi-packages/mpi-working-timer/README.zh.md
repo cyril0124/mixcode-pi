@@ -8,9 +8,11 @@
 
 | 状态 | footer 条目 |
 | --- | --- |
-| 运行中 | `⏱ <已耗时>` |
+| 运行中 | `⏱ <已耗时>` 或 `⏱ <已耗时> · <idle> idle` |
 | 本轮结束 | `✔ done <耗时> at <本地 YYYY-MM-DD HH:MM:SS>` |
 | 空闲，或本会话还没有运行过 | 移除该条目 |
+
+idle 后缀在运行开始后出现，显示距上一次 streaming 活动（`turn_start`、`message_update`、`tool_execution_start`、`tool_execution_end`）已过的时间，每次事件重置为零，在长时间静默的工具调用期间持续增长。
 
 耗时向下取整到秒，渲染为 `7s`、`2m 05s` 或 `1h 02m 03s`。结束时刻是本地时间，格式与转录里的 `Worked for 7s · at <stamp>` 一致。
 
@@ -26,7 +28,7 @@
 
 - `session_start`：清空状态并移除条目。
 - `agent_start`：用 `??=` 打时间戳，因此属于同一次运行的 agent 循环（自动重试、恢复、压缩、队列中的后续任务）保留已耗时。
-- 运行期间由 `turn_start`、`message_update`、`tool_execution_start`、`tool_execution_end` 刷新文本，并由 1s 定时器让长时间静默的工具调用期间秒数继续增长。
+- 运行期间由 `turn_start`、`message_update`、`tool_execution_start`、`tool_execution_end` 刷新文本并重置 idle 计数，1s 定时器让已耗时和 idle 时长在长时间静默的工具调用期间继续增长。
 - `agent_settled`：停止定时器并切换为 `✔ done <耗时> at <时刻>`。
 - `session_shutdown`：停止定时器并移除条目。
 

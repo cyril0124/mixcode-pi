@@ -61,6 +61,8 @@ export function formatClockTime(finishedAtMs: number): string {
 interface WorkingTimerState {
   /** Epoch ms the current run started, absent when no run is in flight. */
   workingSince?: number;
+  /** Epoch ms the last streaming activity occurred in the current run (message_update, tool events). */
+  lastActivityAt?: number;
   /** Last settled run, absent until one settles. */
   settled?: {
     /** Wall-clock duration of the run. */
@@ -75,8 +77,14 @@ interface WorkingTimerState {
  * to show (callers pass undefined through to clear the footer entry).
  */
 function workingTimerText(state: WorkingTimerState, now: number): string | undefined {
-  const { workingSince, settled } = state;
-  if (workingSince !== undefined) return `⏱ ${formatElapsed(now - workingSince)}`;
+  const { workingSince, lastActivityAt, settled } = state;
+  if (workingSince !== undefined) {
+    const elapsed = `⏱ ${formatElapsed(now - workingSince)}`;
+    if (lastActivityAt !== undefined) {
+      return `${elapsed} · ${formatElapsed(now - lastActivityAt)} idle`;
+    }
+    return elapsed;
+  }
   if (settled === undefined) return undefined;
   return `✔ done ${formatElapsed(settled.durationMs)} at ${formatClockTime(settled.finishedAtMs)}`;
 }
@@ -102,15 +110,10 @@ const extension: ExtensionFactory = (pi: ExtensionAPI) => {
     ticker.unref?.();
   };
 
-  /** Refresh without starting anything: only an in-flight run has a timer. */
-  const refreshIfWorking = (ctx: ExtensionContext): void => {
-    if (state.workingSince === undefined) return;
-    render(ctx);
-  };
-
   /** Drop the run in flight and the last settled run together. */
   const resetState = (): void => {
     state.workingSince = undefined;
+    state.lastActivityAt = undefined;
     state.settled = undefined;
   };
 
@@ -125,15 +128,23 @@ const extension: ExtensionFactory = (pi: ExtensionAPI) => {
     // ??= keeps the clock across the agent loops that belong to one run
     // (auto-retry, compaction, queued continuation); only agent_settled ends a run.
     state.workingSince ??= Date.now();
+    state.lastActivityAt = Date.now();
     state.settled = undefined;
     render(ctx);
     startTicker(ctx);
   });
 
-  pi.on("turn_start", (_event: TurnStartEvent, ctx) => refreshIfWorking(ctx));
-  pi.on("message_update", (_event: MessageUpdateEvent, ctx) => refreshIfWorking(ctx));
-  pi.on("tool_execution_start", (_event: ToolExecutionStartEvent, ctx) => refreshIfWorking(ctx));
-  pi.on("tool_execution_end", (_event: ToolExecutionEndEvent, ctx) => refreshIfWorking(ctx));
+  /** Mark activity and re-render; no-op when no run is in flight. */
+  const recordActivity = (ctx: ExtensionContext): void => {
+    if (state.workingSince === undefined) return;
+    state.lastActivityAt = Date.now();
+    render(ctx);
+  };
+
+  pi.on("turn_start", (_event: TurnStartEvent, ctx) => recordActivity(ctx));
+  pi.on("message_update", (_event: MessageUpdateEvent, ctx) => recordActivity(ctx));
+  pi.on("tool_execution_start", (_event: ToolExecutionStartEvent, ctx) => recordActivity(ctx));
+  pi.on("tool_execution_end", (_event: ToolExecutionEndEvent, ctx) => recordActivity(ctx));
 
   pi.on("agent_settled", (_event: AgentSettledEvent, ctx) => {
     stopTicker();
@@ -141,6 +152,7 @@ const extension: ExtensionFactory = (pi: ExtensionAPI) => {
       const finishedAtMs = Date.now();
       state.settled = { durationMs: Math.max(0, finishedAtMs - state.workingSince), finishedAtMs };
       state.workingSince = undefined;
+      state.lastActivityAt = undefined;
     }
     render(ctx);
   });

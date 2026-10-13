@@ -8,9 +8,11 @@ Shows how long the current agent run has been working, as one footer status entr
 
 | State | Footer entry |
 | --- | --- |
-| run in flight | `⏱ <elapsed>` |
+| run in flight | `⏱ <elapsed>` or `⏱ <elapsed> · <idle> idle` |
 | run settled | `✔ done <duration> at <local YYYY-MM-DD HH:MM:SS>` |
 | idle, or no run in this session yet | removed |
+
+The idle suffix appears once a run is in flight. It shows how long since the last streaming activity (`turn_start`, `message_update`, `tool_execution_start`, or `tool_execution_end`), resetting to zero on each event and growing during silent stretches such as long tool calls.
 
 Durations floor to whole seconds and render as `7s`, `2m 05s`, or `1h 02m 03s`. The finish stamp is local time, the same shape as the transcript's `Worked for 7s · at <stamp>` line.
 
@@ -26,7 +28,7 @@ Both hosts render the joined status line into the terminal width, so on a narrow
 
 - `session_start`: clears state and removes the entry.
 - `agent_start`: stamps the clock with `??=`, so agent loops belonging to one run (auto-retry, recovery, compaction, queued continuation) keep their elapsed time.
-- During a run, `turn_start`, `message_update`, `tool_execution_start`, and `tool_execution_end` refresh the text, and a 1s interval keeps the seconds moving through long silent tool calls.
+- During a run, `turn_start`, `message_update`, `tool_execution_start`, and `tool_execution_end` refresh the text and reset the idle counter, and a 1s interval keeps both the elapsed and idle durations moving through long silent tool calls.
 - `agent_settled`: stops the interval and switches to `✔ done <duration> at <stamp>`.
 - `session_shutdown`: stops the interval and removes the entry.
 
