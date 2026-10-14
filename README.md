@@ -30,7 +30,7 @@ A **multi-tab**, terminal-native AI coding agent fully compatible with the [Pi](
 - **Prompt history by scope.** Recall prompts from the current session, workdir, or global log with [`/prompt-history`](pi-packages/mpi-prompt-history/README.md#commands) and `Ctrl+G`.
 - **Declarative batch automation.** Script multi-agent workflows in Lua or TypeScript, with dry-run validation.
 - **Tool-call loop protection.** Warn on similar calls without blocking them and apply approval or denial to identical repeated calls; see [loop protection](pi-packages/mpi-stuck-guard/README.md#doom-loop) for automatic continuation stop conditions.
-- **Run duration in the footer.** See how long the current run has been working (`⏱ 12s`), and its total duration plus finish time once it settles (`✔ done 12s at 2026-10-03 15:39:00`), in MixCode and bare Pi.
+- **Run timing in the footer.** See elapsed time and the settled duration; startup restores the last visible message's time with [`mpi-working-timer`](pi-packages/mpi-working-timer/README.md#display), in MixCode and bare Pi.
 
 ---
 
@@ -80,7 +80,7 @@ Install community extensions directly through Pi package declarations (`settings
 - **`mpi-stuck-guard`**: Guards oversized recursive searches, repeated identical tool calls, stalled provider streams, and repeated parameter-validation failures. Configuration and statistics: `/stuck-guard config`, `/stuck-guard stats`.
 - **`mpi-herdr-report`**: Real-time status reporting to Herdr agent panes (`HERDR_ENV=1`).
 - **`mpi-bash`**: Default bash timeout plus a foreground window that detaches long commands to the background and reports their exit code when they finish; `/bash-logs` opens any background command's full log.
-- **`mpi-working-timer`**: Footer entry with the elapsed time of the current run (`⏱ 12s`), switching to the settled total and local finish time (`✔ done 12s at 2026-10-03 15:39:00`) when it ends; also active under bare Pi.
+- **`mpi-working-timer`**: Footer elapsed time and settled duration; startup restores the last visible message's timestamp. See [display and lifecycle](pi-packages/mpi-working-timer/README.md#display); also active under bare Pi.
 
 <p align="center">
   <img src="assets/readme-right-widget.gif" alt="Extension side panel" width="900">

@@ -30,7 +30,7 @@
 - **按范围召回 Prompt。** 用 [`/prompt-history`](pi-packages/mpi-prompt-history/README.zh.md#命令) 和 `Ctrl+G` 浏览当前会话、工作目录或全局历史。
 - **声明式 Batch 自动化。** 用 Lua 或 TypeScript 脚本批量派发多 Agent 任务，支持 Dry-run 预览。
 - **工具调用循环保护。** 相似调用只提醒不拦截，完全相同的重复调用执行审批或拒绝；自动续跑停止条件见[循环保护](pi-packages/mpi-stuck-guard/README.zh.md#doom-loop)。
-- **Footer 运行耗时。** 显示当前这轮已耗时（`⏱ 12s`）以及结束后的总耗时与本地结束时刻（`✔ done 12s at 2026-10-03 15:39:00`），MixCode 与裸 Pi 下均生效。
+- **Footer 运行计时。** 显示运行耗时与结束后的总耗时；启动时通过 [`mpi-working-timer`](pi-packages/mpi-working-timer/README.zh.md#显示) 恢复最后一条可见消息的时间，MixCode 与裸 Pi 下均生效。
 
 ---
 
@@ -80,7 +80,7 @@ Tab 之间可以直接对话——同一 TUI，或其他 `mpi` 进程——无�
 - **`mpi-stuck-guard`**：防护范围过大的递归搜索、相同工具调用的连续重复、Provider 流停滞和反复参数校验失败。配置与统计：`/stuck-guard config`、`/stuck-guard stats`。
 - **`mpi-herdr-report`**：向 Herdr 窗格上报 Agent 运行与就绪状态（`HERDR_ENV=1`）。
 - **`mpi-bash`**：为 Bash 工具调用注入默认超时，并在前台窗口到期后把长命令转入后台，结束时自动回报退出码；`/bash-logs` 可查看任意后台命令的完整日志。
-- **`mpi-working-timer`**：用 footer 条目显示当前这轮的已耗时（`⏱ 12s`），结束后切换为本轮总耗时与本地结束时刻（`✔ done 12s at 2026-10-03 15:39:00`）；裸 Pi 下同样生效。
+- **`mpi-working-timer`**：Footer 运行耗时与结束后的总耗时；启动时恢复最后一条可见消息的 timestamp，详见[显示与生命周期](pi-packages/mpi-working-timer/README.zh.md#显示)；裸 Pi 下同样生效。
 
 <p align="center">
   <img src="assets/readme-right-widget.gif" alt="扩展侧栏" width="900">
