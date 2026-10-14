@@ -6,7 +6,7 @@ export const BASE_DELAY_MS = 1000;
 export const RESUME_CUSTOM_TYPE = "mpi-error-continue:resume";
 export const STATE_CUSTOM_TYPE = "mpi-error-continue:state";
 export const VISIBLE_CONTINUE_TEXT = "continue";
-export const MIDWORK_CONTINUE_TEXT = "continue $simple-plan";
+export const MIDWORK_CONTINUE_TEXT = "continue";
 export const STATUS_KEY = "error-continue";
 export const STATUS_PREFIX = "error-continue: on";
 export const COMMAND_NAME = "error-continue";
@@ -406,7 +406,7 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
         last?.stopReason === "error" ||
         (!!last && last.stopReason !== "aborted" && isEmptyResponse(last));
       // Non-error stop that ended mid-work (last block is thinking or a tool call):
-      // fire a single visible "continue $simple-plan" on settle.
+      // fire a single visible "continue" on settle.
       midWorkArmed =
         !retryArmed && !!last && last.stopReason !== "aborted" && endsWithThinkingOrToolCall(last);
       if (!retryArmed) {

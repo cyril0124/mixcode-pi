@@ -490,7 +490,7 @@ test("empty settles escalate from invisible to visible continues", async () => {
   assert.deepEqual(harness.delays, [5000, 5000, 5000, 5000]);
 });
 
-test("mid-work stop ending in thinking sends continue $simple-plan", async () => {
+test("mid-work stop ending in thinking sends continue", async () => {
   const harness = createHarness();
   await harness.emit("session_start");
   await midWorkSettle(harness, assistantThinking());
@@ -505,7 +505,7 @@ test("mid-work stop ending in thinking sends continue $simple-plan", async () =>
   });
 });
 
-test("mid-work stop ending in tool call sends continue $simple-plan", async () => {
+test("mid-work stop ending in tool call sends continue", async () => {
   const harness = createHarness();
   await harness.emit("session_start");
   await midWorkSettle(harness, assistantToolCall());
@@ -516,7 +516,7 @@ test("mid-work stop ending in tool call sends continue $simple-plan", async () =
   assert.deepEqual(harness.sent[0]?.options, { deliverAs: "followUp" });
 });
 
-test("error stop ending in thinking uses error flow, not continue $simple-plan", async () => {
+test("error stop ending in thinking uses error flow, not continue", async () => {
   const harness = createHarness();
   await harness.emit("session_start");
   await midWorkSettle(harness, {
@@ -760,7 +760,7 @@ test("external abort during the wait sends nothing and reports no cancel", async
   );
 });
 
-test("cancelling the mid-work wait does not send continue $simple-plan", async () => {
+test("cancelling the mid-work wait does not send continue", async () => {
   const harness = createHarness({ gate: async () => "cancel" });
   await harness.emit("session_start");
   await midWorkSettle(harness, assistantToolCall());

@@ -28,7 +28,7 @@ error-continue: on · mid-work · total 9
 ```
 
 `invisible N/3` and `visible N/5` describe the current error-retry phase. `mid-work` identifies the
-`continue $simple-plan` wait. `total N` counts only continues actually sent; waiting, timeout,
+`continue` wait. `total N` counts only continues actually sent; waiting, timeout,
 Esc/No cancellation, and external abort do not increase it.
 
 Three successful tool executions within one `turn` reset `invisibleUsed` and `visibleUsed` while keeping
@@ -62,8 +62,7 @@ turn_start / failed tool / new user message ─────► success streak = 
 
 ## Mid-work
 
-Sends one visible `continue $simple-plan` so the simple-plan skill is loaded on resume. One send
-per stop; phase counters are not involved.
+Sends one visible `continue`. One send per stop; phase counters are not involved.
 
 ## Confirmation dialog
 

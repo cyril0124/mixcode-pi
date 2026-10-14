@@ -27,7 +27,7 @@ error-continue: on · mid-work · total 9
 ```
 
 `invisible N/3` 和 `visible N/5` 表示当前错误重试阶段。
-`mid-work` 表示正在等待发送 `continue $simple-plan`。
+`mid-work` 表示正在等待发送 `continue`。
 `total N` 只统计实际发送的继续；等待、超时、Esc/No 取消和外部中止均不增加计数。
 
 同一个 `turn` 内连续 3 个成功的工具执行会清零 `invisibleUsed` 和 `visibleUsed`，但保留 `total N`。
@@ -60,8 +60,7 @@ turn_start / 工具失败 / 新用户消息 ────────────
 
 ## 工作中断
 
-发送一次可见的 `continue $simple-plan`，以便恢复时加载 simple-plan skill。
-每次停止最多发送一次，不涉及阶段计数器。
+发送一次可见的 `continue`。每次停止最多发送一次，不涉及阶段计数器。
 
 ## 确认对话框
 
