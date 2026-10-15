@@ -298,6 +298,34 @@ test("runAutoRename keeps the existing title when overwrite select is dismissed"
   assert.ok(notices.some((n) => n.includes("Kept existing title")));
 });
 
+test("runAutoRename ignores a dialog rejection after cancellation", async () => {
+  const names: string[] = [];
+  const notices: string[] = [];
+  const abortSlot: AutoRenameAbortSlot = {};
+  const entered = Promise.withResolvers<void>();
+  const choice = Promise.withResolvers<string | undefined>();
+
+  const rename = runAutoRename({
+    ...namedRenameCtx({
+      names,
+      notices,
+      select: async () => {
+        entered.resolve();
+        return choice.promise;
+      },
+    }),
+    abortSlot,
+  });
+
+  await entered.promise;
+  assert.equal(cancelAutoRename(abortSlot), true);
+  choice.reject(new Error("dialog dismissed"));
+
+  assert.deepEqual(await rename, { ok: false, reason: "cancelled" });
+  assert.deepEqual(names, []);
+  assert.deepEqual(notices, []);
+});
+
 test("runAutoRename overwrite replaces a named session without prompting", async () => {
   const names: string[] = [];
   const notices: string[] = [];
@@ -420,7 +448,7 @@ test("extension registers /auto-rename, cancel, config completions, and first-me
 
   autoRename(pi);
   assert.deepEqual(commands, ["auto-rename", "auto-rename-force", "auto-rename-cancel"]);
-  assert.deepEqual(events, ["before_agent_start"]);
+  assert.deepEqual(events, ["session_shutdown", "before_agent_start"]);
   assert.equal(hasConfigCompletion, true);
 });
 

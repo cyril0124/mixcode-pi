@@ -580,6 +580,7 @@ export async function runAutoRename(options: {
     let previous: TitleFailure | undefined;
     for (;;) {
       const result = await generateTitle(previous);
+      if (abort.signal.aborted) return { ok: false, reason: "cancelled" };
       if (!result.ok) {
         if (result.reason === "cancelled") notify("Cancelled", "info");
         else notify(`Auto-rename failed: ${result.reason}`, "error");
@@ -589,10 +590,18 @@ export async function runAutoRename(options: {
       const currentName = ctx.sessionManager.getSessionName();
       if (currentName && !options.overwrite) {
         // MixCode select shows title only; preview + question go in the title.
-        const choice = await ctx.ui.select(
-          `${currentName} -> ${result.title}\nOverwrite the current session title?`,
-          ["Yes", "No", "Regenerate"],
-        );
+        let choice: string | undefined;
+        try {
+          choice = await ctx.ui.select(
+            `${currentName} -> ${result.title}\nOverwrite the current session title?`,
+            ["Yes", "No", "Regenerate"],
+          );
+        } catch (error) {
+          // Session replacement can reject an open dialog after aborting this run.
+          if (abort.signal.aborted) return { ok: false, reason: "cancelled" };
+          throw error;
+        }
+        if (abort.signal.aborted) return { ok: false, reason: "cancelled" };
         if (choice === "Regenerate") {
           previous = {
             raw: result.title,
@@ -649,6 +658,10 @@ export function tryAutoRenameOnFirstMessage(options: {
 
 const autoRename: ExtensionFactory = (pi) => {
   const abortSlot: AutoRenameAbortSlot = {};
+
+  pi.on("session_shutdown", () => {
+    cancelAutoRename(abortSlot);
+  });
 
   pi.on("before_agent_start", (event, ctx) => {
     // Older Pi versions omit messageType; their startup events always carry a user prompt.
