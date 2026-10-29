@@ -152,28 +152,47 @@ const extension: ExtensionFactory = (pi: ExtensionAPI) => {
   const isMixCode = Boolean(
     hostFlag && hostFlag !== "0" && hostFlag !== "false" && hostFlag !== "off",
   );
-  const state: WorkingTimerState = {};
-  let ticker: ReturnType<typeof setInterval> | undefined;
+  // Pi loads a fresh factory instance per session, but a host that reuses
+  // extension services (MixCode does for in-tab session replacement) routes more
+  // than one session through one instance. Key every timer and ticker by session
+  // id so no session can read another's clock or stop another's ticker.
+  const states = new Map<string, WorkingTimerState>();
+  const tickers = new Map<string, ReturnType<typeof setInterval>>();
 
-  const stopTicker = (): void => {
+  const sessionIdOf = (ctx: ExtensionContext): string => ctx.sessionManager.getSessionId();
+
+  /** Timer state for the session that owns `ctx`, created on first use. */
+  const stateFor = (ctx: ExtensionContext): WorkingTimerState => {
+    const sessionId = sessionIdOf(ctx);
+    const existing = states.get(sessionId);
+    if (existing) return existing;
+    const created: WorkingTimerState = {};
+    states.set(sessionId, created);
+    return created;
+  };
+
+  const stopTicker = (sessionId: string): void => {
+    const ticker = tickers.get(sessionId);
     if (ticker === undefined) return;
     clearInterval(ticker);
-    ticker = undefined;
+    tickers.delete(sessionId);
   };
 
   const render = (ctx: ExtensionContext): void => {
-    ctx.ui.setStatus(WORKING_TIMER_STATUS_KEY, workingTimerText(state, Date.now()));
+    ctx.ui.setStatus(WORKING_TIMER_STATUS_KEY, workingTimerText(stateFor(ctx), Date.now()));
   };
 
   const startTicker = (ctx: ExtensionContext): void => {
-    stopTicker();
-    ticker = setInterval(() => render(ctx), TICK_INTERVAL_MS);
+    const sessionId = sessionIdOf(ctx);
+    stopTicker(sessionId);
+    const ticker = setInterval(() => render(ctx), TICK_INTERVAL_MS);
     // Cosmetic status updates must not keep the process alive.
     ticker.unref?.();
+    tickers.set(sessionId, ticker);
   };
 
   /** Drop the run in flight and the last settled run together. */
-  const resetState = (): void => {
+  const resetState = (state: WorkingTimerState): void => {
     state.workingSince = undefined;
     state.lastActivityAt = undefined;
     state.settled = undefined;
@@ -181,8 +200,9 @@ const extension: ExtensionFactory = (pi: ExtensionAPI) => {
 
   /** Restore the visible message time with no measured duration or active ticker. */
   const restoreState = (ctx: ExtensionContext): void => {
-    stopTicker();
-    resetState();
+    stopTicker(sessionIdOf(ctx));
+    const state = stateFor(ctx);
+    resetState(state);
     // Context edits affect model input, so restore from each host's unedited display history.
     const entries = isMixCode
       ? ctx.sessionManager.getBranch()
@@ -196,6 +216,7 @@ const extension: ExtensionFactory = (pi: ExtensionAPI) => {
   pi.on("session_tree", (_event: SessionTreeEvent, ctx) => restoreState(ctx));
 
   pi.on("agent_start", (_event: AgentStartEvent, ctx) => {
+    const state = stateFor(ctx);
     // Retry, compaction, and queued continuations share one clock until agent_settled.
     state.workingSince ??= Date.now();
     state.lastActivityAt = Date.now();
@@ -204,9 +225,10 @@ const extension: ExtensionFactory = (pi: ExtensionAPI) => {
     startTicker(ctx);
   });
 
-  /** Mark activity and re-render; no-op when no run is in flight. */
+  /** Mark activity and re-render; no-op when no run is in flight for this session. */
   const recordActivity = (ctx: ExtensionContext): void => {
-    if (state.workingSince === undefined) return;
+    const state = states.get(sessionIdOf(ctx));
+    if (state?.workingSince === undefined) return;
     state.lastActivityAt = Date.now();
     render(ctx);
   };
@@ -217,7 +239,8 @@ const extension: ExtensionFactory = (pi: ExtensionAPI) => {
   pi.on("tool_execution_end", (_event: ToolExecutionEndEvent, ctx) => recordActivity(ctx));
 
   pi.on("agent_settled", (_event: AgentSettledEvent, ctx) => {
-    stopTicker();
+    stopTicker(sessionIdOf(ctx));
+    const state = stateFor(ctx);
     if (state.workingSince !== undefined) {
       const finishedAtMs = Date.now();
       state.settled = { durationMs: Math.max(0, finishedAtMs - state.workingSince), finishedAtMs };
@@ -228,8 +251,9 @@ const extension: ExtensionFactory = (pi: ExtensionAPI) => {
   });
 
   pi.on("session_shutdown", (_event: SessionShutdownEvent, ctx) => {
-    stopTicker();
-    resetState();
+    const sessionId = sessionIdOf(ctx);
+    stopTicker(sessionId);
+    states.delete(sessionId);
     ctx.ui.setStatus(WORKING_TIMER_STATUS_KEY, undefined);
   });
 };

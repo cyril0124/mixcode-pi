@@ -17,13 +17,18 @@ interface StatusWrite {
   text: string | undefined;
 }
 
-interface Harness {
+interface SessionHarness {
   session: SessionManager;
+  writes: StatusWrite[];
+  latest(): string | undefined;
   fire(event: string): void;
   /** Emit an event the package deliberately ignores (e.g. `agent_end`). */
   emit(event: string): void;
-  writes: StatusWrite[];
-  latest(): string | undefined;
+}
+
+interface Harness extends SessionHarness {
+  /** Bind another session to the same extension instance. */
+  openSession(): SessionHarness;
   tick(): void;
   liveTickerCount(): number;
   advance(ms: number): void;
@@ -38,9 +43,7 @@ function createHarness(startMs = 1_000_000, host: "mixcode" | "pi" = "mixcode"):
   const originalMixCode = process.env.MIXCODE;
   if (host === "mixcode") process.env.MIXCODE = "1";
   else delete process.env.MIXCODE;
-  const session = SessionManager.inMemory();
   const handlers = new Map<string, (event: unknown, ctx: ExtensionContext) => void>();
-  const writes: StatusWrite[] = [];
   const tickers = new Map<number, () => void>();
   let nextTickerId = 1;
   let now = startMs;
@@ -59,15 +62,6 @@ function createHarness(startMs = 1_000_000, host: "mixcode" | "pi" = "mixcode"):
     tickers.delete(id as number);
   }) as typeof clearInterval;
 
-  const ctx = {
-    sessionManager: session,
-    ui: {
-      setStatus: (key: string, text: string | undefined) => {
-        writes.push({ key, text });
-      },
-    },
-  } as unknown as ExtensionContext;
-
   const pi = {
     on: (event: string, handler: (event: unknown, ctx: ExtensionContext) => void) => {
       handlers.set(event, handler);
@@ -76,18 +70,36 @@ function createHarness(startMs = 1_000_000, host: "mixcode" | "pi" = "mixcode"):
 
   workingTimer(pi);
 
+  const openSession = (): SessionHarness => {
+    const session = SessionManager.inMemory();
+    const writes: StatusWrite[] = [];
+    const ctx = {
+      sessionManager: session,
+      ui: {
+        setStatus: (key: string, text: string | undefined) => {
+          writes.push({ key, text });
+        },
+      },
+    } as unknown as ExtensionContext;
+    return {
+      session,
+      writes,
+      latest: () => writes.at(-1)?.text,
+      fire: (event) => {
+        const handler = handlers.get(event);
+        assert.ok(handler, `no handler registered for ${event}`);
+        handler({}, ctx);
+      },
+      emit: (event) => {
+        handlers.get(event)?.({}, ctx);
+      },
+    };
+  };
+
   return {
-    session,
-    fire: (event) => {
-      const handler = handlers.get(event);
-      assert.ok(handler, `no handler registered for ${event}`);
-      handler({}, ctx);
-    },
-    emit: (event) => {
-      handlers.get(event)?.({}, ctx);
-    },
-    writes,
-    latest: () => writes.at(-1)?.text,
+    // Primary session keeps the single-session harness API used by most tests.
+    ...openSession(),
+    openSession,
     tick: () => {
       for (const fn of [...tickers.values()]) fn();
     },
@@ -544,6 +556,59 @@ test("keeps exactly one ticker per run and stops it on agent_settled", () => {
     harness.advance(10_000);
     harness.tick();
     assert.equal(harness.writes.length, writesAfterEnd);
+  } finally {
+    harness.dispose();
+  }
+});
+
+test("keeps one instance's concurrent sessions on separate clocks and tickers", () => {
+  const harness = createHarness();
+  try {
+    const first = harness.openSession();
+    const second = harness.openSession();
+    first.fire("session_start");
+    second.fire("session_start");
+
+    harness.advance(2_000);
+    first.fire("agent_start");
+    harness.advance(5_000);
+    harness.tick();
+    assert.equal(first.latest(), "⏱ 5s · 5s idle");
+
+    second.fire("agent_start");
+    assert.equal(harness.liveTickerCount(), 2);
+    assert.equal(second.latest(), "⏱ 0s · 0s idle");
+
+    harness.advance(3_000);
+    harness.tick();
+    assert.equal(first.latest(), "⏱ 8s · 8s idle");
+    assert.equal(second.latest(), "⏱ 3s · 3s idle");
+
+    first.fire("agent_settled");
+    assert.equal(harness.liveTickerCount(), 1);
+    assert.match(first.latest() ?? "", /^✔ done 8s at /);
+    harness.advance(1_000);
+    harness.tick();
+    assert.equal(second.latest(), "⏱ 4s · 4s idle");
+  } finally {
+    harness.dispose();
+  }
+});
+
+test("session_shutdown clears only its own footer entry and ticker", () => {
+  const harness = createHarness();
+  try {
+    const first = harness.openSession();
+    const second = harness.openSession();
+    first.fire("agent_start");
+    second.fire("agent_start");
+    harness.advance(2_000);
+    second.fire("agent_settled");
+
+    first.fire("session_shutdown");
+    assert.equal(first.latest(), undefined);
+    assert.ok(second.latest()?.startsWith("✔ done 2s at "), second.latest());
+    assert.equal(harness.liveTickerCount(), 0);
   } finally {
     harness.dispose();
   }

@@ -42,6 +42,8 @@ Both hosts render the joined status line into the terminal width, so on a narrow
 
 ## Lifecycle
 
+State and tickers are keyed by session id: one extension instance can observe several sessions (MixCode reuses extension services for in-tab session replacement), so a run started for one session never renders into another or stops another session's ticker. `session_shutdown` deletes only its own state.
+
 - `session_start` and `session_tree`: stop any interval, reset run state, and restore the last visible message's timestamp from the selected branch. Remove the entry when no visible message with a finite timestamp exists.
 - `agent_start`: stamps the clock with `??=`, so agent loops belonging to one run (auto-retry, recovery, compaction, queued continuation) keep their elapsed time.
 - During a run, `turn_start`, `message_update`, `tool_execution_start`, and `tool_execution_end` refresh the text and reset the idle counter, and a 1s interval keeps both the elapsed and idle durations moving through long silent tool calls.

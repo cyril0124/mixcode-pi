@@ -42,6 +42,8 @@ idle 后缀在运行开始后出现，显示距上一次 streaming 活动（`tur
 
 ## 生命周期
 
+计时状态与定时器按 session id 分开保存：一个扩展实例可以观察到多个会话（MixCode 在 tab 内做会话替换时会复用扩展服务），因此某个会话的运行不会渲染到另一个会话，也不会停掉别的会话的定时器。`session_shutdown` 只删除自己会话的状态。
+
 - `session_start` 与 `session_tree`：停止定时器、重置运行状态，并从当前分支恢复最后一条可见消息的 timestamp；没有带有限数值时间戳的可见消息时移除条目。
 - `agent_start`：用 `??=` 打时间戳，因此属于同一次运行的 agent 循环（自动重试、恢复、压缩、队列中的后续任务）保留已耗时。
 - 运行期间由 `turn_start`、`message_update`、`tool_execution_start`、`tool_execution_end` 刷新文本并重置 idle 计数，1s 定时器让已耗时和 idle 时长在长时间静默的工具调用期间继续增长。
