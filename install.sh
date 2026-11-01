@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # MixCode Pi installer — compile to standalone single binary
-# Usage: ./install.sh [--prefix ~/.local]
+# Usage: ./install.sh [--prefix ~/.local] [--name mpi]
 
 INSTALL_NAME="mpi"
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -27,12 +27,17 @@ while [ $# -gt 0 ]; do
     --prefix=*) PREFIX="${1#--prefix=}"
       [ -z "$PREFIX" ] && error "--prefix must not be empty"
       shift ;;
+    --name)
+      [ $# -lt 2 ] && error "--name requires an argument"
+      INSTALL_NAME="$2"; shift 2 ;;
+    --name=*) INSTALL_NAME="${1#--name=}"; shift ;;
     -h|--help)
       cat <<EOF
 Usage: install.sh [OPTIONS]
 
 Options:
   --prefix <path>   Install binary to <path>/bin (default: ~/.local)
+  --name <name>     Installed binary filename (default: mpi)
   -h, --help        Show this help
 
 Environment variables:
@@ -43,6 +48,10 @@ EOF
     *) error "Unknown option: $1" ;;
   esac
 done
+
+case "$INSTALL_NAME" in
+  ""|"."|".."|*/*|*\\*) error "--name must be a filename without path separators" ;;
+esac
 
 # Strip trailing slashes for consistent PATH matching
 PREFIX="${PREFIX%/}"
@@ -74,23 +83,26 @@ fi
 
 info "bun $(bun --version)"
 
-# npm and pi are only needed for Pi extension install and headless
-# `mpi --print/-p` delegation, not for the binary build — soft dependencies.
-if command_exists npm; then
-  if ! command_exists pi; then
-    info "Installing pi CLI..."
-    npm install -g @earendil-works/pi-coding-agent || warn "Failed to install the pi CLI"
-  fi
-else
-  warn "npm not found. Extension install and 'mpi --print/-p' need Node.js/npm: https://nodejs.org"
-fi
+# npm is a build prerequisite for the fork workspace, not a runtime dependency.
+command_exists npm || error "npm is required to build the Pi fork"
 
 # --- Install deps ---
 
 cd "$REPO_DIR"
 
-info "Installing dependencies..."
-bun install || error "bun install failed"
+if [ ! -f vendor/pi/package.json ]; then
+  command_exists git || error "git is required to initialize the Pi fork submodule"
+  git submodule update --init vendor/pi || error "Pi fork submodule checkout failed"
+fi
+
+info "Preparing Pi fork dependencies..."
+bash scripts/ensure-fork-dependencies.sh || error "Pi fork dependency install failed"
+
+info "Building the Pi fork..."
+bash scripts/ensure-fork-model-data.sh || error "Pi fork model data preparation failed"
+(cd vendor/pi && npm run build:offline) || error "Pi fork build failed"
+bun scripts/generate-fork-docs.ts || error "Pi fork documentation packaging failed"
+bun scripts/generate-fork-examples.ts || error "Pi fork example packaging failed"
 
 # --- Compile ---
 
@@ -98,7 +110,11 @@ BUILD_TMPDIR=$(mktemp -d)
 trap 'rm -rf "$BUILD_TMPDIR"' EXIT
 
 info "Compiling standalone binary..."
-bun build src/cli/binary-entry.ts --compile --packages bundle --outfile "$BUILD_TMPDIR/$INSTALL_NAME"
+bun build scripts/fork-binary-entry.ts \
+  vendor/pi/packages/coding-agent/src/utils/image-resize-worker.ts \
+  vendor/pi/packages/coding-agent/src/extensions/codemode/worker.ts \
+  --compile --packages bundle --no-compile-autoload-bunfig --no-compile-autoload-dotenv \
+  --outfile "$BUILD_TMPDIR/$INSTALL_NAME"
 
 if [ ! -f "$BUILD_TMPDIR/$INSTALL_NAME" ]; then
   error "Compilation failed"

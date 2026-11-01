@@ -89,6 +89,23 @@ function isVisibleMessage(message: AgentMessage, isMixCode: boolean): boolean {
   }
 }
 
+/** Match the fork transcript order; bare Pi keeps the context entry order. */
+function displayedHistoryEntries(ctx: ExtensionContext, isMixCode: boolean): SessionEntry[] {
+  const entries = ctx.sessionManager.buildContextEntries();
+  const compaction = entries[0];
+  if (!isMixCode || compaction?.type !== "compaction") return entries;
+
+  const branch = ctx.sessionManager.getBranch();
+  const compactionIndex = branch.findIndex((entry) => entry.id === compaction.id);
+  if (compactionIndex < 0) return entries;
+
+  const laterIds = new Set(branch.slice(compactionIndex + 1).map((entry) => entry.id));
+  const retained = entries.slice(1);
+  const firstLaterEntry = retained.findIndex((entry) => laterIds.has(entry.id));
+  const insertionIndex = firstLaterEntry < 0 ? retained.length : firstLaterEntry;
+  return [...retained.slice(0, insertionIndex), compaction, ...retained.slice(insertionIndex)];
+}
+
 /** Read the last visible message time in display order, without applying model-only context edits. */
 function lastVisibleMessageTimestamp(
   entries: readonly SessionEntry[],
@@ -203,10 +220,7 @@ const extension: ExtensionFactory = (pi: ExtensionAPI) => {
     stopTicker(sessionIdOf(ctx));
     const state = stateFor(ctx);
     resetState(state);
-    // Context edits affect model input, so restore from each host's unedited display history.
-    const entries = isMixCode
-      ? ctx.sessionManager.getBranch()
-      : ctx.sessionManager.buildContextEntries();
+    const entries = displayedHistoryEntries(ctx, isMixCode);
     const finishedAtMs = lastVisibleMessageTimestamp(entries, isMixCode);
     if (finishedAtMs !== undefined) state.settled = { finishedAtMs };
     render(ctx);

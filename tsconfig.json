@@ -18,12 +18,15 @@
     "types": ["bun-types", "node"]
   },
   "include": [
-    "src/**/*.ts",
     "pi-packages/**/*.ts",
     "test/**/*.ts",
     "scripts/**/*.ts",
     "examples/**/*.ts",
     "mixcode-batch.d.ts"
   ],
-  "exclude": ["src/cli/binary-entry.ts"]
+  "exclude": [
+    "scripts/fork-binary-entry.ts",
+    "scripts/fork-docs.generated.ts",
+    "scripts/fork-examples.generated.ts"
+  ]
 }

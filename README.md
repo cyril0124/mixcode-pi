@@ -2,265 +2,38 @@
 
 [中文文档](README.zh.md)
 
-A **multi-tab**, terminal-native AI coding agent fully compatible with the [Pi](https://pi.dev) extension ecosystem. Pi is an open, extensible terminal AI coding agent; MixCode runs its entire package ecosystem natively.
-
-<p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/cyril0124/mixcode-pi?style=for-the-badge" alt="License"></a>
-  <a href="package.json"><img src="https://img.shields.io/github/package-json/v/cyril0124/mixcode-pi?style=for-the-badge" alt="Version"></a>
-  <a href="https://bun.sh"><img src="https://img.shields.io/badge/runtime-Bun-black?style=for-the-badge" alt="Bun"></a>
-  <a href="https://pi.dev"><img src="https://img.shields.io/badge/Pi-compatible-blue?style=for-the-badge" alt="Pi compatible"></a>
-</p>
-
-<p align="center">
-  <img src="assets/readme-multi-tab.gif" alt="MixCode Pi multi-tab workspace" width="900">
-</p>
-
-> **Why MixCode Pi?**
-> Standard AI coding agents lock your terminal to a single session; you cannot explore, review, or run parallel tasks while the model is thinking. MixCode adds native multi-tab concurrency, Agent Tab collaboration, and full Pi extension compatibility: run multiple agents side by side, send work between tabs, organize workspaces across restarts, and use the full Pi package catalog (`npm:…`, tools, widgets, and commands).
+MixCode runs the [Pi fork](vendor/pi) as its CLI and interactive host. This repository owns the single-binary build, installer, and 19 built-in extensions in [`pi-packages/`](pi-packages/). The fork revision is pinned by the Git submodule; this repository no longer carries a second host implementation or Pi package patches.
 
 ## Highlights
 
-- **Native multi-tab concurrency.** Run multiple agent sessions side by side with live status indicators.
-- **Agent Tab collaboration.** Tabs send each other prompts, wait, and collect replies (`mpi ctl`).
-- **Pi extension compatibility.** Runs the full Pi package catalog plus first-party `mpi-*` extensions.
-- **Zen & inline modes.** Hide chrome for a distraction-free view, or move widgets into the chat stream.
-- **Mobile & touch optimized.** Narrow terminals, split panes, and touch-friendly SSH clients (Termux, iOS Blink).
-- **Mouse & clickable surfaces.** Click tab chips and metadata badges to open pickers, drag the chat scrollbar, and drag-select transcript or draft text to copy.
-- **Terminal-first workflow.** Vim-style transcript navigation, command palette, `$skill` / `@file` / `@tab` autocomplete.
-- **Prompt history by scope.** Recall prompts from the current session, workdir, or global log with [`/prompt-history`](pi-packages/mpi-prompt-history/README.md#commands) and `Ctrl+G`.
-- **Declarative batch automation.** Script multi-agent workflows in Lua or TypeScript, with dry-run validation.
-- **Tool-call loop protection.** Warn on similar calls without blocking them and apply approval or denial to identical repeated calls; see [loop protection](pi-packages/mpi-stuck-guard/README.md#doom-loop) for automatic continuation stop conditions.
-- **Run timing in the footer.** See elapsed time and the settled duration; startup restores the last visible message's time with [`mpi-working-timer`](pi-packages/mpi-working-timer/README.md#display), in MixCode and bare Pi.
+- **One installed executable.** `install.sh` places one executable (named `mpi` by default) in the selected `bin/` directory; Bun and Node/npm are build dependencies, not runtime requirements.
+- **Fork-native multi-tab workspace.** Tabs, sessions, themes, and batch execution run in the pinned fork rather than a separate UI.
+- **Built-in extensions.** The executable embeds 19 `mpi-*` packages, their skills, and the fork's runtime documentation, examples, and assets.
 
----
+## Install
 
-## Quick start
+From this checkout, including its `vendor/pi` submodule:
 
-Requires [Bun](https://bun.sh). Install via clone and build script:
-
-```bash
-git clone https://github.com/cyril0124/mixcode-pi.git
-cd mixcode-pi
+```sh
+git submodule update --init vendor/pi
 ./install.sh
-mpi
+~/.local/bin/mpi
 ```
 
-Or run `bun run install:global` inside the cloned directory if you prefer linking the development source. Ensure `~/.local/bin` (or `~/.bun/bin` for linked source) is on your `PATH`. Upgrade via `git pull && ./install.sh`.
+Use `./install.sh --prefix /your/prefix` to install to `/your/prefix/bin/mpi`. Pass `--name custom-mpi` to install to `/your/prefix/bin/custom-mpi` instead; only the filename changes, not the app identity. The installer needs Bun, Node.js >= 22.19, and npm. Each fork build needs network access to refresh the model catalog; a failed refresh stops the build. The installed executable does not need the checkout or adjacent asset files. On Linux, runtime assets are extracted to `$XDG_CACHE_HOME/mpi/tmp/mixcode-pi-*` (default `~/.cache/mpi/tmp/mixcode-pi-*`; relative cache paths are ignored), and the per-launch directory is removed on normal exit. macOS and Windows keep their OS temporary directories. Built-in extensions and fork-specific docs persist in `extensions/` and `mixcode-docs/` under the Pi agent directory (`PI_CODING_AGENT_DIR`, default `~/.pi/agent`); coding-agent docs and examples are unpacked only into the per-launch runtime directory.
 
-Models and credentials use Pi's standard config: `~/.pi/agent/models.json` (models & custom endpoints) and `auth.json` (API keys). For built-in providers just run `/login` inside `mpi` (or `pi`) and authenticate via subscription OAuth or an API key; no manual config needed. Credentials are shared with Pi, so an existing Pi setup is picked up as-is; see [Model Management](docs/model-management.md).
+## Development
 
----
-
-## Key features
-
-### 1. Multi-tab workspaces & session coordination
-Run isolated agent sessions side by side. Switch with `Tab` / `Shift+Tab` or fuzzy jump via `Ctrl+T`; background tabs show live status indicators (`●` running, `✓` unread completion, `x` error). Each tab maintains an independent conversation tree, tool runtime, and working directory. Workspaces persist tab layouts across restarts, while atomic file locks (`open_tabs.json.lock`) coordinate tabs across multiple terminal windows or tmux panes.
-
-### 2. Agent Tab collaboration
-Tabs talk to each other, in the same TUI or another `mpi`, without stealing the keyboard. One tab delegates a review or verification to a peer, waits, and reads the reply. The built-in `mpi-ctl` skill exposes `mpi status` / `mpi ctl` to the agent's bash tool. CLI loop: [Agent Tab Collaboration](#agent-tab-collaboration).
-
-### 3. Full Pi ecosystem & built-in extensions
-Install community extensions directly through Pi package declarations (`settings.json` `packages`, e.g. `npm:pi-web-access`), including custom tools, widgets, and themes, or use MixCode's first-party `mpi-*` tools:
-- **`mpi-goal`**: Long-running goal tracking with dynamic progressive tool loading and execution budgets.
-- **`mpi-diff-viewer`**: In-terminal visual diffs with line-level review comments and structured follow-up prompts (`/diff`).
-- **`mpi-cron`**: Per-directory scheduled prompts with an editor dock widget and a fire-time claim (`cron` tool, `/cron`).
-- **`mpi-loop`**: Recurring prompt scheduling with conflict handling (`/loop 5m /review`).
-- **`mpi-optimize-prompt`**: Metaprompt-based prompt expansion.
-- **`mpi-auto-rename`**: Context-derived session titles (`/auto-rename`).
-- **`mpi-ctl-skill`**: Agent Tab cross-tab / multi-instance collaboration skill (`$mpi-ctl`, `mpi status` / `mpi ctl`).
-- **`mpi-permission`**: Fine-grained tool execution permission rules (`/permission`).
-- **`mpi-command-router`**: Routes selected external Bash command names to configured executables or scripts through per-call `PATH` wrappers.
-- **`mpi-transcript`**: View effective LLM context, chatlog, thinking, and latest replies in nvim, vim, or the in-app viewer; configure with `/transcript config`.
-- **`mpi-prompt-history`**: Prompt recall log and interactive browser (`/prompt-history`).
-- **`mpi-tool-block`**: Selectively hide tools from model context (`/tool-block`).
-- **`mpi-tool-display`**: Compact terminal transcript presentation for tools and thinking.
-- **`mpi-model-attach`**: Add or remove skills and load extra extensions for the current model (`/model-attach`).
-- **`mpi-skill-refs`**: `$skill` autocomplete and prompt expansion.
-- **`mpi-batch-skill`**: Writes, validates, and launches batch scripts (`$mpi-batch`, `/skill:mpi-batch`).
-- **`mpi-stuck-guard`**: Guards oversized recursive searches, repeated identical tool calls, stalled provider streams, and repeated parameter-validation failures. Configuration and statistics: `/stuck-guard config`, `/stuck-guard stats`.
-- **`mpi-herdr-report`**: Real-time status reporting to Herdr agent panes (`HERDR_ENV=1`).
-- **`mpi-bash`**: Default bash timeout plus a foreground window that detaches long commands to the background and reports their exit code when they finish; `/bash-logs` opens any background command's full log.
-- **`mpi-working-timer`**: Footer elapsed time and settled duration; startup restores the last visible message's timestamp. See [display and lifecycle](pi-packages/mpi-working-timer/README.md#display); also active under bare Pi.
-
-<p align="center">
-  <img src="assets/readme-right-widget.gif" alt="Extension side panel" width="900">
-</p>
-
-### 4. Inline & docked extension widgets
-Switch dynamically between docked editor widgets and inline chat-stream widgets using `/toggle-inline-widgets`. In inline mode, widgets follow transcript scrolling rather than taking up fixed vertical editor space.
-
-<p align="center">
-  <img src="assets/readme-inline-widget.gif" alt="Inline widgets mode" width="900">
-</p>
-
-### 5. Vim navigation
-Treat the conversation transcript as a Vim buffer: scroll line-by-line (`j`/`k`), page with `Ctrl+U` / `Ctrl+D`, and jump between milestone user turns (`Right` / `Shift+Right`). Enter via `/vim` or empty-queue `Ctrl+U` then `u`. Leave with `q`.
-
-<p align="center">
-  <img src="assets/readme-vim.gif" alt="Vim mode" width="900">
-</p>
-
-### 6. Zen mode & ambient status
-Hide the top tab bar for a distraction-free view (`/toggle-zen-mode`). Background agents with notable state changes (running, waiting for input, error, done) render as compact status dots (`●`) on the top border. The dots are display-only and not clickable.
-
-<p align="center">
-  <img src="assets/readme-zen.gif" alt="Zen mode" width="900">
-</p>
-
-### 7. In-prompt skill references & autocomplete
-Type `$` in the prompt editor to trigger fuzzy autocomplete for project, global, and installed package skills, automatically embedding skill instructions into the prompt payload.
-
-<p align="center">
-  <img src="assets/readme-skill.gif" alt="Skill references" width="900">
-</p>
-
-### 8. Command palette
-Press `Ctrl+P` to fuzzy search and execute slash commands, model switches, and extension actions for the current tab context.
-
-<p align="center">
-  <img src="assets/readme-command-palette.gif" alt="Command palette" width="900">
-</p>
-
-### 9. Batch automation
-Open a whole fleet of agent tabs from one Lua or TypeScript script. Each request carries its own workdir, model, thinking level, and prompt — or a `prompts` sequence of ordered rounds in one tab — and MixCode applies requests in parallel across distinct tabs. Run it in the live TUI with `/batch script.ts -- <args>`, or launch a new instance with `mpi --batch script.ts -- <args>`. Validate before anything changes: `mpi --batch script.ts --batch-dry-run` prints the plan and exits without a TUI, without bootstrapping runtime, and without state writes.
-
-```bash
-$ mpi --batch examples/batch/monorepo.ts --batch-dry-run -- packages/core packages/cli
-Batch dry-run: 3 request(s)
-1. name=core-lint thinking=low workdir=packages/core
-   prompt: Run lint and typecheck for the `core` package. Fix all errors without changing behavior.
-2. name=cli-lint thinking=low workdir=packages/cli
-   prompt: Run lint and typecheck for the `cli` package. Fix all errors without changing behavior.
-3. name=summary
-   prompt: Summarize lint results across 2 package(s) in /repo.
+```sh
+git submodule update --init vendor/pi
+./run.sh
 ```
 
-Fourteen runnable scripts live in [`examples/batch/`](examples/batch/) — monorepo lint fan-out, model comparison, prompt sequences, argument passing, and rendering helpers. Reference: [Batch Script Automation](docs/batch-scripts.md).
+`run.sh` builds the fork and recompiles the local binary when inputs change. Development runs and the installer reuse fork dependencies only while the lockfile checksum matches their last successful install. `bun run check` builds, typechecks, lints, and runs extension tests. `release.sh` builds platform-specific single-file executables. To advance Pi, update the fork repository and then the pinned submodule commit here; do not patch registry packages in this repository.
 
-<p align="center">
-  <img src="assets/readme-batch.gif" alt="Batch automation" width="900">
-</p>
+## Features And References
 
----
+- [Fork features and commands](vendor/pi/docs/README.md) describe the actual host behavior.
+- [Built-in extensions](pi-packages/) each carry their own package manifest and, where applicable, README and skill instructions.
 
-## Keyboard shortcuts
-
-Core keys only. Open **Help** or the Command Palette in-app for the full map:
-
-| Key | Scope | Action | Description |
-|---|---|---|---|
-| `Tab` / `Shift+Tab` | Global | Next / Previous Tab | Cycle tabs. No-op when autocomplete is open or Zen mode is on (use `Ctrl+T`). |
-| `Ctrl+P` | Global | Command Palette | Fuzzy search and run slash commands. |
-| `Ctrl+T` | Global | Tab Jump | Interactive modal to jump to any open tab. |
-| `Ctrl+G` | Global | External Editor | Edit current draft in `$VISUAL` / `$EDITOR`. |
-| `Ctrl+Q` | Global | Quit | Safely persists workspace state and exits. |
-| `Ctrl+U` | Input / Queue | Dequeue / Choose / Vim | Pops the sole non-empty queue; when both contain messages, use `Ctrl+U,S/F`; when empty, arms Vim entry. See [queue management](docs/queue-and-follow-up.md). |
-| `Right` | Empty Input | Side Panel | Toggle right-hand extension widget panel. |
-| `Escape` | Global | Smart Escape | Close overlay → abort/retract prompt. |
-| `!` | Editor | Bash Command | Single-line shell execution mode. |
-| `$` | Editor | Skill Autocomplete | Trigger project, global, and installed package skill completion. |
-| `@` | Editor | File / Tab Autocomplete | Complete workspace file paths and peer tab titles. |
-
----
-
-## Installation
-
-### Recommended: standalone binary (via git clone)
-
-```bash
-git clone https://github.com/cyril0124/mixcode-pi.git
-cd mixcode-pi
-./install.sh                 # standalone binary → ~/.local/bin/mpi
-./install.sh --prefix /opt/mixcode
-```
-
-Upgrade by running `git pull && ./install.sh` in the repository directory.
-
-### From a local checkout (development / linked)
-
-```bash
-bun run install:global       # global `mpi` linked from this repo
-```
-
-- `./install.sh` compiles a single standalone binary (`bun build --compile`); no `node_modules` needed at runtime.
-- `bun run install:global` runs from this repository via the linked Bun runtime.
-
-For release builds, use the Bun version pinned in the [release workflow](.github/workflows/release.yml). `./release.sh` installs from the frozen lockfile, prefers cached packages, and downloads missing packages. Run `./release.sh --help` for target and output options.
-
----
-
-## Usage
-
-```bash
-mpi                             # Start in current directory
-mpi --workdir ~/project         # Start in specific directory
-mpi --builtin-extensions-only   # Disable 3rd-party packages; load only mpi-*
-mpi --batch script.ts           # Run batch automation script (.lua or .ts)
-mpi --print "..."               # Delegate to upstream pi (needs pi on PATH); no TUI
-mpi commands                    # List slash commands this workdir registers, no TUI
-mpi --list-models               # List authenticated models and thinking levels, then exit
-mpi status                      # Inspect running instances and tab states
-```
-
-## Agent Tab Collaboration
-
-An agent tab drives its own TUI, or any other `mpi`, with `mpi status` / `mpi ctl`. Send a prompt or slash command to a peer tab, wait for completion, read the result. Target another directory with `--pid` / `--workdir`.
-
-Typical uses:
-
-- Hand a review, a question, or a long job to another tab and read the reply.
-- Split independent work across tabs and collect the results.
-- Talk to a tab in another `mpi` instance (`--pid` / `--workdir`).
-
-```bash
-mpi status --json                        # List live instances, tabs, states
-mpi ctl --tab Agent-01 send-prompt '/compact'
-mpi ctl --workdir ~/other-proj --tab Reviewer send-prompt 'review the diff'
-mpi ctl --tab Agent-01 wait && mpi ctl --tab Agent-01 last-message
-```
-
-This is how `mpi` develops `mpi`: one tab delegates review or verification tasks to tabs of other instances and collects their replies. Full command reference: [pi-packages/mpi-ctl-skill/skills/mpi-ctl/SKILL.md](pi-packages/mpi-ctl-skill/skills/mpi-ctl/SKILL.md). At runtime the skill is installed at `<agentDir>/extensions/mpi-ctl-skill/skills/mpi-ctl/SKILL.md`, `~/.pi/agent/…` by default.
-
-Inspired by [Herdr](https://herdr.dev), a terminal multiplexer for coding agents that exposes session control to the agents running inside it.
-
----
-
-## Documentation
-
-Full architectural specifications, guides, and manuals are available in the [`docs/`](docs/README.md) directory:
-
-- [System Architecture](docs/architecture.md)
-- [TUI Components & Layout](docs/tui-components.md)
-- [Narrow & Mobile Terminal Optimizations](docs/narrow-terminals-and-mobile.md)
-- [Mouse Support & Clickable Surfaces](docs/mouse-support.md)
-- [Keybindings & Shortcuts](docs/keybindings-and-escape.md)
-- [CLI & Flags](docs/cli-and-flags.md)
-- [Multi-Tab Workspaces](docs/workspace-and-tabs.md)
-- [Model Management](docs/model-management.md)
-- [Provider Errors](docs/provider-errors.md)
-- [Steering & Follow-up Queues](docs/queue-and-follow-up.md)
-- [Zen Mode](docs/zen-mode.md)
-- [Inline Widgets Mode](docs/inline-widgets.md)
-- [Extension UI & Widgets](docs/extension-ui-and-widgets.md)
-- [Vim Mode & Navigation](docs/vim-and-navigation.md)
-- [Batch Script Automation](docs/batch-scripts.md)
-- [Built-in Extensions Overview](docs/builtin-extensions.md)
-- [Pi Extension Compatibility](docs/extension-compatibility.md)
-- [Slash Commands Reference](docs/commands.md)
-- [MixCode Settings](docs/mixcode-settings.md)
-- [Environment Variables](docs/environment.md)
-- [Instance Registry & Monitoring](docs/instance-registry.md)
-
----
-
-## About this project
-
-This is an AI-developed project. My daily development now happens entirely in `mpi`, including developing `mpi` itself. The code quality may be poor, but please experience `mpi` for yourself.
-
-Not interested in this project? Take a look at [`pi-packages/`](pi-packages/) instead, a set of high-quality Pi extensions that also work on plain [Pi](https://pi.dev).
-
-Licensed under the [MIT License](LICENSE).
-
-## Acknowledgements
-
-- [Pi](https://pi.dev) by Mario Zechner ([earendil-works/pi](https://github.com/earendil-works/pi)). MixCode is built on Pi's agent core, extension system, and TUI toolkit (`pi-coding-agent`, `pi-tui`, `pi-ai`, `pi-agent-core`). Its clean SDK and open extension ecosystem are what make a project like this possible.
+The source build and removed implementation remain available in the `master` branch's Git history, not in this branch's runtime tree.

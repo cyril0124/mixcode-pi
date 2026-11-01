@@ -69,9 +69,10 @@ interface MixCodeBatchOpenTabOptions {
    */
   contextLimit?: number | string;
   /**
-   * Base/identity system prompt only (same slot as SYSTEM.md). Tools, AGENTS.md,
-   * and skills stay assembled by MixCode. Requires a new tab or mode "delete";
-   * rejected with mode "clear" even without a matching tab.
+   * Unsupported when creating a batch tab in the fork (startup CLI or /batch).
+   * Omit this field: mode "delete" can remove an existing tab and session file
+   * before rejection; an empty value on reuse may be ignored.
+   * @deprecated Fork batch tabs cannot set a system prompt.
    */
   systemPrompt?: string;
   /** Reuse behavior when the tab exists (default: "append"). */
@@ -120,19 +121,17 @@ interface MixCodeBatchApi {
    * changes remain in both cases. See ../SKILL.md#execution-and-errors for
    * command errors and persistence.
    *
-   * `systemPrompt` replaces only the base identity line; tools/guidelines,
-   * APPEND_SYSTEM, project context (AGENTS.md), and skills remain. It is
-   * rejected when reusing an existing session with `mode: "append"`, or with
-   * `mode: "clear"` even without a matching tab. Clear + systemPrompt (including
-   * an empty string) fails validation before any tab changes.
+   * `systemPrompt` is unsupported for fork batch tab creation, in startup CLI
+   * and /batch. With `mode: "delete"`, the previous session may be deleted
+   * before the option is rejected; omit the field entirely.
    * For repeated names, only the first request controls creation/reset/deletion.
    * Interactive /clear still replaces the session and resets its title.
    *
    * Throws on a missing/empty name, invalid option types or contextLimit,
    * conflicting prompt/prompts, an invalid prompts array, or an unknown field name.
    * Prompt-sequence validation runs during collection and again before tab changes.
-   * Model, thinking, mode, and systemPrompt validation happens after collection,
-   * before tab changes.
+   * Model, thinking, and mode validation happens after collection, before tab
+   * changes. Unsupported systemPrompt on new tabs is rejected during creation.
    */
   openTab(options: MixCodeBatchOpenTabOptions): void;
   /**

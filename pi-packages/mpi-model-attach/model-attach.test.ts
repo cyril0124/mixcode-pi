@@ -6,7 +6,6 @@ import * as path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { getModel } from "@earendil-works/pi-ai/compat";
 import {
-  buildSystemPrompt,
   createAgentSession,
   createSyntheticSourceInfo,
   DefaultResourceLoader,
@@ -37,6 +36,7 @@ import {
 } from "./model-attach-core.js";
 import modelAttachExtension from "./index.js";
 import { createDynamicExtensionLoader } from "./model-attach-loader.js";
+import { buildSystemPrompt } from "../../vendor/pi/packages/coding-agent/dist/core/system-prompt.js";
 
 function syntheticSkill(name: string, description = `${name} skill`, filePath?: string): Skill {
   const fp = filePath ?? `/virtual/skills/${name}/SKILL.md`;
@@ -477,12 +477,15 @@ describe("before_agent_start skill updates", () => {
       });
       try {
         await session.bindExtensions({});
-        const result = await session.extensionRunner.emitBeforeAgentStart("test", undefined, {
-          cwd: dir,
-          customPrompt: "KEEP-IDENTITY",
-          sections: { project_rule: "KEEP-PROJECT-RULE" },
-          skills: baseSkills,
-        });
+        const result = await session.extensionRunner.emitBeforeAgentStart(
+          { messageType: "user", prompt: "test", images: [] },
+          {
+            cwd: dir,
+            customPrompt: "KEEP-IDENTITY",
+            sections: { project_rule: "KEEP-PROJECT-RULE" },
+            skills: baseSkills,
+          },
+        );
         const options = result.systemPromptOptions;
         const prompt = buildSystemPrompt(options);
         // A forced prompt would hide subsequent structured changes from other extensions.

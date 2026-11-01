@@ -10,3 +10,5 @@ bun.lockb
 .test-timings.json
 __pycache__
 /scripts/record-readme-gifs.local.json
+/scripts/fork-docs.generated.ts
+/scripts/fork-examples.generated.ts

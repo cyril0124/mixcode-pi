@@ -17,7 +17,7 @@ idle 后缀在运行开始后出现，显示距上一次 streaming 活动（`tur
 
 耗时向下取整到秒，渲染为 `7s`、`2m 05s` 或 `1h 02m 03s`。结束时刻是本地时间，格式与转录里的 `Worked for 7s · at <stamp>` 一致。
 
-启动、reload、恢复、fork 和树导航时，条目使用当前分支显示的历史中最后一条可见消息的时间。MixCode 显示完整分支；裸 Pi 使用考虑 compaction 的 `buildContextEntries()` 顺序。Context edit 只改变模型输入，转录中的原消息仍然可见。
+启动、reload、恢复、fork 和树导航时，条目使用当前分支考虑 compaction 的显示历史中最后一条可见消息的时间。fork 将前置的 compaction 摘要放到保留历史与后续条目之间；裸 Pi 保持 `buildContextEntries()` 的前置顺序。Context edit 只改变模型输入，转录中的原消息仍然可见。
 
 普通消息读取自身以毫秒为单位的 `timestamp`；外层 session entry 的时间和当前时钟不参与恢复。Pi 将可见 custom-message entry 和摘要 entry 转成消息，转换后的消息时间来自 entry 的时间。历史未记录运行耗时，因此恢复条目省略耗时。
 

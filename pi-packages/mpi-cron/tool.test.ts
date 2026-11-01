@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionContext, ExtensionToolContext } from "@earendil-works/pi-coding-agent";
 import { createCronTool, deriveJobName, findJob, isInsideScheduledRun } from "./tool.js";
 import type { CronJob } from "./types.js";
 
@@ -72,10 +72,14 @@ type FakeHub = ReturnType<typeof makeHub>["hub"];
 /** Session id the fake context reports; `add` records it as the job's creator. */
 const TEST_SESSION = "session-under-test";
 
-function context(entries: unknown[] = []): ExtensionContext {
+function context(entries: unknown[] = []): ExtensionToolContext {
   return {
     sessionManager: { getEntries: () => entries, getSessionId: () => TEST_SESSION },
-  } as unknown as ExtensionContext;
+    tools: [],
+    async executeTool() {
+      throw new Error("Unexpected nested tool call");
+    },
+  } as unknown as ExtensionToolContext;
 }
 
 async function callTool(

@@ -6,6 +6,7 @@ import { afterEach, test } from "node:test";
 import {
   type ExtensionAPI,
   type ExtensionContext,
+  type ExtensionToolContext,
   type MessageRenderer,
   SessionManager,
   type Theme,
@@ -67,7 +68,11 @@ function harness(stallSeconds = 0.1) {
     sessionManager: SessionManager.inMemory(dir),
     isIdle: () => idle,
     ui: { setWidget: () => {}, notify: (text: string) => errors.push(text) },
-  } as unknown as ExtensionContext;
+    tools: [],
+    async executeTool() {
+      throw new Error("Unexpected nested tool call");
+    },
+  } as unknown as ExtensionToolContext;
   // Pi host stub for driving session events and collecting deliveries.
   bashExtension({
     on: (name: string, handler: Handler) => handlers.set(name, handler),

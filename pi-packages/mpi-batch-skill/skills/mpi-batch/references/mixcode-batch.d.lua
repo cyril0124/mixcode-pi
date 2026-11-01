@@ -14,7 +14,10 @@ mixcode = {}
 ---@field model? string Model identifier from list_models().id; omitted means keep existing or use the instance default for a new tab
 ---@field thinking? "off"|"minimal"|"low"|"medium"|"high"|"xhigh"|"max" Supported thinking level; omitted means keep existing or use the instance default for a new tab
 ---@field context_limit? number|string Session context budget: positive safe integer tokens or a /context-limit string such as "32000", "32k", "32.5k", or "reset"; nil means omitted. See open_tab for parsing and application rules.
----@field system_prompt? string Base/identity system prompt only (same slot as SYSTEM.md). Tools, AGENTS.md, and skills stay assembled by MixCode. Requires a new tab or mode="delete"; rejected with mode="clear" even without a matching tab.
+---Fork batch tab creation does not support system_prompt in startup CLI or /batch.
+---Omit it: mode="delete" can remove an existing tab/session before rejection;
+---an empty string on reuse may be ignored.
+---@field system_prompt? string Unsupported base/identity system prompt option (same slot as SYSTEM.md).
 ---@field mode? "append"|"clear"|"delete" Reuse behavior when tab exists (default: "append")
 
 ---@class mixcode.TabInfo
@@ -50,10 +53,9 @@ mixcode = {}
 ---Skills, named templates, extension commands, unknown slash input, and paths work.
 ---Apply appends the whole array synchronously behind existing follow-ups as exclusive rounds,
 ---then returns without waiting for model completion. Enqueueing does not resume a paused queue.
----`system_prompt` replaces only the base identity line; tools/guidelines, APPEND_SYSTEM,
----project context (AGENTS.md), and skills remain. It is rejected when reusing an existing
----session with mode="append", or with mode="clear" even without a matching tab.
----Clear + system_prompt (including an empty string) fails validation before any tab changes.
+---system_prompt is unsupported for fork batch tab creation in startup CLI and /batch.
+---Omit it: mode="delete" may remove an existing tab/session before rejection;
+---an empty string on reuse may be ignored. Clear rejects it before tab changes.
 ---For repeated names, only the first request controls creation/reset/deletion.
 ---Interactive /clear still replaces the session and resets its title.
 ---Each request applies model/thinking, then context_limit, then its optional prompt.
@@ -67,8 +69,9 @@ mixcode = {}
 ---
 ---Throws on a missing name, invalid option types or context_limit, conflicting prompt/prompts,
 ---or an invalid prompts array. Sequence input is validated during collection and again
----before tab changes. Model, thinking, mode, and system_prompt validation happens
----after collection, before tab changes.
+---before tab changes. Model, thinking, and mode validation happens after
+---collection, before tab changes. Unsupported system_prompt on a new tab
+---is rejected during creation.
 ---@param opts mixcode.OpenTabOptions
 function mixcode.open_tab(opts) end
 

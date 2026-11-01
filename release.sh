@@ -15,7 +15,7 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_NAME="mpi"
-ENTRY="src/cli/binary-entry.ts"
+ENTRY="scripts/fork-binary-entry.ts"
 OUT_DIR="$REPO_DIR/dist/release"
 
 DEFAULT_TARGETS=(
@@ -101,16 +101,22 @@ elif [ "${#TARGETS[@]}" -eq 0 ]; then
   TARGETS=("${DEFAULT_TARGETS[@]}")
 fi
 
-if ! command_exists bun; then
-  error "bun is required to compile. Install: curl -fsSL https://bun.sh/install | bash"
+if ! command_exists bun || ! command_exists npm; then
+  error "bun and npm are required to build the fork"
+fi
+if [ ! -f "$REPO_DIR/vendor/pi/package.json" ]; then
+  error "Pi fork submodule is missing. Run: git submodule update --init vendor/pi"
 fi
 
 cd "$REPO_DIR"
 
 info "bun $(bun --version)"
-info "Installing dependencies..."
-# bun install applies patchedDependencies; a failed patch aborts here.
-bun install --frozen-lockfile --prefer-offline
+info "Installing Pi fork dependencies..."
+bash scripts/ensure-fork-dependencies.sh --force
+bash scripts/ensure-fork-model-data.sh
+(cd vendor/pi && npm run build:offline)
+bun scripts/generate-fork-docs.ts
+bun scripts/generate-fork-examples.ts
 
 mkdir -p "$OUT_DIR"
 OUT_DIR="$(cd "$OUT_DIR" && pwd)"
@@ -125,7 +131,11 @@ for target in "${TARGETS[@]}"; do
   name="$(outfile_for "$target")"
   out="$OUT_DIR/$name"
   info "Compiling $target → $name"
-  if bun build "$ENTRY" --compile --packages bundle --target="$target" --outfile "$out"; then
+  if bun build "$ENTRY" \
+    vendor/pi/packages/coding-agent/src/utils/image-resize-worker.ts \
+    vendor/pi/packages/coding-agent/src/extensions/codemode/worker.ts \
+    --compile --packages bundle --no-compile-autoload-bunfig --no-compile-autoload-dotenv \
+    --target="$target" --outfile "$out"; then
     if [ -f "$out" ]; then
       built+=("$out")
       info "  ok  $(du -h "$out" | awk '{print $1}')"

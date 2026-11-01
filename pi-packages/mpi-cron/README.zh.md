@@ -89,4 +89,4 @@ child ─┘         │
 
 ## 相关文档
 
-- 内置包目录：`docs/builtin-extensions.md`。
+- 内置包文件夹：[pi-packages](../)。

@@ -17,7 +17,7 @@ The idle suffix appears once a run is in flight. It shows how long since the las
 
 Durations floor to whole seconds and render as `7s`, `2m 05s`, or `1h 02m 03s`. The finish stamp is local time, the same shape as the transcript's `Worked for 7s · at <stamp>` line.
 
-At startup, reload, resume, fork, and tree navigation, the entry uses the last visible message in the selected branch's displayed history. MixCode displays the full branch; bare Pi uses its compaction-aware `buildContextEntries()` order. Context edits affect model input only and leave the original transcript message visible.
+At startup, reload, resume, fork, and tree navigation, the entry uses the last visible message in the selected branch's compaction-aware displayed history. The fork places a leading compaction summary between retained history and later entries; bare Pi leaves it at the head of `buildContextEntries()`. Context edits affect model input only and leave the original transcript message visible.
 
 Ordinary messages use their own millisecond `timestamp`, rather than the enclosing session entry's timestamp or the current clock. Pi converts visible custom-message entries and summary entries into messages with timestamps derived from their entry timestamps. Restored history has no recorded run duration, so the restored entry omits it.
 

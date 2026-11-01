@@ -89,4 +89,4 @@ Inside the create wizard, `Enter` confirms the field and `Esc` returns to the pr
 
 ## Related
 
-- Built-in package catalog: `docs/builtin-extensions.md`.
+- Built-in package folders: [pi-packages](../).

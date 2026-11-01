@@ -209,6 +209,46 @@ test("restores a tool result's timestamp only when its call is visible on the ac
   }
 });
 
+test("MixCode restore ignores results whose tool call was compacted out of the displayed history", () => {
+  const harness = createHarness(new Date(2026, 0, 3, 11).getTime(), "mixcode");
+  try {
+    harness.session.appendMessage({
+      ...fauxAssistantMessage([
+        {
+          type: "toolCall",
+          id: "compacted-call",
+          name: "read",
+          arguments: { path: "example.txt" },
+        },
+      ]),
+      timestamp: new Date(2026, 0, 1, 12).getTime(),
+    });
+    const keptId = harness.session.appendMessage({
+      role: "user",
+      content: "Retained question",
+      timestamp: new Date(2026, 0, 2, 12).getTime(),
+    });
+    const summaryId = harness.session.appendCompaction("Visible summary", keptId, 42_000);
+    const summary = harness.session.getEntry(summaryId);
+    assert.ok(summary);
+    harness.session.appendMessage({
+      role: "toolResult",
+      toolCallId: "compacted-call",
+      toolName: "read",
+      content: [{ type: "text", text: "Result after compaction" }],
+      isError: false,
+      timestamp: new Date(2026, 0, 3, 12).getTime(),
+    });
+    harness.fire("session_start");
+    assert.equal(
+      harness.latest(),
+      `✔ done at ${new Date(summary.timestamp).toLocaleString("sv-SE", { hour12: false })}`,
+    );
+  } finally {
+    harness.dispose();
+  }
+});
+
 for (const host of ["mixcode", "pi"] as const) {
   test(`${host} restoration matches the visibility of empty redacted thinking`, () => {
     const harness = createHarness(undefined, host);
@@ -290,7 +330,13 @@ for (const host of ["mixcode", "pi"] as const) {
         content: "Retained question",
         timestamp: new Date(2026, 0, 2, 12).getTime(),
       });
-      harness.session.appendCompaction("Compacted earlier tool call", keptId, 42_000);
+      const summaryId = harness.session.appendCompaction(
+        "Compacted earlier tool call",
+        keptId,
+        42_000,
+      );
+      const summary = harness.session.getEntry(summaryId);
+      assert.ok(summary);
       harness.session.appendMessage({
         role: "toolResult",
         toolCallId: "compacted-call",
@@ -302,7 +348,9 @@ for (const host of ["mixcode", "pi"] as const) {
       harness.fire("session_start");
       assert.equal(
         harness.latest(),
-        host === "mixcode" ? "✔ done at 2026-01-03 12:00:00" : "✔ done at 2026-01-02 12:00:00",
+        host === "mixcode"
+          ? `✔ done at ${new Date(summary.timestamp).toLocaleString("sv-SE", { hour12: false })}`
+          : "✔ done at 2026-01-02 12:00:00",
       );
     } finally {
       harness.dispose();

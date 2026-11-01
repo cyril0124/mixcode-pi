@@ -4,51 +4,42 @@
   "private": true,
   "license": "MIT",
   "type": "module",
-  "bin": {
-    "mpi": "./src/cli/main.ts"
-  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/cyril0124/mixcode-pi.git"
   },
   "scripts": {
-    "postinstall": "bun run scripts/install-pi-extensions.ts --postinstall",
-    "install:global": "bun install -g .",
-    "install:extensions": "bun run scripts/install-pi-extensions.ts --yes",
+    "build:fork": "cd vendor/pi && bash ../../scripts/ensure-fork-dependencies.sh --force && bash ../../scripts/ensure-fork-model-data.sh && npm run build:offline",
+    "build": "bun run build:fork && bun scripts/generate-fork-docs.ts && bun scripts/generate-fork-examples.ts && bun build scripts/fork-binary-entry.ts vendor/pi/packages/coding-agent/src/utils/image-resize-worker.ts vendor/pi/packages/coding-agent/src/extensions/codemode/worker.ts --compile --packages bundle --no-compile-autoload-bunfig --no-compile-autoload-dotenv --outfile dist/mpi",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "build": "tsup",
-    "test": "bun test --parallel=$(bun -e 'console.log(Math.min(16, navigator.hardwareConcurrency))') --isolate --timeout=60000 --timings=.test-timings.json --update-timings test/*.test.ts",
-    "test:packages": "NO_COLOR=1 bun test --isolate --timeout=60000 pi-packages/*/*.test.ts",
-    "test:changed": "bun test --parallel=$(bun -e 'console.log(Math.min(16, navigator.hardwareConcurrency))') --isolate --timeout=60000 --changed",
-    "check": "bun run typecheck && bun run lint && bun run build && bun run test",
+    "test": "bun test --isolate --timeout=60000 pi-packages/*/*.test.ts",
+    "test:packages": "bun run test",
+    "check": "bun run build && bun install --frozen-lockfile --ignore-scripts && bun run typecheck && bun run lint && bun run test",
     "format": "biome format --write .",
     "format:check": "biome format .",
     "lint": "biome lint --error-on-warnings .",
     "lint:fix": "biome lint --write ."
   },
   "dependencies": {
-    "@clack/prompts": "^1.7.0",
-    "@earendil-works/pi-agent-core": "0.87.1",
-    "@earendil-works/pi-ai": "0.87.1",
-    "@earendil-works/pi-coding-agent": "0.87.1",
-    "@earendil-works/pi-tui": "0.87.1",
-    "@silvia-odwyer/photon-node": "0.3.4",
-    "fengari": "^0.1.5",
-    "typebox": "1.3.7"
+    "@earendil-works/pi-agent-core": "file:vendor/pi/packages/agent",
+    "@earendil-works/pi-ai": "file:vendor/pi/packages/ai",
+    "@earendil-works/pi-coding-agent": "file:vendor/pi/packages/coding-agent",
+    "@earendil-works/pi-tui": "file:vendor/pi/packages/tui",
+    "typebox": "1.3.27"
+  },
+  "overrides": {
+    "@earendil-works/pi-agent-core": "file:vendor/pi/packages/agent",
+    "@earendil-works/pi-ai": "file:vendor/pi/packages/ai",
+    "@earendil-works/pi-coding-agent": "file:vendor/pi/packages/coding-agent",
+    "@earendil-works/pi-tui": "file:vendor/pi/packages/tui"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.15",
     "@types/bun": "^1.3.14",
     "@types/node": "^24.3.0",
-    "tsup": "^8.5.1",
     "typescript": "^5.9.3"
   },
   "engines": {
     "node": ">=22.19.0"
-  },
-  "patchedDependencies": {
-    "@earendil-works/pi-tui@0.87.1": "patches/@earendil-works%2Fpi-tui@0.87.1.patch",
-    "@earendil-works/pi-ai@0.87.1": "patches/@earendil-works%2Fpi-ai@0.87.1.patch",
-    "@earendil-works/pi-coding-agent@0.87.1": "patches/@earendil-works%2Fpi-coding-agent@0.87.1.patch"
   }
 }

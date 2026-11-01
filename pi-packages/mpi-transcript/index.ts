@@ -47,10 +47,10 @@ import {
   getAgentDir,
   sessionEntryToContextMessages,
 } from "@earendil-works/pi-coding-agent";
-// `collectCacheMisses` has no root export and `./core/cache-stats` is not in the
-// package `exports` map, so it is read off the namespace. Where a host does not
-// expose it the member is `undefined` and the cache-miss annotation is skipped.
+// Prefer the host collector when exported; the fork omits it from the public
+// package surface, so the local collector preserves transcript annotations.
 import * as piCodingAgent from "@earendil-works/pi-coding-agent";
+import { collectCacheMisses as collectPortableCacheMisses } from "./cache-miss.js";
 import {
   DEFAULT_TRANSCRIPT_FOLD_THRESHOLD,
   loadTranscriptConfig,
@@ -85,17 +85,18 @@ interface ModelPriceSource {
 
 /**
  * All counted cache misses across a session, keyed by the assistant message
- * that paid for them. Undefined when the host does not expose
- * `collectCacheMisses`; the views then render without cache-miss notices.
+ * that paid for them. The fallback uses the same session entry and pricing
+ * contract when the host does not export its own collector.
  */
-const collectCacheMisses = (
-  piCodingAgent as {
-    collectCacheMisses?: (
-      entries: SessionEntry[],
-      models: ModelPriceSource,
-    ) => Map<AssistantMessage, CacheMiss>;
-  }
-).collectCacheMisses;
+const collectCacheMisses =
+  (
+    piCodingAgent as {
+      collectCacheMisses?: (
+        entries: SessionEntry[],
+        models: ModelPriceSource,
+      ) => Map<AssistantMessage, CacheMiss>;
+    }
+  ).collectCacheMisses ?? collectPortableCacheMisses;
 
 // ─── Session content types (subset of SDK AgentMessage we consume) ────────────
 // We read only the fields we need from getBranch() entries. The SDK's
@@ -1189,8 +1190,7 @@ export function buildViewText(
     // which entry set the caller feeds in (full branch vs effective context).
     // Misses are computed on the unsliced entries so the first assistant
     // message in a lastTurns cut still sees its previous request.
-    const cacheMisses =
-      collectCacheMisses && priceSource ? collectCacheMisses(entries, priceSource) : undefined;
+    const cacheMisses = priceSource ? collectCacheMisses(entries, priceSource) : undefined;
     // Sized from the unsliced entries: a lastTurns cut hides rounds from the
     // reader, not from the model.
     const sizeLine =
@@ -1213,8 +1213,7 @@ export function buildViewText(
   // N/full flags are accepted but meaningless here (same as latest-*).
   if (target === "growth") {
     const points = collectContextGrowth(entries, { contextWindowFor });
-    const chartCacheMisses =
-      collectCacheMisses && priceSource ? collectCacheMisses(entries, priceSource) : undefined;
+    const chartCacheMisses = priceSource ? collectCacheMisses(entries, priceSource) : undefined;
     return formatViewText(meta.title, [
       stats,
       ...(points.length
