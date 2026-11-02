@@ -4,6 +4,10 @@
 // crashed owner's lock is reclaimed only after re-verifying it under quarantine
 // (rename-aside, re-read, drop) so two reclaimers cannot delete each other's
 // freshly published lock.
+//
+// Filesystems that reject link(2) (EPERM/ENOTSUP on FUSE-backed phone storage) fall
+// back to exclusive create, and degrade to an unlocked write when even that is
+// refused: history writes stay atomic per writer, only cross-process merging weakens.
 import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -25,7 +29,12 @@ export interface AcquirePidLockOptions {
   pid?: number;
   /** Liveness probe; injectable so tests can simulate a crashed owner. */
   processAlive?: (pid: number) => boolean;
+  /** Hard-link publish; injectable so tests can simulate a filesystem without link(2). */
+  linkFile?: (from: string, to: string) => void;
 }
+
+/** Returned when the filesystem cannot publish a lock file atomically at all. */
+const UNLOCKED_HANDLE: PidLockHandle = { release() {} };
 
 /** Busy signal: a live process holds the lock. Callers decide wait vs abort. */
 export class PidLockBusyError extends Error {
@@ -65,6 +74,35 @@ function parseRecord(raw: string): PidLockRecord | undefined {
   }
 }
 
+function linkUnsupported(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException).code;
+  return code === "EPERM" || code === "ENOTSUP" || code === "EOPNOTSUPP";
+}
+
+/**
+ * Publish `payload` at `filePath` with exclusive create, the only atomic
+ * primitive left once link(2) is refused.
+ */
+function publishExclusive(
+  filePath: string,
+  payload: string,
+): "published" | "exists" | "unsupported" {
+  let fd: number;
+  try {
+    fd = fs.openSync(filePath, "wx");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") return "exists";
+    if (linkUnsupported(error)) return "unsupported";
+    throw error;
+  }
+  try {
+    fs.writeFileSync(fd, payload, "utf8");
+  } finally {
+    fs.closeSync(fd);
+  }
+  return "published";
+}
+
 type Snapshot = { kind: "missing" } | { kind: "invalid" } | { kind: "ok"; record: PidLockRecord };
 
 function readSnapshot(filePath: string): Snapshot {
@@ -75,6 +113,20 @@ function readSnapshot(filePath: string): Snapshot {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return { kind: "missing" };
     return { kind: "invalid" };
   }
+}
+
+function makeHandle(filePath: string, pid: number): PidLockHandle {
+  let released = false;
+  return {
+    release(): void {
+      if (released) return;
+      released = true;
+      const current = readSnapshot(filePath);
+      if (current.kind !== "ok" || current.record.pid === pid) {
+        fs.rmSync(filePath, { force: true });
+      }
+    },
+  };
 }
 
 /** Take a suspected-stale lock aside, re-verify, drop only if still stale. */
@@ -119,6 +171,7 @@ export function acquirePidLock(
 ): PidLockHandle {
   const pid = options.pid ?? process.pid;
   const alive = options.processAlive ?? pidIsAlive;
+  const link = options.linkFile ?? fs.linkSync;
   const isStale = (record: PidLockRecord | undefined): boolean => !record || !alive(record.pid);
   const filePath = lockFile(stateDir, id);
   const payload = `${JSON.stringify({
@@ -135,9 +188,16 @@ export function acquirePidLock(
     try {
       fs.writeFileSync(tempPath, payload, "utf8");
       try {
-        fs.linkSync(tempPath, filePath);
+        link(tempPath, filePath);
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+        if (linkUnsupported(error)) {
+          const fallback = publishExclusive(filePath, payload);
+          if (fallback === "unsupported") return UNLOCKED_HANDLE;
+          if (fallback === "published") return makeHandle(filePath, pid);
+          // "exists" falls through to the reclaim path below.
+        } else if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
+          throw error;
+        }
         const existing = readSnapshot(filePath);
         if (existing.kind === "ok" && !isStale(existing.record)) {
           throw new PidLockBusyError(id, existing.record.pid);
@@ -155,17 +215,7 @@ export function acquirePidLock(
         }
         continue;
       }
-      let released = false;
-      return {
-        release(): void {
-          if (released) return;
-          released = true;
-          const current = readSnapshot(filePath);
-          if (current.kind !== "ok" || current.record.pid === pid) {
-            fs.rmSync(filePath, { force: true });
-          }
-        },
-      };
+      return makeHandle(filePath, pid);
     } finally {
       fs.rmSync(tempPath, { force: true });
     }

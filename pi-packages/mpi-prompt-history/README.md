@@ -14,6 +14,8 @@ Prompt-recall data and lock files live in `<agentDir>/mpi-prompt-history/` (`age
 
 New prompts append to `history.jsonl`. History rewrites and index updates use a temporary file and atomic rename. Data files have mode `0600`; the data directory is `0700`. `title` falls back through session name -> first user message -> session id.
 
+Where the filesystem refuses both link(2) and exclusive create, writes continue without the lock. Each write is still a single append or an atomic rename, so only concurrent merges can be lost.
+
 ## Behavior
 
 | Event | Action |
