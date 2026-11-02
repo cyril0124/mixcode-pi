@@ -1,14 +1,15 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/sh
+# Stays bash-free: minimal images (Alpine, busybox) ship no bash.
+set -eu
 
-repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_dir="$(cd "$(dirname "$0")" && pwd)"
 workdir="$(pwd)"
 cd "$repo_dir"
 
 if [ ! -f vendor/pi/package.json ]; then
   git submodule update --init vendor/pi
 fi
-dependency_update=$(bash scripts/ensure-fork-dependencies.sh)
+dependency_update=$(sh scripts/ensure-fork-dependencies.sh)
 
 fork_entry="$repo_dir/vendor/pi/packages/coding-agent/dist/bun/cli.js"
 needs_fork_build() {
@@ -27,7 +28,7 @@ needs_fork_build() {
 }
 
 if needs_fork_build; then
-  bash scripts/ensure-fork-model-data.sh
+  sh scripts/ensure-fork-model-data.sh
   (cd vendor/pi && npm run build:offline)
 fi
 bun scripts/generate-fork-docs.ts

@@ -9,7 +9,7 @@
     "url": "git+https://github.com/cyril0124/mixcode-pi.git"
   },
   "scripts": {
-    "build:fork": "cd vendor/pi && bash ../../scripts/ensure-fork-dependencies.sh --force && bash ../../scripts/ensure-fork-model-data.sh && npm run build:offline",
+    "build:fork": "cd vendor/pi && sh ../../scripts/ensure-fork-dependencies.sh --force && sh ../../scripts/ensure-fork-model-data.sh && npm run build:offline",
     "build": "bun run build:fork && bun scripts/generate-fork-docs.ts && bun scripts/generate-fork-examples.ts && bun build scripts/fork-binary-entry.ts vendor/pi/packages/coding-agent/src/utils/image-resize-worker.ts vendor/pi/packages/coding-agent/src/extensions/codemode/worker.ts --compile --packages bundle --no-compile-autoload-bunfig --no-compile-autoload-dotenv --outfile dist/mpi",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "bun test --isolate --timeout=60000 pi-packages/*/*.test.ts",

@@ -1,11 +1,12 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/sh
+# Stays bash-free: minimal images (Alpine, busybox) ship no bash.
+set -eu
 
 # MixCode Pi installer — compile to standalone single binary
 # Usage: ./install.sh [--prefix ~/.local] [--name mpi]
 
 INSTALL_NAME="mpi"
-REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # --- Helpers ---
 
@@ -67,14 +68,18 @@ export BUN_INSTALL="${BUN_INSTALL:-$HOME/.bun}"
 export PATH="$BUN_INSTALL/bin:$PATH"
 
 if ! command_exists bun; then
+  # Bun ships its installer as a bash script, so it cannot run without bash.
+  command_exists bash ||
+    error "Automatic bun installation needs bash. Install bun manually (https://bun.sh) or install bash, then re-run."
   info "bun not found. Installing bun..."
   if command_exists curl; then
-    curl -fsSL https://bun.sh/install | bash || error "Failed to install bun"
+    installer_script=$(curl -fsSL https://bun.sh/install) || error "Failed to download the bun installer"
   elif command_exists wget; then
-    wget -qO- https://bun.sh/install | bash || error "Failed to install bun"
+    installer_script=$(wget -qO- https://bun.sh/install) || error "Failed to download the bun installer"
   else
     error "Neither curl nor wget found. Please install curl or wget, or install bun manually: https://bun.sh"
   fi
+  printf '%s\n' "$installer_script" | bash || error "Failed to install bun"
 
   if ! command_exists bun; then
     error "bun was installed but is not found in PATH ($BUN_INSTALL/bin)"
@@ -96,10 +101,10 @@ if [ ! -f vendor/pi/package.json ]; then
 fi
 
 info "Preparing Pi fork dependencies..."
-bash scripts/ensure-fork-dependencies.sh || error "Pi fork dependency install failed"
+sh scripts/ensure-fork-dependencies.sh || error "Pi fork dependency install failed"
 
 info "Building the Pi fork..."
-bash scripts/ensure-fork-model-data.sh || error "Pi fork model data preparation failed"
+sh scripts/ensure-fork-model-data.sh || error "Pi fork model data preparation failed"
 (cd vendor/pi && npm run build:offline) || error "Pi fork build failed"
 bun scripts/generate-fork-docs.ts || error "Pi fork documentation packaging failed"
 bun scripts/generate-fork-examples.ts || error "Pi fork example packaging failed"

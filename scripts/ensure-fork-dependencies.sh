@@ -1,7 +1,8 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/sh
+# Stays bash-free: minimal images (Alpine, busybox) ship no bash.
+set -eu
 
-repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+repo_dir="$(cd "$(dirname "$0")/.." && pwd)"
 fork_dir="$repo_dir/vendor/pi"
 stamp="$repo_dir/dist/fork-lock.sha256"
 mode="${1:-}"

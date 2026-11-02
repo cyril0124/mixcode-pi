@@ -15,7 +15,7 @@
 
 ## Build And Dependencies
 
-- `install.sh` installs exactly one executable at `<prefix>/bin/<name>` (default `mpi`). `release.sh` cross-compiles the same entry, and `run.sh` rebuilds a local executable when inputs change. Bun and Node/npm are build prerequisites, not runtime prerequisites for the installed executable.
+- `install.sh` installs exactly one executable at `<prefix>/bin/<name>` (default `mpi`). `release.sh` cross-compiles the same entry, and `run.sh` rebuilds a local executable when inputs change. Bun and Node/npm are build prerequisites, not runtime prerequisites for the installed executable. `run.sh`, `install.sh` and both `scripts/ensure-*.sh` run on POSIX `sh` (`#!/bin/sh`, avoiding `pipefail`, arrays and `BASH_SOURCE`) so bash-less images can run them. `release.sh` keeps bash because its target lists are arrays.
 - The fork uses `npm ci --ignore-scripts` with `vendor/pi/package-lock.json`. Root extension checks use `bun install --ignore-scripts` with `bun.lock`; root overrides must resolve all Pi SDK packages to the pinned fork, including transitive dependencies.
 - `scripts/ensure-fork-dependencies.sh` reuses installed fork dependencies only when `tsc` exists and the lockfile SHA-256 matches the successful-install stamp in ignored `dist/`. Release and root checks force `npm ci`.
 - `scripts/ensure-fork-model-data.sh` refreshes and validates the fork model catalog online on every fork build. Build, install, release, and development paths share this step; a failed refresh stops the build.
