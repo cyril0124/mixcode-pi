@@ -116,8 +116,8 @@ trap 'rm -rf "$BUILD_TMPDIR"' EXIT
 
 info "Compiling standalone binary..."
 bun build scripts/fork-binary-entry.ts \
-  vendor/pi/packages/coding-agent/src/utils/image-resize-worker.ts \
-  vendor/pi/packages/coding-agent/src/extensions/codemode/worker.ts \
+  src/utils/image-resize-worker.ts \
+  src/extensions/codemode/worker.ts \
   --compile --packages bundle --no-compile-autoload-bunfig --no-compile-autoload-dotenv \
   --outfile "$BUILD_TMPDIR/$INSTALL_NAME"
 

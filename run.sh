@@ -41,6 +41,7 @@ needs_binary_build() {
   fi
   if find scripts/fork-binary-entry.ts scripts/fork-binary-assets.ts scripts/ensure-package-extensions.ts \
     scripts/generate-fork-docs.ts scripts/generate-fork-examples.ts \
+    src/extensions/codemode/worker.ts src/utils/image-resize-worker.ts \
     scripts/fork-docs.generated.ts scripts/fork-examples.generated.ts pi-packages \
     vendor/pi/docs vendor/pi/packages/coding-agent/docs vendor/pi/packages/coding-agent/examples \
     \( -name node_modules -o -name dist \) -prune \
@@ -52,8 +53,8 @@ needs_binary_build() {
 
 if needs_binary_build; then
   bun build scripts/fork-binary-entry.ts \
-    vendor/pi/packages/coding-agent/src/utils/image-resize-worker.ts \
-    vendor/pi/packages/coding-agent/src/extensions/codemode/worker.ts \
+    src/utils/image-resize-worker.ts \
+    src/extensions/codemode/worker.ts \
     --compile --packages bundle --no-compile-autoload-bunfig --no-compile-autoload-dotenv \
     --outfile "$binary"
 fi

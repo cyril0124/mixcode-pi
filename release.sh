@@ -132,8 +132,8 @@ for target in "${TARGETS[@]}"; do
   out="$OUT_DIR/$name"
   info "Compiling $target → $name"
   if bun build "$ENTRY" \
-    vendor/pi/packages/coding-agent/src/utils/image-resize-worker.ts \
-    vendor/pi/packages/coding-agent/src/extensions/codemode/worker.ts \
+    src/utils/image-resize-worker.ts \
+    src/extensions/codemode/worker.ts \
     --compile --packages bundle --no-compile-autoload-bunfig --no-compile-autoload-dotenv \
     --target="$target" --outfile "$out"; then
     if [ -f "$out" ]; then
