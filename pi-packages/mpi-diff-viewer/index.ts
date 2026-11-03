@@ -1,9 +1,18 @@
-import type { ExtensionCommandContext, ExtensionFactory } from "@earendil-works/pi-coding-agent";
+import {
+  isEditToolResult,
+  isWriteToolResult,
+  type ExtensionCommandContext,
+  type ExtensionFactory,
+} from "@earendil-works/pi-coding-agent";
 import { DiffViewer } from "./diff-viewer.js";
 import { composeReviewPrompt, type ReviewDraft } from "./review.js";
 import {
   buildGitDiff,
   buildSessionDiff,
+  DIRECT_MOD_ENTRY_TYPE,
+  FILE_MOD_ENTRY_TYPE,
+  type DirectModEntry,
+  type FileModEntry,
   type SessionDiff,
   type SessionEntry,
 } from "./session-diff.js";
@@ -100,6 +109,32 @@ async function showGitDiff(
 }
 
 const extension: ExtensionFactory = (pi) => {
+  pi.on("tool_result", (event) => {
+    if (event.isError) return;
+
+    if (isWriteToolResult(event)) {
+      const { path, content } = event.input;
+      if (typeof path !== "string" || typeof content !== "string") return;
+      if (event.parentToolCallId) {
+        pi.appendEntry(FILE_MOD_ENTRY_TYPE, { kind: "write", path, content } satisfies FileModEntry);
+      } else {
+        pi.appendEntry(DIRECT_MOD_ENTRY_TYPE, { toolCallId: event.toolCallId } satisfies DirectModEntry);
+      }
+      return;
+    }
+
+    if (isEditToolResult(event)) {
+      const path = event.input.path;
+      const patch = event.details?.patch;
+      if (typeof path !== "string" || typeof patch !== "string" || !patch) return;
+      if (event.parentToolCallId) {
+        pi.appendEntry(FILE_MOD_ENTRY_TYPE, { kind: "edit", path, patch } satisfies FileModEntry);
+      } else {
+        pi.appendEntry(DIRECT_MOD_ENTRY_TYPE, { toolCallId: event.toolCallId } satisfies DirectModEntry);
+      }
+    }
+  });
+
   pi.registerCommand("diff", {
     description: "Show session or git file changes in the built-in diff viewer",
     ...({ argumentHint: "[last|N|N-M|<git-ref>]" } as Record<string, unknown>),

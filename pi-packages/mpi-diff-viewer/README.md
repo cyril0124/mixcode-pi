@@ -6,7 +6,7 @@ MixCode built-in terminal-native interactive diff inspection and code review com
 
 ## Core Capabilities
 
-- **Unified Session Diffing**: Reconstructs file modifications across tool calls (`edit`, `write`, unified patch hunks) across the active session branch.
+- **Unified Session Diffing**: Reconstructs file modifications across direct and codemode-nested `edit` and `write` calls on the active session branch.
 - **Git Reference Inspection**: Compares tracked text changes in the working tree and index against Git refs (`HEAD`, branches, or commits).
 - **In-TUI Interactive Code Review**: Attach inline review comments (`fix` / `discuss`) to specific hunk lines and compose structured follow-up prompts back to the agent.
 
@@ -22,6 +22,7 @@ MixCode built-in terminal-native interactive diff inspection and code review com
 
 Refs named `last`, digits, or `N-M` must use a full name such as `refs/heads/last`; those short forms select session turns.
 Invalid Git refs are reported as `Error: ...` notifications.
+Codemode changes are captured when the extension is active; older codemode calls lack the complete results needed for reliable reconstruction.
 
 ## Keybindings
 

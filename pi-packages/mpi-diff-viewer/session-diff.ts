@@ -21,9 +21,16 @@ interface SessionMessage {
 export interface SessionEntry {
   type: string;
   message?: SessionMessage;
+  customType?: string;
+  data?: unknown;
 }
 
 type Mod = { kind: "write"; content: string } | { kind: "edit"; patch: string };
+
+export const FILE_MOD_ENTRY_TYPE = "mpi-diff-viewer-file-mod";
+export const DIRECT_MOD_ENTRY_TYPE = "mpi-diff-viewer-direct-mod";
+export type FileModEntry = { path: string } & Mod;
+export type DirectModEntry = { toolCallId: string };
 
 interface FileMods {
   path: string;
@@ -158,10 +165,26 @@ export function reversePatch(newContent: string, hunks: ReversePatchHunk[]): str
 
 function collectFileMods(entries: SessionEntry[], cwd: string): Map<string, FileMods> {
   const resultById = new Map<string, SessionMessage>();
+  let hasNestedFileMods = false;
   for (const entry of entries) {
+    if (entry.type === "custom" && entry.customType === FILE_MOD_ENTRY_TYPE) {
+      hasNestedFileMods = true;
+    }
+
     const message = entry.message;
-    if (entry.type === "message" && message?.role === "toolResult" && message.toolCallId) {
+    if (entry.type !== "message" || !message) continue;
+    if (message.role === "toolResult" && message.toolCallId) {
       resultById.set(message.toolCallId, message);
+    }
+  }
+
+  // Direct-only scopes cannot interleave with nested file changes, so they do not need ordering markers.
+  const markedDirectCallIds = new Set<string>();
+  if (hasNestedFileMods) {
+    for (const entry of entries) {
+      if (entry.type !== "custom" || entry.customType !== DIRECT_MOD_ENTRY_TYPE) continue;
+      const marker = entry.data as DirectModEntry | undefined;
+      if (typeof marker?.toolCallId === "string") markedDirectCallIds.add(marker.toolCallId);
     }
   }
 
@@ -179,8 +202,50 @@ function collectFileMods(entries: SessionEntry[], cwd: string): Map<string, File
     }
     return file;
   };
+  const recordCall = (call: ToolCallBlock): void => {
+    if (call.name !== "write" && call.name !== "edit") return;
+    if (call.id && resultById.get(call.id)?.isError) return;
 
+    const filePath = call.arguments?.path as string | undefined;
+    if (!filePath) return;
+    const file = ensureFile(normalizedPath(filePath));
+
+    if (call.name === "write") {
+      const content = call.arguments?.content as string | undefined;
+      if (content !== undefined) file.mods.push({ kind: "write", content });
+      return;
+    }
+
+    const details = call.id
+      ? (resultById.get(call.id)?.details as { patch?: string } | undefined)
+      : undefined;
+    if (details?.patch) file.mods.push({ kind: "edit", patch: details.patch });
+  };
+
+  const callById = new Map<string, ToolCallBlock>();
   for (const entry of entries) {
+    if (entry.type === "custom") {
+      if (entry.customType === FILE_MOD_ENTRY_TYPE) {
+        const data = entry.data;
+        if (typeof data !== "object" || data === null || Array.isArray(data)) continue;
+        const mod = data as Record<string, unknown>;
+        if (typeof mod.path !== "string" || !mod.path) continue;
+        const filePath = normalizedPath(mod.path);
+        if (mod.kind === "write" && typeof mod.content === "string") {
+          ensureFile(filePath).mods.push({ kind: "write", content: mod.content });
+        } else if (mod.kind === "edit" && typeof mod.patch === "string" && mod.patch) {
+          ensureFile(filePath).mods.push({ kind: "edit", patch: mod.patch });
+        }
+      } else if (hasNestedFileMods && entry.customType === DIRECT_MOD_ENTRY_TYPE) {
+        const marker = entry.data as DirectModEntry | undefined;
+        const call = typeof marker?.toolCallId === "string"
+          ? callById.get(marker.toolCallId)
+          : undefined;
+        if (call) recordCall(call);
+      }
+      continue;
+    }
+
     const message = entry.message;
     if (
       entry.type !== "message" ||
@@ -195,23 +260,11 @@ function collectFileMods(entries: SessionEntry[], cwd: string): Map<string, File
       if (candidate.type !== "toolCall") continue;
       const call = candidate as unknown as ToolCallBlock;
       if (call.name !== "write" && call.name !== "edit") continue;
-      if (call.id && resultById.get(call.id)?.isError) continue;
-
-      const filePath = call.arguments?.path as string | undefined;
-      if (!filePath) continue;
-      const file = ensureFile(normalizedPath(filePath));
-
-      if (call.name === "write") {
-        const content = call.arguments?.content as string | undefined;
-        if (content !== undefined) file.mods.push({ kind: "write", content });
+      if (hasNestedFileMods && call.id && markedDirectCallIds.has(call.id)) {
+        callById.set(call.id, call);
         continue;
       }
-
-      const details = call.id
-        ? (resultById.get(call.id)?.details as { patch?: string } | undefined)
-        : undefined;
-      if (!details?.patch) continue;
-      file.mods.push({ kind: "edit", patch: details.patch });
+      recordCall(call);
     }
   }
 
