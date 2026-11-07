@@ -1,40 +1,8 @@
-// ╔══════════════════════════════════════════════════════════════════╗
-// ║      transcript: View session transcript slices in the editor      ║
-// ╠══════════════════════════════════════════════════════════════════╣
-// ║                                                                    ║
-// ║  /transcript [target] [N] [full]                                  ║
-// ║      N = last N rounds (chatlog/thinking)                         ║
-// ║      full = untruncated tool output (chatlog/context)             ║
-// ║                                                                    ║
-// ║  Rebuilds the requested slice of the current session branch and    ║
-// ║  opens it in the configured transcript editor. The configuration   ║
-// ║  lives in <agentDir>/mpi-transcript.json and defaults to nvim, vim, ║
-// ║  then the in-app multi-line editor when no choice is configured.    ║
-// ║  For scrolling and copying; nothing is written to disk.            ║
-// ║                                                                    ║
-// ║  Targets:                                                          ║
-// ║    context       Effective LLM context (what the model sees)       ║
-// ║    chatlog       Full transcript (user/assistant/thinking/tools/   ║
-// ║                  injected/compaction/branch summaries/errors/      ║
-// ║                  cache-miss notices)                               ║
-// ║    growth        Context size and delta per assistant turn         ║
-// ║    thinking      All reasoning/thinking blocks                     ║
-// ║    latest-agent  Last assistant text reply                         ║
-// ║    latest-user   Last user message                                 ║
-// ║    raw           Raw session JSONL file, no rendering              ║
-// ║    raw-edit      Editable session JSONL file (writable)            ║
-// ║                                                                    ║
-// ║  Data source is the SDK-native session branch                      ║
-// ║  (ctx.sessionManager.getBranch()), not any host-internal chat      ║
-// ║  model, so the extension is portable across pi hosts.              ║
-// ║                                                                    ║
-// ╚══════════════════════════════════════════════════════════════════╝
-
 import { spawn } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { AssistantMessage } from "@earendil-works/pi-ai";
+import type { AssistantMessage, NestedToolCalls } from "@earendil-works/pi-ai";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type {
   ExtensionCommandContext,
@@ -117,6 +85,7 @@ interface ToolCallBlock {
   id?: string;
   name?: string;
   arguments?: Record<string, unknown>;
+  argumentsBytes?: number;
 }
 type AssistantBlock = TextBlock | ThinkingBlock | ToolCallBlock | { type: string };
 
@@ -176,6 +145,7 @@ function normalizeTarget(raw: string): TargetId | undefined {
 
 interface TranscriptStats {
   totalToolCalls: number;
+  nestedCallsComplete: boolean;
   toolCalls: ReadonlyMap<string, number>;
   skills: ReadonlyMap<string, number>;
   sessionTurns: number;
@@ -184,12 +154,13 @@ interface TranscriptStats {
   resultCounts: { success: number; errors: number; pending: number };
 }
 
-/** Count assistant tool calls and reads of skill files in a session branch. */
+/** Count model-issued and recorded nested tool calls, including skill reads. */
 function collectTranscriptStats(entries: SessionEntry[]): TranscriptStats {
   const toolCalls = new Map<string, number>();
   const skills = new Map<string, number>();
-  const resultById = new Map<string, boolean>();
+  const resultById = new Map<string, { isError: boolean; nestedCalls?: NestedToolCalls }>();
   let totalToolCalls = 0;
+  let nestedCallsComplete = true;
   let sessionTurns = 0;
   let messageCount = 0;
   let firstAt: number | undefined;
@@ -206,43 +177,62 @@ function collectTranscriptStats(entries: SessionEntry[]): TranscriptStats {
     const message = messageOf(entry);
     if (message?.role === "user" && blockText(message.content).trim()) sessionTurns += 1;
     if (message?.role === "toolResult" && message.toolCallId) {
-      resultById.set(message.toolCallId, Boolean(message.isError));
+      resultById.set(message.toolCallId, {
+        isError: Boolean(message.isError),
+        nestedCalls: message.nestedCalls,
+      });
     }
   }
 
-  let success = 0;
-  let errors = 0;
-  let pending = 0;
+  const resultCounts = { success: 0, errors: 0, pending: 0 };
+  const recordCall = (
+    call: Pick<ToolCallBlock, "name" | "arguments">,
+    status: keyof typeof resultCounts,
+  ): void => {
+    const toolName = call.name ?? "(unknown)";
+    toolCalls.set(toolName, (toolCalls.get(toolName) ?? 0) + 1);
+    totalToolCalls += 1;
+    resultCounts[status] += 1;
+
+    if (toolName !== "read") return;
+    const rawPath = call.arguments?.file_path ?? call.arguments?.path;
+    if (typeof rawPath !== "string" || path.basename(rawPath) !== "SKILL.md") return;
+    const skillName = path.basename(path.dirname(rawPath)) || "SKILL.md";
+    skills.set(skillName, (skills.get(skillName) ?? 0) + 1);
+  };
+
   for (const entry of entries) {
     const message = messageOf(entry);
     if (message?.role !== "assistant" || !Array.isArray(message.content)) continue;
     for (const block of message.content as AssistantBlock[]) {
       if (block.type !== "toolCall") continue;
       const call = block as ToolCallBlock;
-      const toolName = call.name ?? "(unknown)";
-      toolCalls.set(toolName, (toolCalls.get(toolName) ?? 0) + 1);
-      totalToolCalls += 1;
+      const result = call.id === undefined ? undefined : resultById.get(call.id);
+      let resultStatus: keyof typeof resultCounts = "pending";
+      if (result) resultStatus = result.isError ? "errors" : "success";
+      recordCall(call, resultStatus);
 
-      if (call.id === undefined || !resultById.has(call.id)) pending += 1;
-      else if (resultById.get(call.id)) errors += 1;
-      else success += 1;
-
-      if (toolName !== "read") continue;
-      const rawPath = call.arguments?.file_path ?? call.arguments?.path;
-      if (typeof rawPath !== "string" || path.basename(rawPath) !== "SKILL.md") continue;
-      const skillName = path.basename(path.dirname(rawPath)) || "SKILL.md";
-      skills.set(skillName, (skills.get(skillName) ?? 0) + 1);
+      const nested = result?.nestedCalls;
+      if (!nested) continue;
+      if (!nested.complete) nestedCallsComplete = false;
+      for (const nestedCall of nested.calls) {
+        let nestedStatus: keyof typeof resultCounts = "pending";
+        if (nestedCall.status === "ok") nestedStatus = "success";
+        else if (nestedCall.status === "error") nestedStatus = "errors";
+        recordCall(nestedCall, nestedStatus);
+      }
     }
   }
 
   return {
     totalToolCalls,
+    nestedCallsComplete,
     toolCalls,
     skills,
     sessionTurns,
     messageCount,
     durationMs: firstAt !== undefined && lastAt !== undefined ? lastAt - firstAt : undefined,
-    resultCounts: { success, errors, pending },
+    resultCounts,
   };
 }
 
@@ -276,7 +266,11 @@ function renderTranscriptStats(
     `Session · ${stats.sessionTurns} turn${stats.sessionTurns === 1 ? "" : "s"} · ${stats.messageCount} message${stats.messageCount === 1 ? "" : "s"} · ${stats.durationMs === undefined ? "duration n/a" : fmtDuration(stats.durationMs)}`,
     `File · ${sessionFile ?? "In-memory"}`,
     `Result · ${stats.resultCounts.success} success · ${stats.resultCounts.errors} errors · ${stats.resultCounts.pending} pending`,
-    ...statItemLines("Tools", `${stats.totalToolCalls} total`, stats.toolCalls),
+    ...statItemLines(
+      "Tools",
+      `${stats.totalToolCalls} ${stats.nestedCallsComplete ? "total" : "recorded (incomplete)"}`,
+      stats.toolCalls,
+    ),
     ...statItemLines(
       "Skills",
       `${[...stats.skills.values()].reduce((total, count) => total + count, 0)} reads`,
@@ -312,9 +306,15 @@ export function formatViewText(title: string, body: string[]): string {
 // ─── Content reconstruction from the session branch ───────────────────────────
 
 /** Narrow a branch entry to its message when it is a normal chat message. */
-function messageOf(
-  entry: SessionEntry,
-): { role: string; content: unknown; toolCallId?: string; isError?: boolean } | undefined {
+function messageOf(entry: SessionEntry):
+  | {
+      role: string;
+      content: unknown;
+      toolCallId?: string;
+      isError?: boolean;
+      nestedCalls?: NestedToolCalls;
+    }
+  | undefined {
   if (entry.type !== "message") return undefined;
   return entry.message as unknown as { role: string; content: unknown };
 }
@@ -441,7 +441,7 @@ function skillReadInfo(
   call: ToolCallBlock,
   result: { status: string; text: string } | undefined,
 ): SkillReadInfo | undefined {
-  if (call.name !== "read" || !result || result.status === "error") return undefined;
+  if (call.name !== "read" || !result || result.status !== "success") return undefined;
   const rawPath = call.arguments?.file_path ?? call.arguments?.path;
   if (typeof rawPath !== "string" || path.basename(rawPath) !== "SKILL.md") return undefined;
   const lines = result.text.split("\n");
@@ -501,9 +501,6 @@ function renderSkillCard(skill: SkillReadInfo, fullToolOutput: boolean | undefin
   return `### 📘 Skill: ${skill.name} — ✅ success\n\n_${skill.path}_\n\n${description}${body}`;
 }
 
-// Full transcript as markdown sections: numbered user/assistant rounds,
-// injected context, compaction/branch summaries, tool calls (paired to their
-// results by toolCallId), thinking quotes, and error/abort markers.
 /** Tokens as a compact k-suffixed figure: 8432 → "8.4k", 200000 → "200k". */
 function fmtTokens(n: number): string {
   if (n < 1000) return String(n);
@@ -850,7 +847,60 @@ function cacheMissNotice(miss: CacheMiss): string | undefined {
  */
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
+interface ToolResultInfo {
+  status: "success" | "error" | "unfinished";
+  text: string;
+  durationMs?: number;
+  nestedCalls?: NestedToolCalls;
+}
+
+function renderToolCall(
+  call: ToolCallBlock,
+  result: ToolResultInfo | undefined,
+  fullToolOutput: boolean | undefined,
+  parentToolName?: string,
+): string {
+  const skill = skillReadInfo(call, result);
+  if (skill) return renderSkillCard(skill, fullToolOutput);
+
+  let status = "⏳ no result";
+  if (result?.status === "success") status = "✅ success";
+  else if (result?.status === "error") status = "❌ error";
+  else if (result?.status === "unfinished") status = "⏳ unfinished";
+  if (parentToolName) status += ` · via ${parentToolName}`;
+  if (result?.durationMs !== undefined) status += ` · ${fmtDuration(result.durationMs)}`;
+
+  let argsBlock = "";
+  if (call.arguments && Object.keys(call.arguments).length) {
+    const json = JSON.stringify(call.arguments, null, 2);
+    const f = fenceFor(json);
+    argsBlock = `\n\n${f}json\n${json}\n${f}`;
+  }
+
+  const resultText = result?.text.trim() ?? "";
+  let body = "";
+  if (resultText) {
+    const lines = resultText.split("\n");
+    const isError = result?.status === "error";
+    // Failed output keeps the tail, where stack traces and error summaries live.
+    const cap = fullToolOutput ? Infinity : TOOL_RESULT_MAX_LINES;
+    const kept = (isError ? lines.slice(-cap) : lines.slice(0, cap)).join("\n");
+    const f = fenceFor(kept);
+    const more = lines.length - cap;
+    const block = `${f}\n${kept}\n${f}`;
+    if (more <= 0) body = `\n\n${block}`;
+    else if (isError) body = `\n\n_… +${more} earlier lines_\n\n${block}`;
+    else body = `\n\n${block}\n\n_… +${more} more lines_`;
+  }
+  const omitted =
+    call.argumentsBytes === undefined
+      ? ""
+      : `\n\n_Arguments omitted: ${call.argumentsBytes} bytes._`;
+  return `### 🔧 Tool: ${call.name ?? "(unknown)"} — ${status}${argsBlock}${body}${omitted}`;
+}
+
 interface ChatlogOptions {
+  includeNestedCalls?: boolean;
   turnOffset?: number;
   contextWindowFor?: ContextWindowLookup;
   cacheMisses?: Map<AssistantMessage, CacheMiss>;
@@ -860,25 +910,18 @@ interface ChatlogOptions {
 
 function collectChatlog(entries: SessionEntry[], options: ChatlogOptions = {}): string[] {
   const { turnOffset = 0, contextWindowFor, cacheMisses, fullToolOutput } = options;
-  const resultById = new Map<string, { status: string; text: string }>();
+  const resultById = new Map<string, ToolResultInfo>();
   // Labels for context-edit targets: the edit section names what was changed,
   // using the target's role and original content so the raw chatlog stays
   // self-describing even when the target entry itself is outside the slice.
   const editTargetLabelById = new Map<string, string>();
   for (const entry of entries) {
-    const msg = messageOf(entry) as
-      | {
-          role: string;
-          toolCallId?: string;
-          toolName?: string;
-          content?: unknown;
-          isError?: boolean;
-        }
-      | undefined;
+    const msg = messageOf(entry);
     if (msg?.role === "toolResult" && msg.toolCallId) {
       resultById.set(msg.toolCallId, {
         status: msg.isError ? "error" : "success",
         text: blockText(msg.content),
+        nestedCalls: msg.nestedCalls,
       });
     }
     if (entry.type === "message" && msg) {
@@ -1000,49 +1043,30 @@ function collectChatlog(entries: SessionEntry[], options: ChatlogOptions = {}): 
         } else if (block.type === "toolCall") {
           const call = block as ToolCallBlock;
           const result = call.id ? resultById.get(call.id) : undefined;
-          // A successful SKILL.md read renders as a skill card instead of the
-          // generic raw-file block; everything else falls through unchanged.
-          const skill = skillReadInfo(call, result);
-          if (skill) {
-            parts.push(renderSkillCard(skill, fullToolOutput));
-          } else {
-            const name = call.name ?? "(unknown)";
-            // No paired result means the call never completed (e.g. aborted).
-            const status = result
-              ? result.status === "error"
-                ? "❌ error"
-                : "✅ success"
-              : "⏳ no result";
-            // Tool call arguments as a fenced JSON block; empty/missing args render nothing.
-            const args =
-              call.arguments && Object.keys(call.arguments).length ? call.arguments : undefined;
-            let argsBlock = "";
-            if (args) {
-              const json = JSON.stringify(args, null, 2);
-              const f = fenceFor(json);
-              argsBlock = `\n\n${f}json\n${json}\n${f}`;
+          parts.push(renderToolCall(call, result, fullToolOutput));
+          const nested = options.includeNestedCalls ? result?.nestedCalls : undefined;
+          if (nested) {
+            if (!nested.complete) {
+              parts.push(
+                "_Nested call record incomplete: calls or arguments may be missing, or calls unfinished._",
+              );
             }
-            // Tool output in a fence sized past any fence inside it, truncated so
-            // one big read/bash result cannot drown the transcript. Successful
-            // output keeps the head; failed output keeps the tail, where stack
-            // traces and error summaries usually live.
-            const resultText = result?.text.trim() ?? "";
-            let body = "";
-            if (resultText) {
-              const lines = resultText.split("\n");
-              const isError = result?.status === "error";
-              // Infinity cap keeps every line and yields a negative `more`,
-              // which the notice branches below treat as "nothing hidden".
-              const cap = fullToolOutput ? Infinity : TOOL_RESULT_MAX_LINES;
-              const kept = (isError ? lines.slice(-cap) : lines.slice(0, cap)).join("\n");
-              const f = fenceFor(kept);
-              const more = lines.length - cap;
-              const block = `${f}\n${kept}\n${f}`;
-              if (more <= 0) body = `\n\n${block}`;
-              else if (isError) body = `\n\n_… +${more} earlier lines_\n\n${block}`;
-              else body = `\n\n${block}\n\n_… +${more} more lines_`;
+            if (nested.calls.length)
+              parts.push("_Nested tool outputs are not recorded in the session._");
+            for (const nestedCall of nested.calls) {
+              parts.push(
+                renderToolCall(
+                  { type: "toolCall", ...nestedCall },
+                  {
+                    status: nestedCall.status === "ok" ? "success" : nestedCall.status,
+                    text: nestedCall.error ?? "",
+                    durationMs: nestedCall.durationMs,
+                  },
+                  fullToolOutput,
+                  call.name ?? "(unknown)",
+                ),
+              );
             }
-            parts.push(`### 🔧 Tool: ${name} — ${status}${argsBlock}${body}`);
           }
         }
       }
@@ -1186,8 +1210,7 @@ export function buildViewText(
         ...(thinking.length ? thinking : ["No thinking entries."]),
       ]);
     }
-    // chatlog and context share the section renderer; they differ only in
-    // which entry set the caller feeds in (full branch vs effective context).
+    // Both views share the renderer; context omits nested-call metadata.
     // Misses are computed on the unsliced entries so the first assistant
     // message in a lastTurns cut still sees its previous request.
     const cacheMisses = priceSource ? collectCacheMisses(entries, priceSource) : undefined;
@@ -1206,7 +1229,14 @@ export function buildViewText(
       stats,
       ...sizeLine,
       ...note,
-      ...collectChatlog(sliced, { turnOffset, contextWindowFor, cacheMisses, fullToolOutput }),
+      ...collectChatlog(sliced, {
+        turnOffset,
+        contextWindowFor,
+        cacheMisses,
+        fullToolOutput,
+        // Nested records are session metadata, not part of the model's context.
+        includeNestedCalls: target === "chatlog",
+      }),
     ]);
   }
   // Growth always covers the whole session: the value is the full trend, and

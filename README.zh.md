@@ -9,6 +9,7 @@ MixCode 直接使用 [Pi fork](vendor/pi) 作为 CLI 与交互宿主。当前仓
 - **只安装一个可执行文件。** `install.sh` 仅在所选 `bin/` 安装一个可执行文件（默认名为 `mpi`）；Bun、Node/npm 只在构建时需要。
 - **直接使用 fork 的多标签工作区。** Tab、会话、主题和批处理由固定版本的 fork 提供，不再运行另一套 UI。
 - **内置扩展。** 单文件内嵌 19 个 `mpi-*` 包、技能以及 fork 所需的文档、示例和运行资源。
+- **嵌套工具调用转录。** `/transcript chatlog` 显示 `codemode` 等工具内部已记录的调用。[详情](pi-packages/mpi-transcript/README.zh.md#嵌套工具调用)。
 
 ## 安装
 

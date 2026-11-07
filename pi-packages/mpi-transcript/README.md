@@ -21,6 +21,16 @@ To change the folding threshold, select `Fold threshold` and press Enter. Ctrl+U
 
 `/transcript context` renders the effective context from Pi's canonical session projection: branch resolution, compaction, and Pi 0.87 `context_edit` entries (omitted targets disappear; replaced targets show their replacement content; retained non-contributing compaction checkpoints are dropped). Other targets render the raw branch, where edited entries keep their original content. In every chat-style view (`context`, `chatlog`), a `✏️ Context Edit` section names the target entry. The label is the target's role plus a snippet of its content, or the raw entry id when the target is outside the slice. For replacements the section also quotes the replacement text.
 
+## Nested tool calls
+
+`/transcript chatlog` lists recorded calls made inside `codemode` or another tool after the outer call. Calls keep their recorded order and show available arguments, status, duration, and error. The `via` label identifies the outer tool, whose script and filtered output remain visible.
+
+Nested outputs are not stored in the session. `full` cannot recover them or omitted arguments. Incomplete records and omitted argument sizes are marked explicitly. See the host's [nested-call contract](../../vendor/pi/packages/coding-agent/docs/extensions.md#calling-other-tools).
+
+Statistics include both outer and recorded nested calls, including skill reads. Unfinished calls count as pending. When the nested record is incomplete, the tool count is labeled `recorded (incomplete)` rather than presented as a complete total. Older sessions without nested records keep their outer-call display; calls are never inferred from script text.
+
+`/transcript context` does not expand nested records, because this metadata is not sent to the model.
+
 ## Context growth
 
 `/transcript growth` charts the context size of every assistant turn, read from its request usage: a summary header (turn count, window, peak), a three-row sparkline of per-turn sizes, and a table listing each turn's window share, a bar, the signed delta vs the previous turn, and that step's percentage growth (`%delta`). Rows carry `<- compaction` when a compaction entry sits between the row and the previous turn, and `(!) cache miss` when the turn re-billed enough tokens to count. The view always covers the whole session; `N` and `full` do not apply. Turns without usage (aborted requests) are skipped, and the bars scale to the latest model's context window, or to the session peak when the window is unknown.

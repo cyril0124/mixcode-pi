@@ -9,6 +9,7 @@ MixCode runs the [Pi fork](vendor/pi) as its CLI and interactive host. This repo
 - **One installed executable.** `install.sh` places one executable (named `mpi` by default) in the selected `bin/` directory; Bun and Node/npm are build dependencies, not runtime requirements.
 - **Fork-native multi-tab workspace.** Tabs, sessions, themes, and batch execution run in the pinned fork rather than a separate UI.
 - **Built-in extensions.** The executable embeds 19 `mpi-*` packages, their skills, and the fork's runtime documentation, examples, and assets.
+- **Nested tool transcript.** `/transcript chatlog` shows recorded calls made inside `codemode` and other tools. [Details](pi-packages/mpi-transcript/README.md#nested-tool-calls).
 
 ## Install
 

@@ -21,6 +21,16 @@
 
 `/transcript context` 从 Pi 的 canonical session projection 渲染生效上下文：分支解析、compaction、以及 Pi 0.87 的 `context_edit` 条目（被省略的目标不再出现；被替换的目标显示替换后的内容；保留但不参与上下文的旧 compaction 检查点会被丢弃）。其他目标渲染原始分支，被编辑的条目保持原始内容。在所有聊天式视图（`context`、`chatlog`）中，`✏️ Context Edit` 小节会标出目标条目（角色 + 摘要片段；目标不在切片内时回退为原始 entry id），替换场景还会引用替换后的文本。
 
+## 嵌套工具调用
+
+`/transcript chatlog` 在外层调用之后，按记录顺序列出 `codemode` 或其他工具内部的调用。每项显示可用的参数、状态、耗时与错误，用 `via` 标明外层工具；外层脚本及其筛选后的输出仍然保留。
+
+session 不保存嵌套工具的输出，`full` 无法恢复这些输出或已省略的参数。记录不完整时会显示提示；参数被省略时显示其字节数。数据约定见宿主的[嵌套调用说明](../../vendor/pi/packages/coding-agent/docs/extensions.md#calling-other-tools)。
+
+统计同时包含外层和已记录的嵌套调用，包括技能读取；未完成调用计入 pending。嵌套记录不完整时，工具次数标为 `recorded (incomplete)`，不作为完整总数。没有嵌套记录的旧 session 保持外层显示，不会从脚本文本猜测调用。
+
+`/transcript context` 不展开嵌套记录，因为这些元数据没有发送给模型。
+
 ## Context 增长
 
 `/transcript growth` 按 assistant 回合绘制上下文规模（读取每次请求的 usage）：头部汇总（turn 数、窗口、峰值）、三行堆叠 sparkline，以及列出每回合窗口占比、占比条、相对上一回合带符号增量和该步百分比增长（`%delta`）的表格。行尾标记 `<- compaction`（该行与上一回合之间存在 compaction）和 `(!) cache miss`（该回合重新计费的 token 达到阈值）。该视图始终覆盖整个 session；`N` 与 `full` 不适用。没有 usage 的回合（如中止的请求）会被跳过；占比条以最新模型的上下文窗口为基准，窗口未知时以 session 峰值为基准。
