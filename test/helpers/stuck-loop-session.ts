@@ -10,6 +10,7 @@ import {
 import {
   createAgentSessionFromServices,
   createAgentSessionServices,
+  createCodemodeExtension,
   SessionManager,
   type AgentSession,
 } from "@earendil-works/pi-coding-agent";
@@ -28,7 +29,10 @@ export async function withLoopSession(
     directory: string;
     session: AgentSession;
     executed: JsonObject[];
-    prompt: (calls: readonly LoopProbeCall[]) => Promise<void>;
+    prompt: (
+      calls: readonly LoopProbeCall[],
+      source?: "interactive" | "rpc" | "extension",
+    ) => Promise<void>;
     configure: (config: unknown) => Promise<void>;
   }) => Promise<void>,
 ): Promise<void> {
@@ -36,9 +40,9 @@ export async function withLoopSession(
   const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
   process.env.PI_CODING_AGENT_DIR = dir;
   let session: AgentSession | undefined;
+  const executed: JsonObject[] = [];
   try {
     await fs.writeFile(path.join(dir, "mpi-stuck-guard.json"), JSON.stringify(config));
-    const executed: JsonObject[] = [];
     const services = await createAgentSessionServices({
       cwd: dir,
       agentDir: dir,
@@ -47,6 +51,7 @@ export async function withLoopSession(
         noSkills: true,
         extensionFactories: [
           stuckGuardExtension,
+          createCodemodeExtension(),
           (pi) => {
             for (const name of ["loop_probe", "other_probe"]) {
               pi.registerTool({
@@ -74,6 +79,7 @@ export async function withLoopSession(
     const activeSession = created.session;
     session = activeSession;
     await activeSession.bindExtensions({ mode: "print" });
+    activeSession.setActiveToolsByName([...activeSession.getActiveToolNames(), "codemode"]);
     let nextId = 0;
     await run({
       directory: dir,
@@ -81,13 +87,15 @@ export async function withLoopSession(
       executed,
       configure: (next) =>
         fs.writeFile(path.join(dir, "mpi-stuck-guard.json"), JSON.stringify(next)),
-      prompt: async (calls) => {
+      prompt: async (calls, source = "interactive") => {
         faux.setResponses([
           ...calls.map((call) =>
             fauxAssistantMessage(
               fauxToolCall(
                 call.toolName ?? "loop_probe",
-                call.toolName === "read" ? call.input : { payload: call.input },
+                call.toolName === "read" || call.toolName === "codemode"
+                  ? call.input
+                  : { payload: call.input },
                 { id: `probe-${++nextId}` },
               ),
               { stopReason: "toolUse" },
@@ -95,17 +103,28 @@ export async function withLoopSession(
           ),
           fauxAssistantMessage("Probe sequence finished."),
         ]);
-        await activeSession.prompt("Execute the probe sequence.");
+        await activeSession.prompt("Execute the probe sequence.", { source });
       },
     });
   } finally {
     try {
       if (session) {
         try {
-          // Extension-owned session state is retired before the runner is invalidated.
-          await session.extensionRunner.emit({ type: "session_shutdown", reason: "quit" });
+          const artifactDir = process.env.STUCK_GUARD_ARTIFACT_DIR;
+          if (artifactDir) {
+            await fs.mkdir(artifactDir, { recursive: true });
+            await fs.writeFile(
+              path.join(artifactDir, `${path.basename(dir)}.json`),
+              JSON.stringify({ config, executed, messages: session.messages }, null, 2),
+            );
+          }
         } finally {
-          session.dispose();
+          try {
+            // Extension-owned session state is retired before the runner is invalidated.
+            await session.extensionRunner.emit({ type: "session_shutdown", reason: "quit" });
+          } finally {
+            session.dispose();
+          }
         }
       }
     } finally {

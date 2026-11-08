@@ -218,7 +218,7 @@ test("similar calls under ask never open an approval dialog", async () => {
   );
 });
 
-test("distinct read targets stay silent while same-file pagination warns without blocking", async () => {
+test("distinct read targets and same-file pagination stay silent", async () => {
   await withLoopSession(config, async ({ directory, session, prompt }) => {
     const contents = Array.from({ length: 100 }, (_, index) => `Source line ${index + 1}`).join(
       "\n",
@@ -247,7 +247,7 @@ test("distinct read targets stay silent while same-file pagination warns without
     const notices = session.messages.filter(
       (message) => message.role === "custom" && message.customType === "stuck-guard-similar-loop",
     );
-    assert.equal(notices.length, 3);
+    assert.equal(notices.length, 0);
   });
 });
 

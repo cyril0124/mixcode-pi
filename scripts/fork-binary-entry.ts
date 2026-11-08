@@ -205,6 +205,12 @@ import skillRefsReadme from "../pi-packages/mpi-skill-refs/README.md" with { typ
 import skillRefsReadmeZh from "../pi-packages/mpi-skill-refs/README.zh.md" with { type: "text" };
 import skillRefsPackageJson from "../pi-packages/mpi-skill-refs/package.json" with { type: "text" };
 import stuckGuardDoomLoop from "../pi-packages/mpi-stuck-guard/doom-loop.ts" with { type: "text" };
+import stuckGuardReadProgress from "../pi-packages/mpi-stuck-guard/read-progress.ts" with {
+  type: "text",
+};
+import stuckGuardCycleDetection from "../pi-packages/mpi-stuck-guard/cycle-detection.ts" with {
+  type: "text",
+};
 import stuckGuardReadme from "../pi-packages/mpi-stuck-guard/README.md" with { type: "text" };
 import stuckGuardReadmeZh from "../pi-packages/mpi-stuck-guard/README.zh.md" with { type: "text" };
 import stuckGuardIndex from "../pi-packages/mpi-stuck-guard/index.ts" with { type: "text" };
@@ -637,6 +643,8 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
     "mpi-stuck-guard": {
       "index.ts": stuckGuardIndex,
       "doom-loop.ts": stuckGuardDoomLoop,
+      "read-progress.ts": stuckGuardReadProgress,
+      "cycle-detection.ts": stuckGuardCycleDetection,
       "README.md": stuckGuardReadme,
       "README.zh.md": stuckGuardReadmeZh,
       "search-guard.ts": stuckGuardSearchGuard,

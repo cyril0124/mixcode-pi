@@ -1,6 +1,6 @@
 # mpi-stuck-guard
 
-`mpi-stuck-guard` blocks oversized recursive searches, detects identical and similar tool-call repetition, aborts stalled provider streams through the host retry path, and steers the model after repeated parameter-validation failures.
+`mpi-stuck-guard` blocks oversized recursive searches, detects identical, similar, and cyclic tool-call repetition, aborts stalled provider streams through the host retry path, and steers the model after repeated parameter-validation failures.
 
 ## Doom loop
 
@@ -18,15 +18,19 @@
 
 Identical calls use recursively sorted JSON object keys; array order and literal string contents remain significant. The action applies from the third consecutive call with the same tool and canonical arguments. Successful and failed calls both count.
 
-Similar calls use the last `similarCallThreshold` consecutive same-tool calls (default 5, integer 2–64). When mean adjacent character-bigram Dice similarity over canonical arguments reaches 85%, a visible steering reminder is sent. Similarity never blocks calls or opens approval dialogs. A window of `read` calls targeting distinct file paths stays silent; same-file pagination may warn but remains allowed.
+Similar calls use the last `similarCallThreshold` consecutive same-tool calls (default 5, integer 2–64). When mean adjacent character-bigram Dice similarity over canonical arguments reaches 85%, a visible steering reminder is sent. Similarity never blocks calls or opens approval dialogs. A window of `read` calls targeting distinct normalized file paths stays silent; spellings such as `source.txt` and `./source.txt` identify the same target.
+
+For `read`, similarity is evaluated after the result arrives. A successful text read resets similarity history when at least half its returned lines are outside the recorded coverage of that file. Coverage uses actual returned lines, including byte truncation, and keeps only the latest 64 successful text ranges. Relative and absolute paths are resolved against the session's working directory without extra filesystem access; symlink aliases are not resolved. Failed reads, images, and results without a usable range do not qualify as progress. This also applies to reads inside `codemode`. Changed contents at the same line range are not detected as progress.
 
 While each rolling window continues to qualify, reminders repeat only at doubled counts and once at the 64-call ceiling. With the default threshold, reminders occur at 5, 10, 20, 40 and 64 calls. A different tool, a window below 85%, or a distinct-file read window resets the similarity episode and reminder gate.
+
+Cycles use the latest 64 tool calls. A fixed sequence of 2–6 calls repeated at least 3 times emits a visible advisory reminder. Each position must match both the tool and canonical arguments; changing arguments breaks the cycle. Reminders repeat at doubled repetition counts and once at the window ceiling. Rotations of the same sequence share one reminder gate. Cycles never block calls or request approval.
 
 After 3 consecutive blocked identical calls, the result includes `terminate: true` and `run stopped`. The host ends automatic tool continuation when every result in the current batch requests termination. Other allowed calls in a mixed batch can keep that batch running. Allow-once resets the blocked-call count but preserves repetition history.
 
 Similarity measures arguments, not task progress. Legitimate batches with near-identical parameters may warn. Only identical calls use `doomLoop.action`; changing tools or argument contents breaks the identical streak.
 
-`session_start` clears all counters. Settings reload on `session_start` and `before_agent_start`; changing the action or similarity count starts fresh counters. User messages and model text alone leave counters unchanged.
+`session_start` and `session_shutdown` clear all counters. Settings reload on `session_start` and `before_agent_start`; changing the action or similarity count starts fresh counters. Interactive and RPC user input clear similarity, cycle, and read-coverage history, while preserving identical-call and consecutive-block counters. Extension input and model text do not reset these histories.
 
 | Action | Result |
 |---|---|
