@@ -11,6 +11,7 @@ MixCode 直接使用 [Pi fork](vendor/pi) 作为 CLI 与交互宿主。当前仓
 - **内置扩展。** 单文件内嵌 19 个 `mpi-*` 包、技能以及 fork 所需的文档、示例和运行资源。
 - **嵌套工具调用转录。** `/transcript chatlog` 显示 `codemode` 等工具内部已记录的调用。[详情](pi-packages/mpi-transcript/README.zh.md#嵌套工具调用)。
 - **循环防护。** 正常分页读取保持安静；反复执行固定调用序列时发送提醒。[详情](pi-packages/mpi-stuck-guard/README.zh.md#doom-loop)。
+- **助手响应计时。** footer 显示整次运行耗时与每条已完成助手消息的平均生成耗时。[详情](pi-packages/mpi-working-timer/README.zh.md)。
 
 ## 安装
 

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { fauxAssistantMessage } from "@earendil-works/pi-ai";
 import {
   SessionManager,
@@ -21,7 +22,7 @@ interface SessionHarness {
   session: SessionManager;
   writes: StatusWrite[];
   latest(): string | undefined;
-  fire(event: string): void;
+  fire(event: string, payload?: unknown): void;
   /** Emit an event the package deliberately ignores (e.g. `agent_end`). */
   emit(event: string): void;
 }
@@ -85,10 +86,10 @@ function createHarness(startMs = 1_000_000, host: "mixcode" | "pi" = "mixcode"):
       session,
       writes,
       latest: () => writes.at(-1)?.text,
-      fire: (event) => {
+      fire: (event, payload) => {
         const handler = handlers.get(event);
         assert.ok(handler, `no handler registered for ${event}`);
-        handler({}, ctx);
+        handler(payload ?? {}, ctx);
       },
       emit: (event) => {
         handlers.get(event)?.({}, ctx);
@@ -575,6 +576,104 @@ test("holds the running clock across agent loops and settles it once agent_settl
     harness.advance(1_000);
     harness.fire("agent_start");
     assert.equal(harness.latest(), "⏱ 0s · 0s idle");
+  } finally {
+    harness.dispose();
+  }
+});
+
+test("averages completed assistant messages across runs without counting other events", () => {
+  const harness = createHarness();
+  try {
+    const assistant = fauxAssistantMessage("Answer");
+    const user: AgentMessage = { role: "user", content: "Question", timestamp: 1 };
+    const toolResult: AgentMessage = {
+      role: "toolResult",
+      toolCallId: "example-call",
+      toolName: "read",
+      content: [],
+      isError: false,
+      timestamp: 2,
+    };
+
+    harness.fire("session_start");
+    harness.fire("agent_start");
+    assert.equal(harness.latest(), "⏱ 0s · 0s idle");
+
+    harness.fire("message_start", { message: user });
+    harness.advance(2_000);
+    harness.fire("message_end", { message: user });
+    harness.fire("message_start", { message: assistant });
+    harness.advance(2_000);
+    harness.fire("message_update");
+    harness.advance(1_000);
+    harness.fire("message_end", { message: assistant });
+    assert.equal(harness.latest(), "⏱ 5s · avg 3s/msg · 1s idle");
+
+    harness.fire("tool_execution_start");
+    harness.fire("message_start", { message: toolResult });
+    harness.advance(8_000);
+    harness.fire("message_end", { message: toolResult });
+    harness.fire("tool_execution_end");
+    assert.equal(harness.latest(), "⏱ 13s · avg 3s/msg · 0s idle");
+
+    harness.fire("message_start", { message: assistant });
+    harness.advance(5_000);
+    harness.fire("message_end", { message: assistant });
+    harness.fire("agent_settled");
+    assert.equal(harness.latest(), `✔ done 18s · avg 4s/msg at ${formatClockTime(1_018_000)}`);
+    assert.equal(harness.liveTickerCount(), 0);
+
+    harness.advance(1_000);
+    harness.fire("agent_start");
+    assert.equal(harness.latest(), "⏱ 0s · avg 4s/msg · 0s idle");
+    harness.fire("message_start", { message: assistant });
+    harness.advance(7_000);
+    harness.fire("message_end", { message: assistant });
+    harness.fire("agent_settled");
+    assert.equal(harness.latest(), `✔ done 7s · avg 5s/msg at ${formatClockTime(1_026_000)}`);
+  } finally {
+    harness.dispose();
+  }
+});
+
+test("ignores incomplete messages and resets only the navigated session's average", () => {
+  const harness = createHarness();
+  try {
+    const first = harness.openSession();
+    const second = harness.openSession();
+    const assistant = fauxAssistantMessage("Answer");
+    const firstAnswerId = first.session.appendMessage({ ...assistant, timestamp: 1_000_000 });
+    first.session.appendMessage({ ...assistant, timestamp: 1_000_001 });
+    first.fire("session_start");
+    second.fire("session_start");
+    first.fire("agent_start");
+    second.fire("agent_start");
+
+    first.fire("message_end", { message: assistant });
+    first.fire("message_start", { message: assistant });
+    harness.advance(2_000);
+    second.fire("message_start", { message: assistant });
+    harness.advance(3_000);
+    first.fire("message_end", { message: assistant });
+    assert.equal(first.latest(), "⏱ 5s · avg 5s/msg · 5s idle");
+
+    harness.advance(1_000);
+    second.fire("message_end", { message: assistant });
+    second.fire("agent_settled");
+    assert.equal(second.latest(), `✔ done 6s · avg 4s/msg at ${formatClockTime(1_006_000)}`);
+
+    first.fire("message_start", { message: assistant });
+    first.session.branch(firstAnswerId);
+    first.fire("session_tree");
+    assert.equal(first.latest(), `✔ done at ${formatClockTime(1_000_000)}`);
+    assert.equal(second.latest(), `✔ done 6s · avg 4s/msg at ${formatClockTime(1_006_000)}`);
+    assert.equal(harness.liveTickerCount(), 0);
+
+    first.fire("agent_start");
+    assert.equal(first.latest(), "⏱ 0s · 0s idle");
+    first.fire("agent_settled");
+    first.fire("session_start");
+    assert.equal(first.latest(), `✔ done at ${formatClockTime(1_000_000)}`);
   } finally {
     harness.dispose();
   }

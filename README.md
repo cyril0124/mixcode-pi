@@ -11,6 +11,7 @@ MixCode runs the [Pi fork](vendor/pi) as its CLI and interactive host. This repo
 - **Built-in extensions.** The executable embeds 19 `mpi-*` packages, their skills, and the fork's runtime documentation, examples, and assets.
 - **Nested tool transcript.** `/transcript chatlog` shows recorded calls made inside `codemode` and other tools. [Details](pi-packages/mpi-transcript/README.md#nested-tool-calls).
 - **Loop protection.** Normal read pagination stays quiet; repeated call sequences receive advisory reminders. [Details](pi-packages/mpi-stuck-guard/README.md#doom-loop).
+- **Assistant response timing.** The footer shows elapsed run time and average generation time per completed assistant message. [Details](pi-packages/mpi-working-timer/README.md).
 
 ## Install
 

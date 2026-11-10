@@ -2,24 +2,30 @@
 
 [中文](README.zh.md)
 
-Shows elapsed run time and the restored session's last visible message time in one footer entry. Runs under Pi and MixCode using public extension and session APIs.
+Shows elapsed run time, average assistant-message duration, and the restored session's last visible message time in one footer entry. Runs under Pi and MixCode using public extension and session APIs.
 
 ## Display
 
 | State | Footer entry |
 | --- | --- |
-| run in flight | `⏱ <elapsed>` or `⏱ <elapsed> · <idle> idle` |
-| run settled | `✔ done <duration> at <local YYYY-MM-DD HH:MM:SS>` |
+| run in flight, no completed assistant messages | `⏱ <elapsed>` or `⏱ <elapsed> · <idle> idle` |
+| run in flight, with completed assistant messages | `⏱ 12s · avg 4s/msg · 2s idle` |
+| run settled, no completed assistant messages | `✔ done <duration> at <local YYYY-MM-DD HH:MM:SS>` |
+| run settled, with completed assistant messages | `✔ done 18s · avg 4s/msg at 2026-10-03 15:39:00` |
 | session restored, with a visible message | `✔ done at <local YYYY-MM-DD HH:MM:SS>` |
 | no visible message and no completed run | removed |
 
 The idle suffix appears once a run is in flight. It shows how long since the last streaming activity (`turn_start`, `message_update`, `tool_execution_start`, or `tool_execution_end`), resetting to zero on each event and growing during silent stretches such as long tool calls.
 
+`avg` is the mean wall-clock duration from assistant `message_start` to `message_end` for completed assistant messages in this session. User messages, tool results, unfinished assistant messages, time before streaming starts, and time spent on tools between assistant messages do not count.
+
+The average appears after the first completed assistant message and carries across agent runs; it is kept only in memory, cleared on reload or branch navigation, and never restored from history.
+
 Durations floor to whole seconds and render as `7s`, `2m 05s`, or `1h 02m 03s`. The finish stamp is local time, the same shape as the transcript's `Worked for 7s · at <stamp>` line.
 
 At startup, reload, resume, fork, and tree navigation, the entry uses the last visible message in the selected branch's compaction-aware displayed history. The fork places a leading compaction summary between retained history and later entries; bare Pi leaves it at the head of `buildContextEntries()`. Context edits affect model input only and leave the original transcript message visible.
 
-Ordinary messages use their own millisecond `timestamp`, rather than the enclosing session entry's timestamp or the current clock. Pi converts visible custom-message entries and summary entries into messages with timestamps derived from their entry timestamps. Restored history has no recorded run duration, so the restored entry omits it.
+Ordinary messages use their own millisecond `timestamp`, rather than the enclosing session entry's timestamp or the current clock. Pi converts visible custom-message entries and summary entries into messages with timestamps derived from their entry timestamps. Restored history has no recorded run duration or average, so the restored entry omits both.
 
 Hidden custom messages (`display: false`), system messages, state-only entries, and messages with no visible content or container are excluded.
 
@@ -38,15 +44,16 @@ Under MixCode the working line already carries its own `(12s • esc to interrup
 
 The entry is written under the status key `mpi-working-timer`. Pi and MixCode both sort extension statuses by key, so its position among other extensions' entries is stable. `setStatus` is additive: sibling extensions keep their own keys, and `ctx.ui.setWorkingMessage`, the working indicator, and Pi's retry / compaction status lines are never touched.
 
-Both hosts render the joined status line into the terminal width, so on a narrow terminal, or alongside long sibling statuses, the tail of this entry is clipped rather than wrapped. The entry takes 40 columns for durations under 10 hours and 41 at 10 hours (`✔ done 10h 00m 00s at 2026-10-03 15:39:00`).
+Both hosts render the joined status line into the terminal width, so on a narrow terminal, or alongside long sibling statuses, the tail of this entry is clipped rather than wrapped. Without an average, the entry takes 40 columns for durations under 10 hours and 41 at 10 hours (`✔ done 10h 00m 00s at 2026-10-03 15:39:00`). With an average, the entry is longer; `avg` precedes the idle suffix or finish timestamp so it remains visible longer when the tail is clipped.
 
 ## Lifecycle
 
 State and tickers are keyed by session id: one extension instance can observe several sessions (MixCode reuses extension services for in-tab session replacement), so a run started for one session never renders into another or stops another session's ticker. `session_shutdown` deletes only its own state.
 
-- `session_start` and `session_tree`: stop any interval, reset run state, and restore the last visible message's timestamp from the selected branch. Remove the entry when no visible message with a finite timestamp exists.
+- `session_start` and `session_tree`: stop any interval, reset run state and the in-memory average, and restore the last visible message's timestamp from the selected branch. Remove the entry when no visible message with a finite timestamp exists.
 - `agent_start`: stamps the clock with `??=`, so agent loops belonging to one run (auto-retry, recovery, compaction, queued continuation) keep their elapsed time.
-- During a run, `turn_start`, `message_update`, `tool_execution_start`, and `tool_execution_end` refresh the text and reset the idle counter, and a 1s interval keeps both the elapsed and idle durations moving through long silent tool calls.
+- Assistant `message_start` and a matching `message_end` update the average while a run is in flight. Other message roles do not affect it.
+- During a run, `turn_start`, `message_update`, `tool_execution_start`, and `tool_execution_end` refresh the text and reset the idle counter. A 1s interval keeps both the elapsed and idle durations moving through long silent tool calls.
 - `agent_settled`: stops the interval and switches to `✔ done <duration> at <stamp>`.
 - `session_shutdown`: stops the interval and removes the entry.
 

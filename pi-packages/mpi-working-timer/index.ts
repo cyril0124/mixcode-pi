@@ -6,6 +6,8 @@ import type {
   ExtensionAPI,
   ExtensionContext,
   ExtensionFactory,
+  MessageEndEvent,
+  MessageStartEvent,
   MessageUpdateEvent,
   SessionEntry,
   SessionShutdownEvent,
@@ -140,6 +142,10 @@ interface WorkingTimerState {
   workingSince?: number;
   /** Epoch ms the last streaming activity occurred in the current run (message_update, tool events). */
   lastActivityAt?: number;
+  /** Epoch ms the current assistant message started, absent when none is in flight. */
+  assistantMessageStartedAt?: number;
+  totalAssistantDurationMs: number;
+  assistantMessageCount: number;
   /** Last completed run or restored visible message, absent when neither exists. */
   settled?: {
     /** Wall-clock run duration, unavailable when restoring message history. */
@@ -151,17 +157,22 @@ interface WorkingTimerState {
 
 /** Return the status text, or undefined to clear the footer entry. */
 function workingTimerText(state: WorkingTimerState, now: number): string | undefined {
-  const { workingSince, lastActivityAt, settled } = state;
+  const { workingSince, lastActivityAt, settled, assistantMessageCount, totalAssistantDurationMs } =
+    state;
+  const average =
+    assistantMessageCount > 0
+      ? ` · avg ${formatElapsed(totalAssistantDurationMs / assistantMessageCount)}/msg`
+      : "";
   if (workingSince !== undefined) {
     const elapsed = `⏱ ${formatElapsed(now - workingSince)}`;
     if (lastActivityAt !== undefined) {
-      return `${elapsed} · ${formatElapsed(now - lastActivityAt)} idle`;
+      return `${elapsed}${average} · ${formatElapsed(now - lastActivityAt)} idle`;
     }
-    return elapsed;
+    return `${elapsed}${average}`;
   }
   if (settled === undefined) return undefined;
   const duration = settled.durationMs === undefined ? "" : ` ${formatElapsed(settled.durationMs)}`;
-  return `✔ done${duration} at ${formatClockTime(settled.finishedAtMs)}`;
+  return `✔ done${duration}${average} at ${formatClockTime(settled.finishedAtMs)}`;
 }
 
 const extension: ExtensionFactory = (pi: ExtensionAPI) => {
@@ -183,7 +194,7 @@ const extension: ExtensionFactory = (pi: ExtensionAPI) => {
     const sessionId = sessionIdOf(ctx);
     const existing = states.get(sessionId);
     if (existing) return existing;
-    const created: WorkingTimerState = {};
+    const created: WorkingTimerState = { totalAssistantDurationMs: 0, assistantMessageCount: 0 };
     states.set(sessionId, created);
     return created;
   };
@@ -208,10 +219,13 @@ const extension: ExtensionFactory = (pi: ExtensionAPI) => {
     tickers.set(sessionId, ticker);
   };
 
-  /** Drop the run in flight and the last settled run together. */
+  /** Reset measurements when restoring a session or navigating its tree. */
   const resetState = (state: WorkingTimerState): void => {
     state.workingSince = undefined;
     state.lastActivityAt = undefined;
+    state.assistantMessageStartedAt = undefined;
+    state.totalAssistantDurationMs = 0;
+    state.assistantMessageCount = 0;
     state.settled = undefined;
   };
 
@@ -248,7 +262,26 @@ const extension: ExtensionFactory = (pi: ExtensionAPI) => {
   };
 
   pi.on("turn_start", (_event: TurnStartEvent, ctx) => recordActivity(ctx));
+  pi.on("message_start", (event: MessageStartEvent, ctx) => {
+    if (event.message.role !== "assistant") return;
+    const state = stateFor(ctx);
+    if (state.workingSince === undefined) return;
+
+    state.assistantMessageStartedAt = Date.now();
+  });
   pi.on("message_update", (_event: MessageUpdateEvent, ctx) => recordActivity(ctx));
+  pi.on("message_end", (event: MessageEndEvent, ctx) => {
+    if (event.message.role !== "assistant") return;
+    const state = states.get(sessionIdOf(ctx));
+    if (state?.workingSince === undefined) return;
+    const startedAt = state.assistantMessageStartedAt;
+    if (startedAt === undefined) return;
+
+    state.assistantMessageStartedAt = undefined;
+    state.totalAssistantDurationMs += Math.max(0, Date.now() - startedAt);
+    state.assistantMessageCount++;
+    render(ctx);
+  });
   pi.on("tool_execution_start", (_event: ToolExecutionStartEvent, ctx) => recordActivity(ctx));
   pi.on("tool_execution_end", (_event: ToolExecutionEndEvent, ctx) => recordActivity(ctx));
 
@@ -260,6 +293,7 @@ const extension: ExtensionFactory = (pi: ExtensionAPI) => {
       state.settled = { durationMs: Math.max(0, finishedAtMs - state.workingSince), finishedAtMs };
       state.workingSince = undefined;
       state.lastActivityAt = undefined;
+      state.assistantMessageStartedAt = undefined;
     }
     render(ctx);
   });

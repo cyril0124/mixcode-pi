@@ -112,7 +112,12 @@ function harness(stallSeconds = 0.1) {
         renderers
           .get(notice.customType)?.(
             { ...notice, role: "custom", timestamp: Date.now() },
-            { expanded: false, outputPad: 1 },
+            {
+              expanded: false,
+              outputPad: 1,
+              keyText: () => "",
+              keyHint: (_keybinding, description) => description,
+            },
             plainTheme,
           )
           ?.render(width) ?? []
