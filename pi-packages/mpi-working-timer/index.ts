@@ -157,12 +157,15 @@ interface WorkingTimerState {
 
 /** Return the status text, or undefined to clear the footer entry. */
 function workingTimerText(state: WorkingTimerState, now: number): string | undefined {
-  const { workingSince, lastActivityAt, settled, assistantMessageCount, totalAssistantDurationMs } =
-    state;
+  const { workingSince, lastActivityAt, settled, assistantMessageStartedAt } = state;
+  let totalDurationMs = state.totalAssistantDurationMs;
+  let messageCount = state.assistantMessageCount;
+  if (workingSince !== undefined && assistantMessageStartedAt !== undefined) {
+    totalDurationMs += Math.max(0, now - assistantMessageStartedAt);
+    messageCount++;
+  }
   const average =
-    assistantMessageCount > 0
-      ? ` · avg ${formatElapsed(totalAssistantDurationMs / assistantMessageCount)}/msg`
-      : "";
+    messageCount > 0 ? ` · avg ${formatElapsed(totalDurationMs / messageCount)}/msg` : "";
   if (workingSince !== undefined) {
     const elapsed = `⏱ ${formatElapsed(now - workingSince)}`;
     if (lastActivityAt !== undefined) {
@@ -219,7 +222,7 @@ const extension: ExtensionFactory = (pi: ExtensionAPI) => {
     tickers.set(sessionId, ticker);
   };
 
-  /** Reset measurements when restoring a session or navigating its tree. */
+  /** Clear measurements before a new run or history restoration. */
   const resetState = (state: WorkingTimerState): void => {
     state.workingSince = undefined;
     state.lastActivityAt = undefined;
@@ -245,6 +248,7 @@ const extension: ExtensionFactory = (pi: ExtensionAPI) => {
 
   pi.on("agent_start", (_event: AgentStartEvent, ctx) => {
     const state = stateFor(ctx);
+    if (state.workingSince === undefined) resetState(state);
     // Retry, compaction, and queued continuations share one clock until agent_settled.
     state.workingSince ??= Date.now();
     state.lastActivityAt = Date.now();
@@ -268,6 +272,7 @@ const extension: ExtensionFactory = (pi: ExtensionAPI) => {
     if (state.workingSince === undefined) return;
 
     state.assistantMessageStartedAt = Date.now();
+    render(ctx);
   });
   pi.on("message_update", (_event: MessageUpdateEvent, ctx) => recordActivity(ctx));
   pi.on("message_end", (event: MessageEndEvent, ctx) => {

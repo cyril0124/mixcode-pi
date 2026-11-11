@@ -581,7 +581,7 @@ test("holds the running clock across agent loops and settles it once agent_settl
   }
 });
 
-test("averages completed assistant messages across runs without counting other events", () => {
+test("averages completed assistant messages within one run without counting other events", () => {
   const harness = createHarness();
   try {
     const assistant = fauxAssistantMessage("Answer");
@@ -625,16 +625,87 @@ test("averages completed assistant messages across runs without counting other e
 
     harness.advance(1_000);
     harness.fire("agent_start");
-    assert.equal(harness.latest(), "⏱ 0s · avg 4s/msg · 0s idle");
+    assert.equal(harness.latest(), "⏱ 0s · 0s idle");
     harness.fire("message_start", { message: assistant });
     harness.advance(7_000);
     harness.fire("message_end", { message: assistant });
     harness.fire("agent_settled");
-    assert.equal(harness.latest(), `✔ done 7s · avg 5s/msg at ${formatClockTime(1_026_000)}`);
+    assert.equal(harness.latest(), `✔ done 7s · avg 7s/msg at ${formatClockTime(1_026_000)}`);
   } finally {
     harness.dispose();
   }
 });
+
+for (const host of ["mixcode", "pi"] as const) {
+  test(`${host} refreshes the current run's average while streaming and resets it for the next run`, () => {
+    const harness = createHarness(undefined, host);
+    try {
+      const assistant = fauxAssistantMessage("Streaming reply");
+      harness.fire("session_start");
+      harness.fire("agent_start");
+      assert.equal(harness.latest(), "⏱ 0s · 0s idle");
+      harness.fire("message_start", { message: assistant });
+      assert.equal(harness.latest(), "⏱ 0s · avg 0s/msg · 0s idle");
+
+      harness.advance(2_500);
+      harness.tick();
+      assert.equal(harness.latest(), "⏱ 2s · avg 2s/msg · 2s idle");
+      harness.advance(1_500);
+      harness.fire("message_update");
+      assert.equal(harness.latest(), "⏱ 4s · avg 4s/msg · 0s idle");
+      harness.fire("message_end", { message: assistant });
+      harness.fire("tool_execution_start");
+      harness.advance(6_000);
+      harness.tick();
+      assert.equal(harness.latest(), "⏱ 10s · avg 4s/msg · 6s idle");
+      harness.fire("tool_execution_end");
+
+      harness.emit("agent_end");
+      harness.fire("agent_start");
+      assert.equal(harness.latest(), "⏱ 10s · avg 4s/msg · 0s idle");
+      assert.equal(harness.liveTickerCount(), 1);
+      harness.fire("message_start", { message: assistant });
+      assert.equal(harness.latest(), "⏱ 10s · avg 2s/msg · 0s idle");
+      harness.advance(8_000);
+      harness.tick();
+      assert.equal(harness.latest(), "⏱ 18s · avg 6s/msg · 8s idle");
+      harness.fire("message_end", { message: assistant });
+      harness.fire("message_end", { message: assistant });
+      harness.fire("agent_settled");
+      assert.equal(harness.latest(), `✔ done 18s · avg 6s/msg at ${formatClockTime(1_018_000)}`);
+
+      harness.advance(1_000);
+      harness.fire("agent_start");
+      assert.equal(harness.latest(), "⏱ 0s · 0s idle");
+      harness.fire("message_start", { message: assistant });
+      harness.advance(10_000);
+      harness.tick();
+      assert.equal(harness.latest(), "⏱ 10s · avg 10s/msg · 10s idle");
+      harness.advance(2_000);
+      harness.fire("message_update");
+      assert.equal(harness.latest(), "⏱ 12s · avg 12s/msg · 0s idle");
+      harness.fire("message_end", { message: assistant });
+      harness.fire("agent_settled");
+      assert.equal(harness.latest(), `✔ done 12s · avg 12s/msg at ${formatClockTime(1_031_000)}`);
+
+      harness.fire("agent_start");
+      harness.fire("message_start", { message: assistant });
+      harness.advance(9_000);
+      harness.tick();
+      assert.equal(harness.latest(), "⏱ 9s · avg 9s/msg · 9s idle");
+      harness.fire("agent_settled");
+      assert.equal(harness.latest(), `✔ done 9s at ${formatClockTime(1_040_000)}`);
+      assert.equal(harness.liveTickerCount(), 0);
+      assert.deepEqual(harness.session.getBranch(), []);
+      const writesAfterSettlement = harness.writes.length;
+      harness.advance(5_000);
+      harness.tick();
+      assert.equal(harness.writes.length, writesAfterSettlement);
+    } finally {
+      harness.dispose();
+    }
+  });
+}
 
 test("ignores incomplete messages and resets only the navigated session's average", () => {
   const harness = createHarness();
