@@ -6,16 +6,16 @@ Render-only transcript presentation for `bash`, `read`, `edit`, `write`, and Thi
 
 ## Behavior
 
-| Surface | Collapsed / idle | Expanded / running |
-| --- | --- | --- |
-| `bash` | One line: `bash <label>`, a dim excerpt of the command, and right-aligned status meta; the result region is empty. A failure keeps its tail below the row. See *Collapsed bash row* | 10-frame spinner with elapsed time; live output streams uncollapsed; expanded preview is capped at 4000 lines |
-| `read` | `↳ loaded N lines • Ctrl+O to expand` | Expanded preview is capped at 4000 lines |
-| `read` of `SKILL.md` | `[skill] <parent directory>`; collapsed result is empty | File body |
-| `edit` | Diff capped at 24 content lines before wrapping, with a remainder hint | Pending diff preview while running; expanded diff capped at 4000 terminal rows |
-| `write` | Overwrite diff against pre-execution content; new files render as additions; same diff limits as `edit` | Pending diff preview while running; expanded diff capped at 4000 terminal rows |
-| Thinking | Themed `Thinking:` prefix | Streaming updates remain labeled |
+| Surface              | Collapsed / idle                                                                                                                                                                    | Expanded / running                                                                                            |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `bash`               | One line: `bash <label>`, a dim excerpt of the command, and right-aligned status meta; the result region is empty. A failure keeps its tail below the row. See _Collapsed bash row_ | 10-frame spinner with elapsed time; live output streams uncollapsed; expanded preview is capped at 4000 lines |
+| `read`               | `↳ loaded N lines • Ctrl+O to expand`                                                                                                                                               | Expanded preview is capped at 4000 lines                                                                      |
+| `read` of `SKILL.md` | `[skill] <parent directory>`; collapsed result is empty                                                                                                                             | File body                                                                                                     |
+| `edit`               | Diff capped at 24 content lines before wrapping, with a remainder hint                                                                                                              | Pending diff preview while running; expanded diff capped at 4000 terminal rows                                |
+| `write`              | Overwrite diff against pre-execution content; new files render as additions; same diff limits as `edit`                                                                             | Pending diff preview while running; expanded diff capped at 4000 terminal rows                                |
+| Thinking             | Themed `Thinking:` prefix                                                                                                                                                           | Streaming updates remain labeled                                                                              |
 
-Call rows use `bash <label>`, `read path[:range]`, `edit path (N lines)`, and `write path (N lines • size)`, so the leading word always names the tool. Expanding a row (click or `ctrl+o`) restores the shell form: `$ <command>`.
+Call rows use `bash <label>`, `read path[:range]`, `edit path (N lines)`, and `write path (N lines • size)`, so the leading word always names the tool. Expanding a row (click or `ctrl+o`) restores the shell form: `$ <command>`. Expand hints follow the configured `app.tools.expand` keybinding; examples use the default `ctrl+o`.
 
 ### Collapsed bash row
 
@@ -29,9 +29,9 @@ over.
 The label is the call's own `description` argument, which `mpi-bash` asks for while this row is on,
 or the elided command when the call carries none:
 
-| Label source | Row |
-| --- | --- |
-| The call's `description` argument | `bash Find callers of the parser` |
+| Label source                                        | Row                                 |
+| --------------------------------------------------- | ----------------------------------- |
+| The call's `description` argument                   | `bash Find callers of the parser`   |
 | A call without one falls back to its elided command | `bash rg -n parser src \| head -30` |
 
 The row carries a dim one-line excerpt of the command beside the label, with runs of whitespace
@@ -47,7 +47,8 @@ cannot spare them. A command the label already carries shows no excerpt, so a ro
 same text twice, which covers a call whose label falls back to its command.
 
 A running call shows `~ <elapsed>`. A finished call shows `ok`, or `!! exit N`, `!! timed out`,
-`!! aborted`, or `!! failed`, followed by its duration when the row measured one, then by the output
+`!! aborted`, or `!! failed`, followed by Pi's recorded execution duration when available (otherwise
+the row's measured duration), then by the output
 line count (`1 line`, `32 lines`). Status comes from the last line of the result, where Pi appends
 it. A failed call keeps at most `bashFailureTailLines` (3) non-empty output lines below the row,
 taken from the end of the output; a failure without a status line (a validation or spawn error)
@@ -83,7 +84,7 @@ Before each model call, the `context` handler removes the label and ANSI present
 
 ## Execution contract
 
-The package does not call `registerTool`, create tool definitions, wrap `execute`, read shell settings, or claim tool ownership. A guarded, reload-safe adapter selects call/result renderers through Pi's `ToolExecutionComponent` for `bash`, `read`, `edit`, and `write`. When `read` targets `SKILL.md`, the adapter uses the tool definition's native renderer, which draws `[skill] <parent directory>` when collapsed. Other defined tools use their own renderers. The call wrapper preserves each renderer's `lastComponent` state while optionally appending raw arguments. Tools without a definition keep Pi's generic formatter, including its native result text. With `showRawToolArguments` off, that formatter receives no argument object.
+The package does not call `registerTool`, create tool definitions, wrap `execute`, read shell settings, or claim tool ownership. It registers Pi's public `registerToolRenderer()` resolver for `bash`, `read`, `edit`, and `write`. When `read` targets `SKILL.md`, the resolver uses the tool definition's native renderer, which draws `[skill] <parent directory>` when collapsed. Other defined tools keep their own renderers. The call wrapper preserves each renderer's `lastComponent` state while optionally appending raw arguments. Tools without a registered definition receive a title fallback plus Pi's native result text; arguments stay hidden unless `showRawToolArguments` is enabled. Pi's render context supplies the configured expand keybinding and final `durationMs`.
 
 Native definitions preserve cwd, shell path/prefix, permission wrappers, and the bash child environment (`PI_SESSION_ID`, `PI_SESSION_FILE`, `PI_PROVIDER`, `PI_MODEL`, `PI_REASONING_LEVEL`). The public `tool_call` event captures write's previous file content for display only; it does not block or mutate tool input.
 

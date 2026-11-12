@@ -3,7 +3,7 @@ import { after, before, test } from "node:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ToolRendererResolver } from "@earendil-works/pi-coding-agent";
 import {
   createReadToolDefinition,
   initTheme,
@@ -57,6 +57,7 @@ test("extension never registers or replaces tools", () => {
         getArgumentCompletions?: (prefix: string) => Array<{ value: string }> | null;
       }
     | undefined;
+  let rendererResolver: ToolRendererResolver | undefined;
   const handlers = new Map<string, Array<(event: unknown, ctx: unknown) => unknown>>();
   const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
   process.env.PI_CODING_AGENT_DIR = workDir;
@@ -73,6 +74,9 @@ test("extension never registers or replaces tools", () => {
     ) => {
       registeredCommand = { name, ...definition };
     },
+    registerToolRenderer: (resolver: ToolRendererResolver) => {
+      rendererResolver = resolver;
+    },
     on: (event: string, handler: (event: unknown, ctx: unknown) => unknown) => {
       const current = handlers.get(event) ?? [];
       current.push(handler);
@@ -83,6 +87,7 @@ test("extension never registers or replaces tools", () => {
   try {
     toolDisplayExtension(pi);
     assert.equal(registerToolCalls, 0);
+    assert.ok(rendererResolver);
     assert.equal(registeredCommand?.name, "mpi-tool-display");
     assert.match(registeredCommand?.description ?? "", /^\[global\]/);
     assert.deepEqual(registeredCommand?.getArgumentCompletions?.("con"), [
@@ -400,9 +405,13 @@ test("SKILL.md reads render as compact [skill] rows", () => {
   const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
   process.env.PI_CODING_AGENT_DIR = workDir;
   const handlers = new Map<string, Array<(event: unknown, ctx: unknown) => unknown>>();
+  let rendererResolver: ToolRendererResolver | undefined;
   const pi = {
     registerTool: () => undefined,
     registerCommand: () => undefined,
+    registerToolRenderer: (resolver: ToolRendererResolver) => {
+      rendererResolver = resolver;
+    },
     on: (event: string, handler: (event: unknown, ctx: unknown) => unknown) => {
       const current = handlers.get(event) ?? [];
       current.push(handler);
@@ -411,7 +420,7 @@ test("SKILL.md reads render as compact [skill] rows", () => {
   } as unknown as ExtensionAPI;
   try {
     toolDisplayExtension(pi);
-    const definition = createReadToolDefinition(workDir);
+    const definition = rendererResolver?.("read", () => createReadToolDefinition(workDir) as never);
     const renderRead = (filePath: string, body: string): string => {
       const component = new ToolExecutionComponent(
         "read",
@@ -504,15 +513,19 @@ test("edit diff caps collapsed output and switches split by width", () => {
 
 test("write pre-capture renders overwrite and create diffs without wrapping execute", () => {
   // Drive the real production path: extension registration → tool_call event
-  // → pre-execution capture → adapter-selected renderer via the real
+  // → pre-execution capture → resolver-selected renderer via the real
   // ToolExecutionComponent.
   const handlers = new Map<string, Array<(event: unknown, ctx: unknown) => unknown>>();
   let registerToolCalls = 0;
+  let rendererResolver: ToolRendererResolver | undefined;
   const pi = {
     registerTool: () => {
       registerToolCalls += 1;
     },
     registerCommand: () => undefined,
+    registerToolRenderer: (resolver: ToolRendererResolver) => {
+      rendererResolver = resolver;
+    },
     on: (event: string, handler: (event: unknown, ctx: unknown) => unknown) => {
       const current = handlers.get(event) ?? [];
       current.push(handler);
@@ -530,15 +543,19 @@ test("write pre-capture renders overwrite and create diffs without wrapping exec
 
   const renderWriteRow = (toolCallId: string, args: Record<string, unknown>): string => {
     initTheme("dark");
-    // Minimal write definition: the adapter selects the package renderer and
+    // Minimal write definition: the resolver selects the package renderer and
     // never calls execute in this test.
-    const definition = {
-      name: "write",
-      label: "write",
-      description: "",
-      parameters: {},
-      execute: async () => ({ content: [] }),
-    } as never;
+    const definition = rendererResolver?.(
+      "write",
+      () =>
+        ({
+          name: "write",
+          label: "write",
+          description: "",
+          parameters: {},
+          execute: async () => ({ content: [] }),
+        }) as never,
+    );
     const component = new ToolExecutionComponent(
       "write",
       toolCallId,
@@ -598,7 +615,7 @@ test("write pre-capture renders overwrite and create diffs without wrapping exec
   assert.ok(createText.includes("fresh-2"));
   assert.ok(!createText.includes("previous-content"));
 
-  // Teardown: reload shutdown restores the patched prototype.
+  // Teardown: reload shutdown releases this extension instance.
   emit("session_shutdown", { reason: "reload" }, {});
 });
 
@@ -617,6 +634,7 @@ test("config controls every tool category on the next agent turn", async () => {
     registerCommand: (_name: string, definition: typeof command) => {
       command = definition;
     },
+    registerToolRenderer: () => undefined,
     on: (event: string, handler: (event: unknown, ctx: unknown) => unknown) => {
       const current = handlers.get(event) ?? [];
       current.push(handler);
@@ -625,8 +643,12 @@ test("config controls every tool category on the next agent turn", async () => {
   } as unknown as ExtensionAPI;
 
   const secondHandlers = new Map<string, Array<(event: unknown, ctx: unknown) => unknown>>();
+  let secondRendererResolver: ToolRendererResolver | undefined;
   const secondPi = {
     registerCommand: () => undefined,
+    registerToolRenderer: (resolver: ToolRendererResolver) => {
+      secondRendererResolver = resolver;
+    },
     on: (event: string, handler: (event: unknown, ctx: unknown) => unknown) => {
       const current = secondHandlers.get(event) ?? [];
       current.push(handler);
@@ -654,12 +676,14 @@ test("config controls every tool category on the next agent turn", async () => {
     renderCall?: () => Text,
     registered = true,
   ) => {
+    const nativeRenderers = registered ? definition(name, renderCall) : undefined;
+    const resolvedRenderers = secondRendererResolver?.(name, () => nativeRenderers);
     const component = new ToolExecutionComponent(
       name,
       `${name}-call`,
       args,
       { showImages: false, imageWidthCells: 20 },
-      registered ? definition(name, renderCall) : undefined,
+      resolvedRenderers,
       { requestRender: () => undefined } as never,
       agentDir,
     );
@@ -672,8 +696,8 @@ test("config controls every tool category on the next agent turn", async () => {
 
   try {
     toolDisplayExtension(pi);
-    // A second tab becomes the prototype adapter owner. The first tab's
-    // config command must still update and redraw rows through shared state.
+    // Each tab owns a resolver; the second tab rereads the shared config file
+    // before rendering rows after the first tab's config command writes it.
     toolDisplayExtension(secondPi);
     const bash = row("bash", { command: "echo debug" });
     const fallback = row("TaskUpdate", { taskId: "5", status: "in_progress" });

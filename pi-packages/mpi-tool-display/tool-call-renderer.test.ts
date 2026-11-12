@@ -2,8 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Component } from "@earendil-works/pi-tui";
 import { Text } from "@earendil-works/pi-tui";
-import { wrapToolCallRenderer } from "./tool-call-renderer.js";
-import type { CallRenderer } from "./tool-execution-adapter.js";
+import { type CallRenderer, wrapToolCallRenderer } from "./tool-call-renderer.js";
 
 const theme = {
   fg: (_color: string, text: string) => text,

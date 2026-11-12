@@ -10,6 +10,7 @@ interface WidthMeasurementOps {
 interface CollapsedDiffHintOptions {
   remainingLines: number;
   hiddenHunks: number;
+  expandHint?: string;
 }
 
 function guardSafeWidth(width: number): number | undefined {
@@ -72,7 +73,7 @@ export function buildCollapsedDiffHintText(
         : undefined;
 
     const candidates = [
-      `… (${[remainingText, hiddenHunksText, "Ctrl+O to expand"].filter(Boolean).join(" • ")})`,
+      `… (${[remainingText, hiddenHunksText, options.expandHint ?? "Ctrl+O to expand"].filter(Boolean).join(" • ")})`,
       `… (${[remainingText, hiddenHunksText].filter(Boolean).join(" • ")})`,
       `… (${[shortRemainingText, shortHiddenHunksText].filter(Boolean).join(" • ")})`,
       options.hiddenHunks > 0

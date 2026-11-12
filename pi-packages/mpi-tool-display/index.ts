@@ -24,7 +24,7 @@ import type {
   ExtensionContext,
   ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
-import { formatSize, getAgentDir, ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
+import { formatSize, getAgentDir, type ToolRenderers } from "@earendil-works/pi-coding-agent";
 import { renderBashCall } from "./bash-display.js";
 import {
   DEFAULT_TOOL_DISPLAY_RUNTIME_CONFIG,
@@ -35,22 +35,15 @@ import {
 import { createToolDisplayConfigOverlay } from "./config-overlay.js";
 import { renderEditDiffResult, renderWriteDiffResult } from "./diff-renderer.js";
 import { disposeAll, resetDisposed } from "./disposable.js";
-import { onReloadShutdown } from "./extension-lifecycle.js";
 import {
   buildPendingEditPreviewData,
   buildPendingWritePreviewData,
   type PendingDiffPreviewData,
   readWorkspaceUtf8File,
 } from "./pending-diff-preview.js";
-import { toRecord } from "./render-utils.js";
+import { extractTextOutput, toRecord } from "./render-utils.js";
 import { registerThinkingLabeling } from "./thinking-label.js";
-import { wrapToolCallRenderer } from "./tool-call-renderer.js";
-import {
-  installToolExecutionAdapter,
-  type CallRenderer,
-  type RenderShell,
-  type ResultRenderer,
-} from "./tool-execution-adapter.js";
+import { type CallRenderer, wrapToolCallRenderer } from "./tool-call-renderer.js";
 import {
   buildEditCallSummaryText,
   buildWriteCallSummaryText,
@@ -74,6 +67,7 @@ const CONFIG_SUBCOMMAND = "config";
 const WRITE_EXECUTION_META_LIMIT = 64;
 
 type RenderTheme = Parameters<NonNullable<ToolDefinition["renderResult"]>>[2];
+type ResultRenderer = NonNullable<ToolDefinition["renderResult"]>;
 /** Structural subset of Pi's ToolRenderContext consumed by this package. */
 type ToolRenderContext = Parameters<NonNullable<ToolDefinition["renderResult"]>>[3];
 
@@ -134,6 +128,7 @@ function buildPendingDiffCallComponent(
       previewData.nextContent,
       {
         expanded: context.expanded === true,
+        expandHint: context.keyHint?.("app.tools.expand", "to expand"),
         filePath: previewData.filePath,
         previousContent: previewData.previousContent,
         fileExistedBeforeWrite: previewData.fileExistedBeforeWrite,
@@ -226,7 +221,11 @@ export function createToolDisplayRenderers(
     renderResult: (result, options, theme, context) =>
       renderBashDisplayResult(
         result as never,
-        options,
+        {
+          expanded: options.expanded,
+          isPartial: options.isPartial,
+          keyHint: context?.keyHint,
+        },
         CONFIG,
         theme,
         context,
@@ -235,8 +234,17 @@ export function createToolDisplayRenderers(
   };
   const read: ToolDisplayRenderer = {
     renderCall: (args, theme) => renderReadDisplayCall(args, theme),
-    renderResult: (result, options, theme) =>
-      renderReadDisplayResult(result as never, options, CONFIG, theme),
+    renderResult: (result, options, theme, context) =>
+      renderReadDisplayResult(
+        result as never,
+        {
+          expanded: options.expanded,
+          isPartial: options.isPartial,
+          keyHint: context?.keyHint,
+        },
+        CONFIG,
+        theme,
+      ),
   };
   const edit: ToolDisplayRenderer = {
     renderCall: (args, theme, context) => {
@@ -270,7 +278,11 @@ export function createToolDisplayRenderers(
       if (earlyResult) return earlyResult;
       return renderEditDiffResult(
         result.details as EditToolDetails | undefined,
-        { expanded: options.expanded, filePath: getToolPathArg(context?.args) },
+        {
+          expanded: options.expanded,
+          expandHint: context?.keyHint?.("app.tools.expand", "to expand"),
+          filePath: getToolPathArg(context?.args),
+        },
         CONFIG,
         theme,
         fallbackText,
@@ -311,6 +323,7 @@ export function createToolDisplayRenderers(
         content,
         {
           expanded: options.expanded,
+          expandHint: context?.keyHint?.("app.tools.expand", "to expand"),
           filePath: getToolPathArg(context?.args),
           previousContent: meta?.previousContent,
           fileExistedBeforeWrite: meta?.fileExistedBeforeWrite ?? false,
@@ -345,6 +358,10 @@ function rendererFor(
 function isSkillReadArgs(args: unknown): boolean {
   return path.basename(getToolPathArg(args) ?? "") === "SKILL.md";
 }
+
+/** Match Pi's generic formatter for unregistered tools: collapsed result text is not capped. */
+const renderUnregisteredToolResult: ResultRenderer = (result) =>
+  new Text(extractTextOutput(result), 0, 0);
 
 /** `read` of `SKILL.md` uses the tool definition's native call and result renderers. */
 function selectCallRenderer(
@@ -432,16 +449,19 @@ export default function toolDisplayExtension(pi: ExtensionAPI): void {
   let runtimeConfig = loadRuntimeConfigOrThrow(agentDir);
   const writeExecutionMetaByToolCallId = new Map<string, WriteExecutionMeta>();
   const catalog = createToolDisplayRenderers(writeExecutionMetaByToolCallId, () => runtimeConfig);
-  const installation = installToolExecutionAdapter(ToolExecutionComponent.prototype, {
-    call: (toolName, native) =>
-      wrapToolCallRenderer(
+  pi.registerToolRenderer((toolName, next): ToolRenderers => {
+    const native = next();
+    return {
+      renderCall: wrapToolCallRenderer(
         toolName,
-        selectCallRenderer(catalog, toolName, native),
+        selectCallRenderer(catalog, toolName, native?.renderCall),
         runtimeConfig.showRawToolArguments,
       ),
-    result: (toolName, native) => selectResultRenderer(catalog, toolName, native),
-    shell: (toolName, native): RenderShell => (toolName === "edit" ? "default" : native),
-    showRawArguments: () => runtimeConfig.showRawToolArguments,
+      renderResult:
+        selectResultRenderer(catalog, toolName, native?.renderResult) ??
+        (native === undefined ? renderUnregisteredToolResult : undefined),
+      renderShell: toolName === "edit" ? "default" : native?.renderShell,
+    };
   });
 
   const applyRuntimeConfig = (next: ToolDisplayRuntimeConfig): void => {
@@ -493,6 +513,5 @@ export default function toolDisplayExtension(pi: ExtensionAPI): void {
     writeExecutionMetaByToolCallId.clear();
     if (event.reason === "reload") disposeAll(epoch);
   });
-  onReloadShutdown(pi, () => installation.dispose());
   registerThinkingLabeling(pi);
 }

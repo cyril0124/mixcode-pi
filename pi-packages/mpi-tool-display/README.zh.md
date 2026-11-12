@@ -6,16 +6,16 @@
 
 ## 行为
 
-| 界面 | 折叠态 / 空闲态 | 展开态 / 运行态 |
-| --- | --- | --- |
-| `bash` | 一行：`bash <label>`、命令的 dim 摘录，加右对齐的状态 meta；结果区为空。失败时在行下方保留其尾部输出。详见「bash 折叠行」 | 10 帧 spinner + 运行耗时；实时输出不折叠；展开预览上限 4000 行 |
-| `read` | `↳ loaded N lines • Ctrl+O to expand` | 展开预览上限 4000 行 |
-| `read` 指向 `SKILL.md` | `[skill] <父目录>`；折叠结果为空 | 文件正文 |
-| `edit` | diff 折叠上限为换行前的 24 个内容行，超出部分给出提示 | 运行中显示 pending diff；展开上限为 4000 个终端行 |
-| `write` | 基于执行前内容显示覆写 diff；新文件显示为纯新增；diff 上限与 `edit` 相同 | 运行中显示 pending diff；展开上限为 4000 个终端行 |
-| Thinking | 带主题色的 `Thinking:` 前缀 | 流式更新持续保留标签 |
+| 界面                   | 折叠态 / 空闲态                                                                                                           | 展开态 / 运行态                                                |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `bash`                 | 一行：`bash <label>`、命令的 dim 摘录，加右对齐的状态 meta；结果区为空。失败时在行下方保留其尾部输出。详见「bash 折叠行」 | 10 帧 spinner + 运行耗时；实时输出不折叠；展开预览上限 4000 行 |
+| `read`                 | `↳ loaded N lines • Ctrl+O to expand`                                                                                     | 展开预览上限 4000 行                                           |
+| `read` 指向 `SKILL.md` | `[skill] <父目录>`；折叠结果为空                                                                                          | 文件正文                                                       |
+| `edit`                 | diff 折叠上限为换行前的 24 个内容行，超出部分给出提示                                                                     | 运行中显示 pending diff；展开上限为 4000 个终端行              |
+| `write`                | 基于执行前内容显示覆写 diff；新文件显示为纯新增；diff 上限与 `edit` 相同                                                  | 运行中显示 pending diff；展开上限为 4000 个终端行              |
+| Thinking               | 带主题色的 `Thinking:` 前缀                                                                                               | 流式更新持续保留标签                                           |
 
-调用行格式为 `bash <label>`、`read path[:range]`、`edit path (N lines)` 和 `write path (N lines • size)`，行首的词始终是工具名。展开一行（点击或 `ctrl+o`）后回到 shell 形式：`$ <command>`。
+调用行格式为 `bash <label>`、`read path[:range]`、`edit path (N lines)` 和 `write path (N lines • size)`，行首的词始终是工具名。展开一行（点击或 `ctrl+o`）后回到 shell 形式：`$ <command>`。展开提示跟随用户配置的 `app.tools.expand` 键位；文中示例使用默认的 `ctrl+o`。
 
 ### bash 折叠行
 
@@ -26,9 +26,9 @@ label 和 meta 剩下的列。
 
 label 就是调用自己的 `description` 参数（折叠行开启时 `mpi-bash` 要求提供它），没有该参数时退回到截断后的命令：
 
-| label 来源 | 该行 |
-| --- | --- |
-| 调用自己的 `description` 参数 | `bash Find callers of the parser` |
+| label 来源                         | 该行                                |
+| ---------------------------------- | ----------------------------------- |
+| 调用自己的 `description` 参数      | `bash Find callers of the parser`   |
 | 没有该参数的调用退回到截断后的命令 | `bash rg -n parser src \| head -30` |
 
 行内 label 之后还有命令的 dim 单行摘录，连续空白会折叠成一个空格：
@@ -42,7 +42,7 @@ bash Find callers of the parser  rg -n parser src | head -30        ok · 0s · 
 一行里不会出现两遍同样的文字，label 退回命令文本的调用也因此不显示摘录。
 
 运行中的调用显示 `~ <elapsed>`。已结束的调用显示 `ok`，或 `!! exit N`、`!! timed out`、
-`!! aborted`、`!! failed`，后接行内测得的耗时，再后接输出行数（`1 line`、`32 lines`）。状态取自结果
+`!! aborted`、`!! failed`，后接 Pi 记录的执行耗时（缺失时使用行内测得的耗时），再后接输出行数（`1 line`、`32 lines`）。状态取自结果
 的最后一行，Pi 把状态追加在那里。失败调用在行下方保留至多 `bashFailureTailLines`（3）行非空输出，取自
 输出的末尾；没有状态行的失败（参数校验或启动失败）改取开头三行，因为它的信息在开头。展开后显示
 完整命令与完整输出预览。
@@ -76,7 +76,7 @@ Thinking 块通过 Pi 的 `message_update` 与 `message_end` extension events �
 
 ## 执行契约
 
-包不调用 `registerTool`，不创建工具定义、不包装 `execute`、不读取 shell settings、不抢工具 ownership。带形状守卫且 reload 可恢复的 adapter 通过 Pi `ToolExecutionComponent` 为 `bash`、`read`、`edit`、`write` 选择 call/result renderer。当 `read` 目标为 `SKILL.md` 时，adapter 交回工具定义的原生 renderer；折叠时渲染 `[skill] <父目录>`。其他有定义工具使用各自的 renderer。call wrapper 在可选地追加原始参数时仍保持每个 renderer 的 `lastComponent` 状态。没有定义的工具继续使用 Pi generic formatter，并保留其原生结果文本。`showRawToolArguments` 为 off 时，该 formatter 收不到参数对象。
+包不调用 `registerTool`，不创建工具定义、不包装 `execute`、不读取 shell settings、不抢工具 ownership。它通过 Pi 公开的 `registerToolRenderer()` resolver 为 `bash`、`read`、`edit`、`write` 选择 renderer。当 `read` 目标为 `SKILL.md` 时，resolver 交回工具定义的原生 renderer；折叠时渲染 `[skill] <父目录>`。其他有定义工具使用各自的 renderer。call wrapper 在可选地追加原始参数时仍保持每个 renderer 的 `lastComponent` 状态。没有注册定义的工具得到标题 fallback 和 Pi 原生结果文本；只有开启 `showRawToolArguments` 才显示参数。Pi 的 render context 提供配置的展开键位与最终 `durationMs`。
 
 原生定义继续负责 cwd、shell path/prefix、permission wrapper 和 bash 子进程环境（`PI_SESSION_ID`、`PI_SESSION_FILE`、`PI_PROVIDER`、`PI_MODEL`、`PI_REASONING_LEVEL`）。公开 `tool_call` 事件只为显示而捕获 write 执行前的文件内容，不 block、不修改工具输入。
 

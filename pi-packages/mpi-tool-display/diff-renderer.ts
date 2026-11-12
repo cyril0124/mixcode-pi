@@ -116,6 +116,7 @@ interface DiffRenderOptions {
   previousContent?: string;
   fileExistedBeforeWrite?: boolean;
   headerLabel?: string;
+  expandHint?: string;
 }
 
 type CodeLineHighlighter = (line: string) => string;
@@ -2187,6 +2188,7 @@ function applyLineLimit(
   maxExpandedLines: number,
   totalHunks: number,
   theme: DiffTheme,
+  expandHint?: string,
 ): string[] {
   const limit = expanded ? Math.max(0, maxExpandedLines) : Math.max(1, maxCollapsedLines);
   if (limit === 0 || rows.length <= limit) {
@@ -2224,6 +2226,7 @@ function applyLineLimit(
     {
       remainingLines: remaining,
       hiddenHunks,
+      expandHint,
     },
     width,
     DIFF_WIDTH_OPS,
@@ -2466,6 +2469,7 @@ export function renderEditDiffResult(
         config.expandedPreviewMaxLines,
         parsed.stats.hunks,
         theme,
+        options.expandHint,
       );
       const frame = renderDiffFrameLine(safeWidth, theme);
       const renderedLines =
@@ -2856,6 +2860,7 @@ export function renderWriteDiffResult(
         config.expandedPreviewMaxLines,
         data.hunkCount,
         theme,
+        options.expandHint,
       );
       const frame = renderDiffFrameLine(safeWidth, theme);
       const renderedLines =

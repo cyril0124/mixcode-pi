@@ -48,6 +48,8 @@ interface BashCallRenderContextLike {
   executionStarted: boolean;
   isPartial: boolean;
   expanded?: boolean;
+  durationMs?: number;
+  keyText?: (keybinding: "app.tools.expand") => string;
   invalidate?: () => void;
   lastComponent?: unknown;
   state?: unknown;
@@ -191,13 +193,13 @@ function bashStatusText(outcome: BashCallOutcome): string {
 
 /**
  * Right-aligned meta parts for the collapsed row, grouped by priority, highest first. Each group
- * drops as one unit, so a narrowing row sheds `ctrl+o`, then `timeout`/`shell`, then the output line
+ * drops as one unit, so a narrowing row sheds the expand key, then `timeout`/`shell`, then the output line
  * count, then the duration, and only then the status.
  */
 function buildBashCallMetaGroups(
   args: BashCallArgs,
   outcome: BashCallOutcome | undefined,
-  options: { spinnerFrame?: string; elapsedMs?: number },
+  options: { spinnerFrame?: string; elapsedMs?: number; expandKey?: string },
 ): string[][] {
   const groups: string[][] = [];
 
@@ -226,7 +228,7 @@ function buildBashCallMetaGroups(
     groups.push(callArguments);
   }
 
-  groups.push(["ctrl+o"]);
+  groups.push([options.expandKey ?? "ctrl+o"]);
   return groups;
 }
 
@@ -234,7 +236,7 @@ function buildBashCallMetaGroups(
 function buildBashCallMetaTiers(
   args: BashCallArgs,
   outcome: BashCallOutcome | undefined,
-  options: { spinnerFrame?: string; elapsedMs?: number },
+  options: { spinnerFrame?: string; elapsedMs?: number; expandKey?: string },
 ): string[] {
   const groups = buildBashCallMetaGroups(args, outcome, options);
   const tiers: string[] = [];
@@ -289,6 +291,7 @@ function buildCollapsedBashCallRow(
     spinnerFrame?: string;
     elapsedMs?: number;
     finalElapsedMs?: number;
+    expandKey?: string;
   },
 ): string {
   const label = bashCallLabel(args) || "...";
@@ -310,6 +313,7 @@ function buildCollapsedBashCallRow(
   const tiers = buildBashCallMetaTiers(args, outcome, {
     spinnerFrame: options.spinnerFrame,
     elapsedMs,
+    expandKey: options.expandKey,
   });
   const meta = tiers.find((tier) => labelWidth + metaTierWidth(tier) <= widthLeft);
   // Both parts are plain text here, so the escape `truncateToWidth` inserts around its ellipsis
@@ -439,6 +443,7 @@ class BashCallRow implements Component {
           spinnerFrame: this.spinnerFrame,
           elapsedMs: this.elapsedMs,
           finalElapsedMs: this.finalElapsedMs,
+          expandKey: this.context.keyText?.("app.tools.expand") ?? "ctrl+o",
         },
       ),
     ];
@@ -463,7 +468,8 @@ export function renderBashCall(
   if (!shouldSpin) {
     // Read the runtime before stopping the spinner: stopSpinner clears startedAt.
     const finalElapsedMs =
-      spinnerState?.startedAt !== undefined ? Date.now() - spinnerState.startedAt : undefined;
+      context.durationMs ??
+      (spinnerState?.startedAt !== undefined ? Date.now() - spinnerState.startedAt : undefined);
     stopSpinner(toolCallId, spinnerState);
     row.setSpinner(undefined, undefined, finalElapsedMs);
     return row;

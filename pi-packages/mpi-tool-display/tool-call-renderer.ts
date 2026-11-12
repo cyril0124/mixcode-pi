@@ -1,6 +1,8 @@
 import type { Component } from "@earendil-works/pi-tui";
+import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Container, Spacer, Text } from "@earendil-works/pi-tui";
-import type { CallRenderer } from "./tool-execution-adapter.js";
+
+export type CallRenderer = NonNullable<ToolDefinition["renderCall"]>;
 
 const innerCallComponentByWrapper = new WeakMap<Component, Component>();
 

@@ -165,9 +165,6 @@ import toolDisplayThinkingLabel from "../pi-packages/mpi-tool-display/thinking-l
 import toolDisplayExtensionLifecycle from "../pi-packages/mpi-tool-display/extension-lifecycle.ts" with {
   type: "text",
 };
-import toolDisplayToolExecutionAdapter from "../pi-packages/mpi-tool-display/tool-execution-adapter.ts" with {
-  type: "text",
-};
 import toolDisplayToolCallRenderer from "../pi-packages/mpi-tool-display/tool-call-renderer.ts" with {
   type: "text",
 };
@@ -597,7 +594,6 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
       "tool-summaries.ts": toolDisplayToolSummaries,
       "thinking-label.ts": toolDisplayThinkingLabel,
       "extension-lifecycle.ts": toolDisplayExtensionLifecycle,
-      "tool-execution-adapter.ts": toolDisplayToolExecutionAdapter,
       "tool-call-renderer.ts": toolDisplayToolCallRenderer,
       "README.md": toolDisplayReadme,
       "README.zh.md": toolDisplayReadmeZh,

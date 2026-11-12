@@ -29,6 +29,7 @@ interface RenderThemeLike {
 interface ToolRenderResultOptionsLike {
   expanded: boolean;
   isPartial: boolean;
+  keyHint?: (keybinding: "app.tools.expand", description: string) => string;
 }
 
 type ToolRenderInputLike = {
@@ -102,19 +103,30 @@ function prepareOutputLines(rawText: string, options: ToolRenderResultOptionsLik
   });
 }
 
-function formatExpandHint(theme: RenderThemeLike): string {
-  return theme.fg("muted", " • Ctrl+O to expand");
+function expandHint(
+  theme: RenderThemeLike,
+  keyHint: ToolRenderResultOptionsLike["keyHint"],
+): string {
+  return keyHint?.("app.tools.expand", "to expand") ?? theme.fg("muted", "Ctrl+O to expand");
+}
+
+function formatExpandHint(
+  theme: RenderThemeLike,
+  keyHint: ToolRenderResultOptionsLike["keyHint"],
+): string {
+  return ` • ${expandHint(theme, keyHint)}`;
 }
 
 function formatTruncationHint(
   remaining: number,
   expanded: boolean,
   theme: RenderThemeLike,
+  keyHint: ToolRenderResultOptionsLike["keyHint"],
 ): string {
   if (remaining <= 0) {
     return "";
   }
-  const hint = expanded ? "" : " • Ctrl+O to expand";
+  const hint = expanded ? "" : ` • ${expandHint(theme, keyHint)}`;
   return `\n${theme.fg("muted", `... (${remaining} more ${pluralize(remaining, "line")}${hint})`)}`;
 }
 
@@ -123,13 +135,14 @@ function buildPreviewText(
   maxLines: number,
   theme: RenderThemeLike,
   expanded: boolean,
+  keyHint: ToolRenderResultOptionsLike["keyHint"],
 ): string {
   if (lines.length === 0) {
     return theme.fg("muted", "↳ (no output)");
   }
   const { shown, remaining } = previewLines(lines, maxLines);
   let text = shown.map((line) => theme.fg("toolOutput", stripAllEscapes(line))).join("\n");
-  text += formatTruncationHint(remaining, expanded, theme);
+  text += formatTruncationHint(remaining, expanded, theme, keyHint);
   return text;
 }
 
@@ -163,7 +176,7 @@ function renderPreviewText(
 ): Text {
   const useExpanded = expandedOnly || options.expanded;
   const maxLines = useExpanded ? getExpandedPreviewLineLimit(lines, config) : config.previewLines;
-  const preview = buildPreviewText(lines, maxLines, theme, useExpanded);
+  const preview = buildPreviewText(lines, maxLines, theme, useExpanded, options.keyHint);
   return textResult(appendHints(preview));
 }
 
@@ -219,7 +232,7 @@ function renderBashPreviewWithHints(
   theme: RenderThemeLike,
   options: ToolRenderResultOptionsLike,
 ): Text {
-  let preview = buildPreviewText(lines, maxLines, theme, options.expanded);
+  let preview = buildPreviewText(lines, maxLines, theme, options.expanded, options.keyHint);
   if (options.expanded) {
     preview += formatExpandedPreviewCapHint(lines, config, theme);
   }
@@ -271,7 +284,7 @@ function renderBashErrorResult(
     const { shown, remaining } = previewLines(lines, config.previewLines);
     const body = shown.map((line) => theme.fg("error", stripAllEscapes(line))).join("\n");
     return textResult(
-      `${theme.fg("error", "↳ command failed")}\n${body}${formatTruncationHint(remaining, false, theme)}`,
+      `${theme.fg("error", "↳ command failed")}\n${body}${formatTruncationHint(remaining, false, theme, options.keyHint)}`,
     );
   }
   const maxLines = Math.max(0, config.bashFailureTailLines);
@@ -350,7 +363,7 @@ export function renderBashDisplayResult(
     if (lines.length === 0) {
       return textResult(theme.fg("muted", "↳ (no output)"));
     }
-    return textResult(formatBashSummary(lines, theme) + formatExpandHint(theme));
+    return textResult(formatBashSummary(lines, theme) + formatExpandHint(theme, options.keyHint));
   }
 
   // Collapsed success in compact mode: the call row carries the `<N> lines` meta, so this
@@ -401,7 +414,9 @@ export function renderReadDisplayResult(
   }
 
   const summaryLines = compactOutputLines(splitLines(rawOutput), { expanded: true });
-  return textResult(formatReadSummary(summaryLines, theme) + formatExpandHint(theme));
+  return textResult(
+    formatReadSummary(summaryLines, theme) + formatExpandHint(theme, options.keyHint),
+  );
 }
 
 // ---------------------------------------------------------------------------

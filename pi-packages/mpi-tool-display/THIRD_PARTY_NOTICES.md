@@ -8,14 +8,6 @@ The rendering, diff, preview, ANSI, lifecycle, and thinking-label modules contai
 
 Copyright (c) 2026 MasuRii
 
-## liuli195/@pure/pi-tool-display
-
-`tool-execution-adapter.ts` contains portions adapted from the render-only host adapter in `liuli195/@pure/pi-tool-display`.
-
-Copyright (c) 2026 MasuRii
-
-Copyright (c) 2026 liuli195
-
 ## MIT License
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
