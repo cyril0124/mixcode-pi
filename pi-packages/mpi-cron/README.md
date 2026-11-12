@@ -59,6 +59,8 @@ child ─┘         │
 
 ## Tool actions
 
+Agents use `cron` for reminders, delayed or future tasks, specific run times, and recurring checks. They do not use it for work that should happen immediately. If a monitoring request does not specify an interval, the agent confirms the interval before adding a recurring job.
+
 | Action | Required parameters | Notes |
 |---|---|---|
 | `add` | `schedule`, `prompt` | Optional `name`, `description`. Refused from inside a fired prompt, which prevents a job from scheduling its own chain. |
