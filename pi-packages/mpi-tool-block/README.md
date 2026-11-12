@@ -1,6 +1,6 @@
 # mpi-tool-block
 
-Hide selected tools from the model by removing them from the active set. Definitions stay registered.
+Remove selected tools from the model's active declarations and reject their direct and nested calls before execution, including calls made through codemode. Definitions stay registered.
 
 [中文文档](README.zh.md)
 
@@ -50,12 +50,12 @@ The list shows the file of the active layer. A name hidden by another layer show
 | State | Meaning |
 |-------|---------|
 | Visible | In the current active set and not in `hidden[]`. Same names `/system-tools` shows while this overlay is Enabled. |
-| Hidden | In `hidden[]`. Removed from the active set when Enabled is on. |
+| Hidden | In `hidden[]`. Removed from the active set and rejected before execution when Enabled is on. |
 | Inactive | Registered, not in the active set, not in `hidden[]` (Pi default `grep`/`find`/`ls`, undisclosed extension tools). |
 
 Toggling Inactive writes `hidden[]` (pre-hide) but does not activate the tool. Unhiding it returns to Inactive. Toggles call `setActiveTools` immediately. Small terminals window the list; title and footer stay visible.
 
-`enabled: Off` keeps the `hidden` list but puts those tools back in the active set. Overlay still labels them Hidden.
+`enabled: Off` keeps the `hidden` list but puts those tools back in the active set and allows their calls again. Overlay still labels them Hidden.
 
 ## Config
 
@@ -85,7 +85,7 @@ Missing file = no-op for that layer. Invalid JSON, unknown keys, or a non-string
 
 ## Limits
 
-- No `unregisterTool`. Hidden tools remain registered; the model does not receive them.
+- No `unregisterTool`. Hidden tools remain registered. Tools with `codemode` or `deferred` exposure can remain discoverable in tool metadata, but their calls are blocked.
 - Hiding is by tool name. There is no per-plugin scoping.
 - A project file cannot un-hide what the global file hides; remove the name from the layer that hides it.
 - Plugin tags are read from the live registry and shown in the overlay; the config stores tool names only.

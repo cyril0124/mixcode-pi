@@ -73,7 +73,7 @@ deny 时，返回给模型的工具错误包含命中规则说明，随后换行
 
 `permission_probe` 在会话开始时未启用。输入 `/permission probe` 可在当前会话开启，不改变其他工具的启用状态，也不保存该设置；`/permission probe off` 可再次关闭。重复执行命令没有额外影响。
 
-探针接收目标工具名和 input 对象，按目标工具的参数 schema 校验输入，报告权限决策但不执行目标工具。未知工具返回 `unknown_tool`，非法输入返回 `invalid_target_input`。探针调用跳过本包的权限规则，但仍受其他扩展约束。
+探针接收目标工具名和 input 对象，使用 Pi 自身的工具校验器（包括参数 coercion）校验输入，报告规范化输入的权限决策，但不执行目标工具。未知工具返回 `unknown_tool`，非法输入返回 `invalid_target_input`。codemode 等程序调用方通过 `structuredContent` 收到结果对象。探针调用跳过本包的权限规则，但仍受其他扩展约束。
 
 ```json
 {

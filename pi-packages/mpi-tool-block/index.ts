@@ -6,6 +6,7 @@
 // |          <cwd>/<CONFIG_DIR_NAME>/mpi-tool-block.json (project, trusted)   |
 // |          session override (in-memory)                                     |
 // |  Apply:  session_start + before_agent_start                               |
+// |  Gate:   tool_call rejects hidden direct and nested calls                 |
 // |  UI:     /tool-block overlay (Layer: Global | Project | Session)          |
 // +---------------------------------------------------------------------------+
 
@@ -74,6 +75,16 @@ export default function toolBlockExtension(pi: ExtensionAPI) {
     return cachedProject?.status === "ok" ? cachedProject.config : null;
   }
 
+  function currentDeniedToolNames(): string[] {
+    return deniedToolNames(
+      effectiveToolBlockConfig({
+        global: currentConfig(),
+        project: currentProjectConfig(),
+        session: sessionConfig,
+      }),
+    );
+  }
+
   /** The layer whose file failed to load, so the overlay can name it. */
   function brokenLayer(): BrokenConfig | null {
     if (cached.status === "error") return cached;
@@ -85,13 +96,7 @@ export default function toolBlockExtension(pi: ExtensionAPI) {
     const planned = planActiveTools({
       active: pi.getActiveTools(),
       registered: tools.map((tool) => tool.name),
-      denied: deniedToolNames(
-        effectiveToolBlockConfig({
-          global: currentConfig(),
-          project: currentProjectConfig(),
-          session: sessionConfig,
-        }),
-      ),
+      denied: currentDeniedToolNames(),
       previouslyRemoved,
     });
     previouslyRemoved = planned.removed;
@@ -109,6 +114,14 @@ export default function toolBlockExtension(pi: ExtensionAPI) {
   pi.on("before_agent_start", (_event, ctx) => {
     reload(ctx);
     sync();
+  });
+
+  pi.on("tool_call", (event) => {
+    if (!currentDeniedToolNames().includes(event.toolName)) return undefined;
+    return {
+      block: true,
+      reason: `tool-block: ${event.toolName} is hidden by the effective configuration`,
+    };
   });
 
   pi.registerCommand("tool-block", {

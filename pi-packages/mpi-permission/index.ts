@@ -12,6 +12,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { validateToolArguments, type JsonObject, type JsonValue } from "@earendil-works/pi-ai";
 import type { AutocompleteItem } from "@earendil-works/pi-tui";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { CONFIG_DIR_NAME, getAgentDir } from "@earendil-works/pi-coding-agent";
@@ -61,11 +62,46 @@ const permissionProbeSchema = Type.Object({
   }),
 });
 
+const permissionProbeOutputSchema = Type.Object({
+  ok: Type.Boolean(),
+  toolName: Type.Optional(Type.String()),
+  inputValid: Type.Optional(Type.Literal(true)),
+  action: Type.Optional(
+    Type.Union([Type.Literal("allow"), Type.Literal("ask"), Type.Literal("deny")]),
+  ),
+  message: Type.Optional(Type.String()),
+  wouldAllow: Type.Optional(Type.Boolean()),
+  wouldAsk: Type.Optional(Type.Boolean()),
+  wouldBlock: Type.Optional(Type.Boolean()),
+  sources: Type.Optional(
+    Type.Array(
+      Type.Object({
+        kind: Type.String(),
+        layer: Type.String(),
+        tool: Type.String(),
+        pattern: Type.String(),
+        subject: Type.String(),
+      }),
+    ),
+  ),
+  error: Type.Optional(Type.String()),
+  path: Type.Optional(Type.String()),
+  details: Type.Optional(Type.String()),
+  errors: Type.Optional(Type.Array(Type.Object({ path: Type.String(), message: Type.String() }))),
+});
+
+function permissionProbeToolResult<T extends JsonValue>(result: T) {
+  return {
+    content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+    details: result,
+    structuredContent: result,
+  };
+}
+
 function invalidTargetInputResult(toolName: string, input: unknown, schema: unknown) {
-  if (Value.Check(schema as Parameters<typeof Value.Check>[0], input)) return null;
   const errors = [...Value.Errors(schema as Parameters<typeof Value.Errors>[0], input)].map(
     (error) => ({
-      path: "path" in error ? error.path : "",
+      path: "path" in error && typeof error.path === "string" ? error.path : "",
       message: error.message,
     }),
   );
@@ -310,6 +346,7 @@ export default function permissionExtension(pi: ExtensionAPI) {
       "Check this package's permission rules for a registered tool call: allowed, approval required, or blocked. " +
       "Validates the target input against its registered schema without executing it; does not predict other extensions' guards.",
     parameters: permissionProbeSchema,
+    outputSchema: permissionProbeOutputSchema,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const target = pi.getAllTools().find((tool) => tool.name === params.toolName);
       if (!target) {
@@ -318,17 +355,26 @@ export default function permissionExtension(pi: ExtensionAPI) {
           error: "unknown_tool" as const,
           toolName: params.toolName,
         };
-        return {
-          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-          details: result,
-        };
+        return permissionProbeToolResult(result);
       }
-      const invalid = invalidTargetInputResult(params.toolName, params.input, target.parameters);
-      if (invalid) {
-        return {
-          content: [{ type: "text", text: JSON.stringify(invalid, null, 2) }],
-          details: invalid,
-        };
+      let normalizedInput: Record<string, unknown>;
+      try {
+        normalizedInput = validateToolArguments(
+          {
+            name: params.toolName,
+            description: target.description,
+            parameters: target.parameters,
+          },
+          {
+            type: "toolCall",
+            id: "permission-probe",
+            name: params.toolName,
+            arguments: params.input as JsonObject,
+          },
+        );
+      } catch {
+        const invalid = invalidTargetInputResult(params.toolName, params.input, target.parameters);
+        return permissionProbeToolResult(invalid);
       }
       ensureLoaded(ctx.cwd);
       const trusted = ctx.isProjectTrusted();
@@ -340,22 +386,16 @@ export default function permissionExtension(pi: ExtensionAPI) {
           path: broken.path,
           details: broken.error,
         };
-        return {
-          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-          details: result,
-        };
+        return permissionProbeToolResult(result);
       }
       const result = permissionProbeResult(
         params.toolName,
-        params.input,
+        normalizedInput,
         buildLayers(trusted),
         ctx.cwd,
         home,
       );
-      return {
-        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-        details: result,
-      };
+      return permissionProbeToolResult(result);
     },
   });
 

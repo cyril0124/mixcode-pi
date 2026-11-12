@@ -95,6 +95,8 @@ test("permission_probe stays inactive until enabled and never executes targets",
       ctx,
     );
     assert.equal(valid.details.action, "allow");
+    assert.equal(valid.structuredContent.action, "allow");
+    assert.ok(probe.outputSchema);
     assert.equal(targetExecutions, 0);
   } finally {
     await fs.rm(workDir, { recursive: true, force: true });

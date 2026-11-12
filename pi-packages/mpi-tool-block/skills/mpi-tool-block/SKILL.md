@@ -1,12 +1,12 @@
 ---
 name: mpi-tool-block
-description: Configure MixCode tool blocking so selected tools are removed from the model's active tool set.
+description: Configure MixCode tool blocking so selected tools are removed from active declarations and blocked before execution.
 disable-model-invocation: true
 ---
 
 # Tool blocking
 
-`mpi-tool-block` drops selected tool names from the active set, so the model cannot see or call them. The definitions stay registered.
+`mpi-tool-block` removes selected tool names from the model's active declarations and rejects their direct and nested calls before execution, including calls made through codemode. The definitions stay registered. Tools with `codemode` or `deferred` exposure can remain discoverable in tool metadata.
 
 ## Workflow
 
@@ -48,13 +48,13 @@ disable-model-invocation: true
 | State | Meaning |
 |-------|---------|
 | Visible | In the active set and not in `hidden` |
-| Hidden | In `hidden`; removed from the active set while Enabled is on |
+| Hidden | In `hidden`; removed from the active set and rejected before execution while Enabled is on |
 | Inactive | Registered, outside the active set, absent from `hidden` (Pi's default `grep`/`find`/`ls`, undisclosed extension tools) |
 
 Hiding an Inactive tool records it without activating it. Un-hiding returns it to Inactive.
 
 ## Limits
 
-- No `unregisterTool`. A hidden tool remains registered; only the model stops receiving it.
+- No `unregisterTool`. A hidden tool remains registered. Tools with `codemode` or `deferred` exposure can remain discoverable in tool metadata, but their calls are blocked.
 - Hiding is by tool name, with no per-plugin scoping.
 - Only names this extension removed are restored on un-hide or when `enabled` turns off.

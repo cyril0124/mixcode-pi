@@ -73,7 +73,7 @@ Edit message text in JSON. `/permission` preserves it when saving or cycling act
 
 `permission_probe` is inactive at session start. `/permission probe` enables it for the current session without changing other active tools or saving the setting; `/permission probe off` disables it again. Repeating either form has no additional effect.
 
-The tool accepts a target tool name and input object. It validates the input against the target's parameter schema and reports the permission decision without executing the target. Unknown tools return `unknown_tool`; invalid input returns `invalid_target_input`. Probe calls bypass this package's rules but remain subject to other extensions.
+The tool accepts a target tool name and input object. It validates the input with Pi's own tool validator, including argument coercion, and reports the permission decision for the normalized input without executing the target. Unknown tools return `unknown_tool`; invalid input returns `invalid_target_input`. Programmatic callers such as codemode receive the result as `structuredContent`. Probe calls bypass this package's rules but remain subject to other extensions.
 
 ```json
 {

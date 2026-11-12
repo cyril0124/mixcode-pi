@@ -1,6 +1,6 @@
 # mpi-tool-block
 
-把勾选的 tool 从 active 集合拿掉，模型在 schema / system prompt 里看不见。定义仍注册。
+把勾选的 tool 从模型的 active 声明中移除，并在执行前拒绝这些 tool 的直接和嵌套调用，包括通过 codemode 发起的调用。定义仍注册。
 
 [English](README.md)
 
@@ -50,12 +50,12 @@ session 配置存在时整体取代这个合并结果。多藏、解藏、`enabl
 | 状态 | 含义 |
 |------|------|
 | Visible | 在当前 active 集合且不在 `hidden[]`。Enabled 打开时与 `/system-tools` 列出的名字相同。 |
-| Hidden | 在 `hidden[]` 里。Enabled 打开时从 active 集合拿掉。 |
+| Hidden | 在 `hidden[]` 里。Enabled 打开时从 active 集合拿掉，并在执行前拒绝调用。 |
 | Inactive | 已注册、不在 active、也不在 `hidden[]`（Pi 默认的 `grep`/`find`/`ls`、尚未披露的扩展工具）。 |
 
 对 Inactive 按 Space 会写入 `hidden[]`（预藏），但不会激活该工具。再解藏回到 Inactive。每次切换立刻调用 `setActiveTools`。小屏开窗显示，标题和底栏保留。
 
-`enabled: Off` 保留 `hidden` 列表，但把这些 tool 放回 active 集合。overlay 仍标 Hidden。
+`enabled: Off` 保留 `hidden` 列表，但把这些 tool 放回 active 集合并重新允许调用。overlay 仍标 Hidden。
 
 ## 配置
 
@@ -85,7 +85,7 @@ Session 配置形状相同，只存在于内存，不写盘。
 
 ## 限制
 
-- 没有 `unregisterTool`。被藏的 tool 仍注册，只是模型收不到。
+- 没有 `unregisterTool`。被藏的 tool 仍注册；`codemode` 或 `deferred` 暴露的 tool 可能仍出现在工具元数据中，但调用会被阻断。
 - 隐藏以 tool 名为单位，没有按插件分组的作用域。
 - 项目文件无法解藏全局文件藏掉的 tool；要从藏着它的那层删掉名字。
 - 插件标签由实时注册表算出并显示在 overlay 里；配置只存 tool 名。
