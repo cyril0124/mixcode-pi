@@ -147,6 +147,16 @@ Silence is measured from the log's mtime. The reminder interval changes as follo
 | Reminder delivered | Next wait doubles: 2m, 4m, 8m, 16m... with the default threshold. |
 | New output | Wait resets to `MPI_BASH_STALL_SECONDS`. |
 
+Each notice carries the `reminder` count for that job. The count is how many notices the model already received, so an undelivered reminder does not advance it. The count decides the closing elements:
+
+| `reminder` | Escalation | Closing elements |
+| --- | --- | --- |
+| `1` | none | `<action_hint>` allows ignoring the stall. |
+| `2` | `check` | `<next_step>` asks for the log to be read; `<output unchanged_since_reminder="1"/>` replaces the repeated tail. |
+| `3`+ | `act` | `<next_step>` lists three choices: act on the log, stop and rerun a changed command, or keep it running and say why. `<ignoring_hint>` says ignoring now needs a stated reason. |
+
+No tier states whether the job will finish. A quiet build and a hung command look the same from outside, so the wording never recommends stopping.
+
 The chat panel uses the completion panel's layout, with the silence where a finished job shows its exit code:
 
 ```text
@@ -160,7 +170,7 @@ The chat panel uses the completion panel's layout, with the silence where a fini
 The model receives `<bash_stall>`. It includes the job ID, command, silence duration, total runtime, up to the last three non-empty lines from the final 2000 bytes of log output, and commands to inspect the log or stop the process. A line may be partial when the tail starts mid-line:
 
 ```xml
-<bash_stall job_id="1258366">
+<bash_stall job_id="1258366" reminder="1">
   <summary>Background job #1258366 may be stuck after 5m02s of silence.</summary>
   <command>ssh build-box make release</command>
   <silence>5m02s</silence>

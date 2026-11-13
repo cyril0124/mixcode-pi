@@ -147,6 +147,16 @@ Bash 执行策略：默认超时、前台窗口、到期自动转后台、结束
 | 提醒已投递 | 下一次等待翻倍；默认阈值下依次为 2m、4m、8m、16m…… |
 | 出现新输出 | 等待间隔重置为 `MPI_BASH_STALL_SECONDS`。 |
 
+每条提醒都带该任务的 `reminder` 计数。计数等于模型已收到的提醒条数，未投递的提醒不推进它。计数决定结尾元素：
+
+| `reminder` | `escalation` | 结尾元素 |
+| --- | --- | --- |
+| `1` | 无 | `<action_hint>` 允许忽略。 |
+| `2` | `check` | `<next_step>` 要求读日志；`<output unchanged_since_reminder="1"/>` 取代重复的日志尾部。 |
+| `3` 及以上 | `act` | `<next_step>` 列出三个选项：按日志内容处理、停止并换命令重跑、保持运行并说明理由。`<ignoring_hint>` 说明此时忽略需要给出理由。 |
+
+任何一档都不预言任务是否会结束。安静的长构建和卡死的命令从外部看没有区别，所以措辞从不建议停止。
+
 聊天面板沿用完成回报的布局，完成回报放退出码的位置，这里放静默时长：
 
 ```text
@@ -160,7 +170,7 @@ Bash 执行策略：默认超时、前台窗口、到期自动转后台、结束
 模型收到 `<bash_stall>`。其中包含任务编号、命令、静默时长、总运行时长、日志最后 2000 字节中的至多三行非空输出，以及查看日志和终止进程的命令。如果截取起点落在一行中间，第一行可能不完整：
 
 ```xml
-<bash_stall job_id="1258366">
+<bash_stall job_id="1258366" reminder="1">
   <summary>Background job #1258366 may be stuck after 5m02s of silence.</summary>
   <command>ssh build-box make release</command>
   <silence>5m02s</silence>

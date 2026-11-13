@@ -66,40 +66,93 @@ interface StallState {
   nextAt: number;
   /** Current backoff wait, doubled after every reminder. */
   interval: number;
+  /** Reminders already delivered; the next one is worded from this count. */
+  reminders: number;
+}
+
+/** A stalled job carrying the reminder number the model is about to see. */
+interface StallReminder extends StallDetails {
+  attempt: number;
 }
 
 /** One stalled job: what the model reads, and what the chat panel renders. */
 interface StallReport {
-  jobs: StallDetails[];
+  jobs: StallReminder[];
   /** Advance backoff only for jobs actually delivered, once per report. */
   markDelivered(jobIds: readonly number[], now?: number): void;
 }
 
-export function formatStallNotice(options: StallDetails & { logPath: string }): string {
+/**
+ * Elements that close the notice, chosen by reminder tier. Tier 1 permits
+ * ignoring the stall; later tiers ask for a decision instead.
+ */
+function stallTierElements(attempt: number): string[] {
+  if (attempt === 1) {
+    return [
+      xmlElement(
+        "action_hint",
+        "Ignore this event if long periods without output are expected for this command.",
+      ),
+    ];
+  }
+  if (attempt === 2) {
+    return [
+      xmlElement(
+        "next_step",
+        "Read the log before deciding anything: it shows whether its last lines are progress you recognize.",
+      ),
+    ];
+  }
+  return [
+    xmlElement(
+      "next_step",
+      "Pick one and do it before continuing: read the log and act on what you find, or stop the process group and rerun a changed command, or leave it running and tell the user why this silence is expected.",
+    ),
+    xmlElement(
+      "ignoring_hint",
+      `Silence flagged ${attempt} times is no longer routine; ignoring it is a decision that needs a stated reason.`,
+    ),
+  ];
+}
+
+export function formatStallNotice(
+  options: StallDetails & { logPath: string; attempt?: number },
+): string {
   const silence = formatElapsed(options.silenceMs);
   const elapsed = formatElapsed(options.elapsedMs);
+  // A missing attempt is tier 1: stored messages carry no count.
+  const attempt = Math.max(1, options.attempt ?? 1);
   const output = options.tail
     .split(/\r?\n/)
     .filter((line) => line.trim() !== "")
     .slice(-TAIL_LINES)
     .join("\n");
+  // Nothing here distinguishes a quiet but working command from a hung one, so
+  // a later tier must not predict an outcome or favour stopping.
+  let escalation = "";
+  if (attempt >= 3) {
+    escalation = ` escalation="act"`;
+  } else if (attempt === 2) {
+    escalation = ` escalation="check"`;
+  }
   return [
-    `<bash_stall job_id="${options.id}">`,
+    `<bash_stall job_id="${options.id}" reminder="${attempt}"${escalation}>`,
     xmlElement(
       "summary",
-      `Background job #${options.id} may be stuck after ${silence} of silence.`,
+      attempt === 1
+        ? `Background job #${options.id} may be stuck after ${silence} of silence.`
+        : `Background job #${options.id} is still silent after ${silence} (reminder ${attempt}).`,
     ),
     xmlElement("command", options.command),
     xmlElement("silence", silence),
     xmlElement("elapsed", elapsed),
     xmlElement("log_path", options.logPath),
-    xmlElement("output", output),
+    attempt === 1
+      ? xmlElement("output", output)
+      : `  <output unchanged_since_reminder="${attempt - 1}"/>`,
     xmlElement("logs_hint", `Use tail -n 50 ${options.logPath} to inspect recent output.`),
     xmlElement("stop_hint", `Use kill -- -${options.id} to stop the whole process group.`),
-    xmlElement(
-      "action_hint",
-      "Ignore this event if long periods without output are expected for this command.",
-    ),
+    ...stallTierElements(attempt),
     "</bash_stall>",
   ].join("\n");
 }
@@ -125,7 +178,7 @@ export class StallMonitor {
       if (!live.has(id)) this.states.delete(id);
     }
 
-    const due: StallDetails[] = [];
+    const due: StallReminder[] = [];
     const dueStates = new Map<number, StallState>();
     for (const run of runs) {
       let stats: fs.Stats;
@@ -148,6 +201,7 @@ export class StallMonitor {
           quietSince: stats.mtimeMs,
           interval: this.firstQuietMs,
           nextAt: stats.mtimeMs + this.firstQuietMs,
+          reminders: 0,
         };
         this.states.set(run.id, state);
       }
@@ -172,12 +226,13 @@ export class StallMonitor {
         continue;
       }
       dueStates.set(run.id, state);
-      const job: StallDetails = {
+      const job: StallReminder = {
         id: run.id,
         command: run.command.replace(/\s+/g, " ").trim(),
         silenceMs: now - state.quietSince,
         elapsedMs: now - run.startedAt,
         tail,
+        attempt: state.reminders + 1,
       };
       due.push(job);
     }
@@ -188,6 +243,7 @@ export class StallMonitor {
         for (const id of jobIds) {
           const state = dueStates.get(id);
           if (!state || this.states.get(id) !== state) continue;
+          state.reminders += 1;
           state.interval *= BACKOFF_FACTOR;
           state.nextAt = deliveredAt + state.interval;
           dueStates.delete(id);

@@ -62,7 +62,7 @@ test("the stall notice is structured and escapes command output", () => {
   assert.equal(
     notice,
     [
-      '<bash_stall job_id="42">',
+      '<bash_stall job_id="42" reminder="1">',
       "  <summary>Background job #42 may be stuck after 1m01s of silence.</summary>",
       '  <command>wait "&lt;lock&gt;&amp;"</command>',
       "  <silence>1m01s</silence>",
@@ -150,7 +150,11 @@ test("an undelivered reminder stays due and delivery alone advances backoff", as
     assert.match(noticeText(retry, [run]), /waiting/, "a deferred report must remain due");
     retry!.markDelivered([run.id], start + 8000);
     assert.equal(await monitor.check([run], start + 19000), undefined);
-    assert.match(noticeText(await monitor.check([run], start + 20000), [run]), /waiting/);
+    assert.match(
+      noticeText(await monitor.check([run], start + 20000), [run]),
+      /reminder="2"/,
+      "tier 2 replaced the repeated tail with an unchanged marker",
+    );
   } finally {
     fs.rmSync(path.dirname(run.logPath), { recursive: true, force: true });
   }
@@ -289,4 +293,28 @@ test("a finished run is forgotten instead of accumulating state", async () => {
   // Seen fresh again, the run starts over at the first interval rather than
   // inheriting the doubled one.
   assert.ok(await monitor.check([run], start + 63_000));
+});
+
+test("repeated silence escalates by reminder count without predicting an outcome", async () => {
+  const start = Date.now();
+  const { run } = makeRun(start, "waiting for lock\n");
+  const monitor = new StallMonitor();
+
+  const first = await notice(monitor, [run], start + 61_000);
+  assert.match(first, /<bash_stall job_id="4242" reminder="1">/);
+  assert.match(first, /<action_hint>Ignore this event/);
+  assert.match(first, /waiting for lock/);
+
+  const second = await notice(monitor, [run], start + 61_000 + 2 * MINUTE);
+  assert.match(second, /reminder="2" escalation="check"/);
+  assert.match(second, /<output unchanged_since_reminder="1"\/>/);
+  assert.match(second, /<next_step>Read the log/);
+  assert.doesNotMatch(second, /action_hint/, "tier 2 withdraws the ignore permit");
+
+  const third = await notice(monitor, [run], start + 61_000 + 6 * MINUTE);
+  assert.match(third, /reminder="3" escalation="act"/);
+  assert.match(third, /<ignoring_hint>/);
+  assert.doesNotMatch(third, /action_hint/, "tier 3 withdraws the ignore permit");
+  // No tier may predict the outcome: nothing here tells a quiet build from a hang.
+  assert.doesNotMatch(third, /usually|will not|likely|should stop|abandon/i);
 });
