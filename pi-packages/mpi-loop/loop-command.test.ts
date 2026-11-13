@@ -216,16 +216,15 @@ test("mpi-loop defer coalesces busy ticks and flushes once on agent_settled", as
     intervalFns[0]!();
     assert.deepEqual(sent, [], "busy defer ticks must not stack sends");
 
-    // Real Pi agent_end: still not idle — must not flush here.
-    idle = false;
-    sent.length = 0;
-
     idle = true;
-    await agentSettledHandler?.({ type: "agent_settled" }, ctx);
+    await agentSettledHandler?.({ type: "agent_settled", aborted: true }, ctx);
+    assert.deepEqual(sent, [], "an aborted run must not immediately restart deferred work");
+
+    await agentSettledHandler?.({ type: "agent_settled", aborted: false }, ctx);
     assert.deepEqual(sent, [{ prompt: "defer prompt", options: { expandPromptTemplates: true } }]);
 
     sent.length = 0;
-    await agentSettledHandler?.({ type: "agent_settled" }, ctx);
+    await agentSettledHandler?.({ type: "agent_settled", aborted: false }, ctx);
     assert.deepEqual(sent, [], "second agent_settled must not re-fire without a new tick");
   } finally {
     await shutdownHandler?.({}, ctx);

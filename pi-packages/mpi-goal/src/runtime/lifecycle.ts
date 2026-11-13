@@ -222,8 +222,8 @@ export function registerGoalLifecycle(
       handleAgentEnd(pi, event, ctx, postCompletionRunner),
     );
   });
-  pi.on("agent_settled", async (_event, ctx) => {
-    await withGoalSessionFromCtx(ctx, async () => handleAgentSettled(pi, ctx));
+  pi.on("agent_settled", async (event, ctx) => {
+    await withGoalSessionFromCtx(ctx, async () => handleAgentSettled(pi, event, ctx));
   });
   // Post-compaction continuation that could not be prequeued is delivered
   // through the settle boundary. A returned draft with `continue: true`
@@ -321,7 +321,27 @@ async function handleAgentEnd(
   armAgentEndContinueFor(goal);
 }
 
-async function handleAgentSettled(pi: ExtensionAPI, ctx: ExtensionContext): Promise<void> {
+async function handleAgentSettled(
+  pi: ExtensionAPI,
+  event: { aborted?: boolean },
+  ctx: ExtensionContext,
+): Promise<void> {
+  if (event.aborted) {
+    ensureGoalHydrated(ctx);
+    const goal = getGoal();
+    if (goal?.status === "active") {
+      await pauseForSafety(
+        pi,
+        ctx,
+        goal,
+        "abort",
+        "Goal paused because the run was aborted. Run /goal resume to continue.",
+      );
+    } else {
+      cancelAgentEndContinueArm();
+    }
+    return;
+  }
   dispatchAgentEndContinue(pi, ctx);
 }
 

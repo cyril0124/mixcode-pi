@@ -12,6 +12,7 @@ Shows elapsed run time, average assistant-message duration, and the restored ses
 | run in flight, with an active or completed assistant message | `⏱ 12s · avg 4s/msg · 2s idle` |
 | run settled, no completed assistant messages | `✔ done <duration> at <local YYYY-MM-DD HH:MM:SS>` |
 | run settled, with completed assistant messages | `✔ done 18s · avg 4s/msg at 2026-10-03 15:39:00` |
+| run aborted by the user | `✋ aborted 4s at 2026-10-03 15:39:00` |
 | session restored, with a visible message | `✔ done at <local YYYY-MM-DD HH:MM:SS>` |
 | no visible message and no completed run | removed |
 
@@ -56,7 +57,7 @@ State and tickers are keyed by session id: one extension instance can observe se
 - `agent_start`: clears measurements when a new run starts. Stamps the clock with `??=`, so agent loops belonging to one run (auto-retry, recovery, compaction, queued continuation) keep their elapsed time and average.
 - Assistant `message_start` adds a live sample to the average. A matching `message_end` commits its duration without counting it twice. Other message roles do not affect it.
 - During a run, `turn_start`, `message_update`, `tool_execution_start`, and `tool_execution_end` refresh the text and reset the idle counter. A 1s interval keeps both the elapsed and idle durations moving through long silent tool calls.
-- `agent_settled`: stops the interval and switches to `✔ done <duration> at <stamp>`.
+- `agent_settled`: stops the interval and switches to `✔ done <duration> at <stamp>`, or `✋ aborted <duration> at <stamp>` when `event.aborted` is true.
 - `session_shutdown`: stops the interval and removes the entry.
 
 A run ends at `agent_settled`, not `agent_end`: Pi can continue automatically after `agent_end` (retry, recovery, compaction, queued work), and the settled total includes that work. `agent_end` is deliberately not handled.

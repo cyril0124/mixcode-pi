@@ -1,5 +1,13 @@
 import { Type } from "typebox";
 import { CreateGoalParams, EmptyParams } from "./schemas.js";
+import { ListGoalQueueOutputSchema } from "./output-schemas.js";
+import {
+  GOAL_ADDITIVE_TOOL_ANNOTATIONS,
+  GOAL_DESTRUCTIVE_TOOL_ANNOTATIONS,
+  GOAL_QUERY_TOOL_ANNOTATIONS,
+  GOAL_TEMPLATE_CAPABLE_TOOL_ANNOTATIONS,
+  GOAL_TOOL_NAMESPACE,
+} from "./names.js";
 import { withGoalSessionFromCtx } from "../../domain/session-scope.js";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { validateObjective } from "../../domain/format.js";
@@ -79,6 +87,9 @@ function registerListGoalQueueTool(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "list_goal_queue",
     label: "List Goal Queue",
+    namespace: GOAL_TOOL_NAMESPACE,
+    annotations: GOAL_QUERY_TOOL_ANNOTATIONS,
+    outputSchema: ListGoalQueueOutputSchema,
     description:
       "List queued goal objectives that will be started after the current goal completes or clears.",
     promptSnippet: "Discover queued goals waiting to start after the current goal.",
@@ -99,6 +110,8 @@ function registerEnqueueGoalTool(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "enqueue_goal",
     label: "Enqueue Goal",
+    namespace: GOAL_TOOL_NAMESPACE,
+    annotations: GOAL_ADDITIVE_TOOL_ANNOTATIONS,
     description:
       "Add a goal to the queue to be started after the current goal completes or clears. Use only when the user explicitly asks to queue a goal for later.",
     promptSnippet: "Queue a goal for later when the user explicitly asks.",
@@ -145,6 +158,8 @@ function registerStartQueuedGoalTool(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "start_queued_goal",
     label: "Start Queued Goal",
+    namespace: GOAL_TOOL_NAMESPACE,
+    annotations: GOAL_TEMPLATE_CAPABLE_TOOL_ANNOTATIONS,
     description:
       "Start the next queued item only after deciding the queue head is a direct concrete goal. The queue item is removed only after goal creation succeeds.",
     promptSnippet:
@@ -169,6 +184,8 @@ function registerDequeueGoalTool(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "dequeue_goal",
     label: "Dequeue Goal",
+    namespace: GOAL_TOOL_NAMESPACE,
+    annotations: GOAL_DESTRUCTIVE_TOOL_ANNOTATIONS,
     description:
       "Remove the first goal from the queue and return it. Prefer start_queued_goal for direct queued goals; use this after a prose/JIT orchestration item is fully satisfied.",
     promptSnippet:
@@ -216,6 +233,8 @@ function registerRemoveQueuedGoalTool(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "remove_queued_goal",
     label: "Remove Queued Goal",
+    namespace: GOAL_TOOL_NAMESPACE,
+    annotations: GOAL_DESTRUCTIVE_TOOL_ANNOTATIONS,
     description: "Remove a specific goal from the queue by its queue ID.",
     promptSnippet: "Remove a specific queued goal by ID.",
     promptGuidelines: ["Use only when the user explicitly asks to remove a specific queued goal."],
@@ -348,10 +367,12 @@ function validateDequeueAudit(
 
 function resultForQueue() {
   const queue = getQueue();
+  const details: QueueToolDetails = { goal: getGoal(), telemetry: getTelemetry(), queue };
   if (queue.length === 0)
     return {
       content: [{ type: "text" as const, text: "No queued goals." }],
-      details: { goal: getGoal(), telemetry: getTelemetry(), queue } as QueueToolDetails,
+      details,
+      structuredContent: details,
     };
   const lines = queue.map(
     (g, i) =>
@@ -361,7 +382,8 @@ function resultForQueue() {
     content: [
       { type: "text" as const, text: `Queued goals (${queue.length}):\n${lines.join("\n")}` },
     ],
-    details: { goal: getGoal(), telemetry: getTelemetry(), queue } as QueueToolDetails,
+    details,
+    structuredContent: details,
   };
 }
 

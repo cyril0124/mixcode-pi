@@ -16,20 +16,22 @@ import type { CronJob } from "./types.js";
 /** Custom-entry type used to mark a fired prompt; also blocks recursive scheduling. */
 export const SCHEDULED_PROMPT_TYPE = "scheduled_prompt";
 
+const cronActionSchema = Type.Union(
+  [
+    Type.Literal("add"),
+    Type.Literal("list"),
+    Type.Literal("update"),
+    Type.Literal("remove"),
+    Type.Literal("enable"),
+    Type.Literal("disable"),
+    Type.Literal("fire"),
+    Type.Literal("cleanup"),
+  ],
+  { description: "Operation to perform" },
+);
+
 const cronToolSchema = Type.Object({
-  action: Type.Union(
-    [
-      Type.Literal("add"),
-      Type.Literal("list"),
-      Type.Literal("update"),
-      Type.Literal("remove"),
-      Type.Literal("enable"),
-      Type.Literal("disable"),
-      Type.Literal("fire"),
-      Type.Literal("cleanup"),
-    ],
-    { description: "Operation to perform" },
-  ),
+  action: cronActionSchema,
   schedule: Type.Optional(
     Type.String({
       description:
@@ -57,7 +59,7 @@ const cronToolSchema = Type.Object({
   ),
 });
 
-export interface CronToolDetails {
+export type CronToolDetails = {
   action: string;
   jobs: CronJob[];
   jobId?: string;
@@ -65,6 +67,51 @@ export interface CronToolDetails {
   error?: string;
   /** Set for a fire action that reached the store but did not deliver. */
   skipped?: boolean;
+};
+
+const cronJobOutputSchema = Type.Object({
+  id: Type.String(),
+  name: Type.String(),
+  description: Type.Optional(Type.String()),
+  prompt: Type.String(),
+  schedule: Type.Union([
+    Type.Object({ kind: Type.Literal("cron"), expr: Type.String(), source: Type.String() }),
+    Type.Object({
+      kind: Type.Literal("interval"),
+      intervalMs: Type.Number(),
+      source: Type.String(),
+    }),
+    Type.Object({ kind: Type.Literal("once"), atMs: Type.Number(), source: Type.String() }),
+    Type.Object({ kind: Type.Literal("relative"), delayMs: Type.Number(), source: Type.String() }),
+  ]),
+  enabled: Type.Boolean(),
+  runCount: Type.Number(),
+  lastRun: Type.Optional(Type.Number()),
+  lastStatus: Type.Optional(
+    Type.Union([Type.Literal("ok"), Type.Literal("error"), Type.Literal("running")]),
+  ),
+  nextRun: Type.Optional(Type.Number()),
+  claim: Type.Optional(Type.String()),
+  createdAt: Type.Number(),
+  createdBy: Type.Optional(Type.String()),
+  expiresAt: Type.Optional(Type.Number()),
+});
+
+const cronToolOutputSchema = Type.Object({
+  action: cronActionSchema,
+  jobs: Type.Array(cronJobOutputSchema),
+  jobId: Type.Optional(Type.String()),
+  jobName: Type.Optional(Type.String()),
+  error: Type.Optional(Type.String()),
+  skipped: Type.Optional(Type.Boolean()),
+});
+
+function cronToolResult(details: CronToolDetails, text: string) {
+  return {
+    content: [{ type: "text" as const, text }],
+    details,
+    structuredContent: details,
+  };
 }
 
 /** Resolve a job by exact id first, then by unique name or id prefix. */
@@ -145,6 +192,7 @@ export function createCronTool(
       "Actions: add (needs schedule + prompt), list, update, remove, enable, disable, fire (run now), cleanup (drop finished jobs). " +
       "Schedule formats: cron with 5 fields (`0 9 * * *`) or 6 with seconds, interval (`5m`, `every 2h`), relative (`+30s`), or an ISO timestamp. Times are local.",
     parameters: cronToolSchema,
+    outputSchema: cronToolOutputSchema,
 
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const hub = getHub();
@@ -184,33 +232,27 @@ export function createCronTool(
             details.jobs = [job];
             details.jobId = job.id;
             details.jobName = job.name;
-            return {
-              content: [
-                {
-                  type: "text",
-                  text:
-                    `Created cron job "${job.name}" (${job.id})\n` +
-                    `Schedule: ${describeSchedule(job.schedule)}\n` +
-                    `Next run: ${job.nextRun !== undefined ? new Date(job.nextRun).toLocaleString() : "none"}\n` +
-                    `Prompt: ${job.prompt}`,
-                },
-              ],
+            return cronToolResult(
               details,
-            };
+              `Created cron job "${job.name}" (${job.id})\n` +
+                `Schedule: ${describeSchedule(job.schedule)}\n` +
+                `Next run: ${job.nextRun !== undefined ? new Date(job.nextRun).toLocaleString() : "none"}\n` +
+                `Prompt: ${job.prompt}`,
+            );
           }
 
           case "list": {
             const jobs = await hub.refresh();
             details.jobs = jobs;
             if (jobs.length === 0) {
-              return { content: [{ type: "text", text: "No cron jobs configured." }], details };
+              return cronToolResult(details, "No cron jobs configured.");
             }
             const lines = [`Cron jobs (${jobs.length}):`, ""];
             for (const job of jobs) {
               lines.push(summarizeJob(job, now));
               lines.push(`  prompt: ${job.prompt.replace(/[\r\n]+/g, " ").slice(0, 120)}`);
             }
-            return { content: [{ type: "text", text: lines.join("\n") }], details };
+            return cronToolResult(details, lines.join("\n"));
           }
 
           case "update": {
@@ -228,15 +270,10 @@ export function createCronTool(
             details.jobs = [updated];
             details.jobId = updated.id;
             details.jobName = updated.name;
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: `Updated cron job "${updated.name}" (${updated.id})\n${summarizeJob(updated, now)}`,
-                },
-              ],
+            return cronToolResult(
               details,
-            };
+              `Updated cron job "${updated.name}" (${updated.id})\n${summarizeJob(updated, now)}`,
+            );
           }
 
           case "remove": {
@@ -247,10 +284,7 @@ export function createCronTool(
             await hub.remove(job.id);
             details.jobId = job.id;
             details.jobName = job.name;
-            return {
-              content: [{ type: "text", text: `Removed cron job "${job.name}" (${job.id}).` }],
-              details,
-            };
+            return cronToolResult(details, `Removed cron job "${job.name}" (${job.id}).`);
           }
 
           case "enable":
@@ -263,15 +297,10 @@ export function createCronTool(
             details.jobs = [updated];
             details.jobId = updated.id;
             details.jobName = updated.name;
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: `${updated.enabled ? "Enabled" : "Paused"} cron job "${updated.name}" (${updated.id}).`,
-                },
-              ],
+            return cronToolResult(
               details,
-            };
+              `${updated.enabled ? "Enabled" : "Paused"} cron job "${updated.name}" (${updated.id}).`,
+            );
           }
 
           case "fire": {
@@ -284,18 +313,12 @@ export function createCronTool(
             details.jobId = job.id;
             details.jobName = job.name;
             details.skipped = outcome === "skipped";
-            return {
-              content: [
-                {
-                  type: "text",
-                  text:
-                    outcome === "done"
-                      ? `Fired cron job "${job.name}" (${job.id}).`
-                      : `Cron job "${job.name}" (${job.id}) was already running or is disabled; nothing fired.`,
-                },
-              ],
+            return cronToolResult(
               details,
-            };
+              outcome === "done"
+                ? `Fired cron job "${job.name}" (${job.id}).`
+                : `Cron job "${job.name}" (${job.id}) was already running or is disabled; nothing fired.`,
+            );
           }
 
           case "cleanup": {
@@ -306,20 +329,14 @@ export function createCronTool(
             const disabled = jobs.filter((job) => !job.enabled);
             for (const job of disabled) await hub.remove(job.id);
             details.jobs = disabled;
-            return {
-              content: [
-                {
-                  type: "text",
-                  text:
-                    disabled.length === 0
-                      ? "No paused jobs to clean up."
-                      : `Removed ${disabled.length} paused job(s).\n${disabled
-                          .map((job) => `  ${job.id}  ${job.name}`)
-                          .join("\n")}`,
-                },
-              ],
+            return cronToolResult(
               details,
-            };
+              disabled.length === 0
+                ? "No paused jobs to clean up."
+                : `Removed ${disabled.length} paused job(s).\n${disabled
+                    .map((job) => `  ${job.id}  ${job.name}`)
+                    .join("\n")}`,
+            );
           }
 
           default: {
@@ -331,10 +348,7 @@ export function createCronTool(
         const message =
           error instanceof CronParseError || error instanceof Error ? error.message : String(error);
         details.error = message;
-        return {
-          content: [{ type: "text", text: `Error: ${message}` }],
-          details,
-        };
+        return cronToolResult(details, `Error: ${message}`);
       }
     },
 

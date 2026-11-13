@@ -15,7 +15,7 @@ export type JobSchedule =
 /** Terminal state of the most recent run. */
 export type RunStatus = "ok" | "error" | "running";
 
-export interface CronJob {
+export type CronJob = {
   id: string;
   name: string;
   description?: string;
@@ -39,7 +39,7 @@ export interface CronJob {
   createdBy?: string;
   /** Absolute epoch ms after which the job stops without being explicitly disabled. */
   expiresAt?: number;
-}
+};
 
 /** Fields a caller may set when creating a job; the store fills the rest. */
 export interface CronJobInput {

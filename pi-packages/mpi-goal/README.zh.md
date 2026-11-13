@@ -21,3 +21,5 @@ MixCode 内置的会话级自主目标追踪扩展。
 - **会话级隔离**：状态存储于当前会话分支的 `mpi-goal-state` 条目中，多 Tab 互不干扰。
 - **渐进式动态工具暴露**：目标工具默认不注入上下文，仅在激活时挂载。
 - **活跃时间统计**：仅统计 Agent 在实际运行轮次中的耗时（排除空闲与暂停）。
+- **取消保护**：即使没有产生 assistant message，`agent_settled.aborted` 也会暂停活跃目标，且不再发送 continuation。
+- **程序化工具结果**：所有工具归入 `goal` namespace。`get_goal`、`list_goal_templates` 和 `list_goal_queue` 声明只读 annotations，并返回符合各自 `outputSchema` 的 `structuredContent`，供 codemode 和嵌套工具调用方使用。

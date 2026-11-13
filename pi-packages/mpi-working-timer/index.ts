@@ -146,12 +146,14 @@ interface WorkingTimerState {
   assistantMessageStartedAt?: number;
   totalAssistantDurationMs: number;
   assistantMessageCount: number;
-  /** Last completed run or restored visible message, absent when neither exists. */
+  /** Last settled run or restored visible message, absent when neither exists. */
   settled?: {
     /** Wall-clock run duration, unavailable when restoring message history. */
     durationMs?: number;
     /** Epoch ms the run settled, or the restored visible message's own timestamp. */
     finishedAtMs: number;
+    /** True only for a live run that ended through user cancellation. */
+    aborted?: boolean;
   };
 }
 
@@ -175,7 +177,8 @@ function workingTimerText(state: WorkingTimerState, now: number): string | undef
   }
   if (settled === undefined) return undefined;
   const duration = settled.durationMs === undefined ? "" : ` ${formatElapsed(settled.durationMs)}`;
-  return `✔ done${duration}${average} at ${formatClockTime(settled.finishedAtMs)}`;
+  const label = settled.aborted ? "✋ aborted" : "✔ done";
+  return `${label}${duration}${average} at ${formatClockTime(settled.finishedAtMs)}`;
 }
 
 const extension: ExtensionFactory = (pi: ExtensionAPI) => {
@@ -290,12 +293,16 @@ const extension: ExtensionFactory = (pi: ExtensionAPI) => {
   pi.on("tool_execution_start", (_event: ToolExecutionStartEvent, ctx) => recordActivity(ctx));
   pi.on("tool_execution_end", (_event: ToolExecutionEndEvent, ctx) => recordActivity(ctx));
 
-  pi.on("agent_settled", (_event: AgentSettledEvent, ctx) => {
+  pi.on("agent_settled", (event: AgentSettledEvent, ctx) => {
     stopTicker(sessionIdOf(ctx));
     const state = stateFor(ctx);
     if (state.workingSince !== undefined) {
       const finishedAtMs = Date.now();
-      state.settled = { durationMs: Math.max(0, finishedAtMs - state.workingSince), finishedAtMs };
+      state.settled = {
+        durationMs: Math.max(0, finishedAtMs - state.workingSince),
+        finishedAtMs,
+        aborted: event.aborted,
+      };
       state.workingSince = undefined;
       state.lastActivityAt = undefined;
       state.assistantMessageStartedAt = undefined;

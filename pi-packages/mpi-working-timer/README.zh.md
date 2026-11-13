@@ -12,6 +12,7 @@
 | 运行中，已有正在生成或已完成的助手消息 | `⏱ 12s · avg 4s/msg · 2s idle` |
 | 本轮结束，尚无完成的助手消息 | `✔ done <耗时> at <本地 YYYY-MM-DD HH:MM:SS>` |
 | 本轮结束，已有完成的助手消息 | `✔ done 18s · avg 4s/msg at 2026-10-03 15:39:00` |
+| 用户取消本轮运行 | `✋ aborted 4s at 2026-10-03 15:39:00` |
 | 恢复会话，存在可见消息 | `✔ done at <本地 YYYY-MM-DD HH:MM:SS>` |
 | 没有可见消息，也没有已完成的运行 | 移除该条目 |
 
@@ -56,7 +57,7 @@ idle 后缀在运行开始后出现，显示距上一次 streaming 活动（`tur
 - `agent_start`：新运行开始时清空计时数据。用 `??=` 打时间戳，因此属于同一次运行的 agent 循环（自动重试、恢复、压缩、队列中的后续任务）保留已耗时和平均值。
 - 助手消息的 `message_start` 将当前消息作为临时样本计入平均值，匹配的 `message_end` 保存其耗时且不重复计数；其他消息类型不影响平均值。
 - 运行期间由 `turn_start`、`message_update`、`tool_execution_start`、`tool_execution_end` 刷新文本并重置 idle 计数。1s 定时器让已耗时和 idle 时长在长时间静默的工具调用期间继续增长。
-- `agent_settled`：停止定时器并切换为 `✔ done <耗时> at <时刻>`。
+- `agent_settled`：停止定时器并切换为 `✔ done <耗时> at <时刻>`；当 `event.aborted` 为 true 时改为 `✋ aborted <耗时> at <时刻>`。
 - `session_shutdown`：停止定时器并移除条目。
 
 一次运行在 `agent_settled` 结束，而不是 `agent_end`：Pi 在 `agent_end` 之后仍可能自动继续（重试、恢复、压缩、队列中的后续任务），结束耗时应包含这些时间。本包有意不处理 `agent_end`。

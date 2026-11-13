@@ -18,7 +18,7 @@ MixCode built-in recurring prompt execution engine with timer conflict handling,
 - **Intervals**: `s`, `m`, `h`, `d` (e.g. `10s`, `5m`, `1h`). Minimum is `10s`, defaults to `10m`.
 - **Next run display**: The widget and overlay show hours with remaining minutes (`in 1h59m`) and days with remaining hours (`in 1d23h`). Zero remainders are omitted; durations below one hour use whole minutes or seconds. These labels do not change the timer interval.
 - **Total runs**: Set a limit at creation, through `/loop max-runs`, or in the detail view. See [Run limits](#run-limits).
-- **Conflict Modes**: `skip` (drops timer tick if agent is busy) or `defer` (coalesces and executes when agent becomes idle).
+- **Conflict Modes**: `skip` (drops timer tick if agent is busy) or `defer` (coalesces and executes when agent becomes idle). An aborted `agent_settled` leaves deferred work pending instead of immediately restarting it; a later normal settlement or timer tick can still deliver it.
 - **Prompt expansion**: a loop prompt is delivered like typed input — slash commands are dispatched, and `/skill:<name>` and prompt templates are expanded, exactly as if you had typed them into the editor.
 
 ## Run limits

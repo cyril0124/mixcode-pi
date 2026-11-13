@@ -5,6 +5,7 @@
  */
 
 import { describe, expect, test } from "bun:test";
+import { Value } from "typebox/value";
 import type { ExtensionContext, ExtensionToolContext } from "@earendil-works/pi-coding-agent";
 import { createCronTool, deriveJobName, findJob, isInsideScheduledRun } from "./tool.js";
 import type { CronJob } from "./types.js";
@@ -97,7 +98,12 @@ async function callTool(
     context(entries),
   );
   const text = result.content.map((part) => (part.type === "text" ? part.text : "")).join("\n");
-  return { text, details: result.details };
+  return {
+    text,
+    details: result.details,
+    structuredContent: result.structuredContent,
+    outputSchema: tool.outputSchema,
+  };
 }
 
 describe("findJob", () => {
@@ -224,12 +230,26 @@ describe("cron tool", () => {
     expect(text).toContain('job named "nightly" already exists');
   });
 
-  test("list summarises every job", async () => {
-    const { hub } = makeHub([job({ id: "a", name: "nightly", nextRun: Date.now() + 60_000 })]);
-    const { text, details } = await callTool(hub, { action: "list" });
-    expect(text).toContain("Cron jobs (1)");
+  test("list summarises every job and returns the same structured data", async () => {
+    const { hub } = makeHub([
+      job({ id: "a", name: "nightly", nextRun: Date.now() + 60_000 }),
+      job({
+        id: "b",
+        name: "paused-report",
+        enabled: false,
+        lastStatus: "error",
+        schedule: { kind: "cron", expr: "0 9 * * *", source: "0 9 * * *" },
+      }),
+    ]);
+    const { text, details, structuredContent, outputSchema } = await callTool(hub, {
+      action: "list",
+    });
+    expect(text).toContain("Cron jobs (2)");
     expect(text).toContain("nightly");
-    expect(details?.jobs.length).toBe(1);
+    expect(details?.jobs.length).toBe(2);
+    expect(outputSchema).toBeDefined();
+    expect(structuredContent).toEqual(details);
+    expect(Value.Check(outputSchema!, structuredContent)).toBe(true);
   });
 
   test("list on an empty store says so instead of failing", async () => {
@@ -269,9 +289,14 @@ describe("cron tool", () => {
 
   test("actions on an unknown job return an error mentioning the key", async () => {
     const { hub } = makeHub();
-    const { text, details } = await callTool(hub, { action: "fire", jobId: "ghost" });
+    const { text, details, structuredContent, outputSchema } = await callTool(hub, {
+      action: "fire",
+      jobId: "ghost",
+    });
     expect(text).toContain('No cron job matching "ghost"');
     expect(details?.error).toContain("ghost");
+    expect(structuredContent).toEqual(details);
+    expect(Value.Check(outputSchema!, structuredContent)).toBe(true);
   });
 
   test("cleanup removes the paused jobs and reports the count", async () => {

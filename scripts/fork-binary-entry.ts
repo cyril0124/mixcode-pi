@@ -341,6 +341,9 @@ import mpiGoal_src_surface_tools_goal_tools_ts from "../pi-packages/mpi-goal/src
 import mpiGoal_src_surface_tools_names_ts from "../pi-packages/mpi-goal/src/surface/tools/names.ts" with {
   type: "text",
 };
+import mpiGoal_src_surface_tools_output_schemas_ts from "../pi-packages/mpi-goal/src/surface/tools/output-schemas.ts" with {
+  type: "text",
+};
 import mpiGoal_src_surface_tools_queue_tools_ts from "../pi-packages/mpi-goal/src/surface/tools/queue-tools.ts" with {
   type: "text",
 };
@@ -697,6 +700,7 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
       "src/surface/tools/dynamic.ts": mpiGoal_src_surface_tools_dynamic_ts,
       "src/surface/tools/goal-tools.ts": mpiGoal_src_surface_tools_goal_tools_ts,
       "src/surface/tools/names.ts": mpiGoal_src_surface_tools_names_ts,
+      "src/surface/tools/output-schemas.ts": mpiGoal_src_surface_tools_output_schemas_ts,
       "src/surface/tools/queue-tools.ts": mpiGoal_src_surface_tools_queue_tools_ts,
       "src/surface/tools/results.ts": mpiGoal_src_surface_tools_results_ts,
       "src/surface/tools/schemas.ts": mpiGoal_src_surface_tools_schemas_ts,

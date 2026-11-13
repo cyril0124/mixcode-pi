@@ -73,6 +73,8 @@ Agents use `cron` for reminders, delayed or future tasks, specific run times, an
 
 `jobId` accepts an exact id, a unique name, or a unique id prefix. A job with an exhausted schedule (a spent one-shot, or a cron form that will never match again) disables itself instead of firing forever.
 
+Every action returns the same data as `details` and `structuredContent`, with a declared `outputSchema`. Codemode and nested tool callers therefore receive the job objects directly, while the model-facing `content` keeps its readable summary. Business errors such as an unknown `jobId` also carry structured details.
+
 ## Overlay keys
 
 | Key | Action |

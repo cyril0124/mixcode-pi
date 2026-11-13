@@ -581,6 +581,27 @@ test("holds the running clock across agent loops and settles it once agent_settl
   }
 });
 
+test("aborted settlement shows the cancellation and stops the ticker", () => {
+  const harness = createHarness();
+  try {
+    harness.fire("session_start");
+    harness.fire("agent_start");
+    harness.advance(4_000);
+    harness.fire("agent_settled", { aborted: true });
+
+    assert.equal(harness.latest(), `✋ aborted 4s at ${formatClockTime(1_004_000)}`);
+    assert.equal(harness.liveTickerCount(), 0);
+
+    harness.advance(1_000);
+    harness.fire("agent_start");
+    harness.advance(2_000);
+    harness.fire("agent_settled", { aborted: false });
+    assert.equal(harness.latest(), `✔ done 2s at ${formatClockTime(1_007_000)}`);
+  } finally {
+    harness.dispose();
+  }
+});
+
 test("averages completed assistant messages within one run without counting other events", () => {
   const harness = createHarness();
   try {

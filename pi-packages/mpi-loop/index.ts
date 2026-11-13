@@ -322,7 +322,8 @@ export default function (pi: ExtensionAPI) {
   });
 
   // agent_end fires while isIdle is still false; only agent_settled is truly idle.
-  pi.on("agent_settled", (_event, ctx) => {
+  pi.on("agent_settled", (event, ctx) => {
+    if (event.aborted) return;
     flushPending(ctx);
   });
 

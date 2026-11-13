@@ -4,6 +4,14 @@ import {
   EmptyParams,
   UpdateGoalParams,
 } from "./schemas.js";
+import { GetGoalOutputSchema, ListGoalTemplatesOutputSchema } from "./output-schemas.js";
+import {
+  GOAL_ADDITIVE_TOOL_ANNOTATIONS,
+  GOAL_DESTRUCTIVE_TOOL_ANNOTATIONS,
+  GOAL_QUERY_TOOL_ANNOTATIONS,
+  GOAL_TEMPLATE_CAPABLE_TOOL_ANNOTATIONS,
+  GOAL_TOOL_NAMESPACE,
+} from "./names.js";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { withGoalSessionFromCtx } from "../../domain/session-scope.js";
 import { validateObjective } from "../../domain/format.js";
@@ -84,6 +92,9 @@ function registerGetGoalTool(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "get_goal",
     label: "Get Goal",
+    namespace: GOAL_TOOL_NAMESPACE,
+    annotations: GOAL_QUERY_TOOL_ANNOTATIONS,
+    outputSchema: GetGoalOutputSchema,
     description:
       "Get the current mpi-goal state, including status, budget, token usage, and time usage.",
     promptSnippet: "Inspect the active mpi-goal objective and progress state.",
@@ -93,7 +104,8 @@ function registerGetGoalTool(pi: ExtensionAPI): void {
     parameters: EmptyParams,
     async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
       return withSessionTool(ctx, async () => {
-        return resultForGoal(getGoal(), getTelemetry());
+        const result = resultForGoal(getGoal(), getTelemetry());
+        return { ...result, structuredContent: result.details };
       });
     },
   });
@@ -103,6 +115,9 @@ function registerListGoalTemplatesTool(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "list_goal_templates",
     label: "List Goal Templates",
+    namespace: GOAL_TOOL_NAMESPACE,
+    annotations: GOAL_QUERY_TOOL_ANNOTATIONS,
+    outputSchema: ListGoalTemplatesOutputSchema,
     description:
       "List reusable .pi-goals templates for explicit natural-language goal creation requests.",
     promptSnippet: "Discover available reusable goal templates and their required inputs.",
@@ -112,9 +127,11 @@ function registerListGoalTemplatesTool(pi: ExtensionAPI): void {
       "Use the returned names, aliases, descriptions, and placeholders to decide whether a queued request semantically matches exactly one template and whether enough structured values are available before creating a goal from a template.",
     ],
     parameters: EmptyParams,
-    async execute() {
-      const templates = listGoalTemplateMetadata();
-      return resultForTemplates(templates);
+    async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
+      return withSessionTool(ctx, async () => {
+        const result = resultForTemplates(listGoalTemplateMetadata());
+        return { ...result, structuredContent: result.details };
+      });
     },
   });
 }
@@ -123,6 +140,8 @@ function registerCreateGoalTool(pi: ExtensionAPI, runtime: GoalToolRuntime): voi
   pi.registerTool({
     name: "create_goal",
     label: "Create Goal",
+    namespace: GOAL_TOOL_NAMESPACE,
+    annotations: GOAL_ADDITIVE_TOOL_ANNOTATIONS,
     description: "Create a new mpi-goal only when the user explicitly asks for a persistent goal.",
     promptSnippet: "Create an explicit persistent mpi-goal when requested.",
     promptGuidelines: [
@@ -142,6 +161,8 @@ function registerCreateGoalFromTemplateTool(pi: ExtensionAPI, runtime: GoalToolR
   pi.registerTool({
     name: "create_goal_from_template",
     label: "Create Goal From Template",
+    namespace: GOAL_TOOL_NAMESPACE,
+    annotations: GOAL_TEMPLATE_CAPABLE_TOOL_ANNOTATIONS,
     description:
       "Resolve a reusable .pi-goals template from structured parameters and create the resulting persistent goal.",
     promptSnippet: "Create a persistent goal from an explicitly requested reusable goal template.",
@@ -164,6 +185,8 @@ function registerUpdateGoalTool(pi: ExtensionAPI, runtime: GoalToolRuntime): voi
   pi.registerTool({
     name: "update_goal",
     label: "Update Goal",
+    namespace: GOAL_TOOL_NAMESPACE,
+    annotations: GOAL_DESTRUCTIVE_TOOL_ANNOTATIONS,
     description:
       "Update the current mpi-goal when the user explicitly asks to edit, pause, resume, or complete it.",
     promptSnippet: "Update an explicit mpi-goal field or status when requested by the user.",
@@ -181,6 +204,8 @@ function registerClearGoalTool(pi: ExtensionAPI, runtime: GoalToolRuntime): void
   pi.registerTool({
     name: "clear_goal",
     label: "Clear Goal",
+    namespace: GOAL_TOOL_NAMESPACE,
+    annotations: GOAL_DESTRUCTIVE_TOOL_ANNOTATIONS,
     description:
       "Clear the current mpi-goal when the user explicitly asks to remove the persistent goal or hide the goal widget.",
     promptSnippet: "Clear the explicit persistent mpi-goal when requested by the user.",

@@ -137,6 +137,17 @@ test("agent_end while not idle still continues after agent_settled", async () =>
   assert.equal((cont[0]?.options as { deliverAs?: string } | undefined)?.deliverAs, "followUp");
 });
 
+test("aborted settle pauses without an assistant message or continuation", async () => {
+  seedActiveGoal();
+  idle = true;
+  await emit("agent_end", { type: "agent_end", messages: [] });
+  await emit("agent_settled", { type: "agent_settled", aborted: true });
+  await sleep(40);
+
+  assert.equal(replayGoalState(ctx).goal?.status, "paused");
+  assert.equal(continuationMessages().length, 0);
+});
+
 test("agent_settled does not continue when goal is not active", async () => {
   seedActiveGoal();
   persistClearGoal(pi, "command");

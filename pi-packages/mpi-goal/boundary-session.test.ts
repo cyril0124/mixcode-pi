@@ -9,6 +9,8 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
+import { Type } from "typebox";
+import { Value } from "typebox/value";
 import {
   createAssistantMessageEventStream,
   fauxAssistantMessage,
@@ -21,8 +23,12 @@ import {
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
 import { CONTINUATION_MESSAGE_TYPE } from "./src/domain/constants.js";
-import { replayGoalState } from "./src/persistence/goal-store.js";
+import { withGoalSessionFromCtx } from "./src/domain/session-scope.js";
+import { createTelemetry } from "./src/domain/telemetry.js";
+import { createGoalState, persistSetGoal, replayGoalState } from "./src/persistence/goal-store.js";
+import { enqueueGoal, persistEnqueue } from "./src/persistence/queue-store.js";
 import { wireMpiGoal } from "./src/app.js";
+import { GOAL_TOOL_NAMES } from "./src/surface/tools/names.js";
 
 type SessionManagerLike = ReturnType<typeof SessionManager.inMemory>;
 type BranchEntry = ReturnType<SessionManagerLike["getBranch"]>[number];
@@ -42,6 +48,8 @@ const MODEL = {
   maxTokens: 64,
   cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 };
+
+const GOAL_QUERY_TOOLS = ["get_goal", "list_goal_templates", "list_goal_queue"];
 
 function streamAssistantMessage(message: AssistantMessage) {
   const stream = createAssistantMessageEventStream();
@@ -111,7 +119,6 @@ function withUsage(message: AssistantMessage, inputTokens: number): AssistantMes
 
 function createGoalE2E(responses: AssistantMessage[], options: { hangAfterDrain?: boolean } = {}) {
   let compactCalls = 0;
-  const sessionManagerHolder: { sessionManager?: SessionManagerLike } = {};
   const factory = (pi: Parameters<typeof wireMpiGoal>[0]) => {
     pi.on("session_before_compact", async (event) => {
       compactCalls += 1;
@@ -137,7 +144,7 @@ function createGoalE2E(responses: AssistantMessage[], options: { hangAfterDrain?
     if (options.hangAfterDrain) return streamHangingMessage(fallback, streamOptions.signal);
     return streamAssistantMessage(fallback);
   };
-  return { factory, streamFn: streamFn as StreamFn, sessionManagerHolder };
+  return { factory, streamFn: streamFn as StreamFn };
 }
 
 async function createSession(
@@ -145,6 +152,7 @@ async function createSession(
   sessionId: string,
   factory: ReturnType<typeof createGoalE2E>["factory"],
   streamFn: StreamFn,
+  activeTools: string[] = ["create_goal"],
 ) {
   const services = await createAgentSessionServices({
     cwd: dir,
@@ -171,7 +179,7 @@ async function createSession(
     sessionManager,
   });
   await session.bindExtensions({ mode: "print" });
-  session.setActiveToolsByName(["create_goal"]);
+  session.setActiveToolsByName(activeTools);
   session.agent.streamFunction = streamFn as never;
   return { session, sessionManager };
 }
@@ -267,6 +275,141 @@ test("real session keeps an active goal running across auto-compaction", async (
         state.goal?.status === "active" || state.goal?.status === "paused",
         "repeated no-progress auto turns may pause the goal after compactions",
       );
+    } finally {
+      session.dispose();
+    }
+  } finally {
+    if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+    else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("real session returns structured query results and goal tool metadata", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-goal-e2e-structured-"));
+  const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+  process.env.PI_CODING_AGENT_DIR = dir;
+  try {
+    const queryTools = GOAL_QUERY_TOOLS;
+    const responses: AssistantMessage[] = [
+      fauxAssistantMessage([fauxToolCall("inspect_goal_queries", {})], { stopReason: "toolUse" }),
+      fauxAssistantMessage("done"),
+    ];
+    const { factory: baseFactory, streamFn } = createGoalE2E(responses);
+    const factory = (pi: Parameters<typeof wireMpiGoal>[0]) => {
+      baseFactory(pi);
+      pi.registerTool({
+        name: "inspect_goal_queries",
+        label: "Inspect Goal Queries",
+        description: "Capture structured results through the real nested-tool path.",
+        parameters: Type.Object({}),
+        async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
+          await withGoalSessionFromCtx(ctx, async () => {
+            const goal = {
+              ...createGoalState({
+                objective: "structured goal with budget",
+                tokenBudget: 1000,
+                timeBudgetSeconds: 60,
+              }),
+              status: "paused" as const,
+              tokensUsed: 25,
+              timeUsedSeconds: 5,
+            };
+            persistSetGoal(pi, goal, createTelemetry(goal.goalId), "tool");
+            persistEnqueue(pi, enqueueGoal("first queued objective", "tool", { tokenBudget: 500 }));
+          });
+
+          // Call outside the goal ALS scope: every production tool must bind the
+          // current session itself instead of inheriting its caller's scope.
+          const structured: Record<string, unknown> = {};
+          for (const name of GOAL_QUERY_TOOLS) {
+            const outcome = await ctx.executeTool(name, {});
+            structured[name] = outcome.result.structuredContent;
+          }
+          return {
+            content: [{ type: "text", text: "captured" }],
+            details: { structured },
+          };
+        },
+      });
+    };
+    const { session } = await createSession(dir, "goal-e2e-structured", factory, streamFn, [
+      ...queryTools,
+      "inspect_goal_queries",
+    ]);
+    try {
+      await session.prompt("inspect goal state");
+
+      const tools = session.agent.state.tools;
+      for (const name of queryTools) {
+        assert.ok(tools.find((tool) => tool.name === name)?.outputSchema, `${name} output schema`);
+      }
+      const goalTools = session
+        .getAllTools()
+        .filter((tool) => GOAL_TOOL_NAMES.includes(tool.name as (typeof GOAL_TOOL_NAMES)[number]));
+      assert.equal(goalTools.length, GOAL_TOOL_NAMES.length);
+      for (const tool of goalTools) {
+        assert.equal(tool.namespace?.name, "goal", `${tool.name} namespace`);
+      }
+      for (const name of queryTools) {
+        const annotations = goalTools.find((tool) => tool.name === name)?.annotations;
+        assert.equal(annotations?.readOnlyHint, true, `${name} read-only hint`);
+        assert.equal(annotations?.openWorldHint, false, `${name} open-world hint`);
+      }
+      for (const name of ["create_goal", "enqueue_goal"]) {
+        assert.equal(
+          goalTools.find((tool) => tool.name === name)?.annotations?.destructiveHint,
+          false,
+          `${name} additive hint`,
+        );
+      }
+      for (const name of ["create_goal_from_template", "start_queued_goal"]) {
+        const annotations = goalTools.find((tool) => tool.name === name)?.annotations;
+        assert.equal(annotations?.openWorldHint, true, `${name} template command hint`);
+        assert.equal(annotations?.destructiveHint, true, `${name} replacement hint`);
+      }
+
+      const inspectorResult = session.agent.state.messages.find(
+        (message) => message.role === "toolResult" && message.toolName === "inspect_goal_queries",
+      );
+      assert.ok(inspectorResult && inspectorResult.role === "toolResult");
+      const details = inspectorResult.details as {
+        structured: Record<string, unknown>;
+      };
+      for (const name of queryTools) {
+        assert.ok(details.structured[name], `${name} structured content`);
+        const outputSchema = tools.find((tool) => tool.name === name)?.outputSchema;
+        assert.ok(outputSchema);
+        assert.equal(
+          Value.Check(outputSchema, details.structured[name]),
+          true,
+          `${name} output must match its schema`,
+        );
+      }
+      const goalOutput = details.structured.get_goal as {
+        goal: {
+          objective: string;
+          status: string;
+          tokenBudget: number;
+          tokensUsed: number;
+        };
+        remaining_tokens: number;
+      };
+      assert.equal(goalOutput.goal.objective, "structured goal with budget");
+      assert.equal(goalOutput.goal.status, "paused");
+      assert.equal(goalOutput.goal.tokenBudget, 1000);
+      assert.equal(goalOutput.goal.tokensUsed, 25);
+      assert.equal(goalOutput.remaining_tokens, 975);
+      const queueOutput = details.structured.list_goal_queue as {
+        queue: Array<{ objective: string; tokenBudget: number }>;
+      };
+      assert.equal(queueOutput.queue.length, 1);
+      assert.equal(queueOutput.queue[0]?.objective, "first queued objective");
+      assert.equal(queueOutput.queue[0]?.tokenBudget, 500);
+      const templatesOutput = details.structured.list_goal_templates as {
+        goal: { objective: string };
+      };
+      assert.equal(templatesOutput.goal.objective, "structured goal with budget");
     } finally {
       session.dispose();
     }
