@@ -2,7 +2,7 @@
 
 [English](README.md)
 
-Bash 执行策略：默认超时、前台窗口、到期自动转后台、结束自动回报，以及用 `/bash-logs` 读后台命令的完整日志。
+Bash 执行策略：默认超时、前台窗口、到期自动转后台、结束自动回报，以及用 `/bash-jobs` 读后台命令的完整日志。
 
 扩展通过 Pi 的 `createBashToolDefinition` 和自定义 `BashOperations` 注册 `bash` 工具。参数、渲染和输出截断使用 Pi 的实现，执行时采用 `commandPrefix`、`shellPath` 以及 MixCode 每次启动进程时注入的 tab 环境变量。
 
@@ -29,7 +29,7 @@ Bash 执行策略：默认超时、前台窗口、到期自动转后台、结束
 | 后台命令结束 | 日志流写入完成或失败后，投递带退出码与末尾输出的 `bash-detached-exit`。模型忙碌时使用 `steer`，空闲时开启一轮。 |
 | 到达 `timeout` | 开始终止命令所在进程组：前台阶段表现为 Pi 的 `Command timed out after N seconds` 错误，后台阶段则写入完成回报。 |
 
-`timeout` 累计前台与后台运行时间。在 Unix 上，前台取消、超时和 `/bash-logs` 停止都会先向进程组发送 `SIGTERM`，让清理 trap 有机会执行；三秒宽限期结束后，若进程组仍存在，再发送 `SIGKILL`。清理可能使总运行时间比 `timeout` 多出至多三秒。父 shell 退出时，只要组内仍有子进程，就不会撤销后续强杀。重复停止不会重新开始宽限期。Windows 保留立即终止行为，不支持 POSIX 清理 trap。
+`timeout` 累计前台与后台运行时间。在 Unix 上，前台取消、超时和 `/bash-jobs` 停止都会先向进程组发送 `SIGTERM`，让清理 trap 有机会执行；三秒宽限期结束后，若进程组仍存在，再发送 `SIGKILL`。清理可能使总运行时间比 `timeout` 多出至多三秒。父 shell 退出时，只要组内仍有子进程，就不会撤销后续强杀。重复停止不会重新开始宽限期。Windows 保留立即终止行为，不支持 POSIX 清理 trap。
 
 命令在前台窗口到期前开始终止时，即使清理跨过窗口，也会留在前台直到终止流程结束。取消仍报告 `aborted`；超时即使遇到清理 trap 成功退出，也仍报告超时。宿主退出时，对前台命令和已经开始停止的任务立即发送 `SIGKILL` 做紧急清理。
 
@@ -49,18 +49,18 @@ Bash 执行策略：默认超时、前台窗口、到期自动转后台、结束
 只要还有命令在后台运行，编辑器上方就会出现一棵树，按开始先后列出全部后台命令：
 
 ```text
- ○ Jobs · 2 running · /bash-logs to inspect
+ ○ Jobs · 2 running · /bash-jobs to inspect
  ├ ⠋ 1m12s bun run check · #111
  └ ⠹ 5s printf "FOREGROUND-OUTPUT"; sleep 12; printf 'done' · #222
 ```
 
-标题行给出正在运行的条数，并标明 `/bash-logs` 可打开日志。每一条是 `warning` 色 spinner、`accent` 加粗的时长、`dim` 的命令，以及 pid。超出终端宽度的命令会省略，每条恰好一行。最后一条结束后组件消失。
+标题行给出正在运行的条数，并标明 `/bash-jobs` 可打开日志。每一条是 `warning` 色 spinner、`accent` 加粗的时长、`dim` 的命令，以及 pid。超出终端宽度的命令会省略，每条恰好一行。最后一条结束后组件消失。
 
 每条转后台、完成和停滞通知都附带 `Still running: N jobs · PIDs: ... · at notification time`。这是本会话已转后台任务的快照，按开始时间排序；不包含前台命令和其他会话。刚转后台的任务计入；进程退出且标准输出、标准错误收完后从运行列表移除，即使日志还在写入也不计入。没有剩余任务时显示 `Still running: 0 jobs · at notification time`，省略 PID 列表。
 
 模型正文和聊天界面使用同一份发送时快照。聊天中的长 PID 列表自动换行，不省略条目；任务结束后，旧通知不会跟着变化。批量停滞提醒只附带一份快照，其中也包含仍在持续输出的任务。底部组件继续显示实时状态。
 
-其他扩展在命令前写入的 prelude 不会出现在底部组件、通知、`/bash-logs` 列表和日志头中。prelude 从 `# mpi-prelude-start ...` 行开始，到 `# mpi-prelude-end` 行结束；[mpi-command-router](../mpi-command-router/README.zh.md) 为自己注入的 `PATH` wrapper 会写一个。prelude 前面的 Pi `shellCommandPrefix` 一并去掉。Shell 仍然收到完整命令；缺少结束标记、或去掉后就没有命令可言的 prelude 按原样报出。
+其他扩展在命令前写入的 prelude 不会出现在底部组件、通知、`/bash-jobs` 列表和日志头中。prelude 从 `# mpi-prelude-start ...` 行开始，到 `# mpi-prelude-end` 行结束；[mpi-command-router](../mpi-command-router/README.zh.md) 为自己注入的 `PATH` wrapper 会写一个。prelude 前面的 Pi `shellCommandPrefix` 一并去掉。Shell 仍然收到完整命令；缺少结束标记、或去掉后就没有命令可言的 prelude 按原样报出。
 
 后台命令结束后，聊天里先是一行 `Background job finished · PID <pid>` 标题，再是运行时长和命令本身；有输出时中间一条分隔线，下面是带行号的最后 10 行。上面还有输出时写 `… N lines omitted (full log at <路径>)`。
 
@@ -191,15 +191,15 @@ Bash 执行策略：默认超时、前台窗口、到期自动转后台、结束
 | `<tmpdir>/mpi-bash-<pid>-<n>.log` | **全部输出**，包含前台那一段。要读全就读它。 |
 | 完成回报 | 最后 2000 字节，附日志路径。 |
 
-进程退出且标准输出、标准错误收完后，从运行列表移除。等待日志写完期间，`/bash-logs` 禁用终止操作。日志流写入完成或失败后才发送完成通知；通知到达时，日志已写入完毕，或通知中包含 `logError`。命令耗时不包含这段写入等待。
+进程退出且标准输出、标准错误收完后，从运行列表移除。等待日志写完期间，`/bash-jobs` 禁用终止操作。日志流写入完成或失败后才发送完成通知；通知到达时，日志已写入完毕，或通知中包含 `logError`。命令耗时不包含这段写入等待。
 
-转后台命令的日志在命令结束后仍然保留，`/bash-logs` 才能继续打开它；超过七天的日志会在会话启动时清理。若日志写不进去，完成回报会写明失败原因，命令本身继续运行。
+转后台命令的日志在命令结束后仍然保留，`/bash-jobs` 才能继续打开它；超过七天的日志会在会话启动时清理。若日志写不进去，完成回报会写明失败原因，命令本身继续运行。
 
 前台那一段由内存回放写入，缓冲上限 4 MB。命令在转后台前打印超过这个量时，最早的输出会丢失，日志首行为 `[mpi-bash] earlier output dropped`。
 
-## `/bash-logs`
+## `/bash-jobs`
 
-`/bash-logs` 列出本会话转入后台的命令。运行中的在前，然后是最近 50 条已结束的。overlay 上段是列表，下段是选中任务的实时日志，大约占终端高度的 60%。行按 pid 区分，同一条命令跑两次就是两行。
+`/bash-jobs` 列出本会话转入后台的命令。运行中的在前，然后是最近 50 条已结束的。overlay 上段是列表，下段是选中任务的实时日志，大约占终端高度的 60%。行按 pid 区分，同一条命令跑两次就是两行。
 
 ```text
 ╭ 2/4 running ── Bash logs ─────────────────────────────────────────╮
@@ -239,7 +239,7 @@ overlay 只读，例外是 `x`：杀掉还在跑的任务。行号来自日志�
 
 预览最多读最后 200000 字节。跳过了前面的输出时，首行会写明。`Ctrl+E` 或 `v` 关掉 overlay，用 `$VISUAL`/`$EDITOR` 打开日志文件。编辑器占用终端时 TUI 停下，退出后再起来。编辑器起不来就发通知，把失败原因写出来。
 
-`/bash-logs` 不把日志发给模型。记录按 Tab 隔离，跟会话一起走。
+`/bash-jobs` 不把日志发给模型。记录按 Tab 隔离，跟会话一起走。
 
 ## 边界
 

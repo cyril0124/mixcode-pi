@@ -5,7 +5,7 @@ import { type DetachedRun, type DetachedStart, formatElapsed, formatRunningJobs 
 
 /**
  * Surfaces for background commands: the widget above the editor, the rows of
- * the `/bash-logs` overlay, and the session's record of what has been detached.
+ * the `/bash-jobs` overlay, and the session's record of what has been detached.
  */
 
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const;
@@ -44,7 +44,7 @@ export function renderBackgroundWidget(
   });
   const count = sorted.length === 1 ? "1 running" : `${sorted.length} running`;
   const header = truncateToWidth(
-    `${theme.fg("dim", "○")} ${theme.fg("muted", "Jobs")} ${theme.fg("dim", `· ${count} · /bash-logs to inspect`)}`,
+    `${theme.fg("dim", "○")} ${theme.fg("muted", "Jobs")} ${theme.fg("dim", `· ${count} · /bash-jobs to inspect`)}`,
     inner,
     "…",
   );
@@ -236,7 +236,7 @@ export function renderStallMessage(
   return [...panels, ...renderRunningJobs(runningPids, theme, width)];
 }
 
-/** A detached run that has ended; kept so `/bash-logs` can still reach its log. */
+/** A detached run that has ended; kept so `/bash-jobs` can still reach its log. */
 export interface FinishedRun extends DetachedStart {
   exitCode: number | null;
   timedOut: boolean;
@@ -249,9 +249,9 @@ export function hasEnded(run: DetachedStart | FinishedRun): run is FinishedRun {
   return "endedAt" in run;
 }
 
-/** Detached runs remembered per session for `/bash-logs`. */
+/** Detached runs remembered per session for `/bash-jobs`. */
 const HISTORY_LIMIT = 50;
-/** Log bytes shown by `/bash-logs`; the file itself keeps everything. */
+/** Log bytes shown by `/bash-jobs`; the file itself keeps everything. */
 const LOG_VIEW_BYTES = 200_000;
 
 /**
@@ -316,7 +316,7 @@ const STATUS_REFRESH_MS = SPINNER_INTERVAL_MS;
  */
 export class BackgroundStatus {
   private readonly runs = new Map<number, DetachedStart>();
-  /** Detached runs of this session, newest last, for `/bash-logs`. */
+  /** Detached runs of this session, newest last, for `/bash-jobs`. */
   private readonly history: FinishedRun[] = [];
   private ticker: ReturnType<typeof setInterval> | undefined;
   private ctx: ExtensionContext | undefined;

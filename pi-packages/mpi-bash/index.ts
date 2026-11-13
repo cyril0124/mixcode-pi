@@ -200,7 +200,7 @@ const bashExtension: ExtensionFactory = (pi) => {
     event.systemPromptOptions.sections["mpi-bash-policy"] = BASH_EXECUTION_POLICY;
   });
 
-  pi.registerCommand("bash-logs", {
+  pi.registerCommand("bash-jobs", {
     description: "Inspect background bash jobs and their logs",
     handler: async (_args, ctx) => {
       const runs = backgroundStatus.list();

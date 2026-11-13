@@ -2,7 +2,7 @@
 
 [中文文档](README.zh.md)
 
-Bash execution policy: a default timeout, a foreground window, automatic detach to the background, an automatic completion notice, and `/bash-logs` for reading a background command's full log.
+Bash execution policy: a default timeout, a foreground window, automatic detach to the background, an automatic completion notice, and `/bash-jobs` for reading a background command's full log.
 
 The extension registers `bash` through Pi's `createBashToolDefinition` with custom `BashOperations`. It uses Pi's tool parameters, rendering, and output truncation, honors `commandPrefix` and `shellPath`, and passes MixCode's per-spawn tab environment.
 
@@ -29,7 +29,7 @@ The requirement follows that package's `compactBashCallRow` flag: bash reads `<a
 | Background command ends | After the log stream finishes or fails, a `bash-detached-exit` message carries the exit code and last output. It uses `steer` while the model is busy and starts a turn when idle. |
 | `timeout` reached | Termination starts for the command's process group, in the foreground (Pi's `Command timed out after N seconds` error) or in the background (reported in the completion notice). |
 
-`timeout` counts foreground plus background runtime. On Unix, foreground cancellation, timeout, and `/bash-logs` stop send `SIGTERM` to the process group so cleanup traps can run, then send `SIGKILL` after a three-second grace period if the group still exists. Cleanup may extend runtime beyond `timeout` by up to three seconds. Exiting the parent shell does not cancel escalation while descendants remain in the group. Repeated stop requests do not restart the grace period. Windows retains immediate termination; POSIX cleanup traps are not supported there.
+`timeout` counts foreground plus background runtime. On Unix, foreground cancellation, timeout, and `/bash-jobs` stop send `SIGTERM` to the process group so cleanup traps can run, then send `SIGKILL` after a three-second grace period if the group still exists. Cleanup may extend runtime beyond `timeout` by up to three seconds. Exiting the parent shell does not cancel escalation while descendants remain in the group. Repeated stop requests do not restart the grace period. Windows retains immediate termination; POSIX cleanup traps are not supported there.
 
 A command that starts termination before the foreground window expires stays in the foreground until termination settles, even if cleanup crosses that window. Cancellation still reports `aborted`; timeout still reports a timeout even when a cleanup trap exits successfully. Host-exit emergency cleanup uses immediate `SIGKILL` for foreground commands and jobs already stopping.
 
@@ -49,18 +49,18 @@ At `before_agent_start`, the execution policy is assigned to `systemPromptOption
 While at least one command runs in the background, a widget above the editor lists them as a tree, oldest first:
 
 ```text
- ○ Jobs · 2 running · /bash-logs to inspect
+ ○ Jobs · 2 running · /bash-jobs to inspect
  ├ ⠋ 1m12s bun run check · #111
  └ ⠹ 5s printf "FOREGROUND-OUTPUT"; sleep 12; printf 'done' · #222
 ```
 
-The header shows how many jobs are running and that `/bash-logs` opens their logs. Each run is a `warning` spinner, bold `accent` elapsed time, a `dim` command, and its pid. A command too wide for the terminal is elided so every run costs exactly one line. The widget disappears when the last run finishes.
+The header shows how many jobs are running and that `/bash-jobs` opens their logs. Each run is a `warning` spinner, bold `accent` elapsed time, a `dim` command, and its pid. A command too wide for the terminal is elided so every run costs exactly one line. The widget disappears when the last run finishes.
 
 Every detach, completion, and stall notice includes `Still running: N jobs · PIDs: ... · at notification time`. This is a snapshot of this session's detached commands, oldest first; foreground commands and other sessions are excluded. A newly detached command is included, and a command removed from the running list after exit/stdio drain is excluded even while its log is flushing. With no remaining jobs the footer reads `Still running: 0 jobs · at notification time`, without a PID list.
 
 The model text and chat use the same send-time snapshot. Long PID lists wrap in the chat without dropping entries; old notices do not change when jobs finish. A batch of stall reminders has one shared footer, including jobs that are still producing output. The live widget remains the current-state view.
 
-A prelude that another extension writes ahead of a command is left out of the widget, the notices, the `/bash-logs` rows, and the log header. A prelude runs from a `# mpi-prelude-start ...` line through its `# mpi-prelude-end` line, and [mpi-command-router](../mpi-command-router/README.md) writes one for the `PATH` wrappers it injects. Pi's `shellCommandPrefix` in front of a prelude goes with it. The shell still receives the full command. An unterminated prelude, or one that would leave no command behind, is reported as given.
+A prelude that another extension writes ahead of a command is left out of the widget, the notices, the `/bash-jobs` rows, and the log header. A prelude runs from a `# mpi-prelude-start ...` line through its `# mpi-prelude-end` line, and [mpi-command-router](../mpi-command-router/README.md) writes one for the `PATH` wrappers it injects. Pi's `shellCommandPrefix` in front of a prelude goes with it. The shell still receives the full command. An unterminated prelude, or one that would leave no command behind, is reported as given.
 
 When a background command ends, the chat shows a `Background job finished · PID <pid>` heading, how long it ran, the command, and, if there is output, a rule then the last 10 lines with their log line numbers. Earlier output is marked `… N lines omitted (full log at <path>)`.
 
@@ -191,15 +191,15 @@ A command that finishes in the foreground never touches the disk: its whole outp
 | `<tmpdir>/mpi-bash-<pid>-<n>.log` | **Everything**, foreground part included. Read it to see the full output. |
 | Completion notice | The last 2000 bytes, plus the log path. |
 
-After the process exits and stdout/stderr have drained, it leaves the running list. `/bash-logs` disables termination while the log finishes writing. The completion notice is sent after the log stream finishes or fails. At delivery, the log is fully written or the notice contains `logError`. Command elapsed time excludes this write wait.
+After the process exits and stdout/stderr have drained, it leaves the running list. `/bash-jobs` disables termination while the log finishes writing. The completion notice is sent after the log stream finishes or fails. At delivery, the log is fully written or the notice contains `logError`. Command elapsed time excludes this write wait.
 
-A detached command's log outlives it, so `/bash-logs` can still open it; logs older than seven days are removed when a session starts. If the log cannot be written, the failure is named in the completion notice and the command keeps running.
+A detached command's log outlives it, so `/bash-jobs` can still open it; logs older than seven days are removed when a session starts. If the log cannot be written, the failure is named in the completion notice and the command keeps running.
 
 The foreground part is replayed from memory, which is capped at 4 MB. A command that prints more than that before detaching loses its earliest output, and the log opens with `[mpi-bash] earlier output dropped`.
 
-## `/bash-logs`
+## `/bash-jobs`
 
-`/bash-logs` lists this session's background commands. Running jobs come first, then the last 50 that finished. The top of the overlay is the list. The bottom is a live tail of the selected log, about 60% of the terminal height. Rows are keyed by pid, so running the same command twice gives two rows.
+`/bash-jobs` lists this session's background commands. Running jobs come first, then the last 50 that finished. The top of the overlay is the list. The bottom is a live tail of the selected log, about 60% of the terminal height. Rows are keyed by pid, so running the same command twice gives two rows.
 
 ```text
 ╭ 2/4 running ── Bash logs ─────────────────────────────────────────╮
@@ -239,7 +239,7 @@ Press `x` and the hint becomes `kill job #<pid> and its children? y confirms, an
 
 The preview loads at most the last 200000 bytes. If it skipped earlier output, the first line says so. `Ctrl+E` or `v` closes the overlay and opens the log file in `$VISUAL`/`$EDITOR`. The TUI stops while the editor runs and starts again when it exits. If the editor cannot start, a notification names the failure.
 
-`/bash-logs` does not send log text to the model. History is per tab and lasts for the session.
+`/bash-jobs` does not send log text to the model. History is per tab and lasts for the session.
 
 ## Limits
 

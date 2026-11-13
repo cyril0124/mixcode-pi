@@ -55,7 +55,7 @@ function detachNotice(text: string): string {
   return text.slice(text.indexOf("[mpi-bash]"));
 }
 
-test("/bash-logs lists this session's runs and opens the selected log", async () => {
+test("/bash-jobs lists this session's runs and opens the selected log", async () => {
   const handlers: Record<string, Array<(event: unknown, ctx: unknown) => unknown>> = {};
   const commands: Record<string, (args: string, ctx: unknown) => Promise<void>> = {};
   const notices: string[] = [];
@@ -113,8 +113,8 @@ test("/bash-logs lists this session's runs and opens the selected log", async ()
       sendMessage: (message: { content: string }) => exits.push(message.content),
     } as never);
 
-    const bashLogs = commands["bash-logs"];
-    assert.ok(bashLogs, "the extension must register /bash-logs");
+    const bashLogs = commands["bash-jobs"];
+    assert.ok(bashLogs, "the extension must register /bash-jobs");
 
     // Nothing has run yet: the command must say so instead of opening an overlay.
     await bashLogs("", { ui });
@@ -235,7 +235,7 @@ test("the pager follows a live log and leaves a finished one alone", async () =>
     const logPath = /(\/\S*mpi-bash-[\w-]+\.log)/.exec(started?.content[0]?.text ?? "")?.[1];
     assert.ok(logPath, `the detach notice must name the log: ${started?.content[0]?.text}`);
 
-    void commands["bash-logs"]?.("", { ui });
+    void commands["bash-jobs"]?.("", { ui });
     await waitFor(() =>
       screen().includes("alpha\n") || screen().includes("3  alpha") ? true : undefined,
     );
@@ -247,7 +247,7 @@ test("the pager follows a live log and leaves a finished one alone", async () =>
     // Wait until the command finishes and reports exit before opening the finished log.
     pager = undefined;
     await waitFor(() => (exits.length > 0 ? true : undefined));
-    void commands["bash-logs"]?.("", { ui });
+    void commands["bash-jobs"]?.("", { ui });
     await waitFor(() => (screen().includes("beta") ? true : undefined));
     fs.appendFileSync(logPath, "appended after the run ended\n");
     // Twice the pager's one-second refresh: long enough for a re-read to land.
@@ -358,7 +358,7 @@ test("the widget spends one line per run at any width", () => {
 
   const [header] = renderBackgroundWidget(runs, theme, 80, now);
   const [, first, second] = renderBackgroundWidget(runs, theme, 40, now);
-  assert.match(header ?? "", /○ Jobs · 2 running · \/bash-logs to inspect/);
+  assert.match(header ?? "", /○ Jobs · 2 running · \/bash-jobs to inspect/);
   assert.match(first ?? "", /├ ⠋ 1m12s bun run check/);
   assert.match(first ?? "", /#2/);
   assert.match(second ?? "", /└ ⠹ 5s printf "x+/);
@@ -699,7 +699,7 @@ test("two detached runs never share a log file", async () => {
   await waitFor(() => (runs.length === 2 ? runs : undefined));
 
   // Pids are reused, so the pid alone would let a new command truncate a
-  // finished run's log while `/bash-logs` still points at it.
+  // finished run's log while `/bash-jobs` still points at it.
   assert.notEqual(runs[0]?.logPath, runs[1]?.logPath);
   assert.match(runs[0]?.tail ?? "", /first/);
   assert.match(runs[1]?.tail ?? "", /second/);
