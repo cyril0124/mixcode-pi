@@ -83,7 +83,7 @@ export function stripCommandPrelude(command: string, commandPrefix?: string): st
 /** Idle window after `exit` before stdio is considered drained (pi's grace). */
 const EXIT_STDIO_GRACE_MS = 100;
 
-export const BASH_EXECUTION_POLICY = `Bash execution policy: the bash tool applies a default timeout of ${BASH_DEFAULT_TIMEOUT_SECONDS} seconds when the timeout argument is omitted. The timeout covers foreground and background execution; on Unix it starts termination with SIGTERM, followed by SIGKILL after up to ${PROCESS_TREE_TERM_GRACE_MS / 1000} seconds for cleanup. A command still running after a shorter foreground window is moved to the background instead of being killed: the tool result then reports its pid and a log file. Follow it with \`tail\`, stop it with \`kill\`, and never poll in a loop waiting for it - its exit code is delivered to you automatically once it finishes.`;
+export const BASH_EXECUTION_POLICY = `Bash execution policy: the bash tool applies a default timeout of ${BASH_DEFAULT_TIMEOUT_SECONDS} seconds when the timeout argument is omitted. The timeout covers foreground and background execution; on Unix it starts termination with SIGTERM, followed by SIGKILL after up to ${PROCESS_TREE_TERM_GRACE_MS / 1000} seconds for cleanup. A command still running after a shorter foreground window is moved to the background instead of being killed: the tool result then reports its pid and a log file. Follow it with \`tail\`, stop it with \`kill\`. Its exit code is delivered to you automatically as a message that starts a new turn, so never wait with \`sleep\`, a poll loop, or \`tail -f\`: keep working on anything that does not depend on it, and end the turn only when nothing else can proceed.`;
 
 /**
  * Foreground window in seconds. `0` disables detaching, which restores pi's
@@ -113,7 +113,7 @@ function formatDetachNotice(options: {
     `\n[mpi-bash] Still running after ${options.seconds}s - detached to the background (pid ${options.pid ?? "unknown"}).\n` +
     `Its complete output, including everything shown above, is being written to ${options.logPath}.\n` +
     `Follow it with \`tail -n 50 ${options.logPath}\`, stop it with \`kill -- -${options.pid ?? ""}\` (the whole process group).\n` +
-    `Its exit code will be delivered to you automatically; do not poll for it - continue with other work.\n` +
+    `Its exit code is delivered to you automatically as a message that starts a new turn; never wait for it with \`sleep\`, a poll loop, or \`tail -f\`. Work on something that does not depend on it; end the turn only when nothing else can proceed.\n` +
     (options.runningPids ? `${formatRunningJobs(options.runningPids)}\n` : "")
   );
 }
