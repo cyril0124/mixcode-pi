@@ -35,7 +35,7 @@ const cronToolSchema = Type.Object({
   schedule: Type.Optional(
     Type.String({
       description:
-        "When to run. Cron (`0 9 * * *`, `*/15 * * * *`, 6-field with seconds), interval (`5m`, `every 2h`), relative (`+30s`), or an ISO timestamp. Required for add.",
+        "When to run (local time unless the ISO timestamp includes a timezone). Cron (`0 9 * * *`, `*/15 * * * *`, 6-field with seconds), interval (`5m`, `every 2h`), relative (`+30s`), or an ISO timestamp. Required for add.",
     }),
   ),
   prompt: Type.Optional(
@@ -187,10 +187,9 @@ export function createCronTool(
     name: "cron",
     label: "Cron",
     description:
-      "Use this tool when the user requests a reminder, a delayed or future task, a specific run time, or recurring checks. " +
-      "For monitoring requests without an interval, confirm the interval before adding a recurring job. Do not use this tool for work that should happen now. " +
-      "Actions: add (needs schedule + prompt), list, update, remove, enable, disable, fire (run now), cleanup (drop finished jobs). " +
-      "Schedule formats: cron with 5 fields (`0 9 * * *`) or 6 with seconds, interval (`5m`, `every 2h`), relative (`+30s`), or an ISO timestamp. Times are local.",
+      "Manage reminders, delayed tasks, and recurring checks. Add jobs for user-requested future work even without naming cron; ask for a missing time or interval. Do not schedule work due now or unrequested follow-ups.",
+    promptSnippet:
+      "Use cron for user-requested future or recurring work; do not schedule work due now.",
     parameters: cronToolSchema,
     outputSchema: cronToolOutputSchema,
 

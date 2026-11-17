@@ -5,8 +5,8 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import { Value } from "typebox/value";
 import type { ExtensionContext, ExtensionToolContext } from "@earendil-works/pi-coding-agent";
+import { Value } from "typebox/value";
 import { createCronTool, deriveJobName, findJob, isInsideScheduledRun } from "./tool.js";
 import type { CronJob } from "./types.js";
 
@@ -171,6 +171,14 @@ describe("isInsideScheduledRun", () => {
     ).toBe(false);
     // An unrelated custom entry is never a fired prompt.
     expect(isInsideScheduledRun(context([{ type: "custom", customType: "other" }]))).toBe(false);
+  });
+});
+
+describe("cron tool discovery", () => {
+  test("provides a prompt snippet for tool discovery", () => {
+    const tool = createCronTool(() => makeHub().hub as never);
+
+    expect(tool.promptSnippet).toBeTruthy();
   });
 });
 
