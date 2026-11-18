@@ -13,7 +13,7 @@ MixCode 直接使用 [Pi fork](vendor/pi) 作为 CLI 与交互宿主。当前仓
 - **文件选择器。** 用 `/fzf` 将文件相对路径追加到草稿末尾。[用法](pi-packages/mpi-fzf/README.zh.md)。
 - **嵌套工具调用转录。** `/transcript chatlog` 显示 `codemode` 等工具内部已记录的调用。[详情](pi-packages/mpi-transcript/README.zh.md#嵌套工具调用)。
 - **循环防护。** 正常分页读取保持安静；反复执行固定调用序列时发送提醒。[详情](pi-packages/mpi-stuck-guard/README.zh.md#doom-loop)。
-- **助手响应计时。** footer 显示整次运行耗时与本轮每条助手消息的实时平均生成耗时。[详情](pi-packages/mpi-working-timer/README.zh.md)。
+- **助手响应计时。** footer 显示整次运行耗时与本轮每条助手消息的实时平均响应耗时。[详情](pi-packages/mpi-working-timer/README.zh.md)。
 
 ## 安装
 

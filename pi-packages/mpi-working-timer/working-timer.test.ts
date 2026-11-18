@@ -23,8 +23,7 @@ interface SessionHarness {
   writes: StatusWrite[];
   latest(): string | undefined;
   fire(event: string, payload?: unknown): void;
-  /** Emit an event the package deliberately ignores (e.g. `agent_end`). */
-  emit(event: string): void;
+  emitIfHandled(event: string): void;
 }
 
 interface Harness extends SessionHarness {
@@ -91,7 +90,7 @@ function createHarness(startMs = 1_000_000, host: "mixcode" | "pi" = "mixcode"):
         assert.ok(handler, `no handler registered for ${event}`);
         handler(payload ?? {}, ctx);
       },
-      emit: (event) => {
+      emitIfHandled: (event) => {
         handlers.get(event)?.({}, ctx);
       },
     };
@@ -560,7 +559,7 @@ test("holds the running clock across agent loops and settles it once agent_settl
 
     // An auto-retry / compaction / continuation run ends one agent loop without
     // ending the run: the clock keeps counting into the next loop.
-    harness.emit("agent_end");
+    harness.emitIfHandled("agent_end");
     assert.equal(harness.latest(), "⏱ 3s · 0s idle");
 
     harness.advance(2_000);
@@ -658,18 +657,19 @@ test("averages completed assistant messages within one run without counting othe
 });
 
 for (const host of ["mixcode", "pi"] as const) {
-  test(`${host} refreshes the current run's average while streaming and resets it for the next run`, () => {
+  test(`${host} times model requests before and during streaming`, () => {
     const harness = createHarness(undefined, host);
     try {
       const assistant = fauxAssistantMessage("Streaming reply");
       harness.fire("session_start");
       harness.fire("agent_start");
       assert.equal(harness.latest(), "⏱ 0s · 0s idle");
-      harness.fire("message_start", { message: assistant });
-      assert.equal(harness.latest(), "⏱ 0s · avg 0s/msg · 0s idle");
+      harness.emitIfHandled("context");
 
       harness.advance(2_500);
       harness.tick();
+      assert.equal(harness.latest(), "⏱ 2s · avg 2s/msg · 2s idle");
+      harness.fire("message_start", { message: assistant });
       assert.equal(harness.latest(), "⏱ 2s · avg 2s/msg · 2s idle");
       harness.advance(1_500);
       harness.fire("message_update");
@@ -681,13 +681,17 @@ for (const host of ["mixcode", "pi"] as const) {
       assert.equal(harness.latest(), "⏱ 10s · avg 4s/msg · 6s idle");
       harness.fire("tool_execution_end");
 
-      harness.emit("agent_end");
+      harness.emitIfHandled("agent_end");
       harness.fire("agent_start");
       assert.equal(harness.latest(), "⏱ 10s · avg 4s/msg · 0s idle");
       assert.equal(harness.liveTickerCount(), 1);
-      harness.fire("message_start", { message: assistant });
+      harness.emitIfHandled("context");
       assert.equal(harness.latest(), "⏱ 10s · avg 2s/msg · 0s idle");
-      harness.advance(8_000);
+      harness.advance(6_000);
+      harness.tick();
+      assert.equal(harness.latest(), "⏱ 16s · avg 5s/msg · 6s idle");
+      harness.fire("message_start", { message: assistant });
+      harness.advance(2_000);
       harness.tick();
       assert.equal(harness.latest(), "⏱ 18s · avg 6s/msg · 8s idle");
       harness.fire("message_end", { message: assistant });
@@ -710,7 +714,7 @@ for (const host of ["mixcode", "pi"] as const) {
       assert.equal(harness.latest(), `✔ done 12s · avg 12s/msg at ${formatClockTime(1_031_000)}`);
 
       harness.fire("agent_start");
-      harness.fire("message_start", { message: assistant });
+      harness.emitIfHandled("context");
       harness.advance(9_000);
       harness.tick();
       assert.equal(harness.latest(), "⏱ 9s · avg 9s/msg · 9s idle");

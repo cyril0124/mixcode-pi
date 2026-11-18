@@ -3,6 +3,7 @@ import { sessionEntryToContextMessages } from "@earendil-works/pi-coding-agent";
 import type {
   AgentSettledEvent,
   AgentStartEvent,
+  ContextEvent,
   ExtensionAPI,
   ExtensionContext,
   ExtensionFactory,
@@ -142,10 +143,10 @@ interface WorkingTimerState {
   workingSince?: number;
   /** Epoch ms the last streaming activity occurred in the current run (message_update, tool events). */
   lastActivityAt?: number;
-  /** Epoch ms the current assistant message started, absent when none is in flight. */
-  assistantMessageStartedAt?: number;
-  totalAssistantDurationMs: number;
-  assistantMessageCount: number;
+  /** Start time for the pending or streaming assistant response. */
+  assistantTimingStartedAtMs?: number;
+  completedAssistantDurationMs: number;
+  completedAssistantMessageCount: number;
   /** Last settled run or restored visible message, absent when neither exists. */
   settled?: {
     /** Wall-clock run duration, unavailable when restoring message history. */
@@ -159,11 +160,11 @@ interface WorkingTimerState {
 
 /** Return the status text, or undefined to clear the footer entry. */
 function workingTimerText(state: WorkingTimerState, now: number): string | undefined {
-  const { workingSince, lastActivityAt, settled, assistantMessageStartedAt } = state;
-  let totalDurationMs = state.totalAssistantDurationMs;
-  let messageCount = state.assistantMessageCount;
-  if (workingSince !== undefined && assistantMessageStartedAt !== undefined) {
-    totalDurationMs += Math.max(0, now - assistantMessageStartedAt);
+  const { workingSince, lastActivityAt, settled, assistantTimingStartedAtMs } = state;
+  let totalDurationMs = state.completedAssistantDurationMs;
+  let messageCount = state.completedAssistantMessageCount;
+  if (workingSince !== undefined && assistantTimingStartedAtMs !== undefined) {
+    totalDurationMs += Math.max(0, now - assistantTimingStartedAtMs);
     messageCount++;
   }
   const average =
@@ -200,7 +201,10 @@ const extension: ExtensionFactory = (pi: ExtensionAPI) => {
     const sessionId = sessionIdOf(ctx);
     const existing = states.get(sessionId);
     if (existing) return existing;
-    const created: WorkingTimerState = { totalAssistantDurationMs: 0, assistantMessageCount: 0 };
+    const created: WorkingTimerState = {
+      completedAssistantDurationMs: 0,
+      completedAssistantMessageCount: 0,
+    };
     states.set(sessionId, created);
     return created;
   };
@@ -229,9 +233,9 @@ const extension: ExtensionFactory = (pi: ExtensionAPI) => {
   const resetState = (state: WorkingTimerState): void => {
     state.workingSince = undefined;
     state.lastActivityAt = undefined;
-    state.assistantMessageStartedAt = undefined;
-    state.totalAssistantDurationMs = 0;
-    state.assistantMessageCount = 0;
+    state.assistantTimingStartedAtMs = undefined;
+    state.completedAssistantDurationMs = 0;
+    state.completedAssistantMessageCount = 0;
     state.settled = undefined;
   };
 
@@ -268,26 +272,31 @@ const extension: ExtensionFactory = (pi: ExtensionAPI) => {
     render(ctx);
   };
 
-  pi.on("turn_start", (_event: TurnStartEvent, ctx) => recordActivity(ctx));
-  pi.on("message_start", (event: MessageStartEvent, ctx) => {
-    if (event.message.role !== "assistant") return;
-    const state = stateFor(ctx);
-    if (state.workingSince === undefined) return;
+  const startAssistantTiming = (ctx: ExtensionContext): void => {
+    const state = states.get(sessionIdOf(ctx));
+    if (state?.workingSince === undefined) return;
 
-    state.assistantMessageStartedAt = Date.now();
+    state.assistantTimingStartedAtMs ??= Date.now();
     render(ctx);
+  };
+
+  pi.on("turn_start", (_event: TurnStartEvent, ctx) => recordActivity(ctx));
+  // The session context hook runs before the provider opens the response stream.
+  pi.on("context", (_event: ContextEvent, ctx) => startAssistantTiming(ctx));
+  pi.on("message_start", (event: MessageStartEvent, ctx) => {
+    if (event.message.role === "assistant") startAssistantTiming(ctx);
   });
   pi.on("message_update", (_event: MessageUpdateEvent, ctx) => recordActivity(ctx));
   pi.on("message_end", (event: MessageEndEvent, ctx) => {
     if (event.message.role !== "assistant") return;
     const state = states.get(sessionIdOf(ctx));
     if (state?.workingSince === undefined) return;
-    const startedAt = state.assistantMessageStartedAt;
-    if (startedAt === undefined) return;
+    const startedAtMs = state.assistantTimingStartedAtMs;
+    if (startedAtMs === undefined) return;
 
-    state.assistantMessageStartedAt = undefined;
-    state.totalAssistantDurationMs += Math.max(0, Date.now() - startedAt);
-    state.assistantMessageCount++;
+    state.assistantTimingStartedAtMs = undefined;
+    state.completedAssistantDurationMs += Math.max(0, Date.now() - startedAtMs);
+    state.completedAssistantMessageCount++;
     render(ctx);
   });
   pi.on("tool_execution_start", (_event: ToolExecutionStartEvent, ctx) => recordActivity(ctx));
@@ -305,7 +314,7 @@ const extension: ExtensionFactory = (pi: ExtensionAPI) => {
       };
       state.workingSince = undefined;
       state.lastActivityAt = undefined;
-      state.assistantMessageStartedAt = undefined;
+      state.assistantTimingStartedAtMs = undefined;
     }
     render(ctx);
   });

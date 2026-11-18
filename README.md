@@ -13,7 +13,7 @@ MixCode runs the [Pi fork](vendor/pi) as its CLI and interactive host. This repo
 - **File picker.** Use `/fzf` to append a relative file path to the draft. [Usage](pi-packages/mpi-fzf/README.md).
 - **Nested tool transcript.** `/transcript chatlog` shows recorded calls made inside `codemode` and other tools. [Details](pi-packages/mpi-transcript/README.md#nested-tool-calls).
 - **Loop protection.** Normal read pagination stays quiet; repeated call sequences receive advisory reminders. [Details](pi-packages/mpi-stuck-guard/README.md#doom-loop).
-- **Assistant response timing.** The footer shows elapsed run time and a live average generation time per assistant message in the current run. [Details](pi-packages/mpi-working-timer/README.md).
+- **Assistant response timing.** The footer shows elapsed run time and a live average response time per assistant message in the current run. [Details](pi-packages/mpi-working-timer/README.md).
 
 ## Install
 

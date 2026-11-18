@@ -8,8 +8,8 @@ Shows elapsed run time, average assistant-message duration, and the restored ses
 
 | State | Footer entry |
 | --- | --- |
-| run in flight, no assistant message started | `⏱ <elapsed>` or `⏱ <elapsed> · <idle> idle` |
-| run in flight, with an active or completed assistant message | `⏱ 12s · avg 4s/msg · 2s idle` |
+| run in flight, before the first model request | `⏱ <elapsed>` or `⏱ <elapsed> · <idle> idle` |
+| run in flight, with an active request or completed assistant message | `⏱ 12s · avg 4s/msg · 2s idle` |
 | run settled, no completed assistant messages | `✔ done <duration> at <local YYYY-MM-DD HH:MM:SS>` |
 | run settled, with completed assistant messages | `✔ done 18s · avg 4s/msg at 2026-10-03 15:39:00` |
 | run aborted by the user | `✋ aborted 4s at 2026-10-03 15:39:00` |
@@ -18,11 +18,11 @@ Shows elapsed run time, average assistant-message duration, and the restored ses
 
 The idle suffix appears once a run is in flight. It shows how long since the last streaming activity (`turn_start`, `message_update`, `tool_execution_start`, or `tool_execution_end`), resetting to zero on each event and growing during silent stretches such as long tool calls.
 
-`avg` is the mean assistant-message duration in the current run. It combines the measured durations from assistant `message_start` to `message_end` with the elapsed time of the currently streaming assistant message, counting that active message once. Streaming updates and the 1s ticker refresh the value; tool execution between assistant messages and time before streaming starts do not increase it.
+`avg` is the mean assistant-message duration in the current run. Each sample starts as Pi prepares the request context and ends at the assistant's `message_end`. It includes time spent waiting for the provider and receiving the stream. Streaming updates and the 1s ticker refresh the active sample. Between model requests, including during tool execution, the average uses completed samples.
 
-A new run clears the previous average, and the first assistant `message_start` shows `avg 0s/msg`. Retry, recovery, compaction, and queued continuations before `agent_settled` keep the same run's average. At settlement, only completed messages remain in the average; an unfinished message is discarded. Measurements stay in memory and are cleared on reload or branch navigation.
+A new run clears the previous average. The first request starts at `avg 0s/msg`. Retry, recovery, compaction, and queued continuations before `agent_settled` keep the same run's average. At settlement, the average uses only completed samples. Measurements stay in memory and are cleared on reload or branch navigation.
 
-Starting another assistant message adds a sample with zero elapsed time, so the average can initially decrease. The mean is calculated in milliseconds and then floored to whole seconds; consecutive refreshes can therefore display the same value.
+A new request adds a sample with zero elapsed time, so the average can initially decrease. The mean is calculated in milliseconds and then floored to whole seconds; consecutive refreshes can therefore display the same value.
 
 All durations floor to whole seconds and render as `7s`, `2m 05s`, or `1h 02m 03s`. The finish stamp is local time, the same shape as the transcript's `Worked for 7s · at <stamp>` line.
 
@@ -54,8 +54,8 @@ Both hosts render the joined status line into the terminal width, so on a narrow
 State and tickers are keyed by session id: one extension instance can observe several sessions (MixCode reuses extension services for in-tab session replacement), so a run started for one session never renders into another or stops another session's ticker. `session_shutdown` deletes only its own state.
 
 - `session_start` and `session_tree`: stop any interval, reset run state and the in-memory average, and restore the last visible message's timestamp from the selected branch. Remove the entry when no visible message with a finite timestamp exists.
-- `agent_start`: clears measurements when a new run starts. Stamps the clock with `??=`, so agent loops belonging to one run (auto-retry, recovery, compaction, queued continuation) keep their elapsed time and average.
-- Assistant `message_start` adds a live sample to the average. A matching `message_end` commits its duration without counting it twice. Other message roles do not affect it.
+- `agent_start`: clears measurements at the start of a run. Subsequent agent loops in the same run keep the elapsed time and average.
+- `context` starts a live sample as Pi prepares the model request. Assistant `message_start` continues that sample or starts one if needed. Assistant `message_end` commits its duration.
 - During a run, `turn_start`, `message_update`, `tool_execution_start`, and `tool_execution_end` refresh the text and reset the idle counter. A 1s interval keeps both the elapsed and idle durations moving through long silent tool calls.
 - `agent_settled`: stops the interval and switches to `✔ done <duration> at <stamp>`, or `✋ aborted <duration> at <stamp>` when `event.aborted` is true.
 - `session_shutdown`: stops the interval and removes the entry.
