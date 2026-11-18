@@ -70,6 +70,26 @@ import win32Arm64Helper from "../vendor/pi/packages/tui/native/win32/prebuilds/w
 import win32X64Helper from "../vendor/pi/packages/tui/native/win32/prebuilds/win32-x64/win32-platform.node" with {
   type: "file",
 };
+import codexRelayIndex from "../pi-packages/mpi-codex-relay/index.ts" with { type: "text" };
+import codexRelayPackageJson from "../pi-packages/mpi-codex-relay/package.json" with {
+  type: "text",
+};
+import codexRelayReadme from "../pi-packages/mpi-codex-relay/README.md" with { type: "text" };
+import codexRelayReadmeZh from "../pi-packages/mpi-codex-relay/README.zh.md" with {
+  type: "text",
+};
+import codexRelayToml from "../pi-packages/mpi-codex-relay/vendor/smol-toml.js" with {
+  type: "text",
+};
+import codexRelayTomlTypes from "../pi-packages/mpi-codex-relay/vendor/smol-toml.d.ts" with {
+  type: "text",
+};
+import codexRelayTomlLicense from "../pi-packages/mpi-codex-relay/vendor/SMOL-TOML-LICENSE" with {
+  type: "text",
+};
+import codexRelayTomlNotice from "../pi-packages/mpi-codex-relay/vendor/SMOL-TOML-NOTICE" with {
+  type: "text",
+};
 import diffViewerIndex from "../pi-packages/mpi-diff-viewer/index.ts" with { type: "text" };
 import diffViewerSessionDiff from "../pi-packages/mpi-diff-viewer/session-diff.ts" with {
   type: "text",
@@ -543,6 +563,16 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
   codingAgentDocs,
   forkExamples,
   builtinPackages: {
+    "mpi-codex-relay": {
+      "index.ts": codexRelayIndex,
+      "package.json": codexRelayPackageJson,
+      "README.md": codexRelayReadme,
+      "README.zh.md": codexRelayReadmeZh,
+      "vendor/smol-toml.js": codexRelayToml,
+      "vendor/smol-toml.d.ts": codexRelayTomlTypes,
+      "vendor/SMOL-TOML-LICENSE": codexRelayTomlLicense,
+      "vendor/SMOL-TOML-NOTICE": codexRelayTomlNotice,
+    },
     "mpi-diff-viewer": {
       "index.ts": diffViewerIndex,
       "session-diff.ts": diffViewerSessionDiff,

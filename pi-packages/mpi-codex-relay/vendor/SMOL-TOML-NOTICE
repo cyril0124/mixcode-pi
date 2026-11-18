@@ -1,0 +1,8 @@
+smol-toml 1.9.1
+https://github.com/squirrelchat/smol-toml
+https://www.npmjs.com/package/smol-toml/v/1.9.1
+License: BSD-3-Clause; see SMOL-TOML-LICENSE.
+
+smol-toml.js bundles the published dist/parse.js entry and its dependencies.
+Built with: bun build ./dist/parse.js --target=node --format=esm --minify --outfile smol-toml.js
+smol-toml.d.ts declares the parser signature used by this extension.

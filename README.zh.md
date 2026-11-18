@@ -2,13 +2,14 @@
 
 [English](README.md)
 
-MixCode 直接使用 [Pi fork](vendor/pi) 作为 CLI 与交互宿主。当前仓库负责单文件二进制的构建、安装，以及 [`pi-packages/`](pi-packages/) 中的 19 个内置扩展。Git 子模块锁定 fork 提交；仓库不再维护另一套宿主实现或 Pi 包补丁。
+MixCode 直接使用 [Pi fork](vendor/pi) 作为 CLI 与交互宿主。当前仓库负责单文件二进制的构建、安装，以及 [`pi-packages/`](pi-packages/) 中的 20 个内置扩展。Git 子模块锁定 fork 提交；仓库不再维护另一套宿主实现或 Pi 包补丁。
 
 ## 核心亮点
 
 - **只安装一个可执行文件。** `install.sh` 仅在所选 `bin/` 安装一个可执行文件（默认名为 `mpi`）；Bun、Node/npm 只在构建时需要。
 - **直接使用 fork 的多标签工作区。** Tab、会话、主题和批处理由固定版本的 fork 提供，不再运行另一套 UI。
-- **内置扩展。** 单文件内嵌 19 个 `mpi-*` 包、技能以及 fork 所需的文档、示例和运行资源。
+- **内置扩展。** 单文件内嵌 20 个 `mpi-*` 包、技能以及 fork 所需的文档、示例和运行资源。
+- **Codex 中转 provider。** 使用本地 Codex 凭据，为中转服务的 Codex 风格端点提供 `codex-relay` provider。[配置](pi-packages/mpi-codex-relay/README.zh.md)。
 - **嵌套工具调用转录。** `/transcript chatlog` 显示 `codemode` 等工具内部已记录的调用。[详情](pi-packages/mpi-transcript/README.zh.md#嵌套工具调用)。
 - **循环防护。** 正常分页读取保持安静；反复执行固定调用序列时发送提醒。[详情](pi-packages/mpi-stuck-guard/README.zh.md#doom-loop)。
 - **助手响应计时。** footer 显示整次运行耗时与本轮每条助手消息的实时平均生成耗时。[详情](pi-packages/mpi-working-timer/README.zh.md)。

@@ -2,13 +2,14 @@
 
 [中文文档](README.zh.md)
 
-MixCode runs the [Pi fork](vendor/pi) as its CLI and interactive host. This repository owns the single-binary build, installer, and 19 built-in extensions in [`pi-packages/`](pi-packages/). The fork revision is pinned by the Git submodule; this repository no longer carries a second host implementation or Pi package patches.
+MixCode runs the [Pi fork](vendor/pi) as its CLI and interactive host. This repository owns the single-binary build, installer, and 20 built-in extensions in [`pi-packages/`](pi-packages/). The fork revision is pinned by the Git submodule; this repository no longer carries a second host implementation or Pi package patches.
 
 ## Highlights
 
 - **One installed executable.** `install.sh` places one executable (named `mpi` by default) in the selected `bin/` directory; Bun and Node/npm are build dependencies, not runtime requirements.
 - **Fork-native multi-tab workspace.** Tabs, sessions, themes, and batch execution run in the pinned fork rather than a separate UI.
-- **Built-in extensions.** The executable embeds 19 `mpi-*` packages, their skills, and the fork's runtime documentation, examples, and assets.
+- **Built-in extensions.** The executable embeds 20 `mpi-*` packages, their skills, and the fork's runtime documentation, examples, and assets.
+- **Codex relay provider.** Adds the `codex-relay` provider for a relay's Codex-style endpoint using local Codex credentials. [Setup](pi-packages/mpi-codex-relay/README.md).
 - **Nested tool transcript.** `/transcript chatlog` shows recorded calls made inside `codemode` and other tools. [Details](pi-packages/mpi-transcript/README.md#nested-tool-calls).
 - **Loop protection.** Normal read pagination stays quiet; repeated call sequences receive advisory reminders. [Details](pi-packages/mpi-stuck-guard/README.md#doom-loop).
 - **Assistant response timing.** The footer shows elapsed run time and a live average generation time per assistant message in the current run. [Details](pi-packages/mpi-working-timer/README.md).

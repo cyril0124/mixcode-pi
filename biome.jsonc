@@ -14,7 +14,8 @@
       "!tmp",
       "!.agents/skills",
       "!.pi",
-      "!pi-packages/mpi-permission/vendor/unbash.js"
+      "!pi-packages/mpi-permission/vendor/unbash.js",
+      "!pi-packages/mpi-codex-relay/vendor/smol-toml.js"
     ]
   },
   "formatter": {

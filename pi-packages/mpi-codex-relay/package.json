@@ -1,0 +1,12 @@
+{
+  "name": "mpi-codex-relay",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Expose a Codex-only relay group to pi using the credentials in ~/.codex/auth.json",
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}
