@@ -130,6 +130,8 @@ import commandRouterReadme from "../pi-packages/mpi-command-router/README.md" wi
 import commandRouterReadmeZh from "../pi-packages/mpi-command-router/README.zh.md" with {
   type: "text",
 };
+import fzfIndex from "../pi-packages/mpi-fzf/index.ts" with { type: "text" };
+import fzfPackageJson from "../pi-packages/mpi-fzf/package.json" with { type: "text" };
 import bashExec from "../pi-packages/mpi-bash/exec.ts" with { type: "text" };
 import bashHeartbeat from "../pi-packages/mpi-bash/heartbeat.ts" with { type: "text" };
 import bashIndex from "../pi-packages/mpi-bash/index.ts" with { type: "text" };
@@ -598,6 +600,10 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
       "package.json": commandRouterPackageJson,
       "README.md": commandRouterReadme,
       "README.zh.md": commandRouterReadmeZh,
+    },
+    "mpi-fzf": {
+      "index.ts": fzfIndex,
+      "package.json": fzfPackageJson,
     },
     "mpi-bash": {
       "index.ts": bashIndex,
