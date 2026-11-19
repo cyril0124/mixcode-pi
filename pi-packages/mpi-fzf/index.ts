@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import type { Component, EditorComponent } from "@earendil-works/pi-tui";
 
 const pickerOptions = [
   "--no-multi",
@@ -39,7 +40,7 @@ function pickFile(cwd: string): Promise<string | undefined> {
   });
 }
 
-async function appendFile(ctx: ExtensionCommandContext): Promise<void> {
+async function insertFile(ctx: ExtensionCommandContext): Promise<void> {
   const path = await ctx.ui.custom<string | undefined>(async (tui, _theme, _keys, done) => {
     tui.stop();
     try {
@@ -50,17 +51,71 @@ async function appendFile(ctx: ExtensionCommandContext): Promise<void> {
     }
     return { render: () => [], invalidate: () => {} };
   });
-  if (path) ctx.ui.setEditorText(ctx.ui.getEditorText() + path);
+  if (path) ctx.ui.pasteToEditor(path);
+}
+
+// The palette submits /fzf separately. Its temporary setText calls would reset the cursor.
+function preservePaletteDraft(editor: EditorComponent): void {
+  const originalSetText = editor.setText;
+  const hadOwnMethod = Object.hasOwn(editor, "setText");
+  const restore = () => {
+    if (editor.setText !== guardedSetText) return;
+    if (hadOwnMethod) editor.setText = originalSetText;
+    else Reflect.deleteProperty(editor, "setText");
+  };
+  let fzfSelected = false;
+  function guardedSetText(text: string): void {
+    if (text === "/fzf") {
+      fzfSelected = true;
+      setImmediate(restore);
+      return;
+    }
+    if (fzfSelected && text === editor.getText()) return;
+    restore();
+    originalSetText.call(editor, text);
+  }
+  editor.setText = guardedSetText;
+  queueMicrotask(() => {
+    if (!fzfSelected) restore();
+  });
 }
 
 export default function fzfExtension(pi: ExtensionAPI): void {
+  let detach: (() => void) | undefined;
+  pi.on("session_start", async (_event, ctx) => {
+    if (ctx.mode !== "tui") return;
+    detach?.();
+    await ctx.ui.custom<void>((tui, _theme, keys, done) => {
+      if (!("getFocusedComponent" in tui) || typeof tui.getFocusedComponent !== "function") {
+        done();
+        return { render: () => [], invalidate: () => {} };
+      }
+      const focused = tui.getFocusedComponent.bind(tui) as () => Component | null;
+      let editor: EditorComponent | undefined;
+      detach = ctx.ui.onTerminalInput((data): undefined => {
+        const focus = focused();
+        if (editor === focus) editor = undefined;
+        if (keys.matches(data, "app.palette")) {
+          if (focus && "setText" in focus && "getText" in focus) editor = focus as EditorComponent;
+          return;
+        }
+        if (!editor || !focus) return;
+
+        preservePaletteDraft(editor);
+      });
+      done();
+      return { render: () => [], invalidate: () => {} };
+    });
+  });
+  pi.on("session_shutdown", () => detach?.());
+
   pi.registerCommand("fzf", {
-    description: "Pick a file and append its path to the draft",
+    description: "Pick a file and insert its path at the cursor",
     handler: async (_args, ctx) => {
       if (ctx.mode !== "tui") throw new Error("/fzf requires an interactive terminal");
       // The command palette restores its draft after the handler returns.
       setImmediate(() => {
-        void appendFile(ctx).catch((error: Error) => ctx.ui.notify(error.message, "error"));
+        void insertFile(ctx).catch((error: Error) => ctx.ui.notify(error.message, "error"));
       });
     },
   });

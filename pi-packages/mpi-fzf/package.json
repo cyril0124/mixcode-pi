@@ -2,7 +2,7 @@
   "name": "mpi-fzf",
   "version": "0.1.0",
   "type": "module",
-  "description": "Append a file path to the editor with /fzf",
+  "description": "Insert a file path at the cursor with /fzf",
   "pi": {
     "extensions": [
       "./index.ts"
