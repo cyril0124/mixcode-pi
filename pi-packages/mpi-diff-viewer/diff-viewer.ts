@@ -1700,6 +1700,7 @@ export class DiffViewer {
   private renderDiffContent(width: number, height: number): string[] {
     if (this.editTarget) {
       const target = this.editTarget;
+      const showSpacer = height >= 6;
       const location =
         target.kind === "all"
           ? "Entire diff"
@@ -1713,8 +1714,11 @@ export class DiffViewer {
           "dim",
           "Enter save • Shift+Enter newline • Ctrl+O intent • Esc cancel",
         ),
-        "",
-        ...this.editor.render(Math.max(10, width - 2)).slice(0, Math.max(1, height - 4)),
+        // Keep the editor's top border and first input line visible in short panes.
+        ...(showSpacer ? [""] : []),
+        ...this.editor
+          .render(Math.max(10, width - 2))
+          .slice(0, Math.max(1, height - (showSpacer ? 4 : 3))),
       ];
     }
     if (this.helpMode) return this.renderHelpContent(width, height);
@@ -1764,8 +1768,25 @@ export class DiffViewer {
 
   render(width: number): string[] {
     const terminalRows = this.config.tui.terminal.rows;
-    const totalHeight = Math.max(8, terminalRows);
-    const boxHeight = Math.max(5, totalHeight - 2);
+    const selected = this.selectedLine();
+    const footerText = this.editTarget
+      ? `Editing ${this.editIntent.toUpperCase()} • Enter save • Shift+Enter newline • Ctrl+O intent • Esc cancel`
+      : this.confirmDiscard
+        ? "Discard review • d discard • Enter/Esc keep reviewing"
+        : this.reviewMode
+          ? "Review comments • j/k select • Enter edit • x delete • Esc close"
+          : this.commentMode
+            ? `Comment mode • ${selected?.side === "old" ? "deleted" : "added"} ${selected?.line ?? "-"} • j/k lines • Ctrl+D/U page • ←/→ side • V range • Enter comment • Esc files`
+            : this.searchMode
+              ? "Type to filter • Enter apply • Esc clear"
+              : width < 112
+                ? `${this.navigatorVisible ? "j/k tree" : "j/k scroll"} • n/p files • v view • ? help • q close`
+                : `${this.navigatorVisible ? "j/k tree" : "j/k scroll"} • n/p files • c line • l file • a all • r review • v view • w wrap • s submit • ? help • q close`;
+    const totalHeight = Math.max(1, terminalRows);
+    const minimumBoxHeight = this.editTarget ? 7 : 3;
+    const footerRowBudget = Math.max(1, totalHeight - 1 - minimumBoxHeight);
+    const footerLines = wrapTextWithAnsi(footerText, Math.max(1, width)).slice(0, footerRowBudget);
+    const boxHeight = Math.max(0, totalHeight - 1 - footerLines.length);
     const showNavigator = this.navigatorVisible && width >= 64;
     const leftInner = showNavigator ? Math.min(36, Math.max(24, Math.floor(width * 0.26))) : 0;
     const rightInner = showNavigator ? Math.max(1, width - leftInner - 3) : Math.max(1, width - 2);
@@ -1817,19 +1838,11 @@ export class DiffViewer {
       theme,
     );
 
-    const selected = this.selectedLine();
-    const footerText = this.editTarget
-      ? `Editing ${this.editIntent.toUpperCase()} • Enter save • Shift+Enter newline • Ctrl+O intent • Esc cancel`
-      : this.confirmDiscard
-        ? "Discard review • d discard • Enter/Esc keep reviewing"
-        : this.reviewMode
-          ? "Review comments • j/k select • Enter edit • x delete • Esc close"
-          : this.commentMode
-            ? `Comment mode • ${selected?.side === "old" ? "deleted" : "added"} ${selected?.line ?? "-"} • j/k lines • Ctrl+D/U page • ←/→ side • V range • Enter comment • Esc files`
-            : this.searchMode
-              ? "Type to filter • Enter apply • Esc clear"
-              : `${this.navigatorVisible ? "j/k tree" : "j/k scroll"} • n/p files • c line • l file • a all • r review • v view • w wrap • s submit • ? help • q close`;
-    let rendered = [header, ...body, fit(theme.fg("dim", footerText), width)];
+    let rendered = [
+      header,
+      ...body.slice(0, boxHeight),
+      ...footerLines.map((line) => fit(theme.fg("muted", line), width)),
+    ].slice(-totalHeight);
     if (this.reviewMode && !this.editTarget) {
       const modalWidth = Math.max(24, Math.min(width - 4, Math.floor(width * 0.72)));
       const modalHeight = Math.max(
