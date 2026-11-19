@@ -64,7 +64,6 @@ async function openDiff(
         width: "100%",
         maxHeight: "100%",
         minWidth: 40,
-        margin: 1,
       },
     },
   );

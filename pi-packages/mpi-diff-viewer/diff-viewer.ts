@@ -217,17 +217,24 @@ function renderPanel(
 function renderSplitBox(
   left: string[] | undefined,
   right: string[],
+  rightTitle: string,
   leftInner: number,
   width: number,
   height: number,
   theme: Theme,
 ): string[] {
   const border = (text: string) => theme.fg("border", text);
+  const paneHeading = (label: string, columns: number) => {
+    const title = truncateToWidth(`─ ${label} `, columns, "", false);
+    return (
+      theme.bold(theme.fg("accent", title)) + border("─".repeat(columns - visibleWidth(title)))
+    );
+  };
   const bodyHeight = Math.max(0, height - 2);
   if (!left) {
     const inner = Math.max(1, width - 2);
     return [
-      `${border("┌")}${border("─".repeat(inner))}${border("┐")}`,
+      `${border("┌")}${paneHeading(rightTitle, inner)}${border("┐")}`,
       ...Array.from(
         { length: bodyHeight },
         (_, index) => `${border("│")}${fit(right[index] ?? "", inner)}${border("│")}`,
@@ -237,7 +244,7 @@ function renderSplitBox(
   }
   const rightInner = Math.max(1, width - leftInner - 3);
   return [
-    `${border("┌")}${border("─".repeat(leftInner))}${border("┬")}${border("─".repeat(rightInner))}${border("┐")}`,
+    `${border("┌")}${paneHeading("Files", leftInner)}${border("┬")}${paneHeading(rightTitle, rightInner)}${border("┐")}`,
     ...Array.from(
       { length: bodyHeight },
       (_, index) =>
@@ -1611,14 +1618,15 @@ export class DiffViewer {
       ]
         .filter(Boolean)
         .join(" ");
-      const prefix = `${connector}${icon} `;
+      const prefix = `${selected ? this.config.theme.fg("accent", "▸") : " "}${connector}${icon} `;
       const commentCount = countReviewCommentsForFile(this.reviewDraft, file.path);
       const commentMarker =
         commentCount > 0 ? this.config.theme.fg("accent", ` ${commentCount}●`) : "";
       const suffix = `${commentMarker}${stats ? ` ${stats}` : ""}`;
       const nameWidth = Math.max(1, width - visibleWidth(prefix) - visibleWidth(suffix));
-      const name = truncateToWidth(row.label, nameWidth, "…", true);
-      const rendered = fit(`${prefix}${this.config.theme.fg(tone, name)}${suffix}`, width);
+      const name = truncateToWidth(row.label, nameWidth, "…", false);
+      const gap = " ".repeat(Math.max(0, width - visibleWidth(prefix + name + suffix)));
+      const rendered = fit(`${prefix}${name}${gap}${suffix}`, width);
       lines.push(selected ? this.config.theme.bg("selectedBg", rendered) : rendered);
     });
 
@@ -1796,6 +1804,13 @@ export class DiffViewer {
     const body = renderSplitBox(
       showNavigator ? this.renderNavigatorContent(leftInner, boxHeight - 2) : undefined,
       this.renderDiffContent(rightInner, boxHeight - 2),
+      this.editTarget
+        ? "Comment"
+        : this.helpMode
+          ? "Help"
+          : this.viewMode === "unified"
+            ? "Unified"
+            : "Side by side",
       leftInner,
       width,
       boxHeight,
