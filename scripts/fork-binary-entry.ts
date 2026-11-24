@@ -417,20 +417,6 @@ import autoRenamePackageJson from "../pi-packages/mpi-auto-rename/package.json" 
 import autoRenameSchemaJson from "../pi-packages/mpi-auto-rename/mpi-auto-rename.schema.json" with {
   type: "text",
 };
-import optimizePromptIndex from "../pi-packages/mpi-optimize-prompt/index.ts" with { type: "text" };
-import optimizePromptCore from "../pi-packages/mpi-optimize-prompt/core.ts" with { type: "text" };
-import optimizePromptConfig from "../pi-packages/mpi-optimize-prompt/config.ts" with {
-  type: "text",
-};
-import optimizePromptConfigOverlay from "../pi-packages/mpi-optimize-prompt/config-overlay.ts" with {
-  type: "text",
-};
-import optimizePromptPackageJson from "../pi-packages/mpi-optimize-prompt/package.json" with {
-  type: "text",
-};
-import optimizePromptSchemaJson from "../pi-packages/mpi-optimize-prompt/mpi-optimize-prompt.schema.json" with {
-  type: "text",
-};
 import modelAttachIndex from "../pi-packages/mpi-model-attach/index.ts" with { type: "text" };
 import modelAttachCore from "../pi-packages/mpi-model-attach/model-attach-core.ts" with {
   type: "text",
@@ -767,14 +753,6 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
       "config-overlay.ts": autoRenameConfigOverlay,
       "package.json": autoRenamePackageJson,
       "mpi-auto-rename.schema.json": autoRenameSchemaJson,
-    },
-    "mpi-optimize-prompt": {
-      "index.ts": optimizePromptIndex,
-      "core.ts": optimizePromptCore,
-      "config.ts": optimizePromptConfig,
-      "config-overlay.ts": optimizePromptConfigOverlay,
-      "package.json": optimizePromptPackageJson,
-      "mpi-optimize-prompt.schema.json": optimizePromptSchemaJson,
     },
     "mpi-model-attach": {
       "index.ts": modelAttachIndex,
