@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { stripVTControlCharacters } from "node:util";
+import { visibleWidth } from "@earendil-works/pi-tui";
 import { createPromptHistoryBrowserComponent } from "./prompt-history-browser.js";
 
 const theme = {
+  getBgAnsi: (_color: string) => "\x1b[43m",
+  bg: (_color: string, text: string) => text,
   bold: (s: string) => s,
   fg: (_color: string, text: string) => text,
 };
@@ -108,6 +112,113 @@ test("Up from first item wraps to last, Down from last wraps to first", () => {
 // ─── Scope toggle (Ctrl+G) ───────────────────────────────────────────────────
 
 const CTRL_G = "\x07";
+const MATCH_BG = "\x1b[43m";
+const MATCH_FG = "\x1b[30m";
+
+function highlightedText(line: string): string[] {
+  return line
+    .split(MATCH_BG)
+    .slice(1)
+    .map((span) => stripVTControlCharacters(span.split(/\x1b\[(?:49|0)m/, 1)[0] ?? ""));
+}
+
+test("visible regex matches get a theme background as the search and scope change", async () => {
+  const results: Array<string | null> = [];
+  const original = "İ中文 ALpha\nalpha " + "alpha ".repeat(20);
+  const unicodePrompt = "Family 👩‍👩‍👧‍👧";
+  const browser = createPromptHistoryBrowserComponent({
+    tui: { terminal: { columns: 80, rows: 24 }, requestRender() {} },
+    theme: {
+      fg: (token: string, text: string) => {
+        if (token === "searchMatchText") return `${MATCH_FG}${text}\x1b[39m`;
+        return `\x1b[36m${text}\x1b[39m`;
+      },
+      getBgAnsi: (token: string) => {
+        assert.equal(token, "searchMatchBg");
+        return MATCH_BG;
+      },
+      bg: (token: string, text: string) => {
+        assert.equal(token, "searchMatchBg");
+        return `${MATCH_BG}${text}\x1b[49m`;
+      },
+    } as never,
+    items: [{ text: unicodePrompt }, { text: "Earlier alpha" }, { text: original }],
+    loadGlobalItems: async () => [{ text: "Global ALPHA" }],
+    done: (result) => results.push(result),
+  });
+
+  browser.handleInput("/");
+  browser.handleInput("alpha");
+  const rows = browser.render(80);
+  const originalRow = rows.find((line) => line.includes("İ中文")) ?? "";
+  assert.deepEqual(highlightedText(originalRow).slice(0, 2), ["ALpha", "alpha"]);
+  assert.deepEqual(highlightedText(rows.find((line) => line.includes("Earlier")) ?? ""), ["alpha"]);
+  assert.ok(originalRow.includes(MATCH_BG + MATCH_FG));
+
+  browser.handleInput("\x7f");
+  assert.deepEqual(highlightedText(browser.render(80).find((line) => line.includes("Earlier")) ?? ""), ["alph"]);
+  const narrow = browser.render(20).find((line) => line.includes("İ中文")) ?? "";
+  assert.equal(visibleWidth(narrow), 20);
+  assert.deepEqual(highlightedText(narrow), ["AL"]);
+  assert.match(narrow, /\x1b\[0m\.\.\./);
+
+  browser.handleInput(CTRL_G);
+  assert.match(stripVTControlCharacters(browser.render(80).join("\n")), /Loading global history/);
+  await new Promise((resolve) => setImmediate(resolve));
+  const globalRow = browser.render(80).find((line) => line.includes("Global ") && line.includes(MATCH_BG));
+  assert.deepEqual(highlightedText(globalRow ?? ""), ["ALPH"]);
+  browser.handleInput(CTRL_G);
+  browser.handleInput("\x1b");
+  assert.ok(browser.render(80).every((line) => !line.includes(MATCH_BG)));
+
+  browser.handleInput("/");
+  browser.handleInput("👩");
+  const unicodeRow = browser.render(80).find((line) => line.includes("Family")) ?? "";
+  assert.deepEqual(highlightedText(unicodeRow), ["👩‍👩‍👧‍👧"]);
+
+  browser.handleInput("\x1b");
+  browser.handleInput("/");
+  browser.handleInput("(?=alpha)");
+  assert.ok(browser.render(80).every((line) => !line.includes(MATCH_BG)));
+  browser.handleInput("\r");
+  assert.deepEqual(results, [original]);
+});
+
+test("search highlights with a background when the theme does not supply one", () => {
+  const browser = createPromptHistoryBrowserComponent({
+    tui: { terminal: { columns: 80, rows: 24 }, requestRender() {} },
+    theme: { ...theme, getBgAnsi: () => "\x1b[49m" } as never,
+    items: [{ text: "Before alpha after" }],
+    done() {},
+  });
+
+  browser.handleInput("/");
+  browser.handleInput("alpha");
+  const row = browser.render(80).find((line) => line.includes("Before")) ?? "";
+  assert.match(row, /Before \x1b\[30;103malpha\x1b\[39;49m after/);
+});
+
+test("search styles only the visible prefix of a long non-ASCII prompt", () => {
+  const styledMatches: string[] = [];
+  const browser = createPromptHistoryBrowserComponent({
+    tui: { terminal: { columns: 80, rows: 24 }, requestRender() {} },
+    theme: {
+      ...theme,
+      bg: (_token: string, text: string) => {
+        styledMatches.push(text);
+        return `${MATCH_BG}${text}\x1b[49m`;
+      },
+    } as never,
+    items: [{ text: "中文".repeat(10_000) }],
+    done() {},
+  });
+
+  browser.handleInput("/");
+  browser.handleInput("中");
+  const row = browser.render(80).find((line) => line.includes(MATCH_BG)) ?? "";
+  assert.ok(highlightedText(row).length > 0);
+  assert.ok(styledMatches.length <= 40, `Styled ${styledMatches.length} matches for 80 columns`);
+});
 
 function makeBrowser(options: {
   items?: Array<{ text: string; timestamp?: string }>;

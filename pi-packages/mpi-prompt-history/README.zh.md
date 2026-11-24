@@ -39,7 +39,7 @@ prompt 召回数据文件和锁文件位于 `<agentDir>/mpi-prompt-history/`（`
 | `/prompt-history` | 以 Session 范围打开浏览器。 |
 | `/prompt-history config` | 编辑下方配置：选 `maxBytes` 输入新大小，或重置为默认值。 |
 
-按 `/` 使用大小写不敏感的 JavaScript 正则表达式搜索。非法表达式会显示在浏览器中。方向键仍可移动。`j`、`k`、`c`、`q` 会写入查询。`Ctrl+G` 在 Session、Workdir、Global 之间循环切换，并保留查询内容。
+按 `/` 使用大小写不敏感的 JavaScript 正则表达式搜索。输入时，可见的匹配文字会实时加上高亮底色。底色由当前主题设定，缺省时使用亮黄色。非法表达式会显示在浏览器中。方向键仍可移动。`j`、`k`、`c`、`q` 会写入查询。`Ctrl+G` 在 Session、Workdir、Global 之间循环切换，并保留查询内容。
 
 | 按键 | 作用 |
 | --- | --- |

@@ -33,7 +33,7 @@ import { Key, matchesKey, truncateToWidth, visibleWidth } from "@earendil-works/
 interface PromptItem {
   index: number; // Sequence number (newest = highest)
   text: string;
-  searchText: string; // Original text for regex matching
+  searchText: string;
   timeDisplay: string; // Formatted time string
 }
 
@@ -113,10 +113,13 @@ function buildItems(rawItems: Array<{ text: string; timestamp?: string }>): Prom
 
 // ─── Search Filter ───────────────────────────────────────────────────────────
 
-function filterItems(
-  items: PromptItem[],
-  rawQuery: string,
-): { items: PromptItem[]; error?: string } {
+interface FilterResult {
+  items: PromptItem[];
+  highlightPattern?: RegExp;
+  error?: string;
+}
+
+function filterItems(items: PromptItem[], rawQuery: string): FilterResult {
   const query = rawQuery.trim();
   if (query === "") return { items };
 
@@ -126,7 +129,10 @@ function filterItems(
   } catch (error: unknown) {
     return { items: [], error: error instanceof Error ? error.message : String(error) };
   }
-  return { items: items.filter((item) => pattern.test(item.searchText)) };
+  return {
+    items: items.filter((item) => pattern.test(item.searchText)),
+    highlightPattern: new RegExp(pattern.source, "gi"),
+  };
 }
 
 // ─── Rendering ───────────────────────────────────────────────────────────────
@@ -209,12 +215,103 @@ function renderPanel(
   ];
 }
 
+interface TextSpan {
+  start: number;
+  end: number;
+}
+
+function originalTextSpans(item: PromptItem): TextSpan[] | undefined {
+  if (item.searchText.length === item.text.length) return undefined;
+
+  // Lowercasing can expand a character (İ becomes i plus a combining dot).
+  const spans: TextSpan[] = [];
+  let start = 0;
+  for (const character of item.text) {
+    const end = start + character.length;
+    const lowercaseLength = character.toLowerCase().length;
+    for (let index = 0; index < lowercaseLength; index++) {
+      spans.push({ start, end });
+    }
+    start = end;
+  }
+  return spans;
+}
+
+const graphemeSegmenter = new Intl.Segmenter();
+const PRINTABLE_ASCII = /^[ -~]*$/;
+const DEFAULT_BACKGROUND = "\x1b[49m";
+const BLACK_ON_BRIGHT_YELLOW = "\x1b[30;103m";
+const RESET_TEXT_COLORS = "\x1b[39;49m";
+
+function graphemeSpanLookup(text: string): (offset: number) => TextSpan {
+  const segments = graphemeSegmenter.segment(text)[Symbol.iterator]();
+  let current = segments.next().value;
+  // Lookups advance through the display text in order.
+  return (offset: number): TextSpan => {
+    while (current && current.index + current.segment.length <= offset) {
+      current = segments.next().value;
+    }
+    return current
+      ? { start: current.index, end: current.index + current.segment.length }
+      : { start: offset, end: offset + 1 };
+  };
+}
+
+function renderPromptText(
+  item: PromptItem,
+  selected: boolean,
+  theme: Theme,
+  pattern: RegExp | undefined,
+  width: number,
+): string {
+  const displayText = item.text.replace(/\n/g, " ");
+  const plain = (text: string) => (selected && text ? theme.fg("accent", text) : text);
+  if (!pattern) return plain(displayText);
+
+  const asciiPreview = PRINTABLE_ASCII.test(displayText.slice(0, width + 1));
+  const previewEnd = asciiPreview
+    ? width
+    : truncateToWidth(displayText, width, "").replace(/\x1b\[0m$/, "").length;
+  const graphemeAt = asciiPreview ? undefined : graphemeSpanLookup(displayText);
+  const originalSpans = originalTextSpans(item);
+
+  const matchBackground = theme.getBgAnsi("searchMatchBg");
+  // The system theme can use the terminal default background when no palette is reported.
+  const useThemeBackground = Boolean(matchBackground) && matchBackground !== DEFAULT_BACKGROUND;
+
+  let result = "";
+  let cursor = 0;
+  for (const match of item.searchText.matchAll(pattern)) {
+    const start = originalSpans?.[match.index]?.start ?? match.index;
+    if (start >= previewEnd) break;
+    const length = match[0].length;
+    if (length === 0) continue;
+
+    const lastIndex = match.index + length - 1;
+    const end = originalSpans?.[lastIndex]?.end ?? lastIndex + 1;
+    if (end <= cursor) continue;
+
+    // ANSI boundaries must not split a grapheme when the terminal measures it.
+    const visibleStart = start < cursor ? cursor : (graphemeAt?.(start).start ?? start);
+    const visibleEnd = graphemeAt?.(end - 1).end ?? end;
+
+    result += plain(displayText.slice(cursor, visibleStart));
+    const matchedText = displayText.slice(visibleStart, visibleEnd);
+    result += useThemeBackground
+      ? theme.bg("searchMatchBg", theme.fg("searchMatchText", matchedText))
+      : `${BLACK_ON_BRIGHT_YELLOW}${matchedText}${RESET_TEXT_COLORS}`;
+    cursor = visibleEnd;
+  }
+  return result + plain(displayText.slice(cursor));
+}
+
 function renderList(
   items: PromptItem[],
   selectedIndex: number,
   theme: Theme,
   width: number,
   maxVisible: number,
+  highlightPattern?: RegExp,
 ): string[] {
   if (items.length === 0) {
     return [` ${theme.fg("dim", "No matching prompts.")}`];
@@ -237,11 +334,9 @@ function renderList(
     // Time display
     const time = item.timeDisplay ? theme.fg("muted", ` [${item.timeDisplay}]`) : "";
 
-    // Truncate long prompts to fit time + text
-    const displayText = item.text.replace(/\n/g, " ");
-    const textStr = selected ? theme.fg("accent", displayText) : displayText;
+    const promptText = renderPromptText(item, selected, theme, highlightPattern, width);
 
-    lines.push(truncateToWidth(`${pointer}${num}${time}  ${textStr}`, width));
+    lines.push(truncateToWidth(`${pointer}${num}${time}  ${promptText}`, width));
   }
 
   if (start > 0) lines.unshift(truncateToWidth(` ${theme.fg("dim", "↑ more")}`, width));
@@ -295,9 +390,7 @@ export function createPromptHistoryBrowserComponent(config: PromptHistoryBrowser
     ...(loadGlobalItems ? { global: loadGlobalItems } : {}),
   };
   let closed = false;
-  let filterCache:
-    | { items: PromptItem[]; query: string; result: { items: PromptItem[]; error?: string } }
-    | undefined;
+  let filterCache: { items: PromptItem[]; query: string; result: FilterResult } | undefined;
 
   function finish(result: string | null): void {
     closed = true;
@@ -318,7 +411,7 @@ export function createPromptHistoryBrowserComponent(config: PromptHistoryBrowser
     ];
   }
 
-  const filteredItems = (): { items: PromptItem[]; error?: string } => {
+  const filteredItems = (): FilterResult => {
     const items = scopeItems();
     if (filterCache?.items === items && filterCache.query === state.query)
       return filterCache.result;
@@ -328,7 +421,6 @@ export function createPromptHistoryBrowserComponent(config: PromptHistoryBrowser
   };
 
   const visibleItems = (): PromptItem[] => filteredItems().items;
-  const searchError = (): string | undefined => filteredItems().error;
 
   function startScopeLoad(scope: LoadableScope): void {
     const loader = scopeLoaders[scope];
@@ -534,11 +626,13 @@ export function createPromptHistoryBrowserComponent(config: PromptHistoryBrowser
       } else if (currentLoad?.kind === "error") {
         body.push(truncateToWidth(` ${theme.fg("error", currentLoad.message)}`, inner));
       } else {
-        const error = searchError();
+        const { items, error, highlightPattern } = filteredItems();
         if (error) {
           body.push(truncateToWidth(` ${theme.fg("error", `Invalid regex: ${error}`)}`, inner));
         } else {
-          body.push(...renderList(visibleItems(), state.selectedIndex, theme, inner, maxVisible));
+          body.push(
+            ...renderList(items, state.selectedIndex, theme, inner, maxVisible, highlightPattern),
+          );
         }
       }
       body.push("");
